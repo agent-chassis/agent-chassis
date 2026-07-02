@@ -1,0 +1,345 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "cli-commands.json",
+  "summary": "wiki and agent-launch CLI command rows.",
+  "tool_count": 10,
+  "tools": [
+    {
+      "tool_name": "wiki-docs-policy-validate",
+      "display_name": "Validate docs policy",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- docs-policy validate --json",
+      "task_ids": [
+        "validate-docs-policy"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 90,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/docs-policy.mjs",
+        "packages/wiki-core/src/lib/docs-policy.mjs"
+      ]
+    },
+    {
+      "tool_name": "tools-describe",
+      "display_name": "Describe available tools",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- tools-describe [--task <task_id>|--tool <tool_name>] --json",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/tools-describe.mjs",
+        "packages/wiki-cli/src/run.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/cli-commands.json"
+      ],
+      "notes": "Local discovery fallback for agents; prefer the MCP surfaces when available. If neither runtime surface is available, inspect the checked-in descriptor directly as read-only reference data."
+    },
+    {
+      "tool_name": "wiki-search",
+      "display_name": "Wiki search",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- search --query <query> --json",
+      "task_ids": [
+        "search-wiki"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/search.mjs",
+        "packages/wiki-cli/src/run.mjs"
+      ],
+      "notes": "Compact CLI fallback for repo-scoped wiki and docs lookup. Results are bounded and preview-oriented; use the MCP `workspace_search_repo` route when you need the same compact search semantics from an agent session."
+    },
+    {
+      "tool_name": "wiki-read",
+      "display_name": "Wiki read",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- read --path <repo-relative-path> --json",
+      "task_ids": [
+        "read-canonical"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/read.mjs",
+        "packages/wiki-cli/src/run.mjs"
+      ],
+      "notes": "Detailed CLI fallback for operator inspection. It prints full markdown or record JSON, so it is not the daily-use compact path; use `workspace_read_page` or `workspace_get_record` for compact agent retrieval."
+    },
+    {
+      "tool_name": "wiki-validate-dispatch",
+      "display_name": "Validate dispatch readiness",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- validate-dispatch --unit <WK-ID|WK-ID#slice> --json",
+      "task_ids": [
+        "validate-dispatch"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/validate-dispatch.mjs",
+        "packages/wiki-core/src/lib/work-record-dispatch.mjs"
+      ],
+      "notes": "Compact CLI fallback for dispatch-readiness checks on a WK or slice. It returns the bounded decision envelope rather than the full readiness graph; use the MCP `workspace_validate_dispatch` route when the verbose/detail split is needed."
+    },
+    {
+      "tool_name": "agent-launch-provenance",
+      "display_name": "Inspect provenance",
+      "kind": "cli_command",
+      "entrypoint": "npm run agent-launch -- provenance <run_dir|provenance_path> --json",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "runtime_env",
+        "operator_input"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/agent-launch-quickstart.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/agent-launch-cli/src/commands/provenance.mjs",
+        "packages/agent-launch-cli/src/run.mjs"
+      ],
+      "notes": "Operator-shell utility for inspecting launcher runtime provenance directories."
+    },
+    {
+      "tool_name": "agent-launch-cleanup",
+      "display_name": "Cleanup runtime artifacts",
+      "kind": "cli_command",
+      "entrypoint": "npm run agent-launch -- cleanup",
+      "task_ids": [
+        "cleanup-runtime-artifacts"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "cleanup_runtime_state"
+      ],
+      "authority": [
+        "runtime_env",
+        "operator_input"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/agent-launch-quickstart.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/agent-launch-cli/src/commands/cleanup.mjs",
+        "packages/agent-launch-cli/src/run.mjs"
+      ],
+      "notes": "Operator-shell utility for removing stale local launcher runtime artifacts under .agent-runs/."
+    },
+    {
+      "tool_name": "agent-launch-review-legacy",
+      "display_name": "Reviewed blackboard review",
+      "kind": "cli_command",
+      "entrypoint": "npm run agent-launch -- review <instruction_path> --agent <name>",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "deactivated",
+      "recommended_route": "none",
+      "audience": [
+        "operator"
+      ],
+      "priority": 5,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "historical_surface",
+        "checked_in_descriptor"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/agent-launch-quickstart.md",
+        "docs/agent-launch-operator-entrypoints.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/agent-launch-cli/src/commands/review.mjs",
+        "packages/agent-launch-cli/src/run.mjs"
+      ],
+      "notes": "Deactivated historical reviewed-blackboard flow; fails closed."
+    },
+    {
+      "tool_name": "agent-launch-launch-legacy",
+      "display_name": "Reviewed blackboard launch",
+      "kind": "cli_command",
+      "entrypoint": "npm run agent-launch -- launch <review_id>",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "deactivated",
+      "recommended_route": "none",
+      "audience": [
+        "operator"
+      ],
+      "priority": 5,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "historical_surface",
+        "checked_in_descriptor"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/agent-launch-quickstart.md",
+        "docs/agent-launch-operator-entrypoints.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/agent-launch-cli/src/commands/launch.mjs",
+        "packages/agent-launch-cli/src/run.mjs"
+      ],
+      "notes": "Deactivated historical reviewed-blackboard flow; fails closed and never spawns a child agent."
+    },
+    {
+      "tool_name": "wiki-agent-faq",
+      "display_name": "Agent FAQ",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- agent-faq --json",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 90,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/agent-faq.mjs",
+        "packages/wiki-core/src/operations/agent-faq.mjs"
+      ],
+      "notes": "Operator/fallback parity for the workspace_agent_faq MCP tool. Lists the read-only agent-faq.v1 corpus or queries it by --id / --related-code; --json emits the same envelope the MCP tool returns."
+    }
+  ]
+}

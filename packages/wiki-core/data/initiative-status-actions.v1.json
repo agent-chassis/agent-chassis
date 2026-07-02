@@ -1,0 +1,401 @@
+{
+  "schema_version": "initiative-status-actions.v1",
+  "owner": "wiki-core initiative status action vocabulary",
+  "description": "Closed action and reason vocabulary for the read-only workspace_initiative_status coordinator surface. This descriptor is durable data consumed by later initiative-status derivation code. It defines compact advisory action output and does not grant authority to write records, dispatch roles, run lint, refresh metrics, persist graph evidence, or enforce policy.",
+  "advisory_contract": {
+    "surface": "workspace_initiative_status",
+    "read_only": true,
+    "action_semantics": "Actions are recommendations for which structured repo/wiki tool a coordinator may call next. The initiative-status surface itself must not perform the operation named by an action kind.",
+    "forbidden_effects": [
+      "workspace_write",
+      "record_write",
+      "dispatch",
+      "review_attestation_write",
+      "lint_or_generate",
+      "admission_metric_refresh",
+      "graph_impact_evidence_write",
+      "policy_enforcement",
+      "shell_or_raw_json_fallback"
+    ],
+    "authority_boundary": "This file is only the local initiative-status action vocabulary. Runtime blocker codes remain owned by runtime-blocker-codes.v1 and may be referenced only by code in the fields listed under runtime_blocker_references."
+  },
+  "default_action_shape": {
+    "required_fields": [
+      "id",
+      "kind",
+      "target_unit",
+      "reason_code",
+      "suggested_tool",
+      "priority",
+      "blocking"
+    ],
+    "compact_fields": [
+      "id",
+      "kind",
+      "target_unit",
+      "reason_code",
+      "suggested_tool",
+      "priority",
+      "blocking",
+      "label"
+    ],
+    "verbose_only_fields": [
+      "description",
+      "evidence_refs",
+      "suggested_parameters",
+      "runtime_blocker_code_refs",
+      "caveats"
+    ],
+    "reason_code_namespace": "initiative_status_local"
+  },
+  "runtime_blocker_references": {
+    "canonical_taxonomy_schema_version": "runtime-blocker-codes.v1",
+    "canonical_taxonomy_path": "packages/wiki-core/data/runtime-blocker-codes.v1.json",
+    "rule": "Do not copy or redefine runtime-blocker taxonomy codes here. When runtime blockers influence an advisory action, keep action.reason_code set to an initiative-status-local reason code and carry runtime taxonomy codes only by string reference in the allowed fields.",
+    "allowed_reference_fields": [
+      "action.runtime_blocker_code_refs[]",
+      "action.evidence_refs[].runtime_blocker_code",
+      "action.caveats[].runtime_blocker_code"
+    ],
+    "local_reason_codes_that_may_reference_runtime_blockers": [
+      "runtime_blocker_present",
+      "dispatch_readiness_blocked",
+      "review_transport_blocked",
+      "graph_impact_evidence_needed",
+      "admission_metrics_stale_or_missing",
+      "validation_failed"
+    ]
+  },
+  "priority_order": [
+    "resolve_runtime_blocker",
+    "validate_record",
+    "split_work",
+    "record_graph_impact_evidence",
+    "refresh_admission_metrics",
+    "dispatch_redteam",
+    "dispatch_worker",
+    "create_remediation_slice",
+    "dispatch_review",
+    "record_review_result",
+    "mark_slice_done",
+    "close_parent",
+    "run_generate_and_lint",
+    "run_lint",
+    "no_action"
+  ],
+  "sort": {
+    "default": [
+      "blocking descending",
+      "priority_order ascending",
+      "action.priority ascending",
+      "target_unit ascending",
+      "reason_code ascending",
+      "id ascending"
+    ],
+    "priority_values": {
+      "critical": 0,
+      "high": 10,
+      "medium": 20,
+      "low": 30,
+      "none": 90
+    },
+    "tie_break_rules": [
+      "Sort target_unit lexicographically by the canonical unit address, with a parent unit before one of its slice units.",
+      "For sibling slices, sort by the literal slice id string; do not infer numeric order from prose.",
+      "When all other fields match, sort by stable action id so repeated calls produce deterministic output."
+    ]
+  },
+  "action_kinds": [
+    {
+      "kind": "validate_record",
+      "label": "Validate record",
+      "suggested_tool": "workspace_work_record_validate",
+      "priority": "critical",
+      "advisory_only": true,
+      "default_description": "Record shape needs validation before a lifecycle action.",
+      "verbose_description": "Use when canonical WK JSON appears invalid, stale, or structurally incomplete. The initiative-status surface only recommends validation; it must not rewrite the record or reinterpret validation diagnostics."
+    },
+    {
+      "kind": "dispatch_worker",
+      "label": "Dispatch worker",
+      "suggested_tool": "workspace_agent_dispatch",
+      "priority": "high",
+      "advisory_only": true,
+      "default_description": "Implementation unit appears ready for worker dispatch.",
+      "verbose_description": "Use when a WK or slice is independently executable, unblocked, and shaped for implementation. This action does not dispatch a worker; coordinators must call the structured dispatch tool and monitor the run separately."
+    },
+    {
+      "kind": "dispatch_review",
+      "label": "Dispatch review",
+      "suggested_tool": "workspace_agent_dispatch",
+      "priority": "medium",
+      "advisory_only": true,
+      "default_description": "Implementation work appears to need findings-only review.",
+      "verbose_description": "Use when an implementation unit has landed changes or moved toward review and the mandatory findings-only review remains outstanding. The action must target a review-shaped unit or tell the coordinator to create one first."
+    },
+    {
+      "kind": "dispatch_redteam",
+      "label": "Dispatch redteam",
+      "suggested_tool": "workspace_agent_dispatch",
+      "priority": "high",
+      "advisory_only": true,
+      "default_description": "Design or authority risk appears to need redteam review.",
+      "verbose_description": "Use for architecture, protocol, authority, or high-risk design changes where redteam is required by the WK or risk posture. This action only points to structured redteam dispatch."
+    },
+    {
+      "kind": "record_review_result",
+      "label": "Record review result",
+      "suggested_tool": "workspace_record_review_attestation",
+      "priority": "medium",
+      "advisory_only": true,
+      "default_description": "A completed trusted review result appears ready to record.",
+      "verbose_description": "Use when a trusted reviewer or redteam run has completed and its accepted review-attestation evidence should be recorded. Non-completion review-result evidence is owned by the review-attestation substrate and must not be treated as clean-review attestation."
+    },
+    {
+      "kind": "create_remediation_slice",
+      "label": "Create remediation slice",
+      "suggested_tool": "workspace_work_record_upsert_slice",
+      "priority": "high",
+      "advisory_only": true,
+      "default_description": "Review or validation findings appear to require scoped remediation work.",
+      "verbose_description": "Use when changes_requested, blocked, failed, or validation evidence indicates new implementation work is needed. The action recommends creating or selecting a scoped implementation unit; it must not edit the tracker itself."
+    },
+    {
+      "kind": "mark_slice_done",
+      "label": "Mark slice done",
+      "suggested_tool": "workspace_work_record_set_status",
+      "priority": "low",
+      "advisory_only": true,
+      "default_description": "Slice appears ready for done status after closure and review.",
+      "verbose_description": "Use when a slice has completed implementation, validation, closure, and mandatory review evidence. The status write remains a separate structured work-record setter call."
+    },
+    {
+      "kind": "close_parent",
+      "label": "Close parent",
+      "suggested_tool": "workspace_work_record_set_status",
+      "priority": "low",
+      "advisory_only": true,
+      "default_description": "Parent tracker appears ready to close.",
+      "verbose_description": "Use when all required child slices are resolved and the parent has a coherent closure story. The action does not update parent status or closure fields."
+    },
+    {
+      "kind": "run_generate_and_lint",
+      "label": "Generate and lint",
+      "suggested_tool": "workspace_generate_and_lint",
+      "priority": "low",
+      "advisory_only": true,
+      "default_description": "Generated views may need refresh before lint.",
+      "verbose_description": "Use after structural wiki changes where generated views should be refreshed and linted. Repo-wide lint findings are diagnostic unless the selected WK owns the affected lint surface."
+    },
+    {
+      "kind": "run_lint",
+      "label": "Run lint",
+      "suggested_tool": "workspace_lint_repo",
+      "priority": "low",
+      "advisory_only": true,
+      "default_description": "Read-only repo lint appears useful for verification.",
+      "verbose_description": "Use for read-only validation when generated views do not need refresh. The initiative-status surface must not run lint itself or absorb unrelated repo-wide findings into the selected WK."
+    },
+    {
+      "kind": "refresh_admission_metrics",
+      "label": "Refresh admission metrics",
+      "suggested_tool": "workspace_work_record_refresh_admission_metrics",
+      "priority": "high",
+      "advisory_only": true,
+      "default_description": "Worker-admission derived evidence appears stale or missing.",
+      "verbose_description": "Use when dispatch readiness or Node Engine admission evidence is absent, stale, or target metrics need rematerialization. Refreshing metrics is a separate structured write-capable operation."
+    },
+    {
+      "kind": "record_graph_impact_evidence",
+      "label": "Record graph impact",
+      "suggested_tool": "workspace_record_graph_impact_evidence",
+      "priority": "high",
+      "advisory_only": true,
+      "default_description": "Graph-impact evidence appears required or stale.",
+      "verbose_description": "Use when a unit requires graph-impact evidence and a trusted graph-impact query should be persisted. The initiative-status surface must not query or write graph evidence itself."
+    },
+    {
+      "kind": "resolve_runtime_blocker",
+      "label": "Resolve runtime blocker",
+      "suggested_tool": "workspace_runtime_blocker_taxonomy",
+      "priority": "critical",
+      "advisory_only": true,
+      "default_description": "A runtime or operator blocker appears to be preventing progress.",
+      "verbose_description": "Use when structured diagnostics expose runtime-blocker taxonomy codes such as missing transport, backend unavailable, read-only mount, or review transport failure. Runtime-blocker codes are referenced by code only and remain defined in runtime-blocker-codes.v1."
+    },
+    {
+      "kind": "split_work",
+      "label": "Split work",
+      "suggested_tool": "workspace_work_record_upsert_slice",
+      "priority": "critical",
+      "advisory_only": true,
+      "default_description": "The current unit appears too broad or not independently executable.",
+      "verbose_description": "Use when scope, write_scope, acceptance, target evidence, or atomicity checks indicate the coordinator should narrow or split work before dispatch. The action must preserve WK lifecycle boundaries and does not create slices itself."
+    },
+    {
+      "kind": "no_action",
+      "label": "No action",
+      "suggested_tool": null,
+      "priority": "none",
+      "advisory_only": true,
+      "default_description": "No coordinator action is currently suggested.",
+      "verbose_description": "Use for done, parked, cancelled, or otherwise settled units, or when the compact action lens finds no structured next step. This is not proof that all external systems are healthy."
+    }
+  ],
+  "local_reason_codes": [
+    {
+      "code": "record_invalid",
+      "label": "Record invalid",
+      "default_action": "validate_record",
+      "blocking": true,
+      "description": "Canonical WK JSON failed or appears likely to fail structured validation."
+    },
+    {
+      "code": "record_needs_validation",
+      "label": "Validation needed",
+      "default_action": "validate_record",
+      "blocking": false,
+      "description": "A lifecycle transition or structural edit needs explicit work-record validation."
+    },
+    {
+      "code": "dispatch_readiness_blocked",
+      "label": "Dispatch blocked",
+      "default_action": "validate_record",
+      "blocking": true,
+      "description": "Structured dispatch readiness reports the unit is not launchable. Runtime-blocker taxonomy codes, if present, must be carried only through runtime blocker reference fields."
+    },
+    {
+      "code": "implementation_ready",
+      "label": "Worker ready",
+      "default_action": "dispatch_worker",
+      "blocking": false,
+      "description": "Implementation work appears independently executable and ready for structured worker dispatch."
+    },
+    {
+      "code": "review_required",
+      "label": "Review required",
+      "default_action": "dispatch_review",
+      "blocking": false,
+      "description": "Mandatory findings-only review appears outstanding for an implementation unit."
+    },
+    {
+      "code": "redteam_required",
+      "label": "Redteam required",
+      "default_action": "dispatch_redteam",
+      "blocking": false,
+      "description": "Risk posture or WK contract indicates redteam review should happen before implementation proceeds."
+    },
+    {
+      "code": "review_result_ready",
+      "label": "Review result ready",
+      "default_action": "record_review_result",
+      "blocking": false,
+      "description": "A trusted review or redteam run result appears ready for bounded review-attestation recording."
+    },
+    {
+      "code": "remediation_required",
+      "label": "Remediation required",
+      "default_action": "create_remediation_slice",
+      "blocking": true,
+      "description": "Review, redteam, validation, or derived evidence indicates implementation remediation is needed before closure."
+    },
+    {
+      "code": "slice_ready_to_close",
+      "label": "Slice ready",
+      "default_action": "mark_slice_done",
+      "blocking": false,
+      "description": "A slice appears to have the closure, validation, and review evidence needed for a coordinator status update."
+    },
+    {
+      "code": "parent_ready_to_close",
+      "label": "Parent ready",
+      "default_action": "close_parent",
+      "blocking": false,
+      "description": "The parent tracker appears ready for closure after child units have settled."
+    },
+    {
+      "code": "generated_views_need_refresh",
+      "label": "Generate needed",
+      "default_action": "run_generate_and_lint",
+      "blocking": false,
+      "description": "Structural wiki changes appear to require generated views and lint verification."
+    },
+    {
+      "code": "lint_verification_needed",
+      "label": "Lint needed",
+      "default_action": "run_lint",
+      "blocking": false,
+      "description": "Read-only repo lint appears useful for verification or caveat classification."
+    },
+    {
+      "code": "validation_failed",
+      "label": "Validation failed",
+      "default_action": "run_lint",
+      "blocking": true,
+      "description": "Structured validation failed. Runtime-blocker taxonomy codes may be referenced only when the failure originated from that taxonomy."
+    },
+    {
+      "code": "admission_metrics_stale_or_missing",
+      "label": "Admission metrics needed",
+      "default_action": "refresh_admission_metrics",
+      "blocking": true,
+      "description": "Worker-admission derived evidence appears stale, absent, or incomplete for the selected unit."
+    },
+    {
+      "code": "graph_impact_evidence_needed",
+      "label": "Graph impact needed",
+      "default_action": "record_graph_impact_evidence",
+      "blocking": true,
+      "description": "Graph-impact evidence appears required, absent, stale, or blocked by degraded graph state."
+    },
+    {
+      "code": "runtime_blocker_present",
+      "label": "Runtime blocker",
+      "default_action": "resolve_runtime_blocker",
+      "blocking": true,
+      "description": "A runtime or operator blocker from runtime-blocker-codes.v1 is present. The local reason code stays stable while the taxonomy code is referenced separately."
+    },
+    {
+      "code": "work_too_broad",
+      "label": "Split needed",
+      "default_action": "split_work",
+      "blocking": true,
+      "description": "The selected work unit appears too broad, crosses lifecycle boundaries, or lacks bounded target evidence."
+    },
+    {
+      "code": "scope_mismatch",
+      "label": "Scope mismatch",
+      "default_action": "split_work",
+      "blocking": true,
+      "description": "Requested initiative and unit scope do not align, or the unit's declared scope contradicts the coordinator action being considered."
+    },
+    {
+      "code": "no_pending_action",
+      "label": "No pending action",
+      "default_action": "no_action",
+      "blocking": false,
+      "description": "No structured coordinator action is currently suggested by the initiative-status lens."
+    },
+    {
+      "code": "closed_or_inactive",
+      "label": "Closed or inactive",
+      "default_action": "no_action",
+      "blocking": false,
+      "description": "The target unit is done, parked, cancelled, or otherwise not awaiting an initiative-status action."
+    }
+  ],
+  "output_guidance": {
+    "compact_label_budget": "Labels should remain short enough for bounded default top_actions output.",
+    "selected_action_mode": "Verbose descriptions, evidence references, suggested parameters, and caveats are available only when a caller asks for selected-action or verbose/progressive-disclosure output.",
+    "default_output_prohibitions": [
+      "full WK summaries",
+      "slice bodies",
+      "acceptance criteria arrays",
+      "validation arrays",
+      "docs lists",
+      "closure prose",
+      "long diagnostics",
+      "copied runtime-blocker taxonomy entries"
+    ]
+  }
+}

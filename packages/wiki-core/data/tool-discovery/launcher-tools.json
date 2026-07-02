@@ -1,0 +1,215 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "launcher-tools.json",
+  "summary": "Dispatch, run-status, coordination preflight, and runtime-blocker-taxonomy tools.",
+  "tool_count": 5,
+  "tools": [
+    {
+      "tool_name": "workspace_agent_dispatch",
+      "display_name": "Workspace agent dispatch",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_agent_dispatch",
+      "task_ids": [
+        "dispatch-worker",
+        "dispatch-reviewer",
+        "dispatch-redteam"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 130,
+      "side_effects": [
+        "process_spawn"
+      ],
+      "authority": [
+        "launcher_registry",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/agent-launch-quickstart.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/agent-dispatch-identity.mjs",
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+      ],
+      "notes": "MCP-only agent role dispatch for worker, reviewer, and redteam over same-user stdio MCP (not an authentication boundary; the real boundary is the launcher sandbox plus work-record admission). Caller-supplied identity carriers (request payload, prompt text, ambient env, argv, claimed_identity.role) are refused. Worker and reviewer accept a WK or slice; redteam also accepts an IN. Non-dispatchable subjects refuse with work_record_readiness_failure. A reviewer subject with non-empty write_scope refuses with role_policy_violation / reviewer_write_scope_nonempty; remediate with a separate findings-only review unit, not a role change or readiness bypass. Refusals use stable runtime-blocker taxonomy codes. Route worker/reviewer/redteam dispatch through this MCP tool only; if the launch backend is unconfigured, report the blocker rather than falling back to wrappers, shell, env, or bwrap changes.",
+      "tier_text": {
+        "paid_cce": {
+          "notes": "MCP-only agent role dispatch for worker, reviewer, and redteam over same-user stdio MCP (not an authentication boundary; the real boundary is the launcher sandbox plus work-record admission). Caller-supplied identity carriers (request payload, prompt text, ambient env, argv, claimed_identity.role) are refused. Worker and reviewer accept a WK or slice; redteam also accepts an IN. Non-dispatchable subjects refuse with work_record_readiness_failure. A reviewer subject with non-empty write_scope refuses with role_policy_violation / reviewer_write_scope_nonempty; remediate with a separate findings-only review unit. Refusals use stable runtime-blocker taxonomy codes. When CCE/Node Engine refusal output includes a valid worker_admission.recovery.v1 object, treat it as the primary recovery projection: pack_result.recovery is current-decision recovery, while top-level route-problem recovery applies before a pack_result exists. Both are advisory, non-authorizing, resubmission-only guidance; they do not satisfy review evidence, accepted authority, launcher policy, or admission. Legacy reason-fact recovery is compatibility-only when no valid recovery object is present. Malformed, unknown-version, unknown-field, or projection-mismatched recovery fails closed: preserve the underlying refusal, report bounded recovery-contract mismatch guidance, resubmit through CCE, and do not infer local admission, hidden controls, bypasses, or synthesized authorities. Route worker/reviewer/redteam dispatch through this MCP tool only; if the launch backend is unconfigured, report the blocker rather than falling back to wrappers, shell, env, or bwrap changes."
+        }
+      }
+    },
+    {
+      "tool_name": "workspace_agent_run_status",
+      "display_name": "Workspace agent run status",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_agent_run_status",
+      "task_ids": [
+        "query-agent-run-status"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 128,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "launcher_registry",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/agent-launch-quickstart.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+      ],
+      "notes": "Monitor-handle status query for workspace_agent_dispatch. Caller-supplied identity carriers are refused before handle lookup. Monitor handles are opaque server-issued tokens scoped to subject and role; subject mismatch, replay, and unknown handles refuse via the monitor_handle_* taxonomy. Reports the run lifecycle vocabulary launching, running, succeeded, failed, or cancelled. With no launch executor configured, every handle resolves to MONITOR_HANDLE_UNKNOWN (status=null) — a stable refusal, not the normal posture. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success with structured_role_result.valid:false is EXPECTED and is not a failed child run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key. Read-only."
+    },
+    {
+      "tool_name": "workspace_agent_run_wait",
+      "display_name": "Workspace agent run wait",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_agent_run_wait",
+      "task_ids": [
+        "query-agent-run-status"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 127,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "launcher_registry",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/agent-launch-quickstart.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/dispatch-tools.mjs",
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Bounded-wait companion to workspace_agent_run_status: waits for a dispatched run to reach a terminal state or until a bounded polling window expires, returning one response per call. Omit timeout_ms for the client-safe 60000 ms default; issue successive bounded waits across turns rather than one long client-blocking wait. timed_out:true is a clean wait-window timeout, not a failed run — retry the wait or call run-status with the same monitor_handle; do not relaunch. Out-of-range or non-integer timeout_ms/poll_interval_ms are refused, never silently clamped. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success with structured_role_result.valid:false is EXPECTED and is not a failed run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key. Shares identity-carrier refusals, workspace resolution, and the monitor_handle_* taxonomy with run-status. Read-only."
+    },
+    {
+      "tool_name": "workspace_runtime_blocker_taxonomy",
+      "display_name": "Workspace runtime blocker taxonomy",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_runtime_blocker_taxonomy",
+      "task_ids": [
+        "describe-runtime-blocker-taxonomy"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 91,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md",
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/runtime-blocker-codes.v1.json",
+        "packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Read-only schema-backed runtime blocker taxonomy: the canonical code catalog, categories, the deterministic degraded-state mapping, and the bootstrap-state subset. Dispatch (workspace_agent_dispatch) and the launcher must select blocker codes from this taxonomy rather than inventing ad hoc strings. reviewer_write_scope_nonempty is a structured reason on role_policy_violation (not a separate code), remediated by a separate findings-only review unit."
+    },
+    {
+      "tool_name": "workspace_coordination_preflight",
+      "display_name": "Workspace coordination preflight",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_coordination_preflight",
+      "task_ids": [
+        "coordination-preflight"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 90,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md",
+        "docs/agent-launch-quickstart.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/coordination-preflight.mjs",
+        "packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Read-only coordinator/orchestrator preflight: reports role, caller/session role, subject, allowed durable write surfaces (docs/, wiki/), the implementation/test edit prohibition, repo/docs/wiki writability, available structured dispatch/validation routes, and active runtime blocker codes. A fully read-only mount surfaces as read_only_mount (filesystem category), not as role policy. Caller-supplied identity carriers are refused; role and caller_session_role are caller-asserted introspection knobs."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "tsBuildInfoFile": "../../.cache/tsconfig/wiki-core.tsbuildinfo"
+  },
+  "include": [
+    "data/**/*.mjs",
+    "src/**/*.mjs"
+  ]
+}

@@ -1,0 +1,172 @@
+{
+  "title": "agent-role-result.v1",
+  "description": "Structural JSON Schema superset for child-emitted worker, reviewer, and redteam role results. Reshaped (WK-1098#SLICE-019) to the OpenAI strict structured-output subset so ONE artifact serves both Claude (--json-schema) and Codex (--output-schema): every property is required and optional fields are nullable (null == absent), no unsupported validation keywords (const/minLength/maxLength/minimum/pattern/format), and no oneOf/allOf/anyOf combinator anywhere (Anthropic input_schema subset). Launcher validateAgentRoleResult remains authoritative for the cross-field semantics the structural schema cannot express, and treats null and absent as equivalent for optional fields.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "reported_role",
+    "reported_subject",
+    "reported_outcome",
+    "summary",
+    "findings",
+    "finding_counts",
+    "reviewed_controls"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["agent-role-result.v1"]
+    },
+    "reported_role": {
+      "type": "string",
+      "enum": ["worker", "reviewer", "redteam"]
+    },
+    "reported_subject": {
+      "type": "string"
+    },
+    "reported_outcome": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "partial",
+        "blocked",
+        "failed",
+        "no_findings",
+        "passed_no_blocking_or_medium_findings",
+        "changes_requested"
+      ]
+    },
+    "summary": {
+      "type": ["string", "null"]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "finding_counts": {
+      "$ref": "#/$defs/finding_counts"
+    },
+    "reviewed_controls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reviewed_control"
+      }
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["id", "title", "severity", "blocking", "affected_paths", "control_id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "info"]
+        },
+        "blocking": {
+          "type": "boolean"
+        },
+        "affected_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/affected_path"
+          }
+        },
+        "control_id": {
+          "$ref": "#/$defs/finding_control_id"
+        }
+      }
+    },
+    "affected_path": {
+      "type": "object",
+      "required": ["path", "line"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "type": ["integer", "null"]
+        }
+      }
+    },
+    "finding_counts": {
+      "type": "object",
+      "required": ["total", "blocking", "critical", "high", "medium", "low", "info"],
+      "additionalProperties": false,
+      "properties": {
+        "total": {
+          "type": "integer"
+        },
+        "blocking": {
+          "type": "integer"
+        },
+        "critical": {
+          "type": "integer"
+        },
+        "high": {
+          "type": "integer"
+        },
+        "medium": {
+          "type": "integer"
+        },
+        "low": {
+          "type": "integer"
+        },
+        "info": {
+          "type": "integer"
+        }
+      }
+    },
+    "reviewed_control": {
+      "type": "object",
+      "required": ["control_id", "result"],
+      "additionalProperties": false,
+      "properties": {
+        "control_id": {
+          "$ref": "#/$defs/reviewed_control_id"
+        },
+        "result": {
+          "type": "string",
+          "enum": ["pass", "fail"]
+        }
+      }
+    },
+    "reviewed_control_id": {
+      "type": "string",
+      "enum": [
+        "write_scope_total_loc",
+        "max_write_file_loc",
+        "write_scope_count",
+        "acceptance_criteria_count",
+        "validation_command_count",
+        "expected_changed_line_budget",
+        "declared_runtime_mode_count",
+        "artifact_kind_count"
+      ]
+    },
+    "finding_control_id": {
+      "type": ["string", "null"],
+      "enum": [
+        "write_scope_total_loc",
+        "max_write_file_loc",
+        "write_scope_count",
+        "acceptance_criteria_count",
+        "validation_command_count",
+        "expected_changed_line_budget",
+        "declared_runtime_mode_count",
+        "artifact_kind_count",
+        null
+      ]
+    }
+  }
+}

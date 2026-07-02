@@ -1,0 +1,877 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "mcp-tools.json",
+  "summary": "MCP discovery, read, validation, search, record evidence, and contract-manifest tools.",
+  "tool_count": 21,
+  "tools": [
+    {
+      "tool_name": "workspace_node_engine_admission_runtime_diagnostic",
+      "display_name": "Workspace Chassis Control Engine admission runtime diagnostic",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_node_engine_admission_runtime_diagnostic",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 106,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/agent-launch-quickstart.md",
+        "docs/mcp-dispatch-runtime-contract.md",
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/lib/dispatch-tools.mjs",
+        "packages/wiki-mcp/src/lib/tool-profile.mjs",
+        "packages/agent-launch-cli/src/lib/workspace-agent-worker-admission.mjs",
+        "packages/wiki-core/src/lib/node-engine-api-client.mjs"
+      ],
+      "notes": "Read-only agent-safe MCP route that diagnoses the running MCP server process (not the caller shell) for Chassis Control Engine worker_admission_v1 runtime config. Reports only source names and booleans (service URL, API key, worker-admission route, request-contract digest presence, and whether the remote-admission observability path is loaded); never returns any secret value, route value, digest, key hash, bearer material, project id, or request/response body."
+    },
+    {
+      "tool_name": "workspace_tools_list",
+      "display_name": "Workspace tools list",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_tools_list",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 99,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/lib/tool-discovery.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json"
+      ],
+      "notes": "Compact daily-use MCP discovery surface for bounded catalog scans. Defaults to the first 20 compact entries and supports task_id, tool_name, and limit filters so agents do not pull the full catalog into context by accident. Use workspace_tools_describe for targeted per-tool detail and workspace_tools_query for filtered task_id/tool_name lookups; full descriptor fields remain available through explicit verbose/detail flows."
+    },
+    {
+      "tool_name": "workspace_tools_describe",
+      "display_name": "Workspace tools describe",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_tools_describe",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-core/src/lib/tool-discovery.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Targeted MCP detail surface for a known tool_name or a narrow filtered set; compact by default, pass verbose:true for the full descriptor fields. For routine bounded catalog browsing prefer the compact workspace_tools_list; for a known task_id/tool_name lookup use workspace_tools_query. CLI fallback: `npm run wiki -- tools-describe --json`."
+    },
+    {
+      "tool_name": "workspace_tools_query",
+      "display_name": "Workspace tools query",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_tools_query",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 95,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-core/src/lib/tool-discovery.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Filtered MCP lookup for a known task_id or exact tool_name; already bounded, so it returns full entries by default (pass verbose:false for compact). For routine bounded catalog browsing prefer workspace_tools_list; for targeted per-tool detail use workspace_tools_describe. CLI fallback: `npm run wiki -- tools-describe --task <task_id>|--tool <tool_name> --json`."
+    },
+    {
+      "tool_name": "workspace_read_mcp_content_reference",
+      "display_name": "Workspace read MCP content reference",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_read_mcp_content_reference",
+      "task_ids": [
+        "read-canonical"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 94,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/tool-discovery.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/mcp-response.mjs",
+        "packages/wiki-mcp/src/lib/tool-profile.mjs"
+      ],
+      "notes": "Read-only agent-safe MCP route for byte-range reads from server-side response content references. Oversized tool results spill the complete JSON payload to the wiki-mcp runtime state directory and return a bounded preview plus a ref_id; callers use this tool with offset and length, base64-decode each data_base64 range, and concatenate bytes to reassemble the complete payload losslessly without carrying an oversized stdio frame."
+    },
+    {
+      "tool_name": "get_contract_manifest",
+      "display_name": "Get contract manifest",
+      "kind": "mcp_tool",
+      "entrypoint": "get_contract_manifest",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 93,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-core/src/lib/contract.mjs",
+        "packages/wiki-core/contract/manifest.json"
+      ],
+      "notes": "Read-only MCP route that returns the shared wiki contract manifest (conventions, lint, schema, taxonomy, retrieval, query, and template references) from the checked-in contract tree. Takes no caller arguments and no caller-supplied filesystem root; the manifest is provenance/reference data, not authority to act."
+    },
+    {
+      "tool_name": "workspace_agent_dispatch_identity_contract",
+      "display_name": "Workspace agent dispatch identity contract",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_agent_dispatch_identity_contract",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 92,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/agent-launch-quickstart.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/agent-dispatch-identity.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json"
+      ],
+      "notes": "Read-only introspection for the dispatch caller/session identity and bootstrap review contract. Identity authority must be launcher- or transport-minted; caller-supplied role identity is refused. Reports the current bootstrap state (bootstrap_exception_active / bootstrap_review_missing / bootstrap_exception_consumed). workspace_agent_dispatch is the active supported MCP dispatch surface.",
+      "tier_text": {
+        "paid_cce": {
+          "notes": "Read-only introspection for the dispatch caller/session identity and bootstrap review contract. Identity authority must be launcher- or transport-minted; caller-supplied role identity is refused. Reports the current bootstrap state (bootstrap_exception_active / bootstrap_review_missing / bootstrap_exception_consumed), and under a valid paid/CCE key posture the graph_impact_persistence_unavailable state for graph-impact evidence persistence prerequisites. workspace_agent_dispatch is the active supported MCP dispatch surface."
+        }
+      }
+    },
+    {
+      "tool_name": "workspace_search_repo",
+      "display_name": "Workspace search repo",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_search_repo",
+      "task_ids": [
+        "search-wiki"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP search surface for repo-scoped wiki and docs lookup; compact and preview-oriented by default. For a full page or canonical record body use workspace_read_page or workspace_get_record instead. CLI fallback: `npm run wiki -- search --query <query> --json`."
+    },
+    {
+      "tool_name": "workspace_build_search_index",
+      "display_name": "Workspace build search index",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_build_search_index",
+      "task_ids": [
+        "search-wiki"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 103,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-core/src/operations/build-search-index.mjs"
+      ],
+      "notes": "Write-capable MCP route that builds or refreshes the lexical wiki/docs search index for a configured workspace repository — the explicit index-builder companion to workspace_search_repo. Pass reindex:true for a full rebuild. Resolves the repository through configured aliases and accepts no caller-supplied filesystem root. CLI fallback: `npm run wiki -- build-search-index`."
+    },
+    {
+      "tool_name": "workspace_read_page",
+      "display_name": "Workspace read page",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_read_page",
+      "task_ids": [
+        "read-canonical"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 109,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP page-read surface for repo-relative markdown paths and canonical JSON records; compact by default (omits body/raw), widened with include_body, include_raw, include_record, or verbose. For tracker WK-level reads, detailed done/cancelled/parked slice bodies and WK-level agent note bodies are intentionally omitted; counts, omission metadata, and agent_notes_bytes on included slice rows remain available. Use selected_slice:<slice-id> to read that slice's notes and agent_notes_bytes; full/debug opt-ins can retrieve complete detail and may spill. Graph-evidence sidecars at wiki/work-records/evidence/WK-####.graph.json are readable through this same tool (compact format `graph-evidence-sidecar`) and are replay/debug data, never dispatch authority: pass selected_slice:<slice-id> for one slice's replay entry, selected_record:true for only the record-level entry, or include_record/verbose for the full sidecar. CLI fallback: `npm run wiki -- read --path <repo-relative-path> --json`."
+    },
+    {
+      "tool_name": "workspace_get_record",
+      "display_name": "Workspace get record",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_get_record",
+      "task_ids": [
+        "read-canonical"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 108,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP canonical-record read surface for durable work-graph IDs; compact by default (omits the full record object and raw JSON), widened with include_record, include_raw, or verbose, and include_body for markdown records. For tracker work-record-level reads, detailed done/cancelled/parked slice bodies and work-record-level agent note bodies are intentionally omitted; counts, omission metadata, and agent_notes_bytes on included slice rows remain available. Use selected_slice:<slice-id> for that slice's notes and agent_notes_bytes; full/debug opt-ins can retrieve complete detail and may spill. CLI fallback: `npm run wiki -- get-record --id <work-graph-id|area-slug> --json`."
+    },
+    {
+      "tool_name": "workspace_validate_dispatch",
+      "display_name": "Workspace validate dispatch",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_validate_dispatch",
+      "task_ids": [
+        "validate-dispatch"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 114,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/contract/manifest.json",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/validate-dispatch.mjs",
+        "packages/wiki-core/src/lib/work-record-dispatch.mjs"
+      ],
+      "notes": "Preferred MCP dispatch-readiness surface for a WK or slice; read-only, returns the structured readiness envelope without touching the record. Compact by default (decision code, bounded reasons, next action); verbose:true restores the full envelope. Free/local readiness covers only the structural runnability floor (write_scope, acceptance, validation present, a supported role, a resolvable subject, a fresh source digest). Per DEC-0123/DEC-0125 a confirmed no-Node-Engine posture renders no local admissibility judgment, so admissibility threshold analysis is not part of free-tier readiness guidance. CLI fallback is operator-only.",
+      "tier_text": {
+        "paid_cce": {
+          "notes": "Preferred MCP dispatch-readiness surface for a WK or slice; read-only, returns the structured readiness envelope without touching the record. Compact by default (decision code, bounded reasons, next action); verbose:true restores the full envelope. Under a valid paid/CCE key posture the readiness envelope also carries Node-Engine-returned admissibility detail: blast-radius level, cluster count, and the CCE verdict/reason codes and recovery. These are NE-returned judgments and are reported as such, distinguished from the raw measured carrier facts the local layer forwards; the local layer renders no threshold verdict of its own (DEC-0125). Set node_engine_admissibility:true to evaluate CCE-exclusive implementation admissibility for a structurally dispatchable unit; only the CCE pack path can return an admit and there is no local admit fallback. CLI fallback is operator-only."
+        }
+      }
+    },
+    {
+      "tool_name": "workspace_record_graph_impact_evidence",
+      "display_name": "Workspace record graph-impact evidence",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_record_graph_impact_evidence",
+      "task_ids": [
+        "persist-graph-impact-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 112,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/contract/manifest.json",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-admission-derived-evidence.mjs"
+      ],
+      "notes": "Agent-safe MCP route for persisting graph-impact derived evidence onto a WK or slice. Resolves the workspace through configured aliases; rejects caller-supplied filesystem roots and shell output as authority. The graph_impact payload must be an envelope produced by the workspace code-index graph-impact surface (graph_impact_paths or graph_impact_diff), and the persisted entry is validated against the work-record schema before writing. Compact by default; verbose:true for raw graph_state and full derived evidence."
+    },
+    {
+      "tool_name": "workspace_record_review_attestation",
+      "display_name": "Workspace record review attestation",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_record_review_attestation",
+      "task_ids": [
+        "record-review-attestation"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 113,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/contract/manifest.json"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/tool-profile.mjs",
+        "packages/wiki-mcp/src/lib/review-attestation-tools.mjs",
+        "packages/wiki-core/src/lib/work-record-review-attestation.mjs",
+        "packages/wiki-core/src/lib/review-attestation-pack-carry.mjs"
+      ],
+      "notes": "Agent-safe MCP route for recording bounded review-attestation evidence onto a WK or slice after a trusted findings-only reviewer or redteam run. Binds the selected unit to the canonical record and source_digest and derives review facts from launcher/backend-minted run status, not caller prose, shell output, or raw final_result bodies. Records evidence only: it does not write accepted_authorities[], does not locally convert needs_review to admit, and does not replace Chassis Control Engine admission-time review validation."
+    },
+    {
+      "tool_name": "workspace_generate_and_lint",
+      "display_name": "Workspace generate and lint",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_generate_and_lint",
+      "task_ids": [
+        "generate-and-lint"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 111,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/generate-and-lint.mjs",
+        "packages/wiki-core/src/operations/generate.mjs",
+        "packages/wiki-core/src/operations/lint.mjs"
+      ],
+      "notes": "Write-capable agent-safe MCP route that regenerates the non-canonical wiki views and then lints the configured workspace repository; use after structural wiki changes. Optional max_findings bounds returned findings (omit for the compact default, 0 for counts only, or a positive integer with no hard upper bound; large caps can produce large responses). The set-status/set-closure review/done transitions run this path automatically and surface its result as an advisory closeout_lint summary. CLI fallback: `npm run wiki -- generate-and-lint`."
+    },
+    {
+      "tool_name": "workspace_lint_repo",
+      "display_name": "Workspace lint repo",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_lint_repo",
+      "task_ids": [
+        "lint-repo"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-core/src/operations/lint.mjs",
+        "packages/wiki-core/src/operations/generate-and-lint.mjs"
+      ],
+      "notes": "Read-only agent-safe MCP route that validates a configured workspace repository against the shared wiki contract without writing views, caches, or records; use workspace_generate_and_lint when views must be refreshed first. Optional max_findings bounds returned findings (omit for the compact default, 0 for counts only, or a positive integer with no hard upper bound; large caps can produce large responses)."
+    },
+    {
+      "tool_name": "workspace_autofix_docs_backlinks",
+      "display_name": "Workspace autofix docs backlinks",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_autofix_docs_backlinks",
+      "task_ids": [
+        "lint-repo"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 109,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-core/src/operations/autofix-docs-backlinks.mjs",
+        "packages/wiki-core/src/operations/lint.mjs"
+      ],
+      "notes": "Explicit opt-in MCP route for repairing only missing docs backlink comments in canonical docs pages. It is separate from read-only workspace_lint_repo and from workspace_generate_and_lint, which remain non-autofixing. The route recomputes fresh lint findings internally, only applies structured missing_docs_backlink findings after docs-root revalidation, and never accepts caller-supplied findings as write authority; optional path/id/comment inputs are narrowing filters only."
+    },
+    {
+      "tool_name": "workspace_docs_policy_validate",
+      "display_name": "Workspace docs policy validate",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_docs_policy_validate",
+      "task_ids": [
+        "validate-docs-policy"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 105,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/docs-policy.mjs",
+        "packages/wiki-core/src/operations/docs-policy.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Structured docs-policy validator that detects agent-facing non-MCP role-dispatch authority drift; operator/internal sections classified by heading are audience-scoped and do not automatically fail. CLI fallback: `npm run wiki -- docs-policy validate --json`."
+    },
+    {
+      "tool_name": "workspace_agent_faq",
+      "display_name": "Workspace agent FAQ",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_agent_faq",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 104,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/agent-faq.v1.json",
+        "packages/wiki-core/src/operations/agent-faq.mjs",
+        "packages/wiki-mcp/src/lib/agent-faq-tools.mjs"
+      ],
+      "notes": "Read-only agent FAQ served from the agent-faq.v1 known-issues corpus; each entry pairs a recurring symptom and cause with the exact structured workspace_* route(s) to resolve it and the responsible actor (agent vs operator). Returns all entries by default; pass id for one entry or related_code to filter by a runtime-blocker code. Output is tier-projected: free/local responses show only source-available coordination routes and omit paid/CCE remediation routes and next actions, which appear only under a valid paid/CCE key posture. Accepts no caller-supplied filesystem root. CLI fallback is operator-only."
+    },
+    {
+      "tool_name": "workspace_record_review_result_evidence",
+      "display_name": "Workspace record review-result evidence",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_record_review_result_evidence",
+      "task_ids": [
+        "record-review-result-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 111,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/tool-profile.mjs",
+        "packages/wiki-core/src/lib/work-record-review-results.mjs",
+        "packages/wiki-core/src/operations/work-record-review-results.mjs"
+      ],
+      "notes": "Agent-safe MCP route for recording coordination-only review-result evidence onto a WK or slice when a trusted reviewer or redteam run yields `changes_requested` role-result evidence or structured missing-result/runtime-failure evidence. Keeps this surface distinct from accepted/no-findings review attestation and from completion-satisfying review evidence. Binds the selected unit to the canonical record and source_digest and derives facts from launcher/backend-minted run status, not caller prose, shell output, or raw final_result bodies. Records evidence only: it does not write accepted_authorities[], does not locally convert needs_review to admit, and does not replace Chassis Control Engine admission-time review validation."
+    },
+    {
+      "tool_name": "workspace_run_validation",
+      "display_name": "Workspace run validation",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_run_validation",
+      "task_ids": [
+        "run-validation"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent"
+      ],
+      "priority": 113,
+      "side_effects": [
+        "process_spawn"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "work_record",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-operation-reference.md",
+        "docs/enforcement-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
+        "packages/wiki-mcp/src/lib/work-record-read-tools.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Agent-safe MCP route for workers to run declared Node test validation for an implementation unit without raw shell or raw exec. Side effect: process_spawn. Caller input is exactly { unit, target } for the fixed enum command `node_test`; the handler loads the canonical work record/slice for `unit` itself and authorizes `target` solely from that unit's sections.structured_validation.allowed[] entries with command node_test. It then runs `node --check <target>` and, only if check passes, `node --test <target>` using argv arrays with shell:false. Node binary, cwd, env, per-step timeout, and output caps are internal server constants; caller-supplied authority-shaped fields (snapshot, runtime/env policy, node binary, cwd/workspace root, timeout, output cap, source digest, extra args) are rejected. Target must be repo-relative, canonical, existing, .js/.mjs, contained under the workspace repo, and not a symlink escape. Returns structured per-step evidence with node --test reported as skipped when node --check fails. Family-neutral: Codex, Claude, and Agy workers see the same contract. The structured evidence is command-surface validation, not a paid Chassis Control Engine enforcement attestation; arbitrary-command, npm-script, and cross-repo validation remain follow-up scope."
+    }
+  ]
+}

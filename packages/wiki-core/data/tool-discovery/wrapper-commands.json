@@ -1,0 +1,9 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "wrapper-commands.json",
+  "summary": "Historical role-wrapper commands removed from the package source.",
+  "tool_count": 0,
+  "tools": []
+}

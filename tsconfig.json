@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "composite": true,
+    "declaration": false,
+    "declarationMap": false,
+    "emitDeclarationOnly": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "ES2022"
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/wiki-core"
+    },
+    {
+      "path": "./packages/wiki-cli"
+    },
+    {
+      "path": "./packages/wiki-mcp"
+    },
+    {
+      "path": "./tests"
+    }
+  ]
+}

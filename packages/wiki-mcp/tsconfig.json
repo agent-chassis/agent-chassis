@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "tsBuildInfoFile": "../../.cache/tsconfig/wiki-mcp.tsbuildinfo"
+  },
+  "include": [
+    "src/**/*.mjs"
+  ],
+  "references": [
+    {
+      "path": "../wiki-core"
+    },
+    {
+      "path": "../wiki-cli"
+    }
+  ]
+}

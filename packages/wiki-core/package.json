@@ -1,0 +1,34 @@
+{
+  "name": "@agent-chassis/wiki-core",
+  "version": "0.4.1",
+  "license": "Elastic-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-chassis/agent-chassis.git",
+    "directory": "packages/wiki-core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src/**",
+    "data/**",
+    "templates/**",
+    "contract/**",
+    "!src/**/*.test.mjs"
+  ],
+  "exports": {
+    ".": "./src/index.mjs",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@vscode/tree-sitter-wasm": "0.3.1",
+    "protobufjs": "^7.6.4",
+    "web-tree-sitter": "0.26.9"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

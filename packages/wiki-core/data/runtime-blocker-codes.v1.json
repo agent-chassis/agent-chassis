@@ -1,0 +1,425 @@
+{
+  "schema_version": "runtime-blocker-codes.v1",
+  "owner": "IN-0016",
+  "description": "Stable, schema-backed runtime blocker codes consumed by coordinator preflight (workspace_coordination_preflight), MCP dispatch (workspace_agent_dispatch), and launcher diagnostics. This file is the sole canonical source of truth for the taxonomy: dispatch-specific consumers and launcher diagnostics MUST select codes from this descriptor rather than inventing ad hoc strings. BOOTSTRAP_STATE_CODES values are string-equal to the bootstrap entries below.",
+  "code_categories": [
+    "role_policy",
+    "caller_identity",
+    "work_record_readiness",
+    "transport",
+    "backend",
+    "filesystem",
+    "sandbox",
+    "validation",
+    "route",
+    "discovery",
+    "review_transport",
+    "monitor_handle",
+    "bootstrap",
+    "graph_impact",
+    "graph_impact_persistence",
+    "taxonomy",
+    "operator_recovery"
+  ],
+  "actor_recovery_values": [
+    "operator",
+    "coordinator",
+    "worker_split",
+    "automatic_proceed",
+    "none"
+  ],
+  "codes": [
+    {
+      "code": "role_policy_violation",
+      "category": "role_policy",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Caller role is forbidden from this action by the orchestrator/worker role policy.",
+      "detail": "Role policy is the orchestrator/coordinator/worker write-boundary contract: orchestrators may only edit docs/wiki coordination surfaces, workers must stay inside the assigned WK write_scope, reviewers/redteam must be findings-only. Use this code when the request is structurally outside the role's write-policy regardless of runtime state.",
+      "consumer_notes": "Dispatch admission and worker write-scope enforcement must use this code for policy violations; runtime filesystem failures must NOT collapse into this code. Structured reasons that ride on this code (e.g. reviewer_write_scope_nonempty) are listed under `reasons`; they are diagnostic context, not separate taxonomy codes.",
+      "reasons": [
+        {
+          "reason": "reviewer_write_scope_nonempty",
+          "summary": "A reviewer dispatch named a subject whose selected slice or work-item declares a non-empty write_scope. Reviewers are findings-only and require write_scope: []. This reason rides as structured diagnostic context on role_policy_violation at the MCP dispatch admission boundary (workspace_agent_dispatch) and in the launcher reviewer role-plan paths (agent-role buildAgentRolePlan and the Codex read-only reviewer path); it is not a separate taxonomy code.",
+          "cause_classification": "coordination_wk_shape_issue",
+          "required_write_scope": [],
+          "remediation": {
+            "action": "create_or_select_separate_findings_only_review_unit",
+            "summary": "The selected subject is shaped like implementation work, so it is the wrong subject for a findings-only reviewer. Create or select a separate review unit and dispatch the reviewer against that unit.",
+            "suggested_unit_id_examples": ["WK-#####review", "WK-#####implementation-review"],
+            "work_kind": "review",
+            "write_scope": [],
+            "repo_paths": "the implementation files the review inspects",
+            "depends_on": "the implementation unit",
+            "acceptance": [
+              "Findings-only review.",
+              "Do not modify files.",
+              "Report findings against the inspected files."
+            ]
+          },
+          "not_remediation": [
+            "changing the requested role",
+            "bypassing dispatch readiness",
+            "refreshing graph impact",
+            "escalating or broadening filesystem write authority",
+            "broadening the sandbox",
+            "invoking an operator role wrapper or direct CLI dispatch",
+            "adding prompt/env/argv/request identity or scope carriers",
+            "editing the implementation inline"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "caller_role_mismatch",
+      "category": "caller_identity",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Caller/session role identity does not match the role required for the requested dispatch.",
+      "detail": "Use when the caller presents a launcher- or transport-minted identity that is valid but wrong for the target action (e.g., a worker session calls a coordinator-only dispatch surface).",
+      "consumer_notes": "Distinct from caller_supplied_identity: identity authority is valid, but the role does not match."
+    },
+    {
+      "code": "caller_supplied_identity",
+      "category": "caller_identity",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Identity was supplied through a non-authoritative carrier (request payload, prompt text, ambient env, argv, claimed_identity.role, docs inference).",
+      "aliases": ["agent_dispatch_identity.caller_supplied_role.v1"],
+      "consumer_notes": "CALLER_SUPPLIED_IDENTITY_CARRIERS owns the refused identity-carrier set. All carriers in that set must produce this code."
+    },
+    {
+      "code": "work_record_readiness_failure",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Target WK or slice is not independently executable (missing acceptance, validation, write_scope, docs, or evidence requirements).",
+      "consumer_notes": "Coordinator must revise the WK; implementation must NOT proceed against an unready record."
+    },
+    {
+      "code": "worker_admission_review_threshold_exceeded",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Node Engine worker-admission needs review-threshold evidence; it is not a deny/reject result.",
+      "detail": "Use when a pack-backed worker-admission `needs_review` outcome reports `review_threshold_exceeded`. The normal recovery is to narrow or split the selected unit where possible, then record accepted review-attestation evidence for the selected unit/control, or use an operator-approved escalated implementation path if policy chooses it. DEC/ESC/accepted_authorities are separate policy or escalation authorities and are not proof that review was performed.",
+      "consumer_notes": "Dispatch and readiness projections should map this code to review-threshold recovery guidance while keeping selected unit, control, observed, and threshold facts in the dynamic pack-result projection rather than the static compact taxonomy surface.",
+      "aliases": [
+        "review_threshold_exceeded",
+        "worker_admission_remote_needs_review"
+      ],
+      "wk_0532_subset": false
+    },
+    {
+      "code": "missing_structured_transport",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Required structured/MCP transport for the requested action is not available in this session.",
+      "consumer_notes": "Used when the recommended MCP capability is not exposed by the active server. Agents must not fall back to shell role calls."
+    },
+    {
+      "code": "backend_unavailable",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A required backend (filesystem MCP backend, registry, launcher daemon) is not reachable.",
+      "consumer_notes": "Distinct from missing transport: the structured transport exists, but its backing service or registry is not usable."
+    },
+    {
+      "code": "read_only_mount",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Mounted repository filesystem is read-only and required writes cannot be applied.",
+      "detail": "Reports a runtime filesystem fact, not a role-policy decision. Even when the orchestrator role policy restricts writes to docs/wiki, a failed write to one of those permitted surfaces is still a filesystem fact and MUST be reported with this code so operators can investigate the mount.",
+      "consumer_notes": "MUST NOT be reinterpreted as role_policy_violation."
+    },
+    {
+      "code": "sandbox_write_denial",
+      "category": "sandbox",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Sandbox or container profile is denying writes the WK or coordination surface requires.",
+      "detail": "Use when the write denial is attributable to a sandbox/profile/seccomp rule rather than a misconfigured deploy mount. Resolution is operator-side sandbox/profile change.",
+      "consumer_notes": "Distinct from read_only_mount: the underlying filesystem accepts writes, but the sandbox profile rejects them."
+    },
+    {
+      "code": "validation_failure",
+      "category": "validation",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Structured validation step (lint, work-record schema, closure schema, docs-policy) reported an error.",
+      "consumer_notes": "Diagnostics array carries the underlying validation findings."
+    },
+    {
+      "code": "unsupported_route",
+      "category": "route",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Requested dispatch route (family/model/profile) is not supported.",
+      "consumer_notes": "Discovery exposes this route as deactivated/refusal-only/historical, or the family is not currently wired."
+    },
+    {
+      "code": "non_mcp_role_route_blocked",
+      "category": "route",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "An agent-originating request attempted to use a non-MCP role route; the call is blocked and the agent must use MCP role dispatch.",
+      "consumer_notes": "MCP dispatch admission must emit this code when a non-MCP role route is reached by an agent caller."
+    },
+    {
+      "code": "hidden_route_reached",
+      "category": "route",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Internal code reached a route that is hidden from agent-facing discovery; the request must fail closed without naming the hidden route.",
+      "consumer_notes": "Diagnostics must not leak the hidden route name to agent-facing output."
+    },
+    {
+      "code": "hidden_route_discovery_leak",
+      "category": "discovery",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Agent-facing discovery surfaced a hidden route name; this is a discovery audience-scoping bug, not a normal blocker.",
+      "consumer_notes": "Reported during discovery audits; operator action is required to repair audience scoping."
+    },
+    {
+      "code": "mcp_reviewer_dispatch_missing",
+      "category": "review_transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "MCP reviewer dispatch route (workspace_agent_dispatch --role reviewer) is not registered or not exposed in this session.",
+      "consumer_notes": "When MCP reviewer dispatch is unavailable in-session, implementation slices that are explicitly covered by the bootstrap review exception must use that exception instead of treating this as a hard close blocker."
+    },
+    {
+      "code": "review_transport_runtime_failure",
+      "category": "review_transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "MCP reviewer dispatch route exists but the runtime launch/monitor channel failed.",
+      "consumer_notes": "Distinct from mcp_reviewer_dispatch_missing: the route is shipped, but the current invocation cannot complete."
+    },
+    {
+      "code": "mandatory_review_transport_blocked",
+      "category": "review_transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Mandatory findings-only review is required but no MCP reviewer route or authorized bootstrap exception is available.",
+      "consumer_notes": "Must not degrade to shell-launched review."
+    },
+    {
+      "code": "monitor_handle_unknown",
+      "category": "monitor_handle",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Dispatch monitor handle is unknown to the runtime; the handle does not correspond to a tracked role-run.",
+      "consumer_notes": "The monitor status path must emit this code instead of inventing a string."
+    },
+    {
+      "code": "monitor_handle_subject_mismatch",
+      "category": "monitor_handle",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Monitor handle is valid but refers to a different WK/slice subject than the request.",
+      "consumer_notes": "Detects cross-WK monitor-handle reuse."
+    },
+    {
+      "code": "monitor_handle_caller_mismatch",
+      "category": "monitor_handle",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Monitor handle is valid but the caller identity is not the launcher-minted owner of that run.",
+      "consumer_notes": "Detects cross-caller monitor-handle spoofing."
+    },
+    {
+      "code": "monitor_handle_replay",
+      "category": "monitor_handle",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Monitor handle has already been consumed for a terminal status and is being replayed.",
+      "consumer_notes": "Monitor status handling must refuse replayed monitor handles."
+    },
+    {
+      "code": "bootstrap_exception_active",
+      "category": "bootstrap",
+      "actor_recovery": "automatic_proceed",
+      "blocking": false,
+      "summary": "Bootstrap review exception is active: MCP reviewer dispatch is unavailable in-session, and findings-only review evidence is recorded under the bootstrap path.",
+      "wk_0532_subset": true
+    },
+    {
+      "code": "bootstrap_review_missing",
+      "category": "bootstrap",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Bootstrap review exception requires findings-only review evidence before close, but none is recorded.",
+      "wk_0532_subset": true
+    },
+    {
+      "code": "bootstrap_exception_consumed",
+      "category": "bootstrap",
+      "actor_recovery": "automatic_proceed",
+      "blocking": false,
+      "summary": "MCP reviewer dispatch has shipped; the bootstrap review exception is consumed for new work.",
+      "wk_0532_subset": true
+    },
+    {
+      "code": "graph_impact_unavailable",
+      "category": "graph_impact",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Graph impact is unavailable or errored: no usable base artifact and no usable dirty overlay.",
+      "detail": "Deterministic outcome for the unavailable/errors graph-impact sub-state. Operator must restore graph impact or the WK must mark graph-impact not applicable.",
+      "consumer_notes": "Covers graph_state=unavailable and graph_state=error."
+    },
+    {
+      "code": "graph_impact_query_error",
+      "category": "graph_impact",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Graph impact query itself errored even though the artifact appears present.",
+      "consumer_notes": "Distinct from graph_impact_unavailable: the artifact is present, but the query path raised."
+    },
+    {
+      "code": "graph_impact_artifact_missing",
+      "category": "graph_impact",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Graph impact base artifact is missing (staleness=missing) and no usable dirty overlay covers it.",
+      "consumer_notes": "Operator refresh; agents must not rebuild in a dirty worktree."
+    },
+    {
+      "code": "graph_impact_rebuild_required",
+      "category": "graph_impact",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Graph impact base artifact is stale or rebuild-required and no usable dirty worktree overlay is available.",
+      "detail": "Deterministic outcome for the stale/rebuild-required graph-impact sub-state. Operator must refresh; the worker must not rebuild inside a dirty worktree."
+    },
+    {
+      "code": "graph_impact_degraded_overlay",
+      "category": "graph_impact",
+      "actor_recovery": "automatic_proceed",
+      "blocking": false,
+      "summary": "Graph impact proceeds using a dirty worktree overlay; degraded overlay evidence must be reported separately from canonical authority.",
+      "detail": "Deterministic outcome for the dirty-overlay sub-state. Non-blocking, but the dispatch result must surface the overlay evidence and the worker must record it in the WK closure."
+    },
+    {
+      "code": "graph_impact_unknown_state",
+      "category": "graph_impact",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Graph impact state could not be classified (staleness=unknown and no usable overlay).",
+      "consumer_notes": "Treated as a blocker until the operator restores a classifiable state."
+    },
+    {
+      "code": "graph_impact_persistence_unavailable",
+      "category": "graph_impact_persistence",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Required graph-impact evidence cannot be persisted to the WK through MCP; shell/CLI persistence is not an allowed fallback.",
+      "wk_0532_subset": true
+    },
+    {
+      "code": "taxonomy_corpus_unavailable",
+      "category": "taxonomy",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The runtime blocker taxonomy descriptor itself could not be loaded; consumers must fail closed instead of guessing codes.",
+      "consumer_notes": "Reported when the descriptor file is missing, malformed, or unreadable."
+    },
+    {
+      "code": "operator_recovery_needed",
+      "category": "operator_recovery",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Recovery is human/operator-only: the agent must stop and surface the recovery condition, not retry or escalate inline.",
+      "consumer_notes": "Use when the blocker requires operator action (registry reset, secret rotation, sandbox profile change, mount remount, drift fix) that no agent role is authorized to perform."
+    }
+  ],
+  "graph_impact_state_map": {
+    "description": "Exhaustive deterministic mapping from (graph_state, staleness, dirty_state, overlay_state) to runtime blocker codes consumed by workspace_coordination_preflight and workspace_agent_dispatch readiness. The first matching rule wins. A null/unspecified field matches any value.",
+    "rules": [
+      {
+        "when": { "graph_state": "unavailable" },
+        "code": "graph_impact_unavailable",
+        "blocking": true,
+        "outcome": "block"
+      },
+      {
+        "when": { "graph_state": "error" },
+        "code": "graph_impact_unavailable",
+        "blocking": true,
+        "outcome": "block"
+      },
+      {
+        "when": { "graph_state": "query_error" },
+        "code": "graph_impact_query_error",
+        "blocking": true,
+        "outcome": "block"
+      },
+      {
+        "when": { "staleness": "missing", "overlay_state": "active" },
+        "code": "graph_impact_degraded_overlay",
+        "blocking": false,
+        "outcome": "proceed_degraded"
+      },
+      {
+        "when": { "staleness": "missing" },
+        "code": "graph_impact_artifact_missing",
+        "blocking": true,
+        "outcome": "operator_refresh"
+      },
+      {
+        "when": { "staleness": "stale", "dirty_state": "dirty_worktree", "overlay_state": "active" },
+        "code": "graph_impact_degraded_overlay",
+        "blocking": false,
+        "outcome": "proceed_degraded"
+      },
+      {
+        "when": { "staleness": "stale" },
+        "code": "graph_impact_rebuild_required",
+        "blocking": true,
+        "outcome": "operator_refresh"
+      },
+      {
+        "when": { "staleness": "rebuild_required", "dirty_state": "dirty_worktree", "overlay_state": "active" },
+        "code": "graph_impact_degraded_overlay",
+        "blocking": false,
+        "outcome": "proceed_degraded"
+      },
+      {
+        "when": { "staleness": "rebuild_required" },
+        "code": "graph_impact_rebuild_required",
+        "blocking": true,
+        "outcome": "operator_refresh"
+      },
+      {
+        "when": { "staleness": "unknown", "overlay_state": "active" },
+        "code": "graph_impact_degraded_overlay",
+        "blocking": false,
+        "outcome": "proceed_degraded"
+      },
+      {
+        "when": { "staleness": "unknown" },
+        "code": "graph_impact_unknown_state",
+        "blocking": true,
+        "outcome": "operator_refresh"
+      },
+      {
+        "when": { "dirty_state": "dirty_worktree", "overlay_state": "active" },
+        "code": "graph_impact_degraded_overlay",
+        "blocking": false,
+        "outcome": "proceed_degraded"
+      }
+    ],
+    "default_outcome": "clean_proceed"
+  },
+  "wk_0532_bootstrap_subset": [
+    "bootstrap_exception_active",
+    "bootstrap_review_missing",
+    "bootstrap_exception_consumed",
+    "graph_impact_persistence_unavailable"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@agent-chassis/wiki-mcp",
+  "version": "0.4.1",
+  "license": "Elastic-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-chassis/agent-chassis.git",
+    "directory": "packages/wiki-mcp"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src/**"
+  ],
+  "bin": {
+    "wiki-mcp": "./src/server.mjs"
+  },
+  "dependencies": {
+    "@agent-chassis/agent-launch-cli": "^0.4.1",
+    "@agent-chassis/agent-launch-core": "^0.4.1",
+    "@agent-chassis/wiki-core": "^0.4.1",
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "zod": "^3.25.76"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

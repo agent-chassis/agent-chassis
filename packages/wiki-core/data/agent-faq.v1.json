@@ -1,0 +1,238 @@
+{
+  "schema_version": "agent-faq.v1",
+  "owner": "wiki-core",
+  "description": "Living, append-friendly catalog of recurring problems repo-aware agents hit, each entry pairing a symptom and cause with the exact structured route(s) to resolve it and the responsible actor (agent vs operator). Surfaced read-only through the workspace_agent_faq MCP tool and the agent-faq CLI parity command. This file is the sole content surface: adding a future entry requires editing only this JSON, not code. Each entry has a stable string `id`, `title`, `symptom`, `cause`, an `actor` of `agent`/`operator`/`agent_or_operator`, and `routes` naming structured workspace_* tools; entries may carry an optional `fork` (distinct sub-responses keyed by `when`), `related_codes` (runtime-blocker-codes.v1 codes), `related_docs`, and `related_records`.",
+  "entries": [
+    {
+      "id": "read-scope-missing-or-unfamiliar",
+      "title": "Worker reports its read-first references are missing, or read_scope vs docs: is unfamiliar",
+      "symptom": "A worker reports that its read-first references are missing or empty; lint reports `missing_docs_target` or an unresolved `read_scope` entry; or you set the WK's `docs:` field and the worker expected `read_scope`.",
+      "cause": "`read_scope` is the work record's read-first reference list (`docs/**`, shipped operating guidance, relevant `wiki/**`). It was renamed from `docs:`, with `docs:` kept as a back-compat alias. The two name the same field, so an agent that only knows `docs:` will not recognize `read_scope` (and vice versa), and an empty or stale read-first list surfaces as the worker complaint.",
+      "actor": "agent",
+      "tier_visibility": [
+        "free_local"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_work_record_set_list_field",
+          "args": {
+            "field": "read_scope"
+          },
+          "note": "Set or correct the WK's read-first reference list with the canonical `read_scope` field name. `docs:` is the back-compat alias for the same list; prefer `read_scope`. Populate it with the durable read-first references the worker needs (`docs/**`, shipped operating guidance, relevant `wiki/**`) before dispatch."
+        }
+      ],
+      "related_codes": [
+        "missing_docs_target"
+      ],
+      "related_docs": [
+        "docs/work-record-ontology.md"
+      ]
+    },
+    {
+      "id": "graph-impact-required-unavailable",
+      "title": "Graph impact required but unavailable or stale",
+      "symptom": "`workspace_validate_dispatch` or `workspace_coordination_preflight` reports graph impact required but unavailable, or you hit a `missing_graph_impact` / `graph_impact_*` blocker.",
+      "cause": "The work record requires graph-impact evidence and the base artifact is missing or stale. There are two distinct responses depending on whether a usable dirty-worktree overlay exists: an agent-recoverable degraded-overlay path, and an operator-only rebuild path. Choosing the wrong one either leaves the blocker unresolved or attempts a forbidden dirty-worktree rebuild / shell-persist fallback.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "routes": [],
+      "fork": [
+        {
+          "when": "graph_impact_degraded_overlay: a dirty worktree with a usable overlay is available (the proceed_degraded outcome).",
+          "actor": "agent",
+          "routes": [
+            {
+              "tool": "workspace_code_index_graph_impact_paths",
+              "note": "Query graph-impact paths against the dirty-worktree overlay to produce the impact evidence."
+            },
+            {
+              "tool": "workspace_record_graph_impact_evidence",
+              "note": "Persist the verbose `graph_impact_raw` envelope into the work record. The compact ref alone lacks `input` and `validated_paths`, so persisting only the ref leaves the work record in `missing_graph_impact`. Record the degraded-overlay evidence in the closure separately from canonical authority."
+            }
+          ],
+          "note": "Agent-recoverable. Do not request an operator rebuild for this sub-state; the overlay is usable, so persist real evidence from it."
+        },
+        {
+          "when": "graph_impact_rebuild_required / graph_impact_artifact_missing / graph_impact_unavailable: no usable dirty-worktree overlay (the operator_refresh / block outcomes).",
+          "actor": "operator",
+          "routes": [],
+          "note": "Operator-only. Stop and request an operator graph-impact rebuild. Do not rebuild inside a dirty worktree, and do not fall back to a shell-persist of evidence. Report the blocker and the exact command/condition for the operator to rerun."
+        }
+      ],
+      "related_codes": [
+        "missing_graph_impact",
+        "graph_impact_degraded_overlay",
+        "graph_impact_rebuild_required",
+        "graph_impact_artifact_missing",
+        "graph_impact_unavailable"
+      ],
+      "related_docs": [
+        "docs/tool-discovery.md"
+      ]
+    },
+    {
+      "id": "graph-impact-evidence-rejected-envelope-shape",
+      "title": "workspace_record_graph_impact_evidence rejects the evidence payload shape",
+      "symptom": "`workspace_record_graph_impact_evidence` rejects your evidence with an error like `requires graph_impact or graph_impact_summary_ref` or `graph_impact must be a graph-impact envelope`, so the work record stays in `missing_graph_impact`.",
+      "cause": "You passed the compact summary ref alone, or a hand-built summary object, instead of the full graph-impact envelope. The persistence route requires the verbose envelope produced by `workspace_code_index_graph_impact_paths` because that envelope carries `input` and `validated_paths`; a bare ref or hand-assembled summary lacks those fields and is rejected. (Through some MCP clients an unknown-schema object argument can also be dropped before it reaches the server, which surfaces as the same rejection.)",
+      "actor": "agent",
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_code_index_graph_impact_paths",
+          "note": "Produce the graph-impact envelope for the changed paths first; this is the envelope the persistence route expects, carrying `input` and `validated_paths`."
+        },
+        {
+          "tool": "workspace_record_graph_impact_evidence",
+          "note": "Persist the ENVELOPE produced above (the verbose `graph_impact_raw` envelope), not the compact summary ref alone and not a hand-built summary object. Persisting only the ref leaves the work record in `missing_graph_impact`. See the active follow-up for envelope-size handling when the envelope is large."
+        }
+      ],
+      "related_codes": [
+        "missing_graph_impact"
+      ],
+      "related_docs": [
+        "docs/tool-discovery.md"
+      ]
+    },
+    {
+      "id": "needs-review-write-scope-loc-line-budget",
+      "title": "needs_review on write_scope_total_loc / max_write_file_loc when a small edit targets a large file",
+      "symptom": "`workspace_agent_dispatch` or `workspace_validate_dispatch` (with `node_engine_admissibility: true`) returns a Chassis Control Engine `needs_review` worker-admission result on `write_scope_total_loc` or `max_write_file_loc` (the reason often reads like `review_threshold_exceeded` or an accepted-authority-scope-mismatch on the large-file LOC), even though the actual change is a small, bounded edit inside an otherwise large file.",
+      "cause": "Admission scored the WHOLE-FILE line count of the large `write_scope` file against the review threshold because the selected unit declared no bounded target plan. Without `expected_edit_targets` + `expected_changed_line_budget`, the gate has nothing narrower than the file's total LOC to reason about, so it routes the small edit into review-threshold pressure. This is a missing-target-evidence gap, not (by itself) a reject, a license/escalation problem, or a graph-impact problem.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_work_record_upsert_slice",
+          "note": "FIRST-LINE remedy: declare the bounded target span on the selected work record or slice. Set `expected_edit_targets` (one entry per file actually touched, with the bounded operation) plus a small `expected_changed_line_budget` covering only the real change, so admission reasons about the bounded target instead of the whole-file LOC. Per the operating model's Scope-And-Ambition guidance this add-target-evidence step comes BEFORE escalation/attestation, not instead of them. (At record scope the same fields are authored on the work record contract; this slice route is the agent-facing way to add/refine them on a selected unit.) These fields are review/remediation context only and do not authorize launch."
+        },
+        {
+          "tool": "workspace_work_record_refresh_target_resolution_evidence",
+          "note": "Rematerialize the unit's worker-admission target-resolution derived evidence from the declared target plan so the next admissibility probe consumes fresh bounded-target metrics rather than a stale or missing target-resolution entry."
+        },
+        {
+          "tool": "workspace_validate_dispatch",
+          "args": {
+            "node_engine_admissibility": true
+          },
+          "note": "Re-probe admissibility for the selected unit. With a bounded target plan in place the gate can reason about the target span; if it STILL refuses solely on whole-file LOC with no accepted policy authority, stop and record an admission/large-file-ergonomics blocker rather than rewriting readiness, refreshing graph impact, or reaching for escalation."
+        }
+      ],
+      "related_codes": [
+        "worker_admission_review_threshold_exceeded",
+        "review_threshold_exceeded",
+        "worker_admission.work_unit_atomicity.write_scope_total_loc_denied.v1",
+        "worker_admission.work_unit_atomicity.max_write_file_loc_denied.v1",
+        "worker_admission.work_unit_atomicity.large_file_requires_review.v1"
+      ],
+      "related_docs": [
+        "docs/tool-discovery.md"
+      ]
+    },
+    {
+      "id": "validate-dispatch-worker-admission-problem-diagnostics",
+      "title": "Validate-dispatch worker-admission problem diagnostics",
+      "symptom": "workspace_validate_dispatch returns pack_input_required, pack_input_invalid, request_schema_digest_mismatch, precondition_graph_too_large, non_object_data, or generic invalid_request instead of a launchable admit",
+      "cause": "Chassis Control Engine rejected the worker-admission request during admissibility evaluation. These diagnostics are non-launchable by design and describe recovery work, not local launch authority.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_validate_dispatch",
+          "note": "Rerun validate-dispatch only after repairing the structured admission carrier; do not treat the diagnostic as launch authorization."
+        }
+      ],
+      "fork": [
+        {
+          "when": "pack_input_required",
+          "actor": "agent",
+          "routes": [
+            {
+              "tool": "workspace_validate_dispatch",
+              "note": "Supply the missing worker-admission pack input or carrier data, then rerun."
+            }
+          ],
+          "note": "The request is missing required pack input."
+        },
+        {
+          "when": "pack_input_invalid",
+          "actor": "agent",
+          "routes": [
+            {
+              "tool": "workspace_validate_dispatch",
+              "note": "Fix the structured pack input shape or field content, then rerun."
+            }
+          ],
+          "note": "The supplied pack input is malformed or inconsistent."
+        },
+        {
+          "when": "request_schema_digest_mismatch",
+          "actor": "operator",
+          "routes": [
+            {
+              "tool": "workspace_node_engine_admission_runtime_diagnostic",
+              "note": "Check launcher-minted Chassis Control Engine admission runtime binding and request-contract digest wiring."
+            },
+            {
+              "tool": "workspace_validate_dispatch",
+              "note": "Verify the repaired request shape after the runtime diagnostic and operator-owned digest rebind."
+            }
+          ],
+          "note": "The request contract digest does not match the Chassis Control Engine admissibility policy pack."
+        },
+        {
+          "when": "precondition_graph_too_large",
+          "actor": "agent",
+          "routes": [
+            {
+              "tool": "workspace_code_index_graph_impact_paths",
+              "note": "Reduce, split, or narrow the selected unit until the graph precondition is admissible, then rerun."
+            }
+          ],
+          "note": "The graph precondition is too large for admissibility."
+        },
+        {
+          "when": "non_object_data",
+          "actor": "agent_or_operator",
+          "routes": [
+            {
+              "tool": "workspace_validate_dispatch",
+              "note": "Wrap the admission payload as a structured object instead of a scalar, array, or raw string."
+            }
+          ],
+          "note": "The admission payload is not object-shaped."
+        },
+        {
+          "when": "invalid_request",
+          "actor": "agent_or_operator",
+          "routes": [
+            {
+              "tool": "workspace_validate_dispatch",
+              "note": "Treat as a generic typed refusal: correct the carrier and retry without exposing secrets or raw payloads."
+            }
+          ],
+          "note": "Fallback typed refusal when Chassis Control Engine cannot classify the request more specifically."
+        }
+      ],
+      "related_codes": [
+        "pack_input_required",
+        "pack_input_invalid",
+        "request_schema_digest_mismatch",
+        "precondition_graph_too_large",
+        "non_object_data",
+        "invalid_request"
+      ],
+      "related_docs": [
+        "docs/tool-discovery.md"
+      ]
+    }
+  ]
+}

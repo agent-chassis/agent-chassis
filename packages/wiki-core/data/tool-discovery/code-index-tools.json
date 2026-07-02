@@ -1,0 +1,676 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "code-index-tools.json",
+  "summary": "Code-index and graph-impact tools across MCP and CLI.",
+  "tool_count": 18,
+  "tools": [
+    {
+      "tool_name": "workspace_code_index_status",
+      "display_name": "Workspace code index status",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_status",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 107,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP status checkpoint before graph-impact or code-index reads; compact by default (dirtiness/staleness checkpoint, artifact presence, status reason, head marker, graph availability), verbose:true for fuller derived-evidence and artifact-path detail. CLI fallback: `npm run wiki -- code-index status --json`."
+    },
+    {
+      "tool_name": "workspace_code_index_impact_paths",
+      "display_name": "Workspace code index impact paths",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_impact_paths",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 106,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP path-impact surface for repo-relative paths; compact and decision-oriented by default, verbose:true for full derived evidence, canonical refs, and graph_state. CLI fallback: `npm run wiki -- code-index impact-paths --json --paths <path>`."
+    },
+    {
+      "tool_name": "workspace_code_index_graph_impact_paths",
+      "display_name": "Workspace code index graph impact paths",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_graph_impact_paths",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 105,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP graph-backed impact surface for repo-relative paths; compact by default (bounded graph_impact_summary plus a persistable summary ref and small dirty/staleness scalars), verbose:true for the expanded graph envelope and raw graph_state. CLI fallback: `npm run wiki -- code-index graph-impact-paths --json --paths <path>`."
+    },
+    {
+      "tool_name": "workspace_code_index_context_for_path",
+      "display_name": "Workspace code index context for path",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_context_for_path",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 104,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-tools.json",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs",
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP scoped-context surface for one repo-relative path with three response-shape modes (this is a response-shape contract, not a product-tier availability signal): sub-threshold files (<=1200 LOC) return context_available:\"compact\", over-threshold files (>1200 LOC) return context_available:\"degraded\", and verbose:true restores full context for either mode. Use verbose:true for deliberate full canonical refs, match explanations, and source entries, or workspace_code_index_impact_paths for compact path-level impact. CLI fallback: `npm run wiki -- code-index context-for-path --json --path <path>`."
+    },
+    {
+      "tool_name": "workspace_code_index_graph_impact_diff",
+      "display_name": "Workspace code index graph impact diff",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_graph_impact_diff",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 103,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP graph-backed impact surface for a parsed, raw, or live git diff; compact by default (one bounded graph_impact_summary, a persistable summary ref, compact dirty/staleness scalars), verbose:true for the expanded graph envelope and raw graph_state. Graph evidence is derived, non-canonical code-index evidence — keep it separate from canonical wiki/docs authority. CLI fallback: `npm run wiki -- code-index graph-impact-diff --json --live-git`."
+    },
+    {
+      "tool_name": "workspace_code_index_find_references",
+      "display_name": "Workspace code index find references",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_find_references",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 102,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-tools.json",
+        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP symbol-reference lookup for the SCIP-derived repo code index layer. Accepts an exact SCIP symbol or a repo-relative path plus 1-based line and optional character, preserves provider descriptors, coverage, freshness/dirty-worktree state, and resolution.state metadata. CLI fallback: `npm run wiki -- code-index find-references --json --symbol <scip-symbol>`."
+    },
+    {
+      "tool_name": "workspace_code_index_definition",
+      "display_name": "Workspace code index definition",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_definition",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 102,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-tools.json",
+        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP definition lookup for the SCIP-derived repo code index layer. Accepts an exact SCIP symbol or a repo-relative path plus 1-based line and optional character, preserves provider descriptors, coverage, freshness/dirty-worktree state, and resolution.state metadata. CLI fallback: `npm run wiki -- code-index definition --json --path <path> --line <line>`."
+    },
+    {
+      "tool_name": "workspace_code_index_callers",
+      "display_name": "Workspace code index callers",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_callers",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 102,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-tools.json",
+        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP callers lookup for the SCIP-derived repo code index call-graph layer. Accepts an exact SCIP symbol or a repo-relative path plus 1-based line and optional character, preserves provider descriptors, coverage, freshness/dirty-worktree state, resolution.state metadata, and explicit SCIP call-graph availability/degraded state. CLI fallback: `npm run wiki -- code-index callers --json --symbol <scip-symbol>`."
+    },
+    {
+      "tool_name": "workspace_code_index_callees",
+      "display_name": "Workspace code index callees",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_callees",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 102,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-tools.json",
+        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Preferred MCP callees lookup for the SCIP-derived repo code index call-graph layer. Accepts an exact SCIP symbol or a repo-relative path plus 1-based line and optional character, preserves provider descriptors, coverage, freshness/dirty-worktree state, resolution.state metadata, and explicit SCIP call-graph availability/degraded state. CLI fallback: `npm run wiki -- code-index callees --json --symbol <scip-symbol>`."
+    },
+    {
+      "tool_name": "workspace_code_index_build",
+      "display_name": "Workspace code index build",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_build",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 102,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Write-capable MCP route that builds the repo code index for a configured workspace repository, writing only to an ignored cache path. The build is dirty-safe: the base index is built from HEAD's committed objects, so a dirty worktree no longer refuses the build (it reports dirty_state: dirty_worktree but still succeeds, and read-only impact/context queries merge the working-tree overlay on top). The cache path must still be git-ignored or the build refuses with cache_path_not_ignored. Run to refresh the base cache after a commit, merge, rebase, or structural change. CLI fallback: `npm run wiki -- code-index build --json --dir <repo>`."
+    },
+    {
+      "tool_name": "workspace_code_index_rebuild",
+      "display_name": "Workspace code index rebuild",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_rebuild",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 101,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Write-capable MCP route that rebuilds the repo code index for a configured workspace repository, writing only to an ignored cache path. The rebuild is dirty-safe: the base index is rebuilt from HEAD's committed objects, so a dirty worktree no longer refuses the rebuild (it reports dirty_state: dirty_worktree but still succeeds, and read-only impact/context queries merge the working-tree overlay on top). The cache path must still be git-ignored or the rebuild refuses with cache_path_not_ignored. CLI fallback: `npm run wiki -- code-index rebuild --json --dir <repo>`."
+    },
+    {
+      "tool_name": "wiki-code-index-impact-paths",
+      "display_name": "Code index impact paths",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- code-index impact-paths --json --paths <path>",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/sidecar.mjs",
+        "packages/wiki-core/src/lib/sidecar-graph-impact.mjs"
+      ],
+      "notes": "Compact CLI fallback for repo-relative path-impact lookups. It stays bounded and decision-oriented; use the MCP `workspace_code_index_impact_paths` route when you need verbose:true and expanded evidence."
+    },
+    {
+      "tool_name": "wiki-code-index-graph-impact-paths",
+      "display_name": "Code index graph impact paths",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- code-index graph-impact-paths --json --paths <path>",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 95,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/sidecar.mjs",
+        "packages/wiki-core/src/lib/sidecar-graph-impact.mjs"
+      ],
+      "notes": "Compact CLI fallback for graph-backed path impact lookups. It stays bounded and decision-oriented; use the MCP `workspace_code_index_graph_impact_paths` route when you need the compact summary/ref default and verbose:true for the expanded graph envelope."
+    },
+    {
+      "tool_name": "wiki-code-index-context-for-path",
+      "display_name": "Code index context for path",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- code-index context-for-path --json --path <path>",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 90,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/sidecar.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ]
+    },
+    {
+      "tool_name": "wiki-code-index-find-references",
+      "display_name": "Code index find references",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- code-index find-references --json --symbol <scip-symbol>",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 85,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/sidecar.mjs",
+        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
+      ],
+      "notes": "Compact CLI fallback for SCIP-derived symbol reference lookup. Prefer the MCP `workspace_code_index_find_references` route for structured agent use; use --path <path> --line <line> [--character <char>] when resolving a symbol from a position."
+    },
+    {
+      "tool_name": "wiki-code-index-definition",
+      "display_name": "Code index definition",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- code-index definition --json --path <path> --line <line>",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 80,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/sidecar.mjs",
+        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
+      ],
+      "notes": "Compact CLI fallback for SCIP-derived definition lookup. Prefer the MCP `workspace_code_index_definition` route for structured agent use; --symbol <scip-symbol> is also supported when the exact symbol is already known."
+    },
+    {
+      "tool_name": "wiki-code-index-callers",
+      "display_name": "Code index callers",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- code-index callers --json --symbol <scip-symbol>",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 85,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/sidecar.mjs",
+        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
+      ],
+      "notes": "Compact CLI fallback for SCIP-derived callers lookup. Prefer the MCP `workspace_code_index_callers` route for structured agent use; use --path <path> --line <line> [--character <char>] when resolving a symbol from a position."
+    },
+    {
+      "tool_name": "wiki-code-index-callees",
+      "display_name": "Code index callees",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- code-index callees --json --symbol <scip-symbol>",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 80,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/sidecar.mjs",
+        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
+      ],
+      "notes": "Compact CLI fallback for SCIP-derived callees lookup. Prefer the MCP `workspace_code_index_callees` route for structured agent use; use --path <path> --line <line> [--character <char>] when resolving a symbol from a position."
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+{
+  "seed_schema_version": "wiki-bootstrap-seed-work-record.v1",
+  "id": "WK-0001",
+  "record_kind": "work_item",
+  "work_kind": "implementation",
+  "initiative": "IN-0001",
+  "status": "todo",
+  "priority": "high",
+  "owner": "unassigned",
+  "title": "Adopt the shared wiki contract: repo-local surfaces, retrieval, and dispatch readiness",
+  "summary": "Tracker for the IN-0001 adoption backlog. The implementation slices own the adoption surfaces the target repo must author itself after bootstrap seeding: repo-local AGENTS.md guidance and repo-root agent-launch.toml role defaults. The findings-only adoption-verify review slice runs the structured `wiki adoption verify` command, which exercises the five required read-only readiness checks and confirms the bootstrap-generated wiki/.wiki-mcp.json declaration and the bootstrap-seeded docs/adoption.md as non-gating informational context. Bootstrap seeds this work, generates the gitignored wiki/.wiki-mcp.json declaration, and seeds docs/adoption.md from a package template (create-if-missing, so a customized doc is preserved on rerun); it does not author the repo-specific AGENTS.md or agent-launch.toml surfaces named in implementation slice write scopes.",
+  "scope": "Bring the consuming repo up to the shared wiki/agent contract by completing two create/customize implementation slices (repo-local AGENTS guidance and repo-root agent-launch.toml role defaults) and one findings-only adoption-verify review that confirms the wiki-retrieval, work-record, read-only graph-impact, generate/lint, and dispatch/preflight readiness checks (plus the non-gating wiki-mcp-alias and docs/adoption.md informational entries) via `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir \"$PWD\" --json` (or the `npm run wiki -- adoption verify --json` shorthand if this repo defines a wiki npm script). Bootstrap generates the gitignored wiki/.wiki-mcp.json local metadata and seeds docs/adoption.md from a package template (create-if-missing) on each run; reviewing those surfaces is part of the adoption-verify readiness check, not a separate worker-owned implementation slice.",
+  "out_of_scope": "Do not modify the shared agent-chassis packages, do not edit global MCP client config, do not assign a worker to edit or recreate the bootstrap-generated wiki/.wiki-mcp.json (bootstrap owns it as gitignored local metadata), do not assign a worker to author docs/adoption.md from scratch (bootstrap seeds it from a package template; only optional repo-specific customization remains), do not expect npm package installation or bootstrap to create repo-root agent-launch.toml, and do not treat bootstrap seeding as proof that the repo is agent-operable.",
+  "depends_on": [],
+  "related": [],
+  "read_scope": [
+    "docs/adoption.md",
+    "docs/local-package-install.md"
+  ],
+  "repo_paths": [
+    "AGENTS.md",
+    "agent-launch.toml",
+    "docs/adoption.md",
+    "wiki/.wiki-mcp.json",
+    "wiki/.wiki-contract.json"
+  ],
+  "write_scope": [
+    "AGENTS.md",
+    "agent-launch.toml"
+  ],
+  "acceptance": {
+    "criteria": [
+      "The repo-local-agents implementation slice, the launcher-config implementation slice, and the adoption-verify review slice are completed or carry an explicit recorded blocker.",
+      "AGENTS.md exists and is repo-adapted, not a bootstrap-generated placeholder; agent-launch.toml exists as repo-root launcher config with explicit model defaults for orchestrator, worker, reviewer, and redteam; the bootstrap-seeded docs/adoption.md and the bootstrap-generated wiki/.wiki-mcp.json are confirmed by the adoption-verify review (docs/adoption.md present and valid; wiki/.wiki-mcp.json schema wiki-mcp-workspace.v1, a resolved current.root, and a repo-derived current.alias), not authored or edited by bootstrap.",
+      "`npx -p @agent-chassis/wiki-cli wiki adoption verify --dir \"$PWD\" --json` reports verdict \"ready\" (all five required checks pass) or records a specific structured blocker per non-pass check; the repo is not claimed agent-operable unless the verdict is ready."
+    ],
+    "validation": [
+      "npx -p @agent-chassis/wiki-cli wiki lint --dir \"$PWD\"",
+      "npx -p @agent-chassis/wiki-cli wiki adoption verify --dir \"$PWD\" --json"
+    ]
+  },
+  "slices": [
+    {
+      "id": "repo-local-agents",
+      "title": "Add repo-local AGENTS guidance adapted from the shared boilerplate",
+      "work_kind": "implementation",
+      "status": "todo",
+      "priority": "high",
+      "owner": "unassigned",
+      "summary": "Adapt the seeded wiki/templates/AGENTS.md.boilerplate.md helper template into a repo-local AGENTS.md operating contract. AGENTS.md must be a real adaptation of the shared boilerplate (cross-agent operating contract, tool authority, tool discovery, retrieval order, WK-first worker sessions, coordinator duties including the Initiative Launch Checkpoint, canonical layers), not a minimal retrieval-first stub.",
+      "scope": "Read the bootstrap-seeded helper template wiki/templates/AGENTS.md.boilerplate.md (a local install helper, not repo-local operating authority), copy its agent-neutral operating contract, replace `[repo-name]` and every other placeholder, name this repo's actual structured tools and tool-discovery surface, and commit the result as AGENTS.md at the repo root. AGENTS.md is repo-specific operating authority that bootstrap does not generate.",
+      "out_of_scope": "Do not reduce AGENTS.md to a short retrieval-first note: the shared boilerplate's operating-contract sections must survive adaptation. Do not put operator install/bootstrap command documentation into AGENTS.md; that belongs to the bootstrap-seeded docs/adoption.md guide. Bootstrap does not create AGENTS.md; the seeded wiki/templates/AGENTS.md.boilerplate.md is a helper to copy from, not operating authority.",
+      "read_scope": [
+        "docs/adoption.md",
+        "wiki/templates/AGENTS.md.boilerplate.md"
+      ],
+      "repo_paths": [
+        "AGENTS.md"
+      ],
+      "write_scope": [
+        "AGENTS.md"
+      ],
+      "acceptance": {
+        "criteria": [
+          "AGENTS.md at the repo root is adapted from the seeded wiki/templates/AGENTS.md.boilerplate.md helper template (a compact agent-neutral operating contract to adapt, not a long manual to copy verbatim), not a minimal stub: it preserves the boilerplate's cross-agent operating-contract structure and contains, at minimum, this repo's equivalents of the `Core Rule`, `Tool Authority`, `Tool Discovery`, `Retrieval Order` (or `Retrieval Tool Precedence`), `WK-First Worker Sessions`, `Coordinator Duties`, `Coordinator-Owned Verification`, `Initiative Launch Checkpoint`, and `Canonical Layers` sections.",
+          "AGENTS.md states the core retrieval rule that repository-context retrieval is a wiki/docs retrieval problem first, AND names this repo's actual structured tools / tool-discovery surface rather than leaving the boilerplate's generic `[repo-name]` or unfilled tool placeholders.",
+          "The installed AGENTS.md preserves the Initiative Launch Checkpoint coordinator rule: on a fresh IN-* orchestrator launch, resume, or ambiguous \"get started\" request the coordinator performs only initial structured retrieval and lightweight preflight, then pauses with a short user-facing checkpoint (what was found, the executable units and their statuses, the recommended next action, and the main alternatives/tradeoffs) and asks which path the user wants before dispatching workers/reviewers, creating or splitting WK-* records, changing statuses, or running long validation; the checkpoint is skipped only when the user already requested a concrete action (dispatch a named WK-*, run a named verification, or record a specific status/closure).",
+          "No bracketed placeholder remains anywhere in the installed AGENTS.md: the source template's single `[repo-name]` title placeholder must be replaced with this repo's real name, and no other `[...]` placeholder token (for example a copied cross-repo example) may survive.",
+          "Sections describing tooling or canonical layers this repo has not actually adopted (for example structured MCP dispatch, wiki search, or a code-index/graph-impact surface) are deleted or adapted to what the repo really supports; AGENTS.md must not claim unsupported MCP/wiki/code-index capabilities.",
+          "Operator install/bootstrap command instructions (for example `wiki bootstrap`, `npm install`, package-install steps, or the `adoption verify` invocation) are absent from AGENTS.md; those belong to the bootstrap-seeded docs/adoption.md guide.",
+          "AGENTS.md is repo-adapted operating authority: merely adding a retrieval-first sentence to an otherwise-empty AGENTS.md, or committing the verbatim boilerplate with placeholders intact, does NOT satisfy this slice."
+        ],
+        "validation": [
+          "npx -p @agent-chassis/wiki-cli wiki lint --dir \"$PWD\""
+        ]
+      }
+    },
+    {
+      "id": "launcher-config",
+      "title": "Add repo-root agent-launch.toml role defaults",
+      "work_kind": "implementation",
+      "status": "todo",
+      "priority": "high",
+      "owner": "unassigned",
+      "summary": "Create the consuming repo's committed repo-root agent-launch.toml launcher config with explicit model defaults for each launcher role. The file is repo-local adoption configuration owned by the IN-0001 orchestrator; npm package installation and bootstrap do not create it.",
+      "scope": "Create agent-launch.toml at the repo root. Configure explicit model defaults for [roles.orchestrator], [roles.worker], [roles.reviewer], and [roles.redteam], with optional effort values only when the repo deliberately chooses them. The root config filename is agent-launch.toml, not agent-config.toml. Use model-first launcher configuration consistent with DEC-0114: declare role model names and let the launcher derive app/backend selection from the neutral model registry instead of adding parallel app selectors or hidden hardcoded defaults.",
+      "out_of_scope": "Do not edit AGENTS.md in this slice; repo-local-agents owns that surface. Do not expect npm install, @agent-chassis/core installation, or bootstrap to create repo-root launcher config files. Do not add hardcoded fallback role defaults, family-specific launcher wrapper commands, or legacy <ROLE>_APP selectors.",
+      "read_scope": [
+        "docs/adoption.md",
+        "docs/env-reference.md",
+        "docs/quickstart.md"
+      ],
+      "repo_paths": [
+        "agent-launch.toml"
+      ],
+      "write_scope": [
+        "agent-launch.toml"
+      ],
+      "acceptance": {
+        "criteria": [
+          "agent-launch.toml exists at the repo root; the file is named exactly agent-launch.toml and not agent-config.toml.",
+          "The config declares explicit model defaults for orchestrator, worker, reviewer, and redteam using [roles.<role>] tables.",
+          "The config follows DEC-0114 model-first launcher behavior: role model declarations are explicit, app/backend selection is derived by the launcher, and the slice introduces no hidden hardcoded defaults or parallel <ROLE>_APP selectors.",
+          "The worker records that npm package installation, including @agent-chassis/core, does not create repo-root config files; this IN-0001 adoption work creates the repo-local launcher config deliberately.",
+          "AGENTS.md remains owned by the repo-local-agents implementation slice and is not edited as part of launcher-config work."
+        ],
+        "validation": [
+          "npx -p @agent-chassis/wiki-cli wiki lint --dir \"$PWD\"",
+          "npx -p @agent-chassis/wiki-cli wiki adoption verify --dir \"$PWD\" --json"
+        ]
+      }
+    },
+    {
+      "id": "adoption-verify",
+      "title": "Verify first-run adoption readiness",
+      "work_kind": "review",
+      "status": "todo",
+      "priority": "medium",
+      "owner": "unassigned",
+      "summary": "Findings-only review that runs the structured adoption verification command, confirms the five required read-only readiness checks, and records the implementation-slice status bookkeeping before treating the repo as agent-operable.",
+      "scope": "Run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir \"$PWD\" --json` from the repo's own context (or the `npm run wiki -- adoption verify --json` shorthand if this repo defines a wiki npm script) and confirm the five required read-only checks report pass: wiki-retrieval, work-records, generate-lint, graph-impact, and dispatch-preflight. Also confirm the non-gating wiki-mcp-alias and docs/adoption.md informational entries and that all WK-0001 implementation slices (repo-local-agents and launcher-config) are recorded done or blocked. This is a findings-only review unit, so an empty write_scope is valid; this slice does not edit repo files or package source.",
+      "out_of_scope": "Findings-only: do not modify repo files, do not edit the bootstrap-generated wiki/.wiki-mcp.json, do not persist graph evidence to a work record, do not launch a real worker, and do not claim the repo is agent-operable unless the verify verdict is ready.",
+      "read_scope": [
+        "docs/adoption.md"
+      ],
+      "repo_paths": [],
+      "write_scope": [],
+      "acceptance": {
+        "criteria": [
+          "`npx -p @agent-chassis/wiki-cli wiki adoption verify --dir \"$PWD\" --json` runs and reports all five required checks by name: wiki-retrieval, work-records, generate-lint, graph-impact, and dispatch-preflight.",
+          "The work-records check fails with a structured status-bookkeeping blocker while any WK-0001 implementation slice (including repo-local-agents or launcher-config) is still todo/review, so a bare bootstrapped repo is not reported ready until the operator/orchestrator records each implementation slice done or blocked through structured work-record tools; the adoption-verify review slice itself may remain open while the review runs.",
+          "The non-gating wiki-mcp-alias informational entry confirms the bootstrap-generated wiki/.wiki-mcp.json exists, carries schema wiki-mcp-workspace.v1, current.root resolves to the repo root, and current.alias is repo-derived unless a deliberate operator alias was chosen; this entry never flips the ready verdict on its own.",
+          "The non-gating docs/adoption.md informational entry confirms the bootstrap-seeded operator guide exists and is valid (Markdown with a top-level heading); docs/adoption.md is bootstrap-generated, not a worker-authored implementation slice, and this entry never flips the ready verdict on its own.",
+          "The graph-impact check is read-only: it persists no graph evidence to a work record and the envelope reports persisted_evidence false.",
+          "Verdict is \"ready\" (all five required checks pass) or a specific structured blocker is recorded for each non-pass check; the repo is not claimed agent-operable unless the verdict is ready."
+        ],
+        "validation": [
+          "npx -p @agent-chassis/wiki-cli wiki adoption verify --dir \"$PWD\" --json"
+        ]
+      }
+    }
+  ]
+}

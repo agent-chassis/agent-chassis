@@ -1,0 +1,54 @@
+node_modules/
+dist/
+.cache/
+
+# SCIP overlay (WK-1230): generated .scip indexes are NEVER committed -- too
+# big/slow for per-build (6.1MB/12s) and regenerated on indexer-version/HEAD
+# change. The cache lives under the .cache/ runtime dir; the global *.scip rule
+# guarantees no .scip artifact is ever committed anywhere in the tree.
+.cache/repo-scip-index/
+*.scip
+npm-debug.log*
+.agent-runs/
+.agent-launch/
+.agent-launch.local.env
+.codex
+.codex/
+**/.codex
+**/.codex/
+.claude
+.claude/
+**/.claude
+**/.claude/
+
+# Local runtime lock files
+.claude/*.lock
+
+# Disposable test and launcher runtime artifacts
+tests/.tmp/
+tests/.tmp-mcp-*
+tests/.debug-*
+tests/.debug-*/
+tests/tmp-interface-smoke-*/
+tests/tmp-cli-probe/
+tests/node-compile-cache/
+tests/*.log
+tests/.probe-interface-smoke.json
+packages/agent-launch-cli/src/commands/codex-*.WK-*/
+wiki/work-records/tmp-test/
+
+# Runtime artifacts under benchmark/tooling dirs
+**/__pycache__/
+tools/in0012-swebench-smoke/outputs/
+
+.npmrc
+.env
+.env.bak
+
+.tests/.tmp*
+.tests/.probe-gg-*
+
+lint-findings.json
+
+*.tmp
+*.swp

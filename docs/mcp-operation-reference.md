@@ -1,0 +1,167 @@
+
+# MCP Operation Reference
+
+> **This is reference material.** For first setup, start with
+> [docs/quickstart.md](quickstart.md) and read the integration contract in
+> [docs/mcp-integration.md](mcp-integration.md). This page is the per-operation
+> reference for the MCP tools and their CLI fallbacks.
+
+This document lists each MCP operation and CLI fallback, together with the
+shared contract-edit and graph-impact behavioral contracts. It was extracted
+from [docs/mcp-integration.md](mcp-integration.md) so the integration page can
+stay a focused MCP setup and mental-model entry point.
+
+## Operations
+
+- `bootstrap_repo` creates required local wiki surfaces in the consuming repo
+- `sync_contract` copies shared templates, creates missing shared core files, and updates local contract metadata
+- `allocate_id` reserves the next local identifier for a type and updates `wiki/.id-state.json`
+- `create_record` writes a record into the consuming repo and consumes the next outstanding reservation for that type when one exists
+- CLI `read` reads a full markdown page by repo-relative path through the shared read core
+- CLI `get-record` reads a canonical wiki record by durable ID through the shared read core
+- `workspace_read_page` reads a Markdown page, canonical `wiki/work-records/WK-####.json` work record, or per-WK `wiki/work-records/evidence/WK-####.graph.json` graph-evidence sidecar from a configured repo alias; JSON work-record reads return a `json-work-record` envelope with the parsed record, and graph-sidecar reads return a compact-by-default `graph-evidence-sidecar` envelope (replay/debug data, not dispatch-control input)
+- `workspace_get_record` reads a canonical wiki record from a configured repo alias by durable ID; `WK-*` IDs return canonical JSON directly even when generated Markdown views are missing.
+- `workspace_create_record` is the agent-safe MCP create route; it delegates to the shared allocator/template path in a configured repo alias and never accepts a caller-supplied filesystem root
+- `lint_repo` checks the consuming repo against the shared contract, including allocator continuity for allocated record types
+- `generate_views` writes the standard non-canonical `catalog`, `now`, `inbox`, `backlog`, and `archive` views plus an auxiliary summary into the consuming repo
+- `generate_and_lint` runs `generate_views` followed by `lint_repo`
+- `build_search_index` builds the shared lexical search index for canonical docs/wiki pages
+- `workspace_build_search_index` builds the shared lexical search index for a configured repo alias
+- `workspace_search_repo` queries a configured repo alias with shared filters; it is read-only and never creates or refreshes `.cache/wiki-search/index.json` when `reindex` is unset or `false`. When the on-disk index is missing or unreadable on a read-only cache, the tool returns a structured `search_index_diagnostic.v1` envelope (codes `search_index_missing`, `search_index_read_failed`, `search_index_write_unavailable`) that directs the caller to the explicit `workspace_build_search_index` (or CLI `wiki build-search-index`) capability. A stale on-disk index is still consumed for read-only search and is rebuilt in memory without rewriting the cache (`indexState: rebuilt_in_memory`). Only the explicit build surfaces, or `workspace_search_repo` invoked with `reindex: true`, write the cache. Compact/default results carry only the triage `metadata` fields needed to choose a page to open (`type`, `status`, `priority`, `owner`, `area`, `initiative`) alongside top-level `relativePath`, `id`, `title`, `heading`, `preview`, and `score`; the duplicate `metadata.id` is omitted because the top-level `id` is authoritative. Pass `verbose: true` to restore the retrieval/governance facets (`canonicality`, `maintenance_mode`, `knowledge_role`, `evidence_stage`, `retrieval_visibility`, `lifecycle`, `sensitivity`, `retrieval_role`, `topics`) plus the full index/filter diagnostics. All facets remain available as `workspace_search_repo` filter inputs regardless of projection mode. The legacy `search_repo` route shares the same projection and accepts the same `verbose` opt-in.
+- `workspace_code_index_status` reports read-only repo code index status for a configured repo alias without building or rebuilding
+- `workspace_code_index_build` explicitly builds the repo code index for a configured repo alias, writing generated artifacts only to an ignored cache path
+- `workspace_code_index_rebuild` explicitly rebuilds the repo code index for a configured repo alias, writing generated artifacts only to an ignored cache path
+- `workspace_code_index_impact_paths` reports read-only path impact context for configured repo alias paths.
+- `workspace_code_index_graph_impact_paths` reports read-only graph-backed impact context for configured repo alias paths; graph evidence is derived, non-canonical code index evidence. Output is compact by default (a single bounded `graph_impact_summary`, a persistable `graph_impact_summary_ref`, the `verbose: false` marker, and compact `dirty_state`/`staleness` scalars); pass `verbose: true` only for debugging to add the expanded `graph_impact` alias, the full input/validated/invalid path arrays, validation hints, raw `graph_state`, and the raw envelope (`graph_impact_raw`)
+- `workspace_code_index_graph_impact_diff` reports read-only graph-backed impact context for caller-supplied parsed/raw diff input or explicit live-git diff input; graph evidence is derived, non-canonical code index evidence. Output is compact by default like `graph_impact_paths`; pass `verbose: true` only for debugging to add the expanded `graph_impact` alias, the full path and diff-record arrays (input/validated/invalid paths, parsed/validated/invalid diff records, affected/old/new paths), validation hints, raw `graph_state`, and the raw envelope (`graph_impact_raw`)
+- `workspace_code_index_context_for_path` reports read-only scoped implementation context for one configured repo alias path. Default output is compact for sub-threshold files (`<=1200` LOC): routing signals only, including counts, bounded `top_canonical_refs` without `match_explanations`, `top_related_code_paths`, `top_likely_tests`, a minimal context pointer, and `next_action`. Files over the 1200 LOC large-file threshold return a compact degraded guard instead. Pass `verbose: true` to restore full context for either tier, including all `canonical_refs` with `match_explanations`, `source_entries`, `derived_evidence`, and artifact/cache path metadata. Legacy aliases `sidecar_context_for_path` and `workspace_sidecar_context_for_path` should not be used for the compact/verbose contract unless their tool descriptions explicitly advertise matching `verbose` support.
+- `workspace_tools_list` lists the repository-local tool-discovery envelope as a compact daily-use catalog scan. Default output is bounded to the first 20 compact entries (`tool_name`, `display_name`, `kind`, `entrypoint`, `task_ids`, `runtime_posture`, `recommended_route`, `priority`); pass `task_id`, `tool_name`, or `limit` to narrow the scan. Use `workspace_tools_describe` for targeted per-tool detail and `workspace_tools_query` for known `task_id`/`tool_name` lookups. Read-only.
+- `workspace_tools_describe` describes the repository-local tool-discovery envelope for targeted per-tool inspection. Default output is compact (same compact entry fields as `workspace_tools_list`) and bounded to 20 entries; pass `task_id`, `tool_name`, or `limit` to target a narrow set, and `verbose: true` for full catalog entries including `display_name`, `install_state`, `side_effects`, `authority`, `docs_refs`, `source_files`, and `notes`. Read-only.
+- `workspace_tools_query` queries the repository-local tool-discovery envelope by `task_id` or `tool_name`; output matches the compact entry shape. Read-only.
+- `workspace_work_record_validate` validates a canonical JSON work record by ID in a configured repo alias; read-only and never writes generated views, caches, or records
+- `workspace_work_record_refresh_admission_metrics` is the agent-safe MCP route for refreshing worker-admission metric evidence on a `WK-####` record or `WK-####[#slice]` unit. It resolves only configured workspace repositories, accepts an optional `expected_source_digest` for stale-source protection, and writes refreshed `worker-admission-derived-evidence.v1` through the validated work-record path. It does not accept caller-supplied filesystem roots, shell output, inline environment policy, wrapper transport, temp worktrees, or graph-impact side channels as trusted inputs. Side effects: `workspace_write`, `record_write`. CLI fallback: `npm run wiki -- work-records refresh-admission-metrics --id <WK-ID|WK-ID#slice> --json`
+- `workspace_work_record_refresh_target_resolution_evidence` is the agent-safe MCP route for refreshing target-resolution evidence on a `WK-####` record or `WK-####[#slice]` unit. It resolves only configured workspace repositories, accepts an optional `expected_source_digest` for stale-source protection, and writes refreshed target-resolution derived evidence through the validated work-record path. Resolves missing `missing_target_resolution_evidence` dispatch-readiness blockers. It does not accept caller-supplied filesystem roots, shell output, or graph-impact side channels as trusted inputs. Side effects: `workspace_write`, `record_write`. CLI fallback: `npm run wiki -- work-records refresh-admission-metrics --id <WK-ID|WK-ID#slice> --json`
+- `workspace_validate_dispatch` evaluates dispatch readiness for a `WK-####` or `WK-#####slice` unit in a configured repo alias; read-only and returns the structured dispatch-readiness envelope. Use `dispatch_role: "read_only"` for a read-only role gate or `mode: "report-only"` for the non-strict report mode.
+- `workspace_run_validation` runs declared Node test validation for an implementation unit without raw shell or raw exec. Side effect: `process_spawn`. Caller input is exactly `{ unit, target }` for the fixed enum command `node_test`; the handler loads the canonical work record/slice for `unit` itself and selects `target` solely from that unit's `sections.structured_validation.allowed[]` entries with command `node_test`. It then runs `node --check <target>` and, only if check passes, `node --test <target>` using argv arrays with `shell:false`. Node binary, cwd, env, per-step timeout, and per-stream output cap are internal server constants; caller-supplied privilege-shaped fields (`snapshot`, `authority`, `runtime_policy`/`env`, `node_binary`, `cwd`/`workspaceRoot`, `timeout`, `outputCap`, `source_digest`, `args`, and equivalents) are rejected. `target` must be repo-relative, canonical, existing, `.js`/`.mjs`, contained under the configured workspace repo, and not a symlink escape. Returns structured per-step evidence (step, normalized argv, exit code, bounded stdout/stderr, timeout/truncation state, ok); `node --test` is reported as skipped when `node --check` fails. Family-neutral: Codex, Claude, and Agy workers see the same contract. This is the first minimal implementation of the `structured_validation` command-surface taxonomy; its evidence is command-surface validation, not a Chassis Control Engine enforcement attestation, and arbitrary-command/npm-script/cross-repo validation is out of scope for this surface.
+- `workspace_work_record_set_status` writes a narrow trusted status update to a work-record or slice in a configured repo alias; it accepts `unit` plus `status`, reuses the canonical work-record edit substrate, and rejects arbitrary JSON patching or direct field-path edits. When the write moves the unit to `review` or `done`, the response carries an advisory post-write `closeout_lint` summary: `ok`/`valid`, `warning_count`, `error_count`, bounded `top_findings`, `generated_views`, and `next_action`, plus a top-level `cleanly_closeable` flag. The lint runs `generate_and_lint` first so generated views are refreshed before linting. This is advisory, not a hard refusal — the status write still succeeds — but if lint is red (`closeout_lint.ok:false`) the unit is **not** cleanly closeable until lint is fixed or a specific pre-existing lint blocker is recorded. Other status transitions report `closeout_lint.applicable:false`. Side effects: `workspace_write`, `record_write`. CLI fallback: `npm run wiki -- work-records set-status --unit <WK-ID|WK-ID#slice> --status <status>`
+- `workspace_work_record_set_task` writes a narrow trusted task-completion update to a work-record or slice in a configured repo alias; it accepts `unit` plus exact task `text` or zero-based `index`, reuses the canonical work-record edit substrate, and rejects arbitrary JSON patching or direct field-path edits. Side effects: `workspace_write`, `record_write`. CLI fallback: `npm run wiki -- work-records set-task --unit <WK-ID|WK-ID#slice> --text <exact task>`, or `--index <n>` for a zero-based task position
+- `workspace_work_record_set_closure` writes a structured closure patch (`summary`, `validation`, `follow_ups`) to a work-record or slice in a configured repo alias; refuses if a supplied `expected_source_digest` no longer matches the on-disk record. After a successful closure write the response carries the same advisory `closeout_lint` summary as `set_status`: `ok`/`valid`, `warning_count`, `error_count`, bounded `top_findings`, `generated_views`, `next_action`, and a top-level `cleanly_closeable` flag, after running `generate_and_lint` to refresh generated views. It is advisory (the closure still persists) but a red lint means the unit is not cleanly closeable until the lint failure is fixed or recorded as a pre-existing blocker. Side effects: `workspace_write`, `record_write`
+- `workspace_work_record_upsert_slice` creates or updates a tracker-local slice on a `WK-####` in a configured repo alias. Takes the target record in `unit` (WK-####) and the slice body in `slice` (its `id` selects the slice). Validates the edited record against work-record.v1 before writing and refuses invalid edits. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default; pass `verbose: true` only for debugging to include the full updated record. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records upsert-slice --id <WK-ID> --slice-json '<json>' [--expected-source-digest <digest>] --json`
+- `workspace_work_record_delete_slice` removes a tracker-local slice from a `WK-####` in a configured repo alias. Accepts a slice-scoped `unit` (WK-#####slice-id) or an explicit `slice_id`. Validates the edited record against work-record.v1 before writing. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default; pass `verbose: true` only for debugging to include the full updated record. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records delete-slice --id <WK-ID> --slice-id <slice-id> [--expected-source-digest <digest>] --json`
+- `workspace_work_record_set_list_field` sets one controlled list-valued contract field (`read_scope`, `docs`, `repo_paths`, `write_scope`, `depends_on`, `related`, `blocks` at record scope; `read_scope`, `docs`, `repo_paths`, `write_scope`, `depends_on` at slice scope) on a `WK-####` in a configured repo alias. `read_scope` is the canonical read-first reference list; `docs` is accepted as a backward-compatible alias and is folded into `read_scope` on write. The `unit` selects record vs. slice scope. Validates against work-record.v1 before writing. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records set-list-field --id <WK-ID> --field <field> --values-json '<json-array>' [--expected-source-digest <digest>] --json`
+- `workspace_work_record_set_acceptance` sets `acceptance.criteria` and/or `acceptance.validation` at record or slice scope on a `WK-####` in a configured repo alias. The `unit` selects record vs. slice scope. Validates against work-record.v1 before writing. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records set-acceptance --id <WK-ID> [--criteria-json '<json-array>'] [--validation-json '<json-array>'] [--expected-source-digest <digest>] --json`
+- `workspace_work_record_shape_review_unit` shapes a `WK-####` or tracker-local slice into a findings-only review unit: sets `work_kind` to `"review"`, forces `write_scope` to `[]`, and points `dispatch_intent.intended_agent_role` at `"reviewer"`. Validates against work-record.v1 before writing. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records shape-review-unit --id <WK-ID> [--expected-source-digest <digest>] --json`
+- `workspace_record_graph_impact_evidence` persists structured graph-impact evidence onto a work-record or slice in a configured repo alias. The `graph_impact` payload may be the full structured envelope returned by `workspace_code_index_graph_impact_paths` or `workspace_code_index_graph_impact_diff`, or a provenance-bound compact summary/ref derived from that envelope; the tool rejects caller-supplied filesystem roots, shell command output, and unbound handoff prose as trusted inputs and validates the persisted entry against the canonical work-record schema before writing. Side effects: `workspace_write`, `record_write`. This is the only agent-safe persistence route for graph-impact evidence — there is no shell/CLI fallback for trusted-evidence persistence, and the compatibility boundary with the full envelope remains intact. Output is compact by default (status, `written`, `selected_unit`, `source_digest`, `valid`, bounded `diagnostics`, and the bounded summary/ref); pass `verbose: true` only for debugging to include the raw `graph_state` and the full refreshed derived evidence. `verbose` never relaxes the trusted-evidence binding the route requires
+- `workspace_generate_and_lint` runs `generate_views` followed by `lint_repo` for a configured repo alias; write-capable for the generated wiki views surface and generated package README projections. Use after structural wiki changes. Accepts an optional `max_findings` integer (see `workspace_lint_repo` below) that controls how many lint findings the response returns after generation
+- `workspace_lint_repo` validates a configured repo alias against the shared wiki contract; read-only and never writes generated views, caches, or records. Use `workspace_generate_and_lint` when the generated views must be refreshed before linting. Accepts an optional `max_findings` integer: omit it for the bounded compact default, pass `0` for counts/summary only, or pass a positive integer (no hard upper bound) to retrieve up to that many findings for a lint-repair session. Every response carries `finding_count_total`, `findings_returned`, `findings_truncated`, and `max_findings` alongside the backward-compatible `ok`/`valid`/`warning_count`/`error_count` fields; when findings are truncated, `next_action` tells callers to rerun with a higher `max_findings`. Large `max_findings` values are intentional for repair sessions but can produce large MCP responses. Work-record lint authority is the canonical `wiki/work-records/WK-####.json` layer: legacy `wiki/issues/WK-####.md` pages are historical/migration inputs, and package source templates under `packages/wiki-core/templates/**` are package inputs. Neither legacy issue pages nor package templates are linted as canonical work records.
+- `workspace_docs_policy_validate` validates `AGENTS.md` and configured durable docs for agent-facing non-MCP role-dispatch drift. Sections classified as operator/internal by heading are audience-scoped and do not automatically fail; paragraph-level operator qualifiers such as "human/operator", "operator-only", "launcher-owned", "deactivated", "refusal-only", and "fail-closed" let specific paragraphs reference wrapper commands without firing drift diagnostics. Inputs: optional `repo` alias, optional `paths` array (defaults to `AGENTS.md`, `packages/wiki-core/templates/AGENTS.md.boilerplate.md`, `docs/mcp-integration.md`, `docs/tool-discovery.md`, `docs/agent-launch-quickstart.md`). Read-only; returns the `docs-policy.v1` envelope with `files_scanned`, ranked `diagnostics`, and a `summary` by code/level/file. CLI fallback: `npm run wiki -- docs-policy validate --json`
+- `workspace_agent_dispatch` is the MCP-only agent dispatch transport for `worker`, `reviewer`, and `redteam` role calls. It refuses caller-supplied identity carriers, enforces the subject-role matrix (worker/reviewer -> WK or WK slice; redteam -> WK, WK slice, or IN), validates readiness through the structured dispatch-readiness gate, enforces reviewer findings-only `write_scope: []` during dispatch-readiness, and — when the launcher-owned launch backend is configured on the server process — calls `createWorkspaceAgentDispatchBackend(...).startLaunch(...)` to start a real launcher-controlled run before returning a server-minted opaque `monitor_handle` plus `run_id`. Stdio MCP is a same-user local transport, not an authentication boundary; dispatch is controlled by tool exposure plus work-record dispatch-readiness, not by a launcher-to-MCP registration prelude. The `backend_unavailable` blocker is reserved for the genuinely unconfigured case (no launcher-owned launch executor wired into the MCP server process); a configured backend reaches the readiness tail and starts a run. There is no shell/wrapper fallback, no inline env policy, no temp worktree, no bwrap widening, and no graph-impact side channel; missing structured transport is reported with the `missing_structured_transport` code. Side effects: `process_spawn`
+- `workspace_agent_run_status` queries the status of a `workspace_agent_dispatch` run by its server-minted `monitor_handle`. Caller-supplied identity carriers are refused. When the launch backend is wired, the tool resolves the handle through `backend.getRunStatus(...)` and reports the controlled lifecycle vocabulary `launching`, `running`, `succeeded`, `failed`, or `cancelled` (the `pending_launch` state no longer exists). Terminal successful runs may include `final_result` with `kind: "findings"`, `kind: "no_findings"`, or `kind: "missing_result"`. `kind` is classification metadata only: consumers that need the agent's full final response must read `final_result.full_response.text` when present. For `findings` and valid `no_findings` results, `full_response` preserves the captured final response text plus `format` and `source`; for `missing_result`, `full_response` is `null` and `missing_result` explains why capture failed. Valid `no_findings` payloads keep the compatibility `reason` field and may also carry `text` and `source`; malformed or missing final-result payloads must degrade to stable `missing_result` diagnostics rather than silently returning an empty classification. Compact terminal responses include a bounded `final_result_summary.structured_role_result` projection when structured role-result evidence is present; `valid:false` is surfaced explicitly with diagnostic counts/codes while the run can still be `succeeded` and the full prose remains behind `verbose:true` or `include_final_result:true`. In the free/local tier this `structured_role_result.valid:false` is EXPECTED: under `decision` free-tier reviewer/redteam/worker output is prose-only and non-attesting, so it is not a failed child run, a failed dispatch, or missing findings. A schema-valid structured role result is a CCE capability enabled only by a configured CCE key. Fabricated handles, cross-subject reuse, caller/session mismatch, and replay refuse with the `monitor_handle_unknown`, `monitor_handle_subject_mismatch`, `monitor_handle_caller_mismatch`, or `monitor_handle_replay` codes. Read-only
+- `workspace_agent_run_wait` blocks until a `workspace_agent_dispatch` run reaches a terminal state or a caller-specified timeout expires, returning a single response per tool call so coordinators do not need to poll across turns. Schema version `workspace-agent-run-wait.v1`. Input: `monitor_handle` (required), optional `subject`, optional `timeout_ms` (integer [1, 300000], default 60000), optional `poll_interval_ms` (integer [500, 60000], default 5000), optional `verbose`, optional `include_final_result`. Out-of-range or non-integer values for `timeout_ms`/`poll_interval_ms` are refused with `validation_failure` and explicit detail; no silent clamping. Terminal response: `accepted:true`, `timed_out:false`, `terminal:true`, compact by default (bounded `final_result_summary`, including bounded `structured_role_result` validity/diagnostics when present); pass `verbose:true` or `include_final_result:true` for the full `final_result` envelope. Timeout response: `accepted:true`, `timed_out:true`, `terminal:false`, current status fields, `next_action:"retry_wait_or_check_status"`. Mid-wait backend refusal: `accepted:false` surfaced immediately (same refusal envelope as `workspace_agent_run_status`). Shares all identity-carrier refusals, workspace resolution, caller-session binding, and subject mismatch checks with `workspace_agent_run_status`. The wait loop is deadline-based: each sleep is capped to remaining timeout to prevent oversleep. Concurrent waits on the same handle are allowed and independent. As with `workspace_agent_run_status`, a free/local terminal success carrying `structured_role_result.valid:false` is expected `decision` prose-only behavior, not a terminal run failure. Read-only.
+- `workspace_work_record_summary` returns a compact `work-record-summary.v1` envelope for a `WK-####` record or `WK-####[#slice]` unit in a configured repo alias. Read-only; returns dependencies (`depends_on`, `blocks`, `related`), `write_scope`, `acceptance` (criteria + validation), `slices` (id/status/owner/write_scope/acceptance/dispatch_intent per slice), `validation`, `owners`, `review_state` (required, status, blocked), and `blockers` (open/accepted escalations and `depends_on` references). Inputs: optional `repo` alias plus one of `id`, `unit`, or `path`. CLI fallback: `npm run wiki -- work-records summary --unit <WK-ID|WK-ID#slice> --json`
+
+## Contract-edit compact default, verbose opt-in, stale-source protection, and validate-before-write
+
+The contract-edit MCP routes (`workspace_work_record_upsert_slice`,
+`workspace_work_record_delete_slice`, `workspace_work_record_set_list_field`,
+`workspace_work_record_set_acceptance`, and `workspace_work_record_shape_review_unit`)
+share a common behavioral contract:
+
+**Compact default and verbose opt-in.** Output is compact by default. A compact
+response carries the operation status, the selected unit, the source digest,
+whether the write succeeded, and bounded diagnostics — without dumping the full
+updated record body. Pass `verbose: true` only for debugging when the full
+updated record is needed. The compact default is the normal agent path.
+
+**Validate-before-write.** Every contract-edit operation validates the
+prospective updated record against work-record.v1 before writing. An edit that
+would produce an invalid record is refused with structured diagnostics and
+`ok: false`; the on-disk record is never mutated unless the result passes
+full schema validation. This means agents can call these routes without
+building their own pre-validation step.
+
+**Stale-source protection.** Each route accepts an optional
+`expected_source_digest` parameter. When supplied, the tool computes the
+current on-disk source record's digest and refuses the write if it no longer
+matches — preventing concurrent-edit clobber. Agents working in environments
+where multiple sessions may edit the same record should use this parameter.
+When not supplied, the write proceeds without a freshness check.
+
+**Review-unit shaping.** `workspace_work_record_shape_review_unit` is a
+composite contract-edit operation: it sets `work_kind` to `"review"`, forces
+`write_scope` to `[]`, and points `dispatch_intent.intended_agent_role` at
+`"reviewer"` in a single validated write. The resulting unit satisfies the
+`reviewer_write_scope_nonempty` dispatch-readiness requirement for `workspace_agent_dispatch`
+with `role: reviewer`. Agents creating review slices should use this route
+rather than assembling the three field edits manually.
+
+**CLI fallback scope.** The CLI forms (`npm run wiki -- work-records upsert-slice`,
+`delete-slice`, `set-list-field`, `set-acceptance`, `shape-review-unit`) are
+operator-shell fallbacks only. They are not agent dispatch transports when the
+MCP surface is available. Agents must use the MCP routes above and report a
+`missing_structured_transport` blocker if those routes are unavailable rather
+than falling through to the CLI commands.
+
+## Graph-impact compact default and verbose opt-in
+
+Graph-impact MCP routes are compact by default. `workspace_code_index_graph_impact_paths`,
+`workspace_code_index_graph_impact_diff`, and `workspace_record_graph_impact_evidence`
+each accept an optional `verbose` boolean that defaults to `false`; omitting it or
+passing `false` is the normal agent path. A compact response carries a single
+bounded `graph_impact_summary` object, a `graph_impact_summary_ref`, the
+`verbose: false` marker, and small status scalars (`dirty_state`, `staleness`,
+and — for persistence — `record_id`, `selected_unit`, `source_digest`, `valid`,
+`written`, and bounded `diagnostics`). The compact default never spreads the
+summary at the top level, repeats it under a `graph_impact` alias, or includes raw
+`graph_nodes`, `graph_edges`, full `canonical_refs`, `structural_impacts`, the raw
+envelope, full refreshed derived evidence, or worker-admission feature vectors.
+
+For sidecar-shaped graph-impact results (those with a `schema_version` field, as
+returned by `workspace_code_index_graph_impact_paths` and
+`workspace_code_index_graph_impact_diff`), the compact `graph_impact_summary_ref`
+is **lightweight**: it carries a content-addressed `raw_evidence_digest`, top-level
+`input_paths`, and `validated_paths`, but does not embed a full copy of
+`graph_impact_summary`. Pass both the returned `graph_impact_summary` and the
+lightweight `graph_impact_summary_ref` to `workspace_record_graph_impact_evidence`;
+the route binds them together internally. Routine evidence recording does **not**
+require `verbose:true`, raw graph nodes or edges, a full canonical ref, shell
+output, temp files, or a verbose raw envelope.
+
+`verbose: true` is an explicit debugging opt-in, not the normal agent path. It adds
+the expanded `graph_impact` alias, the full input/validated/invalid path arrays,
+validation hints, diff records, raw `graph_state`, the raw envelope
+(`graph_impact_raw`), and — for persistence — the full refreshed derived evidence.
+It does not change graph-impact dispatch-readiness policy or relax provenance/binding
+checks: the bounded `graph_impact_summary` and `graph_impact_summary_ref` are
+identical under both modes, and `verbose` is never a bypass for the trusted-evidence
+binding required by `workspace_record_graph_impact_evidence`.
+
+The full envelope remains machine evidence for dispatch-readiness and persistence;
+worker-facing launch/readiness packets, review handoffs, and other agent-facing
+summaries should expose the bounded summary/ref shape instead of raw graph nodes,
+edges, or oversized path payloads.
+The summary keeps canonical refs separate from derived CLI/MCP/code surface,
+likely-test, docs-contract, missing-update, state, and warning-count evidence.
+When graph extraction can name a specific CLI command or MCP tool, summary
+surface entries include targeting metadata so agents can validate the named
+handler/tool family instead of treating every command or tool in a large
+surface file as equally relevant. Broad inferred docs and test reminders are
+planning checks, not mandatory updates; the `must_update` bucket can remain
+empty until graph evidence marks a specific item as required.
+`action_items.check_this` is ranked for the current query focus, and direct
+named graph-impact CLI command or MCP tool validation actions rank ahead of
+broad inferred docs/test reminders when both are present. Repeated docs, test,
+or protocol checks can be grouped by target path with additive `input_paths`,
+`target_paths`, and `count` metadata. This compact grouping applies to both
+path and diff graph-impact summaries and is an agent-planning convenience, not
+a stronger call-graph precision claim.
+
+When using `bootstrap_repo` or `sync_contract`, agents should also supply:
+
+- `profile: "standard"` or `profile: "research"`
+- `extensionNamespaces: [...]` when the repo has declared repo-local typed namespaces
+
+When using `lint_repo` or `generate_views` before local metadata exists, agents may also supply:
+
+- `profile: "standard"` or `profile: "research"`
+- `extensionNamespaces: [...]`

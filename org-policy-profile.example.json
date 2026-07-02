@@ -1,0 +1,41 @@
+{
+  "parameter_values": {
+    "write_scope_count.review_threshold": 1,
+    "write_scope_count.deny_threshold": 4,
+    "write_scope_count.waiver_allowability": [
+      "reviewer_attestation"
+    ],
+    "write_scope_total_loc.review_threshold": 200,
+    "write_scope_total_loc.deny_threshold": 1200,
+    "write_scope_total_loc.waiver_allowability": [
+      "accepted_authority",
+      "reviewer_attestation"
+    ],
+    "max_write_file_loc.review_threshold": 600,
+    "max_write_file_loc.deny_threshold": 1200,
+    "max_write_file_loc.waiver_allowability": [
+      "accepted_authority",
+      "reviewer_attestation"
+    ],
+    "acceptance_criteria_count.review_threshold": 10,
+    "acceptance_criteria_count.waiver_allowability": [
+      "reviewer_attestation"
+    ],
+    "validation_command_count.review_threshold": 2,
+    "validation_command_count.waiver_allowability": [
+      "reviewer_attestation"
+    ],
+    "expected_changed_line_budget.review_threshold": 200,
+    "expected_changed_line_budget.waiver_allowability": [
+      "reviewer_attestation"
+    ],
+    "declared_runtime_mode_count.review_threshold": 1,
+    "declared_runtime_mode_count.waiver_allowability": [
+      "reviewer_attestation"
+    ],
+    "artifact_kind_count.review_threshold": 1,
+    "artifact_kind_count.waiver_allowability": [
+      "reviewer_attestation"
+    ]
+  }
+}

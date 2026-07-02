@@ -1,0 +1,44 @@
+{
+  "name": "@agent-chassis/agent-launch-core",
+  "version": "0.4.1",
+  "license": "Elastic-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-chassis/agent-chassis.git",
+    "directory": "packages/agent-launch-core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src/index.mjs",
+    "src/operations/cleanup.mjs",
+    "src/operations/initiative.mjs",
+    "src/operations/launch.mjs",
+    "src/operations/provenance.mjs",
+    "src/operations/review.mjs",
+    "src/lib/**",
+    "!src/lib/temporal-workflow-runner.mjs",
+    "!src/lib/temporal-workflow-state.mjs",
+    "data/**"
+  ],
+  "exports": {
+    ".": "./src/index.mjs",
+    "./src/lib/agent-role-result-schema-path.mjs": "./src/lib/agent-role-result-schema-path.mjs",
+    "./src/lib/agent-role-result.mjs": "./src/lib/agent-role-result.mjs",
+    "./src/lib/config.mjs": "./src/lib/config.mjs",
+    "./src/lib/filesystem.mjs": "./src/lib/filesystem.mjs",
+    "./src/lib/launcher-context-mint.mjs": "./src/lib/launcher-context-mint.mjs",
+    "./src/lib/registry.mjs": "./src/lib/registry.mjs",
+    "./src/lib/role-guard.mjs": "./src/lib/role-guard.mjs",
+    "./src/lib/work-record-gate.mjs": "./src/lib/work-record-gate.mjs",
+    "./src/lib/work-record-launch-prompt.mjs": "./src/lib/work-record-launch-prompt.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@agent-chassis/wiki-core": "^0.4.1"
+  }
+}

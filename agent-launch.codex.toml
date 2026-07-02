@@ -1,0 +1,16 @@
+# Reasonable defaults for the Codex family. Copy to agent-launch.toml to activate.
+[roles.worker]
+model = "gpt-5.4-mini"
+effort = "medium"
+
+[roles.reviewer]
+model = "gpt-5.4"
+effort = "medium"
+
+[roles.orchestrator]
+model = "gpt-5.5"
+effort = "high"
+
+[roles.redteam]
+model = "gpt-5.4"
+effort = "high"

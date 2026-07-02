@@ -1,0 +1,44 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment-manifest",
+  "repository": "agent-chassis/agent-chassis",
+  "description": "Canonical fragment manifest for the tool-discovery.v1 registry. The loader assembles the fragment files below strictly in this order into one tool-discovery.v1 descriptor; assembly order is fixed here, not by filesystem read order, directory listing order, or glob expansion. This manifest is the registry identity anchor, and descriptor.digest is computed over the assembled corpus in manifest order. See docs/tool-discovery.md (Canonical Fragment Registry).",
+  "fragments": [
+    {
+      "file": "mcp-tools.json",
+      "tool_count": 21,
+      "summary": "MCP discovery, read, validation, search, record evidence, and contract-manifest tools."
+    },
+    {
+      "file": "work-record-tools.json",
+      "tool_count": 28,
+      "summary": "Work-record create/edit/validate/migrate routes across MCP and CLI."
+    },
+    {
+      "file": "code-index-tools.json",
+      "tool_count": 18,
+      "summary": "Code-index and graph-impact tools across MCP and CLI."
+    },
+    {
+      "file": "launcher-tools.json",
+      "tool_count": 5,
+      "summary": "Dispatch, run-status, coordination preflight, and runtime-blocker-taxonomy tools."
+    },
+    {
+      "file": "cli-commands.json",
+      "tool_count": 10,
+      "summary": "wiki and agent-launch CLI command rows."
+    },
+    {
+      "file": "wrapper-commands.json",
+      "tool_count": 0,
+      "summary": "Historical role-wrapper commands removed from the package source."
+    }
+  ],
+  "expected_tool_count": 82,
+  "uniqueness": {
+    "key": "tool_name",
+    "scope": "assembled_corpus",
+    "policy": "Each tool_name is owned by exactly one fragment. A duplicate tool_name, whether repeated within one fragment or appearing in two fragments, is a fragment-corpus integrity error, not a last-writer-wins merge."
+  }
+}

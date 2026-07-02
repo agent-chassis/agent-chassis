@@ -1,0 +1,42 @@
+{
+  "name": "@agent-chassis/agent-launch-cli",
+  "version": "0.4.1",
+  "license": "Elastic-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-chassis/agent-chassis.git",
+    "directory": "packages/agent-launch-cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src/**",
+    "!src/commands/temporal-wrapper-dry-run.mjs",
+    "bin/**",
+    "config/**",
+    "!**/.agent-runs/**",
+    "!**/codex-worker.WK-*/**"
+  ],
+  "bin": {
+    "agent-launch": "./src/index.mjs",
+    "agent-launch-filesystem-mcp-backend": "./bin/agent-launch-filesystem-mcp-backend"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./src/commands/temporal-wrapper-dry-run.mjs": null,
+    "./src/*": "./src/*"
+  },
+  "dependencies": {
+    "@agent-chassis/agent-launch-core": "^0.4.1",
+    "@agent-chassis/wiki-core": "^0.4.1",
+    "@agent-chassis/wiki-mcp": "^0.4.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "@agent-chassis/wiki-mcp": "^0.4.1"
+  }
+}

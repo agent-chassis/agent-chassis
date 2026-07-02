@@ -1,0 +1,26 @@
+{
+  "name": "@agent-chassis/wiki-cli",
+  "version": "0.4.1",
+  "license": "Elastic-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-chassis/agent-chassis.git",
+    "directory": "packages/wiki-cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src/**"
+  ],
+  "bin": {
+    "wiki": "./src/index.mjs"
+  },
+  "dependencies": {
+    "@agent-chassis/wiki-core": "^0.4.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

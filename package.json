@@ -1,0 +1,31 @@
+{
+  "name": "agent-chassis",
+  "version": "0.2.0",
+  "private": true,
+  "workspaces": [
+    "packages/core",
+    "packages/wiki-core",
+    "packages/agent-launch-core",
+    "packages/wiki-cli",
+    "packages/agent-launch-cli",
+    "packages/wiki-mcp"
+  ],
+  "scripts": {
+    "wiki": "node packages/wiki-cli/src/index.mjs",
+    "wiki:mcp": "node packages/wiki-mcp/src/server.mjs",
+    "agent-launch": "node packages/agent-launch-cli/src/index.mjs",
+    "test": "node tests/run-tests.mjs unit",
+    "test:integration": "node tests/run-tests.mjs integration",
+    "test:all": "node tests/run-tests.mjs all",
+    "test:list": "node tests/run-tests.mjs list"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-chassis/agent-chassis.git"
+  },
+  "dependencies": {
+    "@vscode/tree-sitter-wasm": "0.3.1",
+    "protobufjs": "^7.6.4",
+    "web-tree-sitter": "0.26.9"
+  }
+}

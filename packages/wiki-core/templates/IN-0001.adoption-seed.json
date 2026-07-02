@@ -1,0 +1,85 @@
+{
+  "schema_version": "wiki-bootstrap-seed.v1",
+  "record_id": "IN-0001",
+  "record_kind": "initiative",
+  "title": "Adopt the shared wiki contract and agent workflow",
+  "summary": "Static, repo-neutral bootstrap seed content for a consuming repository's own IN-0001 adoption plan.",
+  "repo_neutral": true,
+  "bootstrap_mode": "preserve_existing",
+  "target_surfaces": [
+    {
+      "path": "AGENTS.md",
+      "write_mode": "create_if_missing",
+      "purpose": "repo-local agent guidance"
+    },
+    {
+      "path": "docs/adoption.md",
+      "write_mode": "create_if_missing",
+      "purpose": "adoption and bootstrap guidance"
+    },
+    {
+      "path": "wiki/schema.md",
+      "write_mode": "create_if_missing",
+      "purpose": "consumer-owned core schema guidance"
+    },
+    {
+      "path": "wiki/conventions.md",
+      "write_mode": "create_if_missing",
+      "purpose": "consumer-owned operating conventions"
+    },
+    {
+      "path": "wiki/index.md",
+      "write_mode": "create_if_missing",
+      "purpose": "consumer-owned wiki index guidance"
+    },
+    {
+      "path": "wiki/.wiki-contract.json",
+      "write_mode": "create_if_missing",
+      "purpose": "local contract metadata and inference defaults"
+    },
+    {
+      "path": "wiki/initiatives/IN-0001.md",
+      "write_mode": "create_if_missing",
+      "purpose": "owned adoption plan"
+    },
+    {
+      "path": "agent-launch.toml",
+      "write_mode": "create_if_missing",
+      "purpose": "repo-local launcher role defaults"
+    }
+  ],
+  "owned_work": [
+    {
+      "key": "repo-local-agents",
+      "title": "Add repo-local AGENTS guidance",
+      "description": "Read the bootstrap-seeded helper template wiki/templates/AGENTS.md.boilerplate.md (a local install helper, not repo-local operating authority), adapt it for this repo (replace [repo-name] and add repo-local structured-tool and retrieval details), and commit the result as AGENTS.md at the repo root. Bootstrap does not create AGENTS.md; it is repo-specific operating authority. Keep operator install/bootstrap command documentation out of AGENTS.md; that belongs in the adoption-docs work item."
+    },
+    {
+      "key": "adoption-docs",
+      "title": "Document local adoption choices",
+      "description": "Bootstrap seeds docs/adoption.md from a package template (create-if-missing, preserved on rerun) covering the bootstrap path, package install, adoption-verify usage, and the canonical wiki/work-records/WK-*.json work-record layer. The remaining work is optional repo-specific customization of that seeded guide; do not author it from scratch and do not move install/bootstrap instructions into AGENTS.md. The adoption-verify review confirms its presence informationally."
+    },
+    {
+      "key": "launcher-config",
+      "title": "Add repo-local launcher role defaults",
+      "description": "Complete the WK-0001 launcher-config implementation slice that creates agent-launch.toml at the repo root with repo-local role defaults. Installing npm packages, including @agent-chassis/core, does not create repo-root launcher config files; launcher config is consuming-repo adoption work driven by IN-0001/WK-0001."
+    }
+  ],
+  "required_checks": [
+    "wiki search/read/get-record checks (read-only; confirmed by the WK-0001#adoption-verify review, not a dispatched worker)",
+    "work-record load/validate/dispatch-readiness checks (read-only; confirmed by the WK-0001#adoption-verify review, not a dispatched worker)",
+    "generate/lint validation (read-only; confirmed by the WK-0001#adoption-verify review, not a dispatched worker)",
+    "read-only graph-impact checks (confirmed by the WK-0001#adoption-verify review, not a dispatched worker)",
+    "dispatch/preflight verification (read-only; confirmed by the WK-0001#adoption-verify review, not a dispatched worker)"
+  ],
+  "non_goals": [
+    "Do not invoke MCP, dispatch, graph impact, preflight, or repo-code-index operations against the target repo.",
+    "Do not claim the target repo is agent-operable after seeding.",
+    "Do not overwrite repo-specific edits or silently clobber existing canonical records.",
+    "Do not require duplicate IN-0001 or duplicate seeded work when rerun.",
+    "Do not dispatch implementation workers for the read-only verification checks (wiki-retrieval, work-records, generate-lint, graph-impact, dispatch-preflight); the WK-0001#adoption-verify findings-only review performs them."
+  ],
+  "seed_work_record_templates": [
+    "WK-0001.adoption-tracker.json"
+  ]
+}

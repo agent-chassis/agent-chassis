@@ -1,0 +1,28 @@
+# Non-binding Codex role profile template.
+# Copy the relevant profiles into an operator-owned Codex config if desired.
+# Do not add auth tokens, local project trust paths, or machine-specific MCP
+# server paths to this committed template.
+
+[profiles.orchestrator]
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+
+[profiles.orchestrator_xhigh]
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
+
+[profiles.worker]
+model = "gpt-5.4-mini"
+model_reasoning_effort = "medium"
+
+[profiles.worker_spark]
+model = "codex-5.3-spark"
+model_reasoning_effort = "low"
+
+[profiles.reviewer]
+model = "gpt-5.4"
+model_reasoning_effort = "medium"
+
+[profiles.redteam]
+model = "gpt-5.4"
+model_reasoning_effort = "medium"

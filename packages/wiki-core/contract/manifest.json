@@ -1,0 +1,505 @@
+{
+  "name": "agent-chassis-contract",
+  "contractVersion": "0.2.0",
+  "retrievalEntrypoint": "wiki/catalog.md",
+  "workRecordAuthority": {
+    "currentCanonicalDirectory": "wiki/work-records",
+    "currentCanonicalPattern": "wiki/work-records/WK-*.json",
+    "legacyMarkdownProjectionDirectory": "wiki/issues",
+    "legacyMarkdownProjectionPattern": "wiki/issues/WK-*.md",
+    "meaning": "Current and migrated WK work records are canonical JSON records under wiki/work-records/. wiki/issues/ is retained as the legacy Markdown issue/projection compatibility surface."
+  },
+  "coreFiles": [
+    "wiki/schema.md",
+    "wiki/conventions.md",
+    "wiki/catalog.md",
+    "wiki/index.md"
+  ],
+  "runtimeFiles": [
+    "wiki/.wiki-contract.json",
+    "wiki/.id-state.json"
+  ],
+  "requiredSurfaces": [
+    "wiki/issues",
+    "wiki/initiatives",
+    "wiki/decisions",
+    "wiki/sources",
+    "wiki/areas",
+    "wiki/templates"
+  ],
+  "profiles": {
+    "standard": {
+      "description": "Application, library, and engine repos that keep durable synthesized knowledge in docs/.",
+      "durableKnowledgeLayer": {
+        "path": "docs/",
+        "required": true
+      }
+    },
+    "research": {
+      "description": "Research-corpus repos whose durable synthesis remains in typed wiki namespaces.",
+      "durableKnowledgeLayer": {
+        "path": "docs/",
+        "required": false
+      }
+    }
+  },
+  "types": {
+    "issue": {
+      "aliases": [
+        "issue",
+        "wk",
+        "work_item",
+        "work-item"
+      ],
+      "prefix": "WK",
+      "stateKey": "work_item",
+      "directory": "wiki/issues",
+      "directoryMeaning": "Legacy Markdown issue/projection compatibility surface. Current and migrated WK work records are canonical JSON records under wiki/work-records/.",
+      "template": "issue.md",
+      "idStrategy": "allocated",
+      "filenameStrategy": "id_only",
+      "reservedFilenames": [
+        "README.md"
+      ],
+      "requiredFrontMatter": [
+        "id",
+        "title",
+        "type",
+        "status",
+        "priority",
+        "owner",
+        "created",
+        "updated"
+      ],
+      "optionalFrontMatter": [
+        "resolution",
+        "severity",
+        "area",
+        "initiative",
+        "tags",
+        "origin",
+        "migration",
+        "repo_paths",
+        "docs",
+        "external_links",
+        "links",
+        "depends_on",
+        "blocks",
+        "related",
+        "write_scope",
+        "assignees",
+        "agents",
+        "reviewers",
+        "target",
+        "completed",
+        "started",
+        "superseded_by",
+        "duplicate_of",
+        "deprecated_by"
+      ],
+      "arrayFrontMatter": [
+        "tags",
+        "repo_paths",
+        "docs",
+        "external_links",
+        "links",
+        "depends_on",
+        "blocks",
+        "related",
+        "write_scope",
+        "assignees",
+        "agents",
+        "reviewers"
+      ],
+      "objectFrontMatter": [
+        "origin",
+        "migration"
+      ],
+      "enumFrontMatter": {
+        "type": [
+          "bug",
+          "feature",
+          "task",
+          "investigation",
+          "chore",
+          "docs",
+          "infra",
+          "migration"
+        ],
+        "status": [
+          "inbox",
+          "todo",
+          "in_progress",
+          "blocked",
+          "review",
+          "done",
+          "parked",
+          "cancelled",
+          "deprecated",
+          "duplicate",
+          "superseded",
+          "wont_do"
+        ],
+        "priority": [
+          "critical",
+          "high",
+          "medium",
+          "low"
+        ]
+      }
+    },
+    "initiative": {
+      "aliases": [
+        "initiative",
+        "in"
+      ],
+      "prefix": "IN",
+      "stateKey": "initiative",
+      "directory": "wiki/initiatives",
+      "template": "initiative.md",
+      "idStrategy": "allocated",
+      "filenameStrategy": "id_only",
+      "reservedFilenames": [
+        "README.md"
+      ],
+      "requiredFrontMatter": [
+        "id",
+        "title",
+        "status",
+        "priority",
+        "owner",
+        "created",
+        "updated"
+      ],
+      "optionalFrontMatter": [
+        "summary",
+        "area",
+        "tags",
+        "docs",
+        "depends_on",
+        "blocks",
+        "related",
+        "write_scope",
+        "assignees",
+        "agents",
+        "reviewers",
+        "target",
+        "started",
+        "completed"
+      ],
+      "arrayFrontMatter": [
+        "tags",
+        "docs",
+        "depends_on",
+        "blocks",
+        "related",
+        "write_scope",
+        "assignees",
+        "agents",
+        "reviewers"
+      ],
+      "enumFrontMatter": {
+        "status": [
+          "todo",
+          "in_progress",
+          "blocked",
+          "review",
+          "done",
+          "parked",
+          "cancelled",
+          "deprecated"
+        ],
+        "priority": [
+          "critical",
+          "high",
+          "medium",
+          "low"
+        ]
+      }
+    },
+    "decision": {
+      "aliases": [
+        "decision",
+        "dec"
+      ],
+      "prefix": "DEC",
+      "stateKey": "decision",
+      "directory": "wiki/decisions",
+      "template": "decision.md",
+      "idStrategy": "allocated",
+      "filenameStrategy": "id_only",
+      "reservedFilenames": [
+        "README.md"
+      ],
+      "requiredFrontMatter": [
+        "id",
+        "title",
+        "status",
+        "date",
+        "owners"
+      ],
+      "optionalFrontMatter": [
+        "area",
+        "docs",
+        "related",
+        "supersedes",
+        "superseded_by"
+      ],
+      "arrayFrontMatter": [
+        "owners",
+        "docs",
+        "related"
+      ],
+      "enumFrontMatter": {
+        "status": [
+          "proposed",
+          "accepted",
+          "rejected",
+          "superseded",
+          "deprecated"
+        ]
+      }
+    },
+    "source": {
+      "aliases": [
+        "source",
+        "src"
+      ],
+      "prefix": "SRC",
+      "stateKey": "source",
+      "directory": "wiki/sources",
+      "template": "source.md",
+      "idStrategy": "allocated",
+      "filenameStrategy": "id_only",
+      "reservedFilenames": [
+        "README.md"
+      ],
+      "requiredFrontMatter": [
+        "id",
+        "title",
+        "kind",
+        "captured",
+        "updated",
+        "source_uri",
+        "authority",
+        "immutable_hint"
+      ],
+      "optionalFrontMatter": [
+        "related_docs",
+        "related_work",
+        "anchors"
+      ],
+      "arrayFrontMatter": [
+        "related_docs",
+        "related_work",
+        "anchors"
+      ]
+    },
+    "area": {
+      "aliases": [
+        "area"
+      ],
+      "directory": "wiki/areas",
+      "template": "area.md",
+      "idStrategy": "slug",
+      "filenameStrategy": "slug_only",
+      "reservedFilenames": [
+        "README.md"
+      ],
+      "requiredFrontMatter": [
+        "id",
+        "title",
+        "owners",
+        "updated"
+      ],
+      "optionalFrontMatter": [
+        "docs",
+        "initiatives",
+        "sources",
+        "decisions",
+        "related"
+      ],
+      "arrayFrontMatter": [
+        "owners",
+        "docs",
+        "initiatives",
+        "sources",
+        "decisions",
+        "related"
+      ]
+    }
+  },
+  "crossRepoReference": {
+    "idFormat": "org/repo:WK-0001",
+    "pathFormat": "org/repo/wiki/<surface>/<file>.md"
+  },
+  "generatedViews": {
+    "canonical": false,
+    "defaultDirectory": "wiki/generated",
+    "standardFiles": [
+      "wiki/catalog.md",
+      "wiki/now.md",
+      "wiki/inbox.md",
+      "wiki/backlog.md",
+      "wiki/archive.md",
+      "packages/wiki-core/README.md",
+      "packages/wiki-core/data/README.md",
+      "packages/wiki-mcp/README.md",
+      "packages/wiki-cli/README.md",
+      "packages/agent-launch-core/README.md",
+      "packages/agent-launch-cli/README.md"
+    ]
+  },
+  "retrieval": {
+    "supportedInferencePathGlobs": [
+      "docs/**/*.md"
+    ],
+    "sharedTopics": [
+      "architecture",
+      "automation",
+      "compliance",
+      "documentation",
+      "metadata",
+      "provenance",
+      "retrieval",
+      "schema",
+      "testing",
+      "tooling",
+      "workflow"
+    ],
+    "facets": {
+      "retrieval_role": {
+        "values": [
+          "entrypoint",
+          "hub",
+          "inventory",
+          "record"
+        ],
+        "multiValue": true,
+        "maxValues": 2,
+        "allowedCombinations": [
+          [
+            "entrypoint",
+            "inventory"
+          ],
+          [
+            "entrypoint",
+            "hub"
+          ],
+          [
+            "record",
+            "hub"
+          ]
+        ]
+      },
+      "canonicality": {
+        "values": [
+          "canonical",
+          "noncanonical"
+        ]
+      },
+      "maintenance_mode": {
+        "values": [
+          "curated",
+          "generated",
+          "operational"
+        ]
+      },
+      "knowledge_role": {
+        "values": [
+          "evidence",
+          "synthesis",
+          "decision",
+          "work",
+          "reference"
+        ]
+      },
+      "evidence_stage": {
+        "values": [
+          "primary",
+          "derived"
+        ]
+      },
+      "retrieval_visibility": {
+        "values": [
+          "default",
+          "support",
+          "suppressed"
+        ],
+        "default": "default"
+      },
+      "lifecycle": {
+        "values": [
+          "active",
+          "stable",
+          "historical"
+        ],
+        "default": "active"
+      },
+      "sensitivity": {
+        "values": [
+          "normal",
+          "restricted"
+        ],
+        "default": "normal"
+      }
+    }
+  },
+  "catalog": {
+    "catalogVersion": 3,
+    "versionBumpPolicy": {
+      "bumpOn": [
+        "output_schema_change",
+        "eligibility_rule_change",
+        "section_ordering_rule_change"
+      ],
+      "noBumpOn": [
+        "weight_tuning_only"
+      ]
+    },
+    "sectionBaseOrder": [
+      "docs",
+      "sources",
+      "areas",
+      "decisions",
+      "active_work",
+      "extensions"
+    ],
+    "sectionOrdering": {
+      "mode": "base_order",
+      "meaning": "Eligible catalog sections render in shared semantic order. Section-level graph scoring is intentionally not used."
+    },
+    "frontmatterControls": {
+      "catalog": {
+        "type": "boolean",
+        "default": true,
+        "meaning": "Set false to exclude a page from generated catalog output."
+      },
+      "catalog_eligible": {
+        "type": "boolean",
+        "default": false,
+        "meaning": "Set true to make a page eligible for catalog inclusion even before it has canonical backlinks."
+      },
+      "catalog_weight": {
+        "type": "number",
+        "default": 0,
+        "meaning": "Ordering-only adjustment applied after item-local scoring. It does not affect eligibility."
+      }
+    },
+    "itemOrdering": {
+      "formula": "item_score = inboundReferences + outboundReferences + catalogWeight",
+      "tieBreakers": [
+        "updated_desc",
+        "id_asc",
+        "title_asc"
+      ]
+    },
+    "namespaceOrdering": {
+      "mode": "alphabetical"
+    },
+    "policyHash": {
+      "algorithm": "sha256",
+      "input": "canonical-json(contract.manifest.catalog)"
+    }
+  }
+}

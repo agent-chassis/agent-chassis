@@ -1,0 +1,1101 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "work-record-tools.json",
+  "summary": "Work-record create/edit/validate/migrate routes across MCP and CLI.",
+  "tool_count": 28,
+  "tools": [
+    {
+      "tool_name": "workspace_create_record",
+      "display_name": "Workspace create record",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_create_record",
+      "task_ids": [
+        "create-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 120,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/work-record-tools.json",
+        "packages/wiki-core/src/operations/create.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Trusted MCP create route for allocator-backed canonical wiki records (issue, initiative, decision, source, area) in a configured workspace repo. Resolves the workspace through configured aliases; rejects caller-supplied filesystem roots. CLI fallback `npm run wiki -- create <type> <title>` is operator-only, and the raw create_record tool with a caller-supplied `dir` is not the agent-safe path."
+    },
+    {
+      "tool_name": "workspace_work_record_validate",
+      "display_name": "Workspace work-record validate",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_validate",
+      "task_ids": [
+        "validate-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 115,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-schema.mjs"
+      ],
+      "notes": "Preferred MCP work-record validation surface; read-only, returns structured diagnostics for a canonical JSON work record without writing generated views, caches, or records. Compact default returns the validation result and bounded diagnostics only; if the CLI fallback is used, it stays diagnostic-focused rather than surfacing a full record body."
+    },
+    {
+      "tool_name": "workspace_work_record_set_status",
+      "display_name": "Workspace work-record set status",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_set_status",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 114,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs"
+      ],
+      "notes": "Agent-safe MCP route for trusted record- or slice-level status updates on a configured workspace repository. Resolves the repository through configured aliases and writes through the validated work-record path; the MCP boundary rejects caller-supplied filesystem roots, policy carriers, raw JSON patches, and unsupported fields. A transition to review or done attaches an advisory closeout_lint summary plus a cleanly_closeable flag — advisory, not a hard refusal: a red lint means the unit is not cleanly closeable until fixed or recorded as a pre-existing blocker."
+    },
+    {
+      "tool_name": "workspace_work_record_set_task",
+      "display_name": "Workspace work-record set task",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_set_task",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 113,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs"
+      ],
+      "notes": "Agent-safe MCP route for trusted record- or slice-level task completion on a configured workspace repository. Resolves the repository through configured aliases and writes through the validated work-record path; the MCP boundary rejects caller-supplied filesystem roots, policy carriers, raw JSON patches, and unsupported fields. Output is the compact edit envelope, not the full record."
+    },
+    {
+      "tool_name": "workspace_work_record_set_closure",
+      "display_name": "Workspace work-record set closure",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_set_closure",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 113,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-schema.mjs"
+      ],
+      "notes": "Write-capable agent-safe MCP route for closure updates on a WK or slice. Applies a structured patch over schema-owned closure fields (summary, validation, follow_ups) through the validated work-record path; rejects caller-supplied filesystem roots and refuses on an expected_source_digest mismatch. A successful write attaches an advisory closeout_lint summary plus a cleanly_closeable flag — advisory, not a hard refusal."
+    },
+    {
+      "tool_name": "workspace_work_record_summary",
+      "display_name": "Workspace work-record summary",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_summary",
+      "task_ids": [
+        "summarize-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 105,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/work-record-summary.mjs",
+        "packages/wiki-core/src/operations/work-record-summary.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Compact read-only work-record summary view (dependencies, write_scope, acceptance, slices, validation, owners, review_state, blockers) without shell/JQ parsing. For tracker WK-level summaries, detailed done/cancelled/parked slice bodies and WK-level agent note bodies are intentionally omitted; counts, omission metadata, and agent_notes_bytes on included slice rows remain available. Select a slice unit such as <WK-ID>#<slice-id> for that slice's notes and agent_notes_bytes; full/debug opt-ins can retrieve complete detail and may spill. CLI fallback: `npm run wiki -- work-records summary --unit <WK-ID|WK-ID#slice> --json`."
+    },
+    {
+      "tool_name": "wiki-work-records-summary",
+      "display_name": "Summarize work record",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records summary --unit <WK-ID|WK-ID#slice> --json",
+      "task_ids": [
+        "summarize-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 90,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-summary.mjs"
+      ],
+      "notes": "Compact CLI fallback for work-record summary lookups. It returns the bounded summary view rather than full canonical record JSON."
+    },
+    {
+      "tool_name": "wiki-create-issue",
+      "display_name": "Create work record issue",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- create issue <title>",
+      "task_ids": [
+        "create-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/create.mjs",
+        "packages/wiki-cli/src/run.mjs"
+      ],
+      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agent create-record should use workspace_create_record. If the MCP route is unavailable, agent-facing discovery should report `missing_structured_create_route` rather than treating this CLI command as the preferred route."
+    },
+    {
+      "tool_name": "wiki-work-records-validate",
+      "display_name": "Validate work records",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records validate --id <WK-ID> --json",
+      "task_ids": [
+        "validate-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-schema.mjs"
+      ],
+      "notes": "Compact CLI fallback for canonical work-record validation. It returns structured diagnostics only rather than a full record body."
+    },
+    {
+      "tool_name": "wiki-work-records-set-status",
+      "display_name": "Set work-record status",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records set-status --unit <WK-ID|WK-ID#slice> --status <status> --json",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 89,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs"
+      ],
+      "notes": "Operator-shell fallback only. This command is not agent dispatch authority; agents should use workspace_work_record_set_status when the MCP surface is available."
+    },
+    {
+      "tool_name": "wiki-work-records-set-task",
+      "display_name": "Set work-record task",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records set-task --unit <WK-ID|WK-ID#slice> (--text <task text> | --index <n>) --json",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 88,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs"
+      ],
+      "notes": "Operator-shell fallback only. This command is not agent dispatch authority; agents should use workspace_work_record_set_task when the MCP surface is available."
+    },
+    {
+      "tool_name": "wiki-work-records-set-closure",
+      "display_name": "Set work-record closure",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records set-closure --unit <WK-ID|WK-ID#slice> --json",
+      "task_ids": [
+        "create-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 90,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-schema.mjs"
+      ]
+    },
+    {
+      "tool_name": "wiki-work-record-migration",
+      "display_name": "Migrate work-record markdown",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-record-migration --id <WK-ID> --write",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-record-migration.mjs",
+        "packages/wiki-core/src/lib/work-record-migration.mjs"
+      ]
+    },
+    {
+      "tool_name": "workspace_work_record_refresh_admission_metrics",
+      "display_name": "Workspace work-record refresh admission metrics",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_refresh_admission_metrics",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 116,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/work-record-tools.json",
+        "packages/wiki-core/src/operations/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-admission-derived-evidence.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Trusted MCP route for refreshing stored worker-admission derived evidence on a configured workspace repository. Accepts a WK or slice plus an optional expected source digest and writes through the validated work-record path. Compact by default; verbose:true for the full refreshed evidence and admission evaluation. The CLI refresh command is an operator fallback only."
+    },
+    {
+      "tool_name": "workspace_work_record_refresh_target_resolution_evidence",
+      "display_name": "Workspace work-record refresh target-resolution evidence",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_refresh_target_resolution_evidence",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 111,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/contract/manifest.json",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-admission-derived-evidence.mjs",
+        "packages/wiki-core/src/lib/work-record-target-resolver.mjs",
+        "packages/wiki-core/src/lib/work-record-target-metrics.mjs"
+      ],
+      "notes": "Agent-safe MCP route for refreshing target-resolution evidence on a configured workspace repository. Delegates to the canonical worker-admission derived-evidence refresh so the evidence stays bound to the selected WK or slice and current source digest. Compact by default; verbose:true for the full refreshed evidence. The CLI refresh command is an operator fallback only."
+    },
+    {
+      "tool_name": "workspace_work_record_cleanup_derived_evidence",
+      "display_name": "Workspace work-record cleanup derived evidence",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_cleanup_derived_evidence",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-record-derived-evidence-cleanup.mjs",
+        "packages/wiki-core/src/lib/work-record-derived-evidence-cleanup.mjs"
+      ],
+      "notes": "Agent-safe MCP route for reporting or pruning oversized worker-admission derived evidence on a WK (whole-record, not a slice). Dry-run by default (compact before/after report, no write); pass write:true to persist the pruned record with stale-source protection. Keeps the newest usable worker-admission entry per unit and preserves graph-impact and other evidence. In dry-run, use use_as_expected_source_digest as the expected_source_digest for a subsequent guarded write. The CLI cleanup command is an operator fallback only."
+    },
+    {
+      "tool_name": "workspace_work_record_upsert_slice",
+      "display_name": "Workspace work-record upsert slice",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_upsert_slice",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 109,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-record-contract-edit.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Write-capable agent-safe MCP route for creating or updating a tracker-local slice on a WK in a configured workspace repository. Takes the target record in `unit` (WK-####) and the slice body in `slice` (its `id` selects the slice). A slice may carry optional `sections.agent_notes` for slice-scoped working notes; WK-level `sections.agent_notes` is for WK-wide context. Validates against work-record.v1 before writing and refuses invalid edits. Compact by default; verbose:true includes the full updated record. The CLI command is an operator fallback only."
+    },
+    {
+      "tool_name": "workspace_work_record_delete_slice",
+      "display_name": "Workspace work-record delete slice",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_delete_slice",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 108,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-record-contract-edit.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Write-capable agent-safe MCP route for deleting a tracker-local slice from a WK in a configured workspace repository. Accepts a slice-scoped `unit` (WK-#####slice-id) or an explicit `slice_id`. Validates against work-record.v1 before writing. Compact by default; verbose:true includes the full updated record. The CLI command is an operator fallback only."
+    },
+    {
+      "tool_name": "workspace_work_record_set_list_field",
+      "display_name": "Workspace work-record set list field",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_set_list_field",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 107,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-record-contract-edit.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Write-capable agent-safe MCP route for setting one controlled list-valued contract field (read_scope/docs, repo_paths, write_scope, depends_on, related, blocks at record scope; read_scope/docs, repo_paths, write_scope, depends_on at slice scope) on a WK. The target unit selects record vs. slice scope. Validates against work-record.v1 before writing. Compact by default. The CLI command is an operator fallback only."
+    },
+    {
+      "tool_name": "workspace_work_record_set_acceptance",
+      "display_name": "Workspace work-record set acceptance",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_set_acceptance",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 106,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-record-contract-edit.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Write-capable agent-safe MCP route for setting acceptance.criteria and/or acceptance.validation at record or slice scope on a WK. The target unit selects scope. Validates against work-record.v1 before writing. Compact by default. The CLI command is an operator fallback only."
+    },
+    {
+      "tool_name": "workspace_work_record_shape_review_unit",
+      "display_name": "Workspace work-record shape review unit",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_shape_review_unit",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 105,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-record-contract-edit.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Write-capable agent-safe MCP route for shaping a WK or slice into a findings-only review unit: sets work_kind to 'review', forces write_scope to [], and points dispatch_intent.intended_agent_role at 'reviewer'. Validates against work-record.v1 before writing. Compact by default. The CLI command is an operator fallback only."
+    },
+    {
+      "tool_name": "wiki-work-records-cleanup-derived-evidence",
+      "display_name": "Cleanup work-record derived evidence",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records cleanup-derived-evidence --id <WK-ID> [--write] [--verbose] --json",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/operations/work-record-derived-evidence-cleanup.mjs",
+        "packages/wiki-core/src/lib/work-record-derived-evidence-cleanup.mjs"
+      ],
+      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agent cleanup should use workspace_work_record_cleanup_derived_evidence. Dry-run by default; --write persists through validated work-record persistence with stale-source protection."
+    },
+    {
+      "tool_name": "wiki-work-records-upsert-slice",
+      "display_name": "Upsert work-record slice",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records upsert-slice --id <WK-ID> --slice-json '<json>' [--expected-source-digest <digest>] --json",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agents should use workspace_work_record_upsert_slice. Writes through validated work-record persistence with stale-source protection."
+    },
+    {
+      "tool_name": "wiki-work-records-delete-slice",
+      "display_name": "Delete work-record slice",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records delete-slice --id <WK-ID> --slice-id <slice-id> [--expected-source-digest <digest>] --json",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agents should use workspace_work_record_delete_slice. Writes through validated work-record persistence with stale-source protection."
+    },
+    {
+      "tool_name": "wiki-work-records-set-list-field",
+      "display_name": "Set work-record list field",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records set-list-field --id <WK-ID> --field <field> --values-json '<json-array>' [--expected-source-digest <digest>] --json",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agents should use workspace_work_record_set_list_field. Writes through validated work-record persistence with stale-source protection."
+    },
+    {
+      "tool_name": "wiki-work-records-set-acceptance",
+      "display_name": "Set work-record acceptance",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records set-acceptance --id <WK-ID> [--criteria-json '<json-array>'] [--validation-json '<json-array>'] [--expected-source-digest <digest>] --json",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agents should use workspace_work_record_set_acceptance. Writes through validated work-record persistence with stale-source protection."
+    },
+    {
+      "tool_name": "wiki-work-records-shape-review-unit",
+      "display_name": "Shape work-record review unit",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records shape-review-unit --id <WK-ID> [--expected-source-digest <digest>] --json",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
+      ],
+      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agents should use workspace_work_record_shape_review_unit. Sets work_kind to 'review', forces write_scope to [], and points dispatch_intent.intended_agent_role at 'reviewer'. Writes through validated work-record persistence with stale-source protection."
+    },
+    {
+      "tool_name": "wiki-work-records-refresh-admission-metrics",
+      "display_name": "Refresh work-record admission metrics",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records refresh-admission-metrics --id <WK-ID|WK-ID#slice> --json",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-admission-derived-evidence.mjs"
+      ],
+      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agent refresh-dispatch should use workspace_work_record_refresh_admission_metrics. If the MCP route is unavailable, agent-facing discovery should report `missing_structured_metric_refresh_route` rather than treating this CLI command as the preferred route."
+    }
+  ]
+}
