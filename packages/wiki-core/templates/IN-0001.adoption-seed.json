@@ -10,7 +10,7 @@
     {
       "path": "AGENTS.md",
       "write_mode": "create_if_missing",
-      "purpose": "repo-local agent guidance"
+      "purpose": "the repo-local operating contract this adoption initiative exists to produce; bootstrap never creates it, so it may be absent immediately after bootstrap. Authoring/adapting root `AGENTS.md` is the primary adoption deliverable: the orchestrator must drive it to completion, but must not write root `AGENTS.md` directly (orchestrator write scope does not include the repo root) — instead it dispatches the seeded worker-owned implementation slice `WK-0001#SLICE-001` (write_scope [\"AGENTS.md\"]) through the structured MCP dispatch route. That worker derives the repo-specific `AGENTS.md` content from `wiki/templates/AGENTS.md.boilerplate.md`, replaces placeholders, removes unsupported tool and canonical-layer claims, and validates the result is repo-specific operating guidance and not a blind copy; the boilerplate is a helper template, not current-session operating authority. A transiently-missing root `AGENTS.md` does not by itself flip the adoption-verify readiness verdict to blocked, but that never makes authoring it optional — it is the deliverable, not skippable setup"
     },
     {
       "path": "docs/adoption.md",
@@ -41,28 +41,13 @@
       "path": "wiki/initiatives/IN-0001.md",
       "write_mode": "create_if_missing",
       "purpose": "owned adoption plan"
-    },
-    {
-      "path": "agent-launch.toml",
-      "write_mode": "create_if_missing",
-      "purpose": "repo-local launcher role defaults"
     }
   ],
   "owned_work": [
     {
-      "key": "repo-local-agents",
-      "title": "Add repo-local AGENTS guidance",
-      "description": "Read the bootstrap-seeded helper template wiki/templates/AGENTS.md.boilerplate.md (a local install helper, not repo-local operating authority), adapt it for this repo (replace [repo-name] and add repo-local structured-tool and retrieval details), and commit the result as AGENTS.md at the repo root. Bootstrap does not create AGENTS.md; it is repo-specific operating authority. Keep operator install/bootstrap command documentation out of AGENTS.md; that belongs in the adoption-docs work item."
-    },
-    {
       "key": "adoption-docs",
       "title": "Document local adoption choices",
       "description": "Bootstrap seeds docs/adoption.md from a package template (create-if-missing, preserved on rerun) covering the bootstrap path, package install, adoption-verify usage, and the canonical wiki/work-records/WK-*.json work-record layer. The remaining work is optional repo-specific customization of that seeded guide; do not author it from scratch and do not move install/bootstrap instructions into AGENTS.md. The adoption-verify review confirms its presence informationally."
-    },
-    {
-      "key": "launcher-config",
-      "title": "Add repo-local launcher role defaults",
-      "description": "Complete the WK-0001 launcher-config implementation slice that creates agent-launch.toml at the repo root with repo-local role defaults. Installing npm packages, including @agent-chassis/core, does not create repo-root launcher config files; launcher config is consuming-repo adoption work driven by IN-0001/WK-0001."
     }
   ],
   "required_checks": [
@@ -70,14 +55,17 @@
     "work-record load/validate/dispatch-readiness checks (read-only; confirmed by the WK-0001#adoption-verify review, not a dispatched worker)",
     "generate/lint validation (read-only; confirmed by the WK-0001#adoption-verify review, not a dispatched worker)",
     "read-only graph-impact checks (confirmed by the WK-0001#adoption-verify review, not a dispatched worker)",
-    "dispatch/preflight verification (read-only; confirmed by the WK-0001#adoption-verify review, not a dispatched worker)"
+    "dispatch/preflight verification of operator-provided launcher config (`agent-launch.toml` role defaults and `.agent-launch` init-config) as the required first-run prerequisite (read-only; confirmed by the WK-0001#adoption-verify review, not a dispatched worker; missing or invalid launcher config keeps the repo blocked, while a missing root `AGENTS.md` is reported only as non-gating advisory context)"
   ],
   "non_goals": [
     "Do not invoke MCP, dispatch, graph impact, preflight, or repo-code-index operations against the target repo.",
     "Do not claim the target repo is agent-operable after seeding.",
+    "Do not launch the seeded IN-0001 orchestrator while `npx wiki adoption verify --dir \"$PWD\" --json` reports missing or invalid launcher config (`agent-launch.toml` role defaults or `.agent-launch` init-config); a missing root `AGENTS.md` alone is non-gating advisory context and does not block. Recommend the operator run `npx agent-chassis setup` and review/adapt `wiki/templates/AGENTS.md.boilerplate.md` into root `AGENTS.md`, then rerun adoption verify.",
     "Do not overwrite repo-specific edits or silently clobber existing canonical records.",
     "Do not require duplicate IN-0001 or duplicate seeded work when rerun.",
-    "Do not dispatch implementation workers for the read-only verification checks (wiki-retrieval, work-records, generate-lint, graph-impact, dispatch-preflight); the WK-0001#adoption-verify findings-only review performs them."
+    "Do not create agent-launch.toml as repo-authored adoption work; package/bootstrap first-run guidance supplies the operator launcher setup step.",
+    "Do not have the orchestrator write root `AGENTS.md` directly or via shell; orchestrator write scope does not include the repo root. Authoring root `AGENTS.md` is the primary adoption deliverable, so when it is missing the orchestrator must dispatch the seeded worker-owned implementation slice `WK-0001#SLICE-001` (write_scope [\"AGENTS.md\"]) through the structured MCP dispatch route to create it — do not skip it or treat it as optional. Its transient absence is non-gating for the adoption-verify readiness verdict, but that never excuses leaving it unauthored.",
+    "The read-only verification checks (wiki-retrieval, work-records, generate-lint, graph-impact, dispatch-preflight) are not implementation-worker tasks; the WK-0001#adoption-verify findings-only review performs them rather than a dispatched worker."
   ],
   "seed_work_record_templates": [
     "WK-0001.adoption-tracker.json"

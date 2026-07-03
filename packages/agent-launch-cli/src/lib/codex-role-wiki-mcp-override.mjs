@@ -19,6 +19,7 @@ export function detectCodexWikiMcpServerPosture({ env, mcpServerName } = {}) {
     return "absent";
   }
   const scan = scanCodexConfigWikiServerTable(configText, serverName);
+  if (scan.disabled) return "absent";
   if (scan.hasUrl) return "url";
   if (scan.hasCommand) return "command";
   return "absent";
@@ -26,7 +27,7 @@ export function detectCodexWikiMcpServerPosture({ env, mcpServerName } = {}) {
 
 function scanCodexConfigWikiServerTable(configText, serverName) {
   const header = `[mcp_servers.${serverName}]`;
-  const result = { present: false, hasCommand: false, hasUrl: false };
+  const result = { present: false, disabled: false, hasCommand: false, hasUrl: false };
   let inSection = false;
   for (const rawLine of String(configText || "").split(/\r?\n/)) {
     const line = rawLine.replace(/#.*$/, "").trim();
@@ -40,7 +41,9 @@ function scanCodexConfigWikiServerTable(configText, serverName) {
     const eq = line.indexOf("=");
     if (eq < 0) continue;
     const key = line.slice(0, eq).trim();
-    if (key === "command") result.hasCommand = true;
+    const value = line.slice(eq + 1).trim();
+    if (key === "enabled" && value === "false") result.disabled = true;
+    else if (key === "command") result.hasCommand = true;
     else if (key === "url") result.hasUrl = true;
   }
   return result;
@@ -50,8 +53,12 @@ export function buildCodexWikiMcpServerOverrides({ mcpServerName, serverPath, re
   const serverName = typeof mcpServerName === "string" && mcpServerName.length > 0
     ? mcpServerName
     : CODEX_WIKI_MCP_SERVER_NAME;
+  if (typeof serverPath !== "string" || !path.isAbsolute(serverPath)) {
+    throw new Error("Codex wiki MCP overrides require an absolute installed server module path");
+  }
   const { command, args } = buildWikiMcpServerNodeCommand({ repo, serverPath });
   return [
+    `mcp_servers.${serverName}.enabled=true`,
     `mcp_servers.${serverName}.command=${quoteTomlString(command)}`,
     `mcp_servers.${serverName}.args=${JSON.stringify(args)}`
   ];

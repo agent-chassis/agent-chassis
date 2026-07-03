@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/wiki-cli",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -12,13 +12,14 @@
     "access": "public"
   },
   "files": [
+    "bin/**",
     "src/**"
   ],
   "bin": {
-    "wiki": "./src/index.mjs"
+    "wiki": "bin/wiki"
   },
   "dependencies": {
-    "@agent-chassis/wiki-core": "^0.4.1"
+    "@agent-chassis/wiki-core": "^0.4.2"
   },
   "engines": {
     "node": ">=22"

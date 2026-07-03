@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, rm, readdir, stat, access, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, readdir, access, mkdir, readFile, writeFile } from "node:fs/promises";
 
 import {
   bootstrapRepo,
@@ -28,18 +28,53 @@ async function withTempDir(fn) {
   }
 }
 
-async function recordImplementationSlicesDone(tempDir, status = "done") {
-  const wkPath = path.join(tempDir, "wiki", "work-records", "WK-0001.json");
-  const record = JSON.parse(await readFile(wkPath, "utf8"));
-  const moved = [];
-  for (const slice of record.slices ?? []) {
-    if (slice.work_kind === "implementation") {
-      slice.status = status;
-      moved.push(slice.id);
-    }
-  }
-  await writeFile(wkPath, JSON.stringify(record, null, 2));
-  return moved;
+async function writeFirstRunLauncherSetup(tempDir) {
+  await writeFile(
+    path.join(tempDir, "AGENTS.md"),
+    [
+      "# AGENTS.md",
+      "",
+      "Repo-adapted operating contract for adoption verify tests.",
+      ""
+    ].join("\n")
+  );
+  await writeFile(
+    path.join(tempDir, "agent-launch.toml"),
+    [
+      "[roles.orchestrator]",
+      'model = "codex-test-orchestrator"',
+      "",
+      "[roles.worker]",
+      'model = "codex-test-worker"',
+      "",
+      "[roles.reviewer]",
+      'model = "codex-test-reviewer"',
+      "",
+      "[roles.redteam]",
+      'model = "codex-test-redteam"',
+      ""
+    ].join("\n")
+  );
+  await mkdir(path.join(tempDir, ".agent-launch"), { recursive: true });
+  await writeFile(
+    path.join(tempDir, ".agent-launch", "launchers.v1.json"),
+    JSON.stringify(
+      {
+        schema_version: "agent-launchers.v1",
+        data: {
+          filesystem_mcp_backend_default: "local",
+          filesystem_mcp_backends: {
+            local: {
+              command: "agent-launch-filesystem-mcp-backend"
+            }
+          }
+        }
+      },
+      null,
+      2
+    )
+  );
+  await writeFile(path.join(tempDir, ".agent-launch", "role-guard-secret.key"), "test-secret\n");
 }
 
 async function listAllFiles(rootDir) {
@@ -71,8 +106,7 @@ test("runAdoptionVerify exposes the required-check ids in deterministic order", 
 test("runAdoptionVerify returns the adoption-verify.v1 envelope with all five required checks in order on a bootstrapped repo", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-ready" });
-
-    await recordImplementationSlicesDone(tempDir);
+    await writeFirstRunLauncherSetup(tempDir);
 
     const result = await runAdoptionVerify({ dir: tempDir, repo: "agent-chassis/adoption-verify-ready" });
 
@@ -168,9 +202,8 @@ test("runAdoptionVerify blocks (agent_operable:false) when a required check fail
   });
 });
 
-test("WK-1375 runAdoptionVerify blocks a bare bootstrapped repo with adoption_status_bookkeeping_incomplete until implementation slices are recorded", async () => {
+test("WK-1396 runAdoptionVerify blocks a bare bootstrapped repo on operator first-run setup, not implementation-slice bookkeeping", async () => {
   await withTempDir(async (tempDir) => {
-
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-bookkeeping" });
 
     const blocked = await runAdoptionVerify({ dir: tempDir });
@@ -178,75 +211,57 @@ test("WK-1375 runAdoptionVerify blocks a bare bootstrapped repo with adoption_st
     assert.equal(blocked.agent_operable, false);
 
     const workRecords = blocked.checks.find((check) => check.check === "work-records");
-    assert.equal(workRecords.status, "fail", "work-records must fail on unrecorded slice status");
-    assert.equal(
-      workRecords.blocker.code,
-      "adoption_status_bookkeeping_incomplete",
-      "the work-records blocker must be the status-bookkeeping code"
+    assert.equal(workRecords.status, "pass", "review-only WK-0001 must validate without implementation bookkeeping");
+    assert.deepEqual(workRecords.evidence.implementation_slices, []);
+    assert.deepEqual(
+      workRecords.evidence.review_slices.map((slice) => slice.id),
+      ["adoption-verify"]
     );
 
-    const unrecorded = workRecords.evidence.unrecorded_implementation_slices.map((s) => s.id).sort();
-    assert.deepEqual(unrecorded, ["launcher-config", "repo-local-agents"]);
-    assert.ok(
-      !unrecorded.includes("adoption-verify"),
-      "the review slice must not gate the status-bookkeeping check"
+    const dispatchPreflight = blocked.checks.find((check) => check.check === "dispatch-preflight");
+    assert.equal(dispatchPreflight.status, "fail", "dispatch-preflight must fail on missing operator setup");
+    assert.equal(dispatchPreflight.blocker.code, "operator_first_run_prerequisites_missing");
+    assert.match(
+      `${dispatchPreflight.blocker.code}: ${dispatchPreflight.blocker.message}`,
+      /operator_first_run_prerequisites_missing: .*AGENTS\.md/,
+      "missing root AGENTS.md must be surfaced as an operator-owned first-run prerequisite"
     );
-    assert.ok(workRecords.remediation, "the status-bookkeeping failure must carry remediation");
+    assert.equal(dispatchPreflight.evidence.agents_md.present, false);
+    assert.equal(dispatchPreflight.evidence.launcher_toml.present, false);
+    assert.equal(dispatchPreflight.evidence.launcher_init_config.registry_present, false);
+    assert.equal(dispatchPreflight.evidence.launcher_init_config.role_guard_secret_present, false);
+    assert.match(dispatchPreflight.remediation, /AGENTS\.md/);
+    assert.match(dispatchPreflight.remediation, /agent-launch\.toml/);
 
     for (const check of blocked.checks.filter(
-      (entry) => entry.required && entry.check !== "work-records"
+      (entry) => entry.required && entry.check !== "dispatch-preflight"
     )) {
       assert.equal(check.status, "pass", `expected required check ${check.check} to pass`);
     }
 
-    const moved = await recordImplementationSlicesDone(tempDir);
-    assert.deepEqual(moved.sort(), ["launcher-config", "repo-local-agents"]);
+    await writeFirstRunLauncherSetup(tempDir);
     const ready = await runAdoptionVerify({ dir: tempDir });
-    assert.equal(ready.verdict, "ready", "recording slice statuses done must unblock the repo");
+    assert.equal(ready.verdict, "ready", "operator first-run setup must unblock the repo");
     assert.equal(ready.agent_operable, true);
-    const readyWorkRecords = ready.checks.find((check) => check.check === "work-records");
-    assert.equal(readyWorkRecords.status, "pass");
+    const readyDispatchPreflight = ready.checks.find((check) => check.check === "dispatch-preflight");
+    assert.equal(readyDispatchPreflight.status, "pass");
   });
 });
 
-test("WK-1375 a blocked WK-0001 implementation slice also satisfies status bookkeeping only when all implementation slices are accounted for", async () => {
+test("WK-1396 distributed WK-0001 is review-only and carries no implementation-slice bookkeeping evidence", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-blocked-slice" });
-
-    const wkPath = path.join(tempDir, "wiki", "work-records", "WK-0001.json");
-    const record = JSON.parse(await readFile(wkPath, "utf8"));
-    const impl = record.slices
-      .filter((slice) => slice.work_kind === "implementation")
-      .sort((left, right) => left.id.localeCompare(right.id));
-    assert.deepEqual(
-      impl.map((slice) => slice.id),
-      ["launcher-config", "repo-local-agents"],
-      "expected the current WK-0001 implementation slices"
-    );
-    impl.find((slice) => slice.id === "repo-local-agents").status = "blocked";
-    await writeFile(wkPath, JSON.stringify(record, null, 2));
-
-    const partiallyRecorded = await runAdoptionVerify({ dir: tempDir });
-    const partialWorkRecords = partiallyRecorded.checks.find((check) => check.check === "work-records");
-    assert.equal(
-      partialWorkRecords.status,
-      "fail",
-      "one blocked implementation slice is not enough when another remains unrecorded"
-    );
-    assert.deepEqual(
-      partialWorkRecords.evidence.unrecorded_implementation_slices.map((slice) => slice.id),
-      ["launcher-config"]
-    );
-
-    impl.find((slice) => slice.id === "launcher-config").status = "blocked";
-    await writeFile(wkPath, JSON.stringify(record, null, 2));
+    await writeFirstRunLauncherSetup(tempDir);
 
     const result = await runAdoptionVerify({ dir: tempDir });
     const workRecords = result.checks.find((check) => check.check === "work-records");
-    assert.equal(
-      workRecords.status,
-      "pass",
-      "blocked implementation slices count as recorded bookkeeping when all are accounted for"
+    assert.equal(workRecords.status, "pass");
+    assert.equal(workRecords.evidence.work_kind, "review");
+    assert.equal(workRecords.evidence.write_scope_count, 0);
+    assert.deepEqual(workRecords.evidence.implementation_slices, []);
+    assert.deepEqual(
+      workRecords.evidence.review_slices,
+      [{ id: "adoption-verify", status: "todo" }]
     );
     assert.equal(result.verdict, "ready");
   });
@@ -339,8 +354,7 @@ test("runAdoptionVerify --checks selects a subset and skips the rest (still all 
 test("adoption verify CLI exits 0 with --json on a ready repo and nonzero when blocked", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-exit" });
-
-    await recordImplementationSlicesDone(tempDir);
+    await writeFirstRunLauncherSetup(tempDir);
 
     const ready = await execFileAsync(process.execPath, [
       entrypoint,
@@ -400,13 +414,14 @@ test("adoption verify CLI blocked text output uses no success/agent-operable lan
   });
 });
 
-async function makeWk0001NonDispatchableMultiCluster(tempDir) {
+async function makeWk0001NonDispatchableImplementation(tempDir) {
   const wkPath = path.join(tempDir, "wiki", "work-records", "WK-0001.json");
   const record = JSON.parse(await readFile(wkPath, "utf8"));
+  record.work_kind = "implementation";
   record.slices = [];
   record.dispatch_intent = {
     intended_agent_role: "worker",
-    target_unit: "none",
+    target_unit: "record",
     requires_graph_impact: false,
     requires_escalation: false
   };
@@ -423,7 +438,8 @@ async function makeWk0001NonDispatchableMultiCluster(tempDir) {
 test("runAdoptionVerify is blocked (agent_operable:false) when WK-0001 is non-dispatchable (missing_graph_impact), even though validate-dispatch returns a structured decision", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-nondispatchable" });
-    await makeWk0001NonDispatchableMultiCluster(tempDir);
+    await writeFirstRunLauncherSetup(tempDir);
+    await makeWk0001NonDispatchableImplementation(tempDir);
 
     const result = await runAdoptionVerify({ dir: tempDir });
 
@@ -463,7 +479,8 @@ test("runAdoptionVerify is blocked (agent_operable:false) when WK-0001 is non-di
 test("adoption verify CLI exits nonzero when WK-0001 is non-dispatchable (missing_graph_impact)", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-nondispatchable-cli" });
-    await makeWk0001NonDispatchableMultiCluster(tempDir);
+    await writeFirstRunLauncherSetup(tempDir);
+    await makeWk0001NonDispatchableImplementation(tempDir);
 
     let caught;
     try {

@@ -140,7 +140,8 @@ threat-model limits.
 
 ## Install and set up
 
-First-time setup is four steps. For command details, see
+First-time setup starts with the package install, then follows the detected
+setup option printed by npm. For command details, see
 [docs/quickstart.md](docs/quickstart.md).
 
 ### 1. Install AgentChassis
@@ -159,47 +160,48 @@ npm install --save-dev @agent-chassis/core
 index; the `wiki-mcp` stdio MCP server agents call for structured repo/wiki
 operations; and the `agent-launch` human/operator entrypoint.
 
-npm install only installs the package and its binaries. It does not create a
-repo-root TOML launcher config. The shipped `IN-0001` adoption initiative and
-`WK-0001` adoption tracker drive creation of `agent-launch.toml` at the repo
-root during adoption work.
+The package postinstall hook performs best-effort detection for supported local
+agent CLIs (`claude` and `codex`) and prints only the matching setup choices. It
+is guidance only: it does not run bootstrap, copy templates, create or modify
+`AGENTS.md` or `agent-launch.toml`, initialize launcher config, build the code
+index, launch an orchestrator, alter repo or client configuration, or fail
+installation when detection fails.
 
-### 2. Bootstrap the repo
+### 2. Run first-time setup
 
-```bash
-npx wiki bootstrap
+Run the setup command from your repo root:
+
+```sh
+npx agent-chassis setup
 ```
+
+The setup command runs bootstrap, asks for or detects the local agent family,
+copies the matching launcher template when `agent-launch.toml` is absent, runs
+`agent-launch init-config`, and prints the next code-index and orchestrator
+commands. It does not copy `AGENTS.md`; review
+`wiki/templates/AGENTS.md.boilerplate.md` and adapt it into this repo's root
+operating contract before committing setup.
 
 Bootstrap seeds the local wiki contract surfaces, the owned `IN-0001` adoption
 initiative, the `WK-0001` adoption tracker, local cache directories, `.gitignore`
 entries, the gitignored `wiki/.wiki-mcp.json` workspace declaration, and the
 initial lexical search index. It is idempotent: rerunning preserves your edits
-and only fills in missing surfaces.
-
-Bootstrap does not directly create the repo-root `agent-launch.toml`; the seeded
-`IN-0001` orchestrator drives the `WK-0001` adoption work that creates it.
-
-### 3. Build the code index
-
-```bash
-npx wiki code-index build --json
-```
+and only fills in missing surfaces. Bootstrap and postinstall do not execute
+the setup commands: the operator creates or adapts `AGENTS.md`, copies or
+reviews `agent-launch.toml`, and runs `agent-launch init-config` before the
+first orchestrator launch. `agent-launch init-config` provisions the launcher
+registry and role-guard secret that role dispatch requires.
 
 The code index is required for normal operation. Normal readiness, dispatch
-review, graph-impact, and review tooling depend on it. Run this after bootstrap
-once the worktree is clean (for example, after committing the bootstrap output).
-
-### 4. Initialize the launcher
-
-```bash
-npx agent-launch init-config
-```
-
-Provisions the launcher registry and role-guard secret that role dispatch
-requires. Then set each role's model in agent-launch.toml. For enforced Linux
-dispatch, put `bwrap` on your PATH. Whether a run without a usable backend
-proceeds unenforced or refuses depends on whether a CCE key is configured — see
-[Enforcement posture](#enforcement-posture),
+review, graph-impact, and review tooling depend on it. Build it after reviewing
+and committing the bootstrap output. Root `AGENTS.md` and `agent-launch.toml`
+are operator first-run prerequisites for `agent-launch orchestrator IN-0001`;
+they are not worker-owned `WK-0001` setup slices. The first orchestrator launch
+omits `--app`; family selection comes from the copied `agent-launch.toml` role
+model unless an operator explicitly overrides it outside this setup flow. For
+enforced Linux dispatch, put `bwrap` on your PATH. Whether a run without a usable
+backend proceeds unenforced or refuses depends on whether a CCE key is configured
+— see [Enforcement posture](#enforcement-posture),
 [docs/quickstart.md](docs/quickstart.md), and
 [docs/enforcement-model.md](docs/enforcement-model.md).
 

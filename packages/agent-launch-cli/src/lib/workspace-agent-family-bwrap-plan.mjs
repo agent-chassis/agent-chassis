@@ -1,5 +1,7 @@
 
 
+import { existsSync } from "node:fs";
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -138,14 +140,16 @@ function joinRepoChild(repo, name) {
 export function buildWorkerSecretMaskInputs({
   workspaceDir,
   agentLaunchDirName = DEFAULT_AGENT_LAUNCH_DIR_NAME,
-  envFileName = DEFAULT_REPO_ENV_FILE_NAME
+  envFileName = DEFAULT_REPO_ENV_FILE_NAME,
+  envFileExists = existsSync
 } = {}) {
   const envFilePath = joinRepoChild(workspaceDir, envFileName);
   const agentLaunchPath = joinRepoChild(workspaceDir, agentLaunchDirName);
+  const envMaskBinds = envFileExists(envFilePath)
+    ? [Object.freeze({ src: WORKER_SECRET_MASK_SOURCE, dst: envFilePath })]
+    : [];
   return Object.freeze({
-    readOnlyRoots: Object.freeze([
-      Object.freeze({ src: WORKER_SECRET_MASK_SOURCE, dst: envFilePath })
-    ]),
+    readOnlyRoots: Object.freeze(envMaskBinds),
     maskTmpfsDirs: Object.freeze([agentLaunchPath])
   });
 }
@@ -159,6 +163,7 @@ export function buildValidationConfinementPlan({
   ephemeralTmpdir = VALIDATION_EPHEMERAL_TMPDIR,
   agentLaunchDirName = DEFAULT_AGENT_LAUNCH_DIR_NAME,
   envFileName = DEFAULT_REPO_ENV_FILE_NAME,
+  envFileExists = existsSync,
   buildBubblewrapLaunchPlan
 } = {}) {
   if (typeof buildBubblewrapLaunchPlan !== "function") {
@@ -192,7 +197,9 @@ export function buildValidationConfinementPlan({
     args: asArray(args),
     cwd: workspaceDir,
 
-    readOnlyRoots: [{ src: VALIDATION_SECRET_MASK_SOURCE, dst: envFilePath }],
+    readOnlyRoots: envFileExists(envFilePath)
+      ? [{ src: VALIDATION_SECRET_MASK_SOURCE, dst: envFilePath }]
+      : [],
 
     maskTmpfsDirs: [agentLaunchPath],
 

@@ -17,8 +17,9 @@ artifacts on every run:
   wiki views (`catalog.md`, `now.md`, `inbox.md`, `backlog.md`, `archive.md`)
 - `wiki/initiatives/IN-0001.md` — this repo's owned adoption plan
 - `wiki/work-records/WK-0001.json` — the canonical adoption tracker work record
-- `wiki/templates/AGENTS.md.boilerplate.md` — a helper template to adapt into the
-  repo's own root `AGENTS.md` (bootstrap does **not** create `AGENTS.md`)
+- `wiki/templates/AGENTS.md.boilerplate.md` — a helper template to review/adapt
+  into the repo's own root `AGENTS.md` (bootstrap does **not** create
+  `AGENTS.md`, so root `AGENTS.md` may not exist yet)
 - `docs/adoption.md` — this page (created from a template, preserved on rerun)
 - `wiki/.wiki-contract.json` — local contract metadata
 - `wiki/.wiki-mcp.json` — see [Local MCP metadata](#local-mcp-metadata) below
@@ -26,6 +27,10 @@ artifacts on every run:
 
 Bootstrap is static seeding only. It does not write global MCP client config,
 build the graph-backed code-index sidecar, or claim this repo is agent-operable.
+A missing root `AGENTS.md` is reported as non-gating advisory readiness context,
+not an adoption blocker; missing or invalid launcher config
+(`agent-launch.toml` role defaults or `.agent-launch` init-config), however, does
+keep adoption verify `blocked`.
 
 ## Installing and invoking the CLI
 
@@ -72,21 +77,59 @@ evidence.
   the named blockers and re-run.
 
 A freshly bootstrapped repo is reported `blocked`, not `ready`, until the
-adoption slice statuses below are recorded — successful tooling output alone is
-not adoption completion.
+operator first-run launcher prerequisites are present and the adoption review
+records the verification result — successful tooling output alone is not
+adoption completion.
 
-## Recording adoption slice status
+### First-run setup loop
 
-The seeded `WK-0001` tracker carries the implementation work this repo must
-complete itself (its root `AGENTS.md`) plus a findings-only `adoption-verify`
-review. A successful worker run is **not** by itself proof that a slice is done:
-the operator or initiative orchestrator must record each `WK-0001` implementation
-slice `done` — or `blocked` with a concrete blocker — through the structured
-work-record tools (set-status / set-closure). `adoption verify`'s `work-records`
-check fails with an `adoption_status_bookkeeping_incomplete` blocker while any
-implementation slice is still `todo`/`review`, so a bare bootstrapped repo stays
-`blocked` until that bookkeeping is recorded. The `adoption-verify` review slice
-itself may stay open while the review runs.
+Root `AGENTS.md` may not exist yet in a freshly bootstrapped repo. Authoring it
+is recommended repo-local operating context, but its absence is advisory and
+does not block adoption verify on its own; missing or invalid launcher config
+does block.
+
+1. Run:
+
+   ```bash
+   npx wiki adoption verify --dir "$PWD" --json
+   ```
+
+2. If the result is `blocked` on operator-owned launcher prerequisites
+   (`operator_first_run_prerequisites_missing` naming `agent-launch.toml` role
+   defaults or `.agent-launch` init-config), report the blockers and ask the
+   operator to complete setup.
+3. The operator should run:
+
+   ```bash
+   npx agent-chassis setup
+   ```
+
+   Then review/adapt `wiki/templates/AGENTS.md.boilerplate.md` into root
+   `AGENTS.md` (recommended advisory context). Do not install the helper
+   unchanged; the installed file is repo-specific operating authority.
+4. Rerun adoption verify after setup.
+5. Proceed once the required checks pass.
+
+## Recording adoption review status
+
+The seeded `WK-0001` tracker is review-only. It has a findings-only
+`adoption-verify` slice that checks whether this repo is ready to be treated as
+agent-operable; it does not carry worker-owned implementation slices for
+first-run setup. In particular, launcher config is an operator first-run
+prerequisite and root `AGENTS.md` is recommended advisory operating context: run
+`npx agent-chassis setup`, copy/review the appropriate
+`agent-launch.<claude-or-codex>.toml` template to `agent-launch.toml`, run
+`agent-launch init-config`, and review/adapt
+`wiki/templates/AGENTS.md.boilerplate.md` into root `AGENTS.md`, before launching
+the seeded IN-0001 orchestrator.
+
+`adoption verify` checks launcher config as a readiness blocker and reports root
+`AGENTS.md` presence as advisory context. A bare bootstrapped repo stays
+`blocked` until the operator first-run launcher setup is present and the required
+read-only checks pass; it is not blocked on implementation-slice bookkeeping in
+`WK-0001`. Record the `adoption-verify`
+review slice as `done` only after the review reports `ready`, or as `blocked`
+with the concrete structured blocker from the verification output.
 
 `docs/adoption.md` is bootstrap-generated, so it is not a worker-authored
 implementation slice — `adoption verify` confirms its presence informationally.

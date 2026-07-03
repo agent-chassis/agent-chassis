@@ -42,9 +42,9 @@ from canonical config.
 
 Use the repo's structured tool-discovery surface before choosing a tool, and name that capability in `AGENTS.md` or a linked docs page. Discovery should answer, in structured form, which tools exist, their purpose, required inputs, authority level, side effects, whether each is supported, and where the durable docs live.
 
-When structured tool output is unclear or a worker complaint is unfamiliar,
-consult the agent FAQ through `workspace_agent_faq` before guessing or shelling
-out.
+When you hit a blocker during work, an unfamiliar worker complaint, or unclear
+structured-tool output, consult the agent FAQ through `workspace_agent_faq`
+first — before guessing or shelling out.
 
 If structured discovery is unavailable, use only tools explicitly named in
 `AGENTS.md`, durable docs, or the assigned `WK-*`. Do not infer support from

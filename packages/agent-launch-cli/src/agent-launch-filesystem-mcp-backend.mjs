@@ -1,0 +1,219 @@
+const STDIN_BYTE_CAP = 65536;
+const SCHEMA_RESULT = "agent-backend-handshake-result.v1";
+const SCHEMA_CHALLENGE = "agent-backend-handshake.v1";
+const BACKEND_KIND = "filesystem_mcp";
+const BACKEND_ID = "agent-launch.filesystem-mcp.default";
+const BACKEND_VERSION = "0.1.0-advisory";
+const NONCE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+const SANITIZED_ENV_KEYS = [
+  "HOME",
+  "XDG_CONFIG_HOME",
+  "XDG_STATE_HOME",
+  "XDG_DATA_HOME",
+  "XDG_RUNTIME_DIR",
+  "BASH_ENV",
+  "ENV",
+  "NODE_OPTIONS",
+  "NODE_PATH",
+  "NODE_REPL_HISTORY",
+  "NODE_PRESERVE_SYMLINKS",
+  "AGENT_LAUNCH_CONFIG_DIR",
+  "AGENT_LAUNCH_REGISTRY_PATH",
+  "AGENT_LAUNCH_HOME",
+  "AGENT_LAUNCH_ROLE_GUARD_CONTEXT_PATH",
+  "AGENT_LAUNCH_ROLE_GUARD_RUN_ID",
+  "AGENT_BACKEND_HANDSHAKE_PATH",
+  "AGENT_BACKEND_HANDSHAKE_FILE",
+  "AGENT_BACKEND_HANDSHAKE_RESULT_PATH",
+  "AGENT_BACKEND_HANDSHAKE_RESULT_FILE",
+  "OPERATOR_CONFIG",
+  "OPERATOR_CONFIG_PATH",
+  "AGENT_LAUNCH_OPERATOR_CONFIG"
+];
+
+for (const key of SANITIZED_ENV_KEYS) {
+  delete process.env[key];
+}
+
+if (process.argv.length > 2) {
+  console.error(
+    `agent-launch-filesystem-mcp-backend: unexpected argument ${process.argv[2]} (this endpoint accepts no CLI flags)`
+  );
+  process.exit(64);
+}
+
+function emit(payload, exitCode) {
+  process.stdout.write(`${JSON.stringify(payload)}\n`, () => {
+    process.exit(exitCode);
+  });
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.length > 0;
+}
+
+function buildUnavailable(challengeNonce, reason, refusalCode) {
+  return {
+    schema_version: SCHEMA_RESULT,
+    backend_kind: BACKEND_KIND,
+    backend_id: BACKEND_ID,
+    backend_version: BACKEND_VERSION,
+    challenge_nonce: challengeNonce,
+    status: "unavailable",
+    mode: "enforced",
+    raw_exec_enabled: false,
+    tool_surface: null,
+    scope_binding: false,
+    scope_digest: null,
+    validation_transport: "unsupported",
+    provenance_sink: null,
+    handshake_digest: null,
+    expires_at: null,
+    reason,
+    refusal_code: refusalCode
+  };
+}
+
+const chunks = [];
+let total = 0;
+let overflow = false;
+
+process.stdin.on("data", (chunk) => {
+  total += chunk.length;
+  if (total > STDIN_BYTE_CAP) {
+    overflow = true;
+    return;
+  }
+  chunks.push(chunk);
+});
+
+process.stdin.on("error", (error) => {
+  emit(buildUnavailable(
+    null,
+    `stdin read error: ${error && error.message ? error.message : String(error)}`,
+    "agent_backend.filesystem_mcp.endpoint_request_io.v1"
+  ), 65);
+});
+
+process.stdin.on("end", () => {
+  if (overflow) {
+    emit(buildUnavailable(
+      null,
+      "challenge stdin exceeds the supported byte cap",
+      "agent_backend.filesystem_mcp.endpoint_request_too_large.v1"
+    ), 65);
+    return;
+  }
+
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  if (raw.length === 0) {
+    emit(buildUnavailable(
+      null,
+      "challenge stdin is empty",
+      "agent_backend.filesystem_mcp.endpoint_request_missing.v1"
+    ), 65);
+    return;
+  }
+
+  let challenge;
+  try {
+    challenge = JSON.parse(raw);
+  } catch {
+    emit(buildUnavailable(
+      null,
+      "challenge stdin is not valid JSON",
+      "agent_backend.filesystem_mcp.endpoint_request_invalid.v1"
+    ), 65);
+    return;
+  }
+
+  if (!isPlainObject(challenge)) {
+    emit(buildUnavailable(
+      null,
+      "challenge must be a JSON object",
+      "agent_backend.filesystem_mcp.endpoint_request_invalid.v1"
+    ), 65);
+    return;
+  }
+
+  if (challenge.schema_version !== SCHEMA_CHALLENGE) {
+    emit(buildUnavailable(
+      isNonEmptyString(challenge.challenge_nonce) ? challenge.challenge_nonce : null,
+      `challenge schema_version must be ${SCHEMA_CHALLENGE}`,
+      "agent_backend.filesystem_mcp.endpoint_schema_invalid.v1"
+    ), 65);
+    return;
+  }
+
+  if (challenge.backend_kind !== BACKEND_KIND) {
+    emit(buildUnavailable(
+      isNonEmptyString(challenge.challenge_nonce) ? challenge.challenge_nonce : null,
+      `challenge backend_kind must be ${BACKEND_KIND}`,
+      "agent_backend.filesystem_mcp.endpoint_unsupported_backend.v1"
+    ), 65);
+    return;
+  }
+
+  if (!isNonEmptyString(challenge.challenge_nonce) || !NONCE_PATTERN.test(challenge.challenge_nonce)) {
+    emit(buildUnavailable(
+      null,
+      "challenge_nonce is missing or does not match the accepted nonce grammar",
+      "agent_backend.filesystem_mcp.endpoint_nonce_invalid.v1"
+    ), 65);
+    return;
+  }
+
+  if (challenge.raw_exec_enabled === true) {
+    emit(buildUnavailable(
+      challenge.challenge_nonce,
+      "filesystem_mcp endpoint refuses raw_exec_enabled challenges",
+      "agent_backend.filesystem_mcp.endpoint_raw_exec_forbidden.v1"
+    ), 65);
+    return;
+  }
+
+  if (
+    challenge.handshake_transport_kind !== undefined
+    && challenge.handshake_transport_kind !== null
+    && challenge.handshake_transport_kind !== "spawn_stdout"
+  ) {
+    emit(buildUnavailable(
+      challenge.challenge_nonce,
+      "this endpoint only supports the spawn_stdout handshake transport",
+      "agent_backend.filesystem_mcp.endpoint_transport_unsupported.v1"
+    ), 65);
+    return;
+  }
+
+  emit({
+    schema_version: SCHEMA_RESULT,
+    backend_kind: BACKEND_KIND,
+    backend_id: BACKEND_ID,
+    backend_version: BACKEND_VERSION,
+    challenge_nonce: challenge.challenge_nonce,
+    status: "unavailable",
+    mode: "enforced",
+    raw_exec_enabled: false,
+    tool_surface: null,
+    scope_binding: false,
+    scope_digest: null,
+    validation_transport: "unsupported",
+    provenance_sink: null,
+    handshake_digest: null,
+    expires_at: null,
+    reason: "agent-launch-filesystem-mcp-backend default endpoint has no production backend; register an enforced filesystem_mcp_backends entry to enable allowed launches",
+    refusal_code: "agent_backend.filesystem_mcp.endpoint_advisory_default.v1"
+  }, 0);
+});
+
+if (process.stdin.isTTY) {
+  emit(buildUnavailable(
+    null,
+    "stdin is a TTY; this endpoint requires a launcher-supplied challenge on stdin",
+    "agent_backend.filesystem_mcp.endpoint_request_missing.v1"
+  ), 65);
+}

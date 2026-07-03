@@ -58,6 +58,34 @@ See [local-package-install.md](local-package-install.md) for the required
 `@agent-chassis/wiki-cli`, `@agent-chassis/wiki-mcp`, and
 `@agent-chassis/agent-launch-cli` install.
 
+## Optional Persistent Client Registration
+
+Persistent MCP client registration is operator convenience only. Commands such
+as a Codex or Claude MCP "add" helper necessarily write that client's local or
+user config, so they are not the launcher authority path for worker, reviewer,
+or redteam sessions. Launcher-managed role sessions must receive wiki MCP access
+through launcher-minted per-run configuration or client CLI overrides scoped to
+the child process, with repo alias/root and `WIKI_MCP_TOOL_PROFILE=agent-safe`
+coming from launcher-owned configuration.
+
+Any future persistent registration helper for Codex or Claude must preserve this
+boundary:
+
+- It is opt-in for a human/operator, never required for dispatch readiness.
+- Its dry run is idempotent and reports the exact proposed config delta without
+  writing client config.
+- It writes only after explicit operator confirmation or an explicit write flag.
+- It uses the installed `wiki-mcp` binary, or an explicit installed module path
+  such as `node_modules/@agent-chassis/wiki-mcp/src/server.mjs`; it must not use
+  `npx` or any zero-install runtime server path.
+- It refuses to overwrite unrelated Codex or Claude MCP config. Existing
+  entries that are not owned by this helper require an explicit operator
+  decision rather than silent replacement.
+
+This helper boundary does not change the bootstrap contract: package bootstrap
+may generate repo-local declarations such as `wiki/.wiki-mcp.json`, but it does
+not edit global MCP client config.
+
 ## Example Client Configuration Shape
 
 The exact config format depends on the MCP client, but the shape should look like this:

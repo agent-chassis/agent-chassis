@@ -77,13 +77,30 @@ scripts and CI, install the core package as a dev dependency:
 npm install --save-dev @agent-chassis/core
 ```
 
+The `@agent-chassis/core` postinstall hook prints terse first-run setup
+guidance only. It does not run bootstrap, copy templates, write config, launch
+agents, or otherwise mutate the repo during package install.
+
+After install, run the explicit setup command from the consumer repo root:
+
+```sh
+npx agent-chassis setup
+```
+
+The setup command runs bootstrap, guides launcher template selection for the
+detected Claude or Codex CLI, copies `agent-launch.toml` only when absent, runs
+`npx agent-launch init-config`, and prints the next code-index and orchestrator
+commands. It intentionally does not copy `AGENTS.md`; review
+`wiki/templates/AGENTS.md.boilerplate.md` and adapt it into the repo root
+because the operating contract is repo-specific.
+
 To pin the underlying surfaces individually instead, install
 `@agent-chassis/wiki-cli @agent-chassis/wiki-mcp @agent-chassis/agent-launch-cli`.
 
 Then invoke the installed binary through `npx` or an npm script:
 
 ```bash
-npx wiki bootstrap --profile <profile>
+npx wiki bootstrap --profile standard
 ```
 
 Recommended `package.json` scripts:
@@ -94,7 +111,7 @@ Recommended `package.json` scripts:
     "wiki": "wiki",
     "wiki:mcp": "wiki-mcp",
     "agent-launch": "agent-launch",
-    "wiki:bootstrap": "wiki bootstrap --profile <profile>",
+    "wiki:bootstrap": "wiki bootstrap --profile standard",
     "wiki:lint": "wiki lint",
     "wiki:sync-check": "wiki sync-contract --check",
     "wiki:generate": "wiki generate",
@@ -134,8 +151,8 @@ root. In one command it:
 1. Seeds the wiki core surfaces when missing (`wiki/schema.md`,
    `wiki/conventions.md`, `wiki/index.md`, `wiki/catalog.md`, and the owned
    `IN-0001` adoption initiative), syncs the record templates plus the
-   `wiki/templates/AGENTS.md.boilerplate.md` install helper that the
-   `repo-local-agents` adoption work adapts into the repo's own `AGENTS.md`,
+   `wiki/templates/AGENTS.md.boilerplate.md` install helper for the operator's
+   first-run `AGENTS.md` setup,
    seeds `docs/adoption.md` (the operator adoption guide) from a package template
    when missing — preserving a customized copy on rerun — and resyncs
    `wiki/.wiki-contract.json` while preserving local `vocab.topics.local` and

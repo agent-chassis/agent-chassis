@@ -20,6 +20,7 @@ import { getLauncherProfile } from "./agent-launch-profiles.mjs";
 import {
   WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
   WIKI_MCP_SERVER_PACKAGE_SUBPATH,
+  WIKI_MCP_TOOL_PROFILE_ENV_VAR,
   buildWikiMcpServerNodeCommand,
   ensureWikiMcpResponseStateDir,
   resolveLauncherConfiguredWorkspaceAlias,
@@ -255,6 +256,7 @@ function buildClaudeOrchestratorMcpConfig({
     endpointEnvVar: HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR,
     endpointValue
   });
+  env[WIKI_MCP_TOOL_PROFILE_ENV_VAR] = "agent-safe";
 
   return {
     schema_version: CLAUDE_ORCHESTRATOR_MCP_CONFIG_SCHEMA_VERSION,
@@ -392,7 +394,8 @@ export async function buildClaudeOrchestratorPlan({
     "--disallowedTools",
     "Bash",
     "--mcp-config",
-    mcpConfigPath
+    mcpConfigPath,
+    "--strict-mcp-config"
   ];
   if (isNonEmptyString(model)) {
     args.push("--model", model);

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S -u NODE_OPTIONS -u NODE_PATH -u NODE_PRESERVE_SYMLINKS node
 
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";

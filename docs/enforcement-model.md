@@ -213,12 +213,16 @@ the current boundary and its known temporary runtime-state exposure, not as a
 hardened support claim.
 
 All non-orchestrator worker-family bwrap launches mask repo-local launcher
-secrets before the child starts: `<workspace>/.env` is shadowed by a hard
-`--ro-bind /dev/null <workspace>/.env`, and the `<workspace>/.agent-launch`
-subtree is shadowed by an empty in-repo tmpfs. The hard `.env` bind is fail-safe:
-a workspace lacking `.env` fails the launch non-green rather than running with an
-unmasked secret file. This is secret masking only; worker network posture remains
-the accepted `shareNet: true` model-api posture above.
+secrets before the child starts: when `<workspace>/.env` exists it is shadowed by
+a hard `--ro-bind /dev/null <workspace>/.env`, and the `<workspace>/.agent-launch`
+subtree is shadowed by an empty in-repo tmpfs. The `.env` mask is emitted only
+when the file is present: because the repo is bound read-only, bwrap cannot create
+a `.env` mount point when the file is absent, so an unconditional bind crashed the
+launch on a fresh repo that carries no `.env`. Skipping the bind is safe — an
+absent `.env` holds no secret to mask, so absence is not an unmasked secret; a
+present `.env` is still hard-masked exactly as before. This is secret masking
+only; worker network posture remains the accepted `shareNet: true` model-api
+posture above.
 
 | Executor family | What it may write | Write-scope enforcement | What is sandboxed | What is not sandboxed / known caveats | Network posture |
 | --- | --- | --- | --- | --- | --- |

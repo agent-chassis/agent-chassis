@@ -88,7 +88,7 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
 
     assert.match(
       stdout,
-      /Required checks: 5 \| Owned work items: 3/,
+      /Required checks: 5 \| Owned work items: 1/,
       "expected required-checks and owned-work count in output"
     );
 
@@ -123,23 +123,36 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
       /\bWK-0001\b/,
       "expected the IN-0001 Owned work prose list to not name WK-0001 (WK-0001 belongs on the Adoption work records line)"
     );
-    for (const ownedKey of ["repo-local-agents", "adoption-docs", "launcher-config"]) {
+    for (const ownedKey of ["adoption-docs"]) {
       assert.match(
         ownedWorkLine,
         new RegExp(`\\b${ownedKey}\\b`),
         `expected the IN-0001 Owned work prose list to include ${ownedKey}`
       );
     }
+    for (const removedOwnedKey of ["repo-local-agents", "launcher-config"]) {
+      assert.doesNotMatch(
+        ownedWorkLine,
+        new RegExp(`\\b${removedOwnedKey}\\b`),
+        `expected ${removedOwnedKey} to be operator first-run setup, not IN-0001 owned work`
+      );
+    }
 
     const seededPath = path.join(tempDir, "wiki", "initiatives", "IN-0001.md");
     const seeded = await readFile(seededPath, "utf8");
     assert.match(seeded, /\nid: IN-0001\n/, "expected IN-0001 frontmatter id in seeded file");
-    for (const title of [
+    assert.ok(
+      seeded.includes("Document local adoption choices"),
+      "expected seeded IN-0001 to mention adoption docs as owned work"
+    );
+    for (const removedTitle of [
       "Add repo-local AGENTS guidance",
-      "Document local adoption choices",
       "Add repo-local launcher role defaults"
     ]) {
-      assert.ok(seeded.includes(title), `expected seeded IN-0001 to mention owned work: ${title}`);
+      assert.ok(
+        !seeded.includes(removedTitle),
+        `expected seeded IN-0001 to not treat operator first-run setup as owned work: ${removedTitle}`
+      );
     }
     assert.ok(
       seeded.includes("WK-0001#adoption-verify"),
@@ -193,17 +206,30 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
 
     for (const command of [
       "git status --short",
-
-      "git add wiki docs/adoption.md .gitignore",
+      "npx agent-chassis setup",
+      "git add wiki docs/adoption.md .gitignore AGENTS.md agent-launch.toml",
       'git commit -m "bootstrap wiki adoption surfaces"',
-      "npx agent-launch orchestrator IN-0001 --model gpt-5.5",
-      "npx agent-launch orchestrator IN-0001 --model opus",
-      "npx -p @agent-chassis/core agent-launch orchestrator IN-0001 --model gpt-5.5",
-      "npx -p @agent-chassis/core agent-launch orchestrator IN-0001 --model opus"
+      'npx wiki code-index build --dir "$PWD"',
+      "npx agent-launch orchestrator IN-0001",
+      "npx -p @agent-chassis/core agent-launch orchestrator IN-0001"
     ]) {
       assert.ok(
         stdout.includes(command),
         `expected Next steps to include the operator command: ${command}`
+      );
+    }
+    assert.doesNotMatch(
+      stdout,
+      /cp wiki\/templates\/AGENTS\.md\.boilerplate\.md AGENTS\.md/,
+      "Next steps must not include stale AGENTS.md copy guidance"
+    );
+    for (const staleCommand of [
+      "npx agent-launch orchestrator IN-0001 --model",
+      "npx -p @agent-chassis/core agent-launch orchestrator IN-0001 --model"
+    ]) {
+      assert.ok(
+        !stdout.includes(staleCommand),
+        `Next steps must not include stale primary model launch guidance: ${staleCommand}`
       );
     }
 
@@ -225,8 +251,8 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
 
     assert.match(
       stdout,
-      /only after the worktree is clean[\s\S]*?code-index build --dir/,
-      "expected a repo-code-index build command gated on a clean/committed worktree"
+      /After the review\/commit checkpoint[\s\S]*?code-index build --dir/,
+      "expected a repo-code-index build command gated on the review/commit checkpoint"
     );
 
     assert.match(
@@ -242,15 +268,21 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
     );
     assert.doesNotMatch(
       stdout,
-      /WK-0001#repo-local-agents|WK-0001#adoption-docs|WK-0001#launcher-config|WK-0001#mcp-alias-default/,
-      "Next steps must no longer enumerate per-slice manual adoption steps the operator completes one by one"
+      /WK-0001#repo-local-agents|WK-0001#launcher-config|WK-0001#mcp-alias-default/,
+      "Next steps must no longer enumerate removed per-slice setup work the operator completes one by one"
     );
 
-    assert.match(
+    assert.doesNotMatch(
       stdout,
-      /does not create AGENTS\.md/,
-      "expected Next steps to state bootstrap does not create AGENTS.md"
+      /AGENTS\.md[\s\S]{0,120}WK-0001#|WK-0001#[\s\S]{0,120}AGENTS\.md/,
+      "AGENTS.md setup must be operator-created/adapted before orchestrator launch, not a WK-0001 worker slice"
     );
+    assert.doesNotMatch(
+      stdout,
+      /agent-launch\.toml[\s\S]{0,120}WK-0001#|WK-0001#[\s\S]{0,120}agent-launch\.toml/,
+      "launcher config setup must be operator-created before orchestrator launch, not a WK-0001 worker slice"
+    );
+
     assert.match(
       stdout,
       /seeds the committed docs\/adoption\.md operator guide from a template/,

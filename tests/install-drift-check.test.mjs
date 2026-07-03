@@ -25,7 +25,18 @@ const PACKAGE_JSON_PATH = path.join(PACKAGE_DIR, "package.json");
 
 async function readPackageBinMap() {
   const pkg = JSON.parse(await readFile(PACKAGE_JSON_PATH, "utf8"));
-  return pkg.bin ?? {};
+  return normalizeBinMap(pkg.bin ?? {});
+}
+
+function normalizeBinMap(binMap) {
+  return Object.fromEntries(
+    Object.entries(binMap).map(([name, relPath]) => [
+      name,
+      typeof relPath === "string" && relPath.startsWith("./")
+        ? relPath.slice(2)
+        : relPath
+    ])
+  );
 }
 
 async function withTempTargetDir(fn) {
@@ -459,30 +470,21 @@ test("install-drift-check: directory target is classified hand-copied with 'neit
   });
 });
 
-test("install-drift-check: executable-mode policy: declared bin paths under ./bin/ require +x; agent-launch Node entrypoint does not", async () => {
+test("install-drift-check: executable-mode policy: every declared package bin lives under ./bin/", async () => {
   const binMap = await readPackageBinMap();
-  assert.ok(
-    "agent-launch" in binMap,
-    "package.json bin map must declare the agent-launch Node entrypoint"
-  );
-  assert.ok(
-    !binMap["agent-launch"].startsWith("./bin/"),
-    "agent-launch Node entrypoint must not live under ./bin/"
-  );
   for (const [name, relPath] of Object.entries(binMap)) {
-    if (name === "agent-launch") continue;
     assert.ok(
-      relPath.startsWith("./bin/"),
-      `${name}: every non-agent-launch declared bin must live under ./bin/ (got ${relPath})`
+      relPath.startsWith("bin/"),
+      `${name}: every declared bin must live under ./bin/ (got ${relPath})`
     );
   }
 });
 
-test("install-drift-check: every declared bash shim under ./bin/ carries the user-executable mode bit on disk", async () => {
+test("install-drift-check: every declared shim under ./bin/ carries the user-executable mode bit on disk", async () => {
   const binMap = await readPackageBinMap();
   const offenders = [];
   for (const [name, relPath] of Object.entries(binMap)) {
-    if (!relPath.startsWith("./bin/")) continue;
+    if (!relPath.startsWith("bin/")) continue;
     const absolute = path.resolve(PACKAGE_DIR, relPath);
     const s = await stat(absolute);
     if ((s.mode & 0o100) === 0) {
@@ -565,10 +567,15 @@ test("install-drift-check: non-executable installed regular file (byte-identical
   });
 });
 
-test("install-drift-check: agent-launch Node entrypoint is exempt from package-source +x checks", async () => {
+test("install-drift-check: agent-launch package bin carries +x like the other shipped shims", async () => {
   const binMap = await readPackageBinMap();
   const agentLaunchPath = path.resolve(PACKAGE_DIR, binMap["agent-launch"]);
-  await stat(agentLaunchPath);
+  const s = await stat(agentLaunchPath);
+  assert.notEqual(
+    s.mode & 0o100,
+    0,
+    "agent-launch package bin must carry the user-executable bit"
+  );
   await withTempTargetDir(async (targetDir) => {
     await populateCleanSymlinks(targetDir, binMap);
     const { output, exitCode } = await runJson(targetDir);
@@ -576,7 +583,7 @@ test("install-drift-check: agent-launch Node entrypoint is exempt from package-s
     assert.equal(
       entry.drift_kind,
       null,
-      "agent-launch must not be classified as non-executable-package-bin"
+      "agent-launch must be clean when its installed target points at the executable package bin"
     );
     assert.equal(exitCode, 0, "clean fixture must exit 0");
   });

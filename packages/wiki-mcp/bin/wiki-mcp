@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+
+if (process.argv.slice(2).some((arg) => arg === "--help" || arg === "-h" || arg === "help")) {
+  console.log(`wiki-mcp
+
+Start the AgentChassis wiki MCP stdio server.
+
+Usage:
+  wiki-mcp
+
+Options:
+  -h, --help  Show this help text.`);
+  process.exit(0);
+}
+
+await import("../src/server.mjs");

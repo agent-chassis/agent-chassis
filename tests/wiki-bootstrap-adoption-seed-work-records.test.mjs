@@ -10,6 +10,17 @@ import {
 import { materializeAdoptionWorkRecord } from "../packages/wiki-core/src/lib/wiki-scaffold.mjs";
 import { WK0001_TEMPLATE_DATA } from "./wiki-bootstrap-adoption-helpers.mjs";
 
+function gatherText(obj) {
+  const out = [];
+  const walk = (value) => {
+    if (typeof value === "string") out.push(value);
+    else if (Array.isArray(value)) value.forEach(walk);
+    else if (value && typeof value === "object") Object.values(value).forEach(walk);
+  };
+  walk(obj);
+  return out.join("\n");
+}
+
 test("static IN-0001 adoption seed exposes the executable WK-0001 work record seed via helper", () => {
   const records = getStaticIn0001AdoptionSeedWorkRecords();
   assert.ok(Array.isArray(records), "helper must return an array");
@@ -21,16 +32,16 @@ test("static IN-0001 adoption seed exposes the executable WK-0001 work record se
   assert.equal(tracker.work_kind, "implementation");
   assert.equal(tracker.initiative, "IN-0001");
 
-  assert.ok(Array.isArray(tracker.slices) && tracker.slices.length > 0, "tracker must have slices");
+  assert.ok(Array.isArray(tracker.slices), "tracker must have slices");
   const sliceIds = tracker.slices.map((slice) => slice.id);
   assert.deepEqual(
     sliceIds,
-    ["repo-local-agents", "launcher-config", "adoption-verify"],
-    "tracker must own repo-local-agents and launcher-config implementation slices plus one adoption-verify review slice"
+    ["SLICE-001", "adoption-verify"],
+    "tracker must seed the canonical SLICE-001 AGENTS.md slice and the adoption-verify review"
   );
   assert.ok(
-    !sliceIds.includes("mcp-alias-default"),
-    "the mcp-alias-default slice must be removed from the seeded tracker"
+    !sliceIds.includes("launcher-config"),
+    "launcher-config must not be a seeded implementation slice"
   );
   assert.ok(
     !sliceIds.includes("adoption-docs"),
@@ -55,47 +66,37 @@ test("static IN-0001 adoption seed exposes the executable WK-0001 work record se
   }
 });
 
-test("WK-0795 seeded WK-0001 has 2 implementation slices plus 1 review slice and no empty-write implementation slice", () => {
+test("WK-1402 seeded WK-0001 carries the SLICE-001 AGENTS.md implementation slice and the adoption-verify review", () => {
   const [tracker] = getStaticIn0001AdoptionSeedWorkRecords();
   const byId = Object.fromEntries(tracker.slices.map((slice) => [slice.id, slice]));
 
+  assert.equal(tracker.work_kind, "implementation", "WK-0001 tracker owns the AGENTS.md deliverable");
+
   const implementation = tracker.slices.filter((slice) => slice.work_kind === "implementation");
   const review = tracker.slices.filter((slice) => slice.work_kind === "review");
-  assert.equal(implementation.length, 2, "expected exactly two implementation slices");
-  assert.equal(review.length, 1, "expected exactly one review slice");
-
   assert.deepEqual(
-    implementation.map((slice) => slice.id).sort(),
-    ["launcher-config", "repo-local-agents"],
-    "implementation slices must be the repo-local AGENTS.md and launcher-config surfaces"
+    implementation.map((slice) => slice.id),
+    ["SLICE-001"],
+    "the only implementation slice must be the canonical SLICE-001 AGENTS.md slice"
+  );
+  assert.deepEqual(
+    review.map((slice) => slice.id),
+    ["adoption-verify"],
+    "the only review slice must be adoption-verify"
   );
 
+  const agents = byId["SLICE-001"];
+  assert.deepEqual(agents.write_scope, ["AGENTS.md"], "SLICE-001 owns root AGENTS.md");
+  assert.ok(
+    (agents.read_scope ?? []).includes("wiki/templates/AGENTS.md.boilerplate.md"),
+    "SLICE-001 read_scope must include the boilerplate helper it adapts"
+  );
+
+  assert.equal(byId["launcher-config"], undefined, "launcher-config slice must not exist");
   assert.equal(byId["mcp-alias-default"], undefined, "mcp-alias-default slice must not exist");
   assert.equal(byId["adoption-docs"], undefined, "adoption-docs slice must not exist (docs/adoption.md is bootstrap-seeded)");
 
-  for (const slice of implementation) {
-    assert.ok(
-      Array.isArray(slice.write_scope) && slice.write_scope.length > 0,
-      `implementation slice ${slice.id} must declare a non-empty write_scope`
-    );
-  }
-
-  assert.deepEqual(byId["repo-local-agents"].write_scope, ["AGENTS.md"]);
-  assert.deepEqual(byId["launcher-config"].write_scope, ["agent-launch.toml"]);
-
-  assert.ok(
-    !tracker.write_scope.includes("wiki/.wiki-mcp.json"),
-    "tracker write_scope must not include the bootstrap-generated wiki/.wiki-mcp.json"
-  );
-  assert.ok(
-    !tracker.write_scope.includes("docs/adoption.md"),
-    "tracker write_scope must not include the bootstrap-seeded docs/adoption.md"
-  );
-  assert.deepEqual(
-    tracker.write_scope.slice().sort(),
-    ["AGENTS.md", "agent-launch.toml"],
-    "tracker write_scope must be exactly the create/customize surfaces (AGENTS.md and agent-launch.toml)"
-  );
+  assert.deepEqual(tracker.write_scope, ["AGENTS.md"], "tracker write_scope must cover the AGENTS.md implementation slice");
 
   const verify = byId["adoption-verify"];
   assert.equal(verify.work_kind, "review", "adoption-verify must be a review-kind slice");
@@ -138,24 +139,26 @@ test("WK-0795 seeded WK-0001 has 2 implementation slices plus 1 review slice and
     verify.acceptance.criteria.some((c) => /read-only/i.test(c) && /persisted_evidence|persist/i.test(c)),
     "adoption-verify must assert the graph-impact check is read-only and persists no evidence"
   );
-
   assert.ok(
     verify.acceptance.criteria.some(
       (c) => /wiki\/\.wiki-mcp\.json|wiki-mcp-alias/i.test(c) && /wiki-mcp-workspace\.v1/i.test(c)
     ),
     "adoption-verify acceptance must confirm the non-gating wiki-mcp-alias informational entry"
   );
-
   assert.ok(
     verify.acceptance.criteria.some(
-      (c) => /status[- ]?bookkeeping/i.test(c) || (/done\/blocked|done or blocked/i.test(c) && /implementation slice/i.test(c))
+      (c) => /docs\/adoption\.md/.test(c) && /informational|never flips the ready verdict/i.test(c)
     ),
-    "adoption-verify acceptance must require recorded implementation-slice status bookkeeping"
+    "adoption-verify acceptance must confirm docs/adoption.md as an informational entry"
   );
-
   assert.ok(
-    verify.acceptance.criteria.some((c) => /docs\/adoption\.md/.test(c)),
-    "adoption-verify acceptance must confirm the non-gating docs/adoption.md informational entry"
+    tracker.acceptance.criteria.some((c) => /AGENTS\.md/.test(c) && /repo-adapted/i.test(c)) &&
+      verify.scope.includes("AGENTS.md is repo-adapted"),
+    "adoption-verify contract must confirm operator-created/adapted AGENTS.md readiness"
+  );
+  assert.ok(
+    verify.scope.includes("operator first-run launcher setup has supplied agent-launch.toml/init-config readiness"),
+    "adoption-verify scope must cover operator-provided agent-launch.toml/init-config readiness"
   );
 });
 
@@ -185,12 +188,9 @@ test("WK-0795 M1 adoption seed graph-impact check is read-only and not owned wor
   );
 
   const ownedKeys = seed.owned_work.map((work) => work.key);
-  assert.deepEqual(
-    ownedKeys.slice().sort(),
-    ["adoption-docs", "launcher-config", "repo-local-agents"],
-    "owned_work must contain only the current authored/adoption surfaces"
-  );
+  assert.deepEqual(ownedKeys.slice().sort(), ["adoption-docs"], "owned_work must not include launcher or AGENTS.md setup");
   for (const verificationKey of [
+    "launcher-config",
     "wiki-retrieval",
     "work-records",
     "graph-impact",
@@ -327,62 +327,88 @@ test("WK-0784 standalone WK-0001 template validates as a canonical work record a
   );
 });
 
-test("WK-0784 WK-0001 repo-local-agents slice read_scope points at the seeded local helper template", () => {
+test("WK-1402 AGENTS.md authoring is the canonical SLICE-001 implementation slice", () => {
   const [tracker] = getStaticIn0001AdoptionSeedWorkRecords();
-  const slice = tracker.slices.find((s) => s.id === "repo-local-agents");
-  assert.ok(slice, "repo-local-agents slice must exist");
+  const agents = tracker.slices.find((s) => s.id === "SLICE-001");
+
+  assert.ok(agents, "WK-0001 must seed the canonical SLICE-001 AGENTS.md slice");
+  assert.equal(agents.work_kind, "implementation", "SLICE-001 must be an implementation slice");
+  assert.deepEqual(agents.write_scope, ["AGENTS.md"], "SLICE-001 must own root AGENTS.md");
 
   assert.ok(
-    slice.read_scope.includes("wiki/templates/AGENTS.md.boilerplate.md"),
-    `repo-local-agents.read_scope must include wiki/templates/AGENTS.md.boilerplate.md; got: ${JSON.stringify(slice.read_scope)}`
+    tracker.slices.every((s) => /^(SLICE-\d{3}|adoption-verify)$/.test(s.id)),
+    "WK-0001 slice ids must be canonical (SLICE-### or adoption-verify)"
   );
+
+  const acceptance = gatherText(agents.acceptance);
+  assert.match(acceptance, /\[repo-name\]|bracketed placeholder/i, "SLICE-001 must forbid leftover placeholders");
+  assert.match(acceptance, /not a blind copy|not.*copied verbatim/i, "SLICE-001 must forbid a blind copy");
+  assert.match(acceptance, /unsupported.*(tool|canonical)/i, "SLICE-001 must require removing unsupported tool/canonical-layer claims");
+});
+
+test("WK-1402 adoption-verify still confirms AGENTS.md readiness informationally", () => {
+  const [tracker] = getStaticIn0001AdoptionSeedWorkRecords();
+  const slice = tracker.slices.find((s) => s.id === "adoption-verify");
+
   assert.ok(
-    !slice.read_scope.includes("docs/agent-wiki-boilerplate.md"),
-    "repo-local-agents.read_scope must no longer reference the removed docs/agent-wiki-boilerplate.md"
+    tracker.acceptance.criteria.some((c) => /AGENTS\.md/.test(c) && /repo-adapted/i.test(c)) &&
+      slice.scope.includes("AGENTS.md is repo-adapted"),
+    "adoption-verify contract must confirm AGENTS.md is repo-adapted"
   );
 });
 
-test("WK-0784 WK-0001 repo-local-agents acceptance rejects a stub AGENTS.md outcome", () => {
+test("WK-1402 seeded IN-0001/WK-0001 teach the advisory AGENTS.md worker-dispatch flow", () => {
+  const seed = getStaticIn0001AdoptionSeed();
   const [tracker] = getStaticIn0001AdoptionSeedWorkRecords();
-  const slice = tracker.slices.find((s) => s.id === "repo-local-agents");
-  const criteria = slice.acceptance.criteria;
-  const blob = criteria.join("\n");
+  const text = `${gatherText(seed)}\n${gatherText(tracker)}`;
 
-  assert.match(
-    blob,
-    /AGENTS\.md\.boilerplate\.md/,
-    "acceptance must require adapting the seeded wiki/templates/AGENTS.md.boilerplate.md helper"
-  );
-  assert.match(
-    blob,
-    /not a (minimal )?stub|does NOT satisfy|not a placeholder stub|merely adding a retrieval-first/i,
-    "acceptance must explicitly reject a minimal/stub AGENTS.md"
-  );
-
-  for (const section of [
-    "Core Rule",
-    "Tool Authority",
-    "Tool Discovery",
-    "WK-First Worker Sessions",
-    "Coordinator Duties",
-    "Canonical Layers"
+  for (const required of [
+    "npx agent-chassis setup",
+    "review/adapt `wiki/templates/AGENTS.md.boilerplate.md` into root `AGENTS.md`",
+    'npx wiki adoption verify --dir "$PWD" --json'
   ]) {
-    assert.ok(
-      blob.includes(section),
-      `acceptance must name the boilerplate section/concept "${section}" so a stub cannot pass`
-    );
+    assert.ok(text.includes(required), `seeded adoption surfaces must include: ${required}`);
   }
 
-  assert.match(
-    blob,
-    /\[repo-name\]|placeholder/i,
-    "acceptance must require no unresolved placeholder remains"
+  for (const required of [
+    "primary adoption deliverable",
+    "must not skip authoring it",
+    "must not write root `AGENTS.md` directly",
+    "orchestrator write scope does not include the repo root",
+    "WK-0001#SLICE-001",
+    'write_scope ["AGENTS.md"]',
+    "structured MCP dispatch route",
+    "wiki/templates/AGENTS.md.boilerplate.md",
+    "not a blind copy",
+    "not current-session operating authority",
+    "Dispatch implementation only through scoped `WK-*` slices"
+  ]) {
+    assert.ok(text.includes(required), `seeded adoption surfaces must teach: ${required}`);
+  }
+
+  assert.doesNotMatch(
+    text,
+    /optional advisory setup|recommended \(not required\)|treat(ed)? (a )?missing root `?AGENTS\.md`? as advisory unless/i,
+    "seed must not frame authoring root AGENTS.md as optional — it is the adoption deliverable"
   );
 
   assert.ok(
-    criteria.some(
-      (c) => /install\/bootstrap|bootstrap command/i.test(c) && /AGENTS\.md/.test(c)
-    ),
-    "acceptance must require install/bootstrap command instructions stay out of AGENTS.md"
+    !text.includes("operator_first_run_prerequisites_missing: AGENTS.md"),
+    "missing root AGENTS.md must not be framed as a required dispatch-preflight blocker"
+  );
+  assert.doesNotMatch(
+    text,
+    /do not dispatch implementation workers|not dispatch implementation workers or treat the repo as agent-operable/i,
+    "seeded adoption surfaces must not stop dispatch solely because root AGENTS.md is missing"
+  );
+  assert.doesNotMatch(
+    text,
+    /boilerplate is (the |your |current-session )?(operating )?authority/i,
+    "seeded adoption surfaces must not treat the boilerplate as current-session authority"
+  );
+  assert.doesNotMatch(
+    text,
+    /copy the boilerplate into the target repo|blindly copy|copy\/adapt it as an operator\/bootstrap first-run surface/i,
+    "seeded adoption surfaces must not carry stale blind-copy or copy/adapt AGENTS.md wording"
   );
 });

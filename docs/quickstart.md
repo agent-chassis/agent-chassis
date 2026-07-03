@@ -52,10 +52,34 @@ If you prefer to pin the underlying packages individually, you can install
 `@agent-chassis/agent-launch-cli` directly instead; see
 [docs/package-install.md](package-install.md).
 
+### Postinstall first-run guidance
+
+During install, `@agent-chassis/core` runs a postinstall guidance hook that
+points at the explicit first-run setup command. It does not create files, run
+bootstrap, write `agent-launch.toml`, run `agent-launch init-config`, build the
+code index, launch an orchestrator, mutate MCP/client configuration, or fail the
+install when detection cannot complete.
+
+After install, run the setup command from your consumer repo root:
+
+```sh
+npx agent-chassis setup
+```
+
+The setup command runs bootstrap, prompts or selects the launcher template for a
+detected Claude or Codex CLI, creates an empty root guidance
+placeholder/checkpoint for the selected agent when absent (`CLAUDE.md` for
+Claude, `AGENTS.md` for Codex), copies `agent-launch.toml` only when it is
+absent, runs `npx agent-launch init-config`, and prints the review, commit,
+code-index, and orchestrator commands to run next. It does not copy
+`wiki/templates/AGENTS.md.boilerplate.md` into any root guidance file. The
+touched guidance file is not repo-specific operating authority until you review
+and adapt it.
+
 ## 3. Bootstrap the repo
 
 ```bash
-npx wiki bootstrap
+npx wiki bootstrap --profile standard
 ```
 
 Bootstrap is run once, from your repo root, after installing the packages. It is
@@ -82,9 +106,13 @@ an agent, or reaches an external service.
 Bootstrap is idempotent and non-overwriting: rerunning it preserves `IN-0001`,
 seeded records, and any repo-specific edits, and only fills in missing surfaces.
 
-Bootstrap does **not** create your root `AGENTS.md` (you adapt the seeded
-boilerplate), does **not** write global MCP client config, and does **not** build
-the code index — that is the next step.
+Bootstrap does **not** create root guidance files, does **not** write global MCP
+client config, and does **not** build the code index. Use
+`npx agent-chassis setup` for the first-run flow; setup only creates the
+selected empty root guidance placeholder/checkpoint when absent (`AGENTS.md` for
+Codex or `CLAUDE.md` for Claude). Review and adapt that file before treating it
+as repo-local operating authority, review the launcher config, and commit the
+bootstrap-created files before building the code index.
 
 ## 4. Build the code index
 
@@ -97,11 +125,13 @@ readiness, dispatch review, graph-impact queries, and review tooling depend on
 it. Until it is built, `code-index status` reports `staleness: missing` and
 dispatch/graph-impact routes degrade.
 
-Run this after bootstrap, once the worktree is clean again — for example, after
-committing the bootstrap output:
+Run this after bootstrap, launcher config initialization, and the
+review/commit checkpoint — for example:
 
 ```bash
-git add wiki docs/adoption.md .gitignore
+npx agent-launch init-config
+git status --short
+git add <selected-guidance-file> docs/adoption.md wiki .gitignore agent-launch.toml
 git commit -m "bootstrap AgentChassis wiki adoption"
 npx wiki code-index build --json
 ```
@@ -179,11 +209,16 @@ it is not yet applied to model thinking output.
 ## 7. Drive orchestrators (operator step)
 
 Orchestrator launch and resume are human/operator entrypoints — agents do not
-launch them. With the packages installed and the repo bootstrapped, you (the
-operator) drive work through orchestrators from your repo root:
+launch them. With the packages installed, the repo bootstrapped, the selected
+root guidance file reviewed/adapted, launcher config initialized, and the code
+index built, you (the operator) drive work through orchestrators from your repo
+root:
 
 ```bash
-# Start an initiative orchestrator. The model or app override decides the app.
+# Start the seeded adoption orchestrator from committed first-run setup.
+npx agent-launch orchestrator IN-0001
+
+# Optional overrides still resolve through launcher model selection.
 npx agent-launch orchestrator IN-0001 --model gpt-5.5
 npx agent-launch orchestrator IN-0001 --model opus
 npx agent-launch orchestrator IN-0001 --model claude

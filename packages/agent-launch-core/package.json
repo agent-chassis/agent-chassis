@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/agent-launch-core",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -39,6 +39,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@agent-chassis/wiki-core": "^0.4.1"
+    "@agent-chassis/wiki-core": "^0.4.2"
   }
 }

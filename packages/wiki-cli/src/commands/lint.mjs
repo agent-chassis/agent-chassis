@@ -11,15 +11,17 @@ export async function runLint(argv) {
     return;
   }
   const targetDir = path.resolve(String(options.dir || "."));
+  const requestedProfile = optionalOption(options, "profile");
   const includeAllFindings =
     options.all === true || options["include-all-findings"] === true;
   const result = await lintRepo({
     dir: targetDir,
-    profile: optionalOption(options, "profile"),
+    profile: requestedProfile,
     extensionNamespaces: optionalListOption(options, "extensions"),
     requireJsonOpenWork: options["require-json-open-work"] === true,
     includeAllFindings
   });
+  const effectiveProfile = result.profile || requestedProfile || "standard";
   const warnings = result.warnings || [];
   const problems = result.problems || [];
   const errorCount = Number(result.error_count || 0);
@@ -48,5 +50,5 @@ export async function runLint(argv) {
   }
 
   console.log(`Lint passed for ${targetDir}`);
-  console.log(`Profile: ${result.profile}`);
+  console.log(`Profile: ${effectiveProfile}`);
 }

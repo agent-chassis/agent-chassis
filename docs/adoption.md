@@ -121,8 +121,9 @@ Bootstrap writes these surfaces when they are missing (`create_if_missing`):
 Bootstrap also syncs the record templates and the
 `wiki/templates/AGENTS.md.boilerplate.md` install helper into `wiki/templates/`
 on every run (refreshed to track the installed package). The boilerplate helper
-is a template to copy from when authoring the repo's own `AGENTS.md` — it is not
-repo-local operating authority, and bootstrap never creates the root `AGENTS.md`.
+is a template to review/adapt when authoring the repo's own `AGENTS.md` — it is
+not repo-local operating authority, and bootstrap never creates the root
+`AGENTS.md`, so root `AGENTS.md` may not exist yet after bootstrap.
 
 `wiki/.wiki-contract.json` is resynced on every bootstrap run. It is written
 unconditionally, but any user-authored `vocab.topics.local` entries and
@@ -145,10 +146,11 @@ Bootstrap also creates local generated-artifact prerequisites:
 Because `wiki/.wiki-mcp.json` is gitignored, `git add wiki` does not stage it;
 only the new `.gitignore` entry is committed. Do not commit the declaration.
 
-`AGENTS.md` is **not** written by bootstrap. It appears as a `target_surface`
-in the static `IN-0001` seed contract and is adoption work the target repo must
-complete itself after seeding (the `repo-local-agents` slice), not a file that
-bootstrap creates.
+`AGENTS.md` is **not** written by bootstrap. Authoring it is recommended
+operator first-run setup — agents benefit from the repo-local operating
+contract — but a missing root `AGENTS.md` is reported as non-gating advisory
+context and does not by itself block launching the seeded `IN-0001`
+orchestrator.
 
 `docs/adoption.md` **is** written by bootstrap — it is rendered from the
 `adoption.md.template.md` package template using `create_if_missing` semantics,
@@ -161,11 +163,6 @@ read-only checks the `WK-0001#adoption-verify` review **confirms**. The two are
 not the same, and the read-only verification checks are **not** dispatchable
 worker tasks.
 
-**Owned work — the surfaces the target repo authors (`owned_work`):**
-
-- repo-local AGENTS guidance
-- adoption docs (bootstrap-seeded; optional repo-specific customization)
-
 **Required read-only verification checks — performed by the
 `WK-0001#adoption-verify` review, not dispatched workers (`required_checks`):**
 
@@ -175,12 +172,18 @@ worker tasks.
 - read-only graph-impact checks (no graph-evidence persistence)
 - dispatch/preflight verification
 
-The seeded owned-work checklist (the baseline adoption backlog the target repo
-executes) is just the two authored surfaces:
+Before launching the seeded `IN-0001` orchestrator, complete these first-run
+steps. Launcher config is a required dispatch-preflight prerequisite; the others
+are recommended advisory context:
 
-1. **Add repo-local AGENTS guidance** — copy the boilerplate into the target repo
-   and replace placeholders with repo-local structured tool and retrieval details.
-2. **Document local adoption choices** — bootstrap seeds `docs/adoption.md` from a
+1. **Add repo-local AGENTS guidance (recommended)** — review/adapt
+   `wiki/templates/AGENTS.md.boilerplate.md` into root `AGENTS.md` and replace
+   placeholders with repo-local structured tool and retrieval details. A missing
+   root `AGENTS.md` is advisory and does not block adoption verify on its own.
+2. **Install launcher config** — copy or review the detected
+   `agent-launch.<claude-or-codex>.toml` template to `agent-launch.toml`, run
+   `agent-launch init-config`, and review/commit the bootstrap-created files.
+3. **Document local adoption choices** — bootstrap seeds `docs/adoption.md` from a
    package template (create-if-missing) covering the bootstrap path, package
    install, and adoption-verify usage. Optionally customize that seeded guide with
    repo-specific operating notes; do not author it from scratch.
@@ -194,6 +197,14 @@ graph-impact, and dispatch-preflight) and confirms the bootstrap-generated
 graph-impact check is read-only and persists no graph evidence to any work
 record. See [After Seeding: Required Next Steps](#after-seeding-required-next-steps)
 for how a coordinator records the verification result.
+
+If adoption verify reports `operator_first_run_prerequisites_missing` for
+launcher config (`agent-launch.toml` role defaults or `.agent-launch`
+init-config), hold orchestrator launch until it is resolved: run
+`npx agent-chassis setup`, rerun adoption verify, and proceed after required
+checks pass. A missing root `AGENTS.md` is reported as non-gating advisory
+context instead of a blocker — recommend reviewing/adapting
+`wiki/templates/AGENTS.md.boilerplate.md` into root `AGENTS.md`.
 
 The seed contract in `packages/wiki-core/templates/IN-0001.adoption-seed.json`
 (rendered by `packages/wiki-core/src/index.mjs`) remains the authoritative source
@@ -223,16 +234,17 @@ The bootstrap explicitly does **not**:
 
 Bootstrap writes wiki core surfaces, seeds `IN-0001` adoption work, generates the
 gitignored repo-local `wiki/.wiki-mcp.json` declaration, and seeds
-`docs/adoption.md` from a package template. The seeded `WK-0001` tracker carries
-**one** implementation slice the target repo completes itself —
-`repo-local-agents` (`AGENTS.md`) — plus one findings-only `adoption-verify`
-review slice. Neither `wiki/.wiki-mcp.json` nor `docs/adoption.md` is a
-worker-owned implementation slice: bootstrap owns `wiki/.wiki-mcp.json` as
-gitignored local metadata and seeds `docs/adoption.md` from a template
-(create-if-missing), and the `adoption-verify` review confirms both
-informationally:
+`docs/adoption.md` from a package template. The seeded `WK-0001` tracker is
+review-only: it carries the single findings-only `adoption-verify` review slice
+and no worker-owned implementation setup slices. `AGENTS.md`, launcher config,
+`wiki/.wiki-mcp.json`, and `docs/adoption.md` are not `WK-0001` implementation
+slices. `adoption verify` checks launcher setup as an operator first-run
+prerequisite, and confirms `AGENTS.md` presence, `wiki/.wiki-mcp.json`, and
+`docs/adoption.md` informationally:
 
-**1. AGENTS.md** — bootstrap does not create `AGENTS.md`. To configure it:
+**1. AGENTS.md (recommended)** — bootstrap does not create `AGENTS.md`.
+Configuring it is recommended repo-local operating context; a missing root
+`AGENTS.md` is advisory and does not block adoption verify:
 
 1. Read the bootstrap-seeded `wiki/templates/AGENTS.md.boilerplate.md` helper
    template (a local install helper, not operating authority).
@@ -242,10 +254,45 @@ informationally:
 3. Commit the result as `AGENTS.md` at the repo root.
 
 `AGENTS.md` is repo-specific operating authority; it must not be generated
-automatically. The seeded `IN-0001` tracks this as the `repo-local-agents`
-adoption task.
+automatically or deferred to a worker that needs that authority before dispatch.
 
-**2. MCP workspace declaration** — bootstrap generates the repo-local
+### First-run setup loop
+
+Root `AGENTS.md` may not exist yet in a freshly bootstrapped repo. Authoring it
+is recommended repo-local operating context, but its absence is advisory and
+does not block adoption verify on its own; missing or invalid launcher config
+does block.
+
+1. Run:
+
+   ```bash
+   npx wiki adoption verify --dir "$PWD" --json
+   ```
+
+2. If the result is `blocked` on operator-owned launcher prerequisites
+   (`operator_first_run_prerequisites_missing` naming `agent-launch.toml` role
+   defaults or `.agent-launch` init-config), report the blockers and ask the
+   operator to complete setup.
+3. The operator should run:
+
+   ```bash
+   npx agent-chassis setup
+   ```
+
+   Then review/adapt `wiki/templates/AGENTS.md.boilerplate.md` into root
+   `AGENTS.md` (recommended advisory context). Do not install the helper
+   unchanged; the installed file is repo-specific operating authority.
+4. Rerun adoption verify after setup.
+5. Proceed once the required checks pass.
+
+**2. Launcher config** — bootstrap and postinstall guidance tell the operator to
+copy or review the detected `agent-launch.<claude-or-codex>.toml` template to
+`agent-launch.toml`, run `agent-launch init-config`, review/commit the
+bootstrap-created files, build the code index, and only then launch
+`agent-launch orchestrator IN-0001`. Launcher setup is an operator first-run
+prerequisite, not a worker-owned setup slice.
+
+**3. MCP workspace declaration** — bootstrap generates the repo-local
 `wiki/.wiki-mcp.json` declaration (schema version `wiki-mcp-workspace.v1`),
 recording the repo alias and fully resolved root. It is a generated, gitignored
 local artifact that bootstrap regenerates and root-refreshes on every run; it is
@@ -266,19 +313,13 @@ Reviewing this declaration is **not** a separate dispatchable work item: the
 deliberate operator alias was chosen), and that non-gating check never flips the
 `ready` verdict on its own.
 
-### Recording adoption slice status
+### Recording adoption verification
 
-A successful worker exit is **not** by itself proof that an adoption slice is
-done. After the `repo-local-agents` worker finishes, the operator or initiative
-orchestrator must record each `WK-0001` implementation slice `done` — or
-`blocked` with a concrete blocker — through the structured
-work-record tools (set-status / set-closure). `wiki adoption verify` enforces
-this: its `work-records` check fails with a structured
-`adoption_status_bookkeeping_incomplete` blocker while any implementation slice
-is still `todo`/`review`, so a bare bootstrapped repo is reported `blocked`, not
-`ready`, until that bookkeeping is recorded. The findings-only `adoption-verify`
-review slice itself may remain open while the review runs; only implementation
-slices gate the check.
+The seeded `WK-0001` tracker is review-only. It does not require implementation
+slice bookkeeping for first-run setup. Instead, `wiki adoption verify` reports a
+freshly bootstrapped repo as `blocked` until the operator first-run prerequisites
+exist and the required read-only checks pass. The findings-only
+`adoption-verify` review slice records that verification result.
 
 ### Operator shell setup vs. agent authority
 

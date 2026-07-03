@@ -114,12 +114,17 @@ export async function runBootstrap(argv) {
   console.log("  1. Inspect the bootstrap-created files:");
   console.log("       git status --short");
   console.log(
-    "  2. Commit the bootstrap-created wiki surfaces, docs/adoption.md, and .gitignore:"
+    "  2. Run first-run AgentChassis setup for AGENTS.md review, launcher template selection, and launcher config:"
   );
-  console.log("       git add wiki docs/adoption.md .gitignore");
+  console.log("       npx agent-chassis setup");
+  console.log(
+    "  3. Review and commit the bootstrap-created files, AGENTS.md, and launcher config:"
+  );
+  console.log("       git status --short");
+  console.log("       git add wiki docs/adoption.md .gitignore AGENTS.md agent-launch.toml");
   console.log('       git commit -m "bootstrap wiki adoption surfaces"');
   console.log(
-    "  3. Optional, only after the worktree is clean: build the repo-code-index"
+    "  4. After the review/commit checkpoint: build the repo-code-index"
   );
   console.log("     sidecar:");
   console.log('       npx wiki code-index build --dir "$PWD"');
@@ -128,29 +133,21 @@ export async function runBootstrap(argv) {
   console.log("       # zero-local-script fallback:");
   console.log('       npx -p @agent-chassis/core wiki code-index build --dir "$PWD"');
   console.log(
-    `  4. Launch the seeded IN-0001 adoption orchestrator (it drives the ${trackerId}`
+    `  5. Launch the seeded IN-0001 adoption orchestrator (it drives the ${trackerId}`
   );
   console.log(
     "     adoption slices; do not run them by hand). Orchestrator launch is a"
   );
   console.log(
-    "     human/operator action; choose an explicit model:"
+    "     human/operator action. The copied agent-launch.toml selects the family:"
   );
-  console.log(
-    "       npx agent-launch orchestrator IN-0001 --model gpt-5.5"
-  );
-  console.log(
-    "       npx agent-launch orchestrator IN-0001 --model opus"
-  );
+  console.log("       npx agent-launch orchestrator IN-0001");
   console.log("       # zero-local-script fallback:");
   console.log(
-    "       npx -p @agent-chassis/core agent-launch orchestrator IN-0001 --model gpt-5.5"
+    "       npx -p @agent-chassis/core agent-launch orchestrator IN-0001"
   );
   console.log(
-    "       npx -p @agent-chassis/core agent-launch orchestrator IN-0001 --model opus"
-  );
-  console.log(
-    `  5. After the orchestrator completes the ${trackerId} adoption work, run the`
+    `  6. After the orchestrator completes the ${trackerId} adoption work, run the`
   );
   console.log(
     "     structured first-run adoption readiness check. Bootstrap does not run it"
@@ -178,10 +175,22 @@ export async function runBootstrap(argv) {
     "seeds the committed docs/adoption.md operator guide from a template"
   );
   console.log(
-    "(preserved if you have customized it), but does not create AGENTS.md and"
+    "(preserved if you have customized it). The root AGENTS.md is an operator"
   );
   console.log(
-    "does not configure global MCP client settings. The IN-0001 orchestrator owns"
+    "first-run prerequisite: create or adapt it from"
+  );
+  console.log(
+    "wiki/templates/AGENTS.md.boilerplate.md before launcher config,"
+  );
+  console.log(
+    "code-index, or IN-0001 orchestration."
+  );
+  console.log(
+    "Bootstrap also does not configure global MCP client settings. The IN-0001"
+  );
+  console.log(
+    "orchestrator owns"
   );
   console.log("completing the adoption work above.");
 }

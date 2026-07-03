@@ -57,6 +57,7 @@ export const WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR = "WIKI_MCP_RESPONSE_STATE_DIR"
 export const WIKI_MCP_TOOL_PROFILE_ENV_VAR = "WIKI_MCP_TOOL_PROFILE";
 export const WIKI_MCP_ASSIGNED_UNIT_ENV_VAR = "WIKI_MCP_ASSIGNED_UNIT";
 export const WIKI_MCP_RESPONSE_STATE_DIR_NAME = "wiki-mcp-response-state";
+export const WIKI_MCP_AGENT_SAFE_TOOL_PROFILE = "agent-safe";
 
 function pathContainsOrEquals(parent, candidate) {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
@@ -112,6 +113,7 @@ export function selectWikiMcpServerEnv({
   if (isNonEmptyStringInternal(workspaceDir)) {
     env[WIKI_MCP_WORKSPACE_DIR_ENV_VAR] = workspaceDir;
   }
+  env[WIKI_MCP_TOOL_PROFILE_ENV_VAR] = WIKI_MCP_AGENT_SAFE_TOOL_PROFILE;
   if (isNonEmptyStringInternal(responseStateDir) && path.isAbsolute(responseStateDir)) {
     env[WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR] = responseStateDir;
   }
@@ -160,6 +162,11 @@ export function buildCodexWorkspaceMcpEnvOverrides({
     envVar: "WIKI_MCP_WORKSPACE_DIR",
     value: normalizedDir
   }));
+  overrides.push(buildCodexWikiMcpEnvOverride({
+    mcpServerName,
+    envVar: WIKI_MCP_TOOL_PROFILE_ENV_VAR,
+    value: WIKI_MCP_AGENT_SAFE_TOOL_PROFILE
+  }));
   return overrides;
 }
 
@@ -174,7 +181,7 @@ export function buildCodexWorkerWikiMcpEnvOverrides({
     buildCodexWikiMcpEnvOverride({
       mcpServerName,
       envVar: WIKI_MCP_TOOL_PROFILE_ENV_VAR,
-      value: "worker"
+      value: WIKI_MCP_AGENT_SAFE_TOOL_PROFILE
     }),
     buildCodexWikiMcpEnvOverride({
       mcpServerName,

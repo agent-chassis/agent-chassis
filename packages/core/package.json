@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/core",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -15,26 +15,31 @@
     "bin/**",
     "src/**",
     "docs/**",
+    "templates/**",
+    "scripts/postinstall-guidance.mjs",
+    "scripts/setup.mjs",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "postinstall": "node scripts/postinstall-guidance.mjs",
     "prepack": "node scripts/sync-public-docs.mjs",
     "sync-public-docs": "node scripts/sync-public-docs.mjs"
   },
   "bin": {
-    "wiki": "./bin/wiki",
-    "wiki-mcp": "./bin/wiki-mcp",
-    "agent-launch": "./bin/agent-launch",
-    "agent-launch-filesystem-mcp-backend": "./bin/agent-launch-filesystem-mcp-backend"
+    "wiki": "bin/wiki",
+    "wiki-mcp": "bin/wiki-mcp",
+    "agent-chassis": "bin/agent-chassis.mjs",
+    "agent-launch": "bin/agent-launch",
+    "agent-launch-filesystem-mcp-backend": "bin/agent-launch-filesystem-mcp-backend"
   },
   "exports": {
     ".": "./src/index.mjs"
   },
   "dependencies": {
-    "@agent-chassis/agent-launch-cli": "^0.4.1",
-    "@agent-chassis/wiki-cli": "^0.4.1",
-    "@agent-chassis/wiki-mcp": "^0.4.1"
+    "@agent-chassis/agent-launch-cli": "^0.4.2",
+    "@agent-chassis/wiki-cli": "^0.4.2",
+    "@agent-chassis/wiki-mcp": "^0.4.2"
   },
   "engines": {
     "node": ">=22"

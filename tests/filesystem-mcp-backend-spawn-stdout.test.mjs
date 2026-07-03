@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { access, constants } from "node:fs/promises";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { access, constants, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import {
   createDefaultRegistry,
@@ -51,6 +52,18 @@ const HOSTILE_ENV_KEYS = Object.freeze([
   "AGENT_LAUNCH_OPERATOR_CONFIG"
 ]);
 
+function baseEndpointEnv() {
+  const tempDir = os.tmpdir();
+  return {
+    PATH: process.env.PATH ?? "/usr/bin:/bin",
+    LANG: "C",
+    HOME: tempDir,
+    TMPDIR: tempDir,
+    TMP: tempDir,
+    TEMP: tempDir
+  };
+}
+
 function buildChallenge(overrides = {}) {
   return {
     schema_version: HANDSHAKE_REQUEST_SCHEMA,
@@ -64,12 +77,9 @@ function buildChallenge(overrides = {}) {
 
 function spawnEndpoint({ stdin, argv = [], env } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(ENDPOINT_PATH, argv, {
+    const child = spawn("sh", ["-c", "exec \"$@\"", "sh", ENDPOINT_PATH, ...argv], {
       stdio: ["pipe", "pipe", "pipe"],
-      env: env ?? {
-        PATH: process.env.PATH ?? "/usr/bin:/bin",
-        LANG: "C"
-      }
+      env: env ?? baseEndpointEnv()
     });
     const stdoutChunks = [];
     const stderrChunks = [];
@@ -280,14 +290,11 @@ test("endpoint refuses any CLI argument with exit 64", async () => {
 test("hostile inherited environment variables do not influence the emitted result", async () => {
 
   const challenge = buildChallenge({ challenge_nonce: "hostile-env-nonce-001" });
-  const hostileEnv = {
-    PATH: process.env.PATH ?? "/usr/bin:/bin",
-    LANG: "C"
-  };
+  const hostileEnv = baseEndpointEnv();
   for (const key of HOSTILE_ENV_KEYS) {
     hostileEnv[key] = "/tmp/forged-" + key.toLowerCase().replace(/[^a-z0-9]/g, "-");
   }
-  const cleanEnv = { PATH: process.env.PATH ?? "/usr/bin:/bin", LANG: "C" };
+  const cleanEnv = baseEndpointEnv();
 
   const hostile = await spawnEndpoint({
     stdin: JSON.stringify(challenge),
@@ -316,6 +323,45 @@ test("hostile inherited environment variables do not influence the emitted resul
       false,
       `hostile env value for ${key} must not leak into stderr`
     );
+  }
+});
+
+test("endpoint strips NODE_OPTIONS before Node startup so preload code cannot run", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "filesystem-mcp-node-options-"));
+  const markerPath = path.join(tempDir, "preload-marker");
+  const preloadPath = path.join(tempDir, "evil-preload.mjs");
+  try {
+    await writeFile(
+      preloadPath,
+      [
+        "import { writeFileSync } from 'node:fs';",
+        `writeFileSync(${JSON.stringify(markerPath)}, 'preload-ran');`,
+        "process.stderr.write('PRELOAD-EXECUTED');",
+        ""
+      ].join("\n"),
+      "utf8"
+    );
+
+    const challenge = buildChallenge({ challenge_nonce: "node-options-preload-001" });
+    const result = await spawnEndpoint({
+      stdin: JSON.stringify(challenge),
+      env: {
+        ...baseEndpointEnv(),
+        NODE_OPTIONS: `--import ${pathToFileURL(preloadPath).href}`
+      }
+    });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stderr.includes("PRELOAD-EXECUTED"), false);
+    const payload = parseSingleJsonLine(result.stdout);
+    assert.equal(payload.challenge_nonce, challenge.challenge_nonce);
+    await assert.rejects(
+      access(markerPath),
+      /ENOENT/,
+      "NODE_OPTIONS preload must not execute before endpoint sanitization"
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
   }
 });
 

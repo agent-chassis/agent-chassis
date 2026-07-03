@@ -28,6 +28,11 @@ function normalizeAuthoredExpectedChangedLineBudget(record) {
   return Number.isInteger(value) && value >= 0 ? value : null;
 }
 
+const BOUNDED_EXTRACTION_REFACTOR_CHANGED_LINE_BUDGET_MAX = 200;
+const BOUNDED_EXTRACTION_REFACTOR_OVERSIZED_SOURCE_LOC_MIN = 1201;
+const BOUNDED_EXTRACTION_REFACTOR_INTENT_SCHEMA_VERSION =
+  "bounded-large-file-extraction-refactor-intent.v1";
+
 function isGraphImpactSummaryShape(value) {
   return (
     isObject(value) &&
@@ -458,6 +463,163 @@ function stripFileStatSourceText(fileStats) {
   });
 }
 
+function normalizeExpectedEditTargetEntry(value) {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const repoPath = normalizeRepoPathKey(value.path);
+  const kind = normalizeStringEntry(value.kind);
+  const operation = normalizeStringEntry(value.operation)?.toLowerCase() ?? null;
+  if (!repoPath || !kind || !normalizeStringEntry(value.name) || !["create", "modify", "delete", "inspect"].includes(operation)) {
+    return null;
+  }
+
+  return { path: repoPath, kind, operation };
+}
+
+function normalizeValidationCoverageToken(value) {
+  if (!isNonEmptyString(value)) {
+    return null;
+  }
+  return String(value)
+    .replaceAll("\\", "/")
+    .replace(/^['"]|['"]$/gu, "")
+    .replace(/^\.\//u, "")
+    .replace(/[,:;]+$/u, "");
+}
+
+function validationCoversRepoPath(validationCommands, repoPath) {
+  const normalizedRepoPath = normalizeValidationCoverageToken(repoPath);
+  if (!normalizedRepoPath) {
+    return false;
+  }
+  return validationCommands.some((command) => {
+    if (!isNonEmptyString(command)) {
+      return false;
+    }
+    for (const match of String(command).replaceAll("\\", "/").matchAll(/"([^"]*)"|'([^']*)'|[^\s]+/gu)) {
+      if (normalizeValidationCoverageToken(match[1] ?? match[2] ?? match[0]) === normalizedRepoPath) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
+function isExistingOversizedThresholdCountedFile(entry) {
+  return (
+    isObject(entry) &&
+    entry.existing_file === true &&
+    entry.is_directory === false &&
+    entry.threshold_effect !== "coordination_only" &&
+    Number.isInteger(entry.loc) &&
+    entry.loc >= BOUNDED_EXTRACTION_REFACTOR_OVERSIZED_SOURCE_LOC_MIN
+  );
+}
+
+function isVerifiableNewDestinationFile(entry) {
+  return (
+    isObject(entry) &&
+    entry.existing_file === false &&
+    entry.is_directory === false &&
+    Number.isInteger(entry.loc)
+  );
+}
+
+function collectBoundedExtractionTargets(targets, fileStats) {
+  const fileStatsByPath = new Map();
+  for (const entry of Array.isArray(fileStats) ? fileStats : []) {
+    const repoPath = isObject(entry) ? normalizeRepoPathKey(entry.path) : null;
+    if (repoPath && !fileStatsByPath.has(repoPath)) {
+      fileStatsByPath.set(repoPath, entry);
+    }
+  }
+
+  return {
+    createTargets: targets.filter((target) => target.operation === "create"),
+    modifyTargets: targets.filter((target) => target.operation === "modify"),
+    sourceCount: targets.filter((target) => isExistingOversizedThresholdCountedFile(fileStatsByPath.get(target.path))).length,
+    destinationsVerifiable: targets
+      .filter((target) => target.operation === "create")
+      .every((target) => isVerifiableNewDestinationFile(fileStatsByPath.get(target.path)))
+  };
+}
+
+function createBoundedLargeFileExtractionRefactorIntent({
+  expectedEditTargets,
+  expectedChangedLineBudget,
+  fileStats,
+  validationCommands
+}) {
+  if (
+    !Array.isArray(expectedEditTargets) ||
+    expectedEditTargets.length === 0 ||
+    !Number.isInteger(expectedChangedLineBudget) ||
+    expectedChangedLineBudget < 0 ||
+    expectedChangedLineBudget > BOUNDED_EXTRACTION_REFACTOR_CHANGED_LINE_BUDGET_MAX ||
+    !Array.isArray(validationCommands) ||
+    validationCommands.length === 0
+  ) {
+    return null;
+  }
+
+  const targets = expectedEditTargets.map(normalizeExpectedEditTargetEntry);
+  if (targets.some((target) => !target)) {
+    return null;
+  }
+
+  const operationCounts = {
+    create: 0,
+    modify: 0,
+    delete: 0,
+    inspect: 0
+  };
+  for (const target of targets) {
+    operationCounts[target.operation] += 1;
+  }
+  if (
+    operationCounts.modify !== 1 ||
+    operationCounts.create < 1 ||
+    operationCounts.delete !== 0 ||
+    operationCounts.inspect !== 0
+  ) {
+    return null;
+  }
+
+  const { createTargets, modifyTargets, sourceCount, destinationsVerifiable } = collectBoundedExtractionTargets(
+    targets,
+    fileStats
+  );
+  if (sourceCount !== 1 || !destinationsVerifiable) {
+    return null;
+  }
+
+  if (![...modifyTargets, ...createTargets].every((target) => validationCoversRepoPath(validationCommands, target.path))) {
+    return null;
+  }
+
+  return {
+    schema_version: BOUNDED_EXTRACTION_REFACTOR_INTENT_SCHEMA_VERSION,
+    intent_kind: "bounded_large_file_extraction_refactor",
+    evidence_basis: "structured_work_record_facts",
+    expected_changed_line_budget: expectedChangedLineBudget,
+    operation_counts: operationCounts,
+    source: {
+      existing_oversized_threshold_counted_target_count: 1,
+      operation: "modify"
+    },
+    destinations: {
+      verifiable_new_target_count: createTargets.length,
+      operation: "create"
+    },
+    validation_coverage: {
+      source_target_covered: true,
+      destination_targets_covered: true
+    }
+  };
+}
+
 function normalizeRecordSelectedUnit(record) {
   if (!isObject(record) || typeof record.id !== "string" || !record.id.trim()) {
     return null;
@@ -584,6 +746,12 @@ export async function createWorkRecordAdmissionRecordLocalInputs({
     source_record_digest: sourceRecordDigest,
     write_scope: Array.isArray(record.write_scope) ? record.write_scope : []
   });
+  const boundedLargeFileExtractionRefactorIntent = createBoundedLargeFileExtractionRefactorIntent({
+    expectedEditTargets: effectiveExpectedEditTargets,
+    expectedChangedLineBudget,
+    fileStats,
+    validationCommands
+  });
   const metricSourceProvenanceForContext = cloneJson(structuralTargetMetrics.metric_source_provenance);
   if (isObject(metricSourceProvenanceForContext)) {
     delete metricSourceProvenanceForContext.normalized_input_digest;
@@ -619,6 +787,9 @@ export async function createWorkRecordAdmissionRecordLocalInputs({
     ...(graphImpactSummaryRef ? { graph_impact_summary_ref: graphImpactSummaryRef } : {}),
     large_file_dec_authority: largeFileDecAuthority,
     structural_target_metrics: structuralTargetMetrics,
+    ...(boundedLargeFileExtractionRefactorIntent
+      ? { bounded_large_file_extraction_refactor_intent: boundedLargeFileExtractionRefactorIntent }
+      : {}),
     metric_source_provenance: metricSourceProvenanceForContext,
 
     effective_expected_edit_targets: effectiveExpectedEditTargets,

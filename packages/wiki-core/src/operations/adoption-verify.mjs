@@ -19,6 +19,12 @@ const RETRIEVAL_PROBE_QUERY = "adoption";
 
 const GRAPH_IMPACT_PROBE_PATH = "wiki/.wiki-contract.json";
 const WIKI_MCP_DECLARATION_PATH = "wiki/.wiki-mcp.json";
+const ROOT_AGENTS_PATH = "AGENTS.md";
+const LAUNCHER_TOML_PATH = "agent-launch.toml";
+const LAUNCHER_CONFIG_DIR = ".agent-launch";
+const LAUNCHER_REGISTRY_PATH = `${LAUNCHER_CONFIG_DIR}/launchers.v1.json`;
+const LAUNCHER_ROLE_GUARD_SECRET_PATH = `${LAUNCHER_CONFIG_DIR}/role-guard-secret.key`;
+const LAUNCHER_REQUIRED_ROLES = Object.freeze(["orchestrator", "worker", "reviewer", "redteam"]);
 
 const ADOPTION_DOC_PATH = "docs/adoption.md";
 
@@ -38,6 +44,111 @@ async function pathExists(filePath) {
     return true;
   } catch {
     return false;
+  }
+}
+
+async function readTextIfPresent(filePath) {
+  try {
+    return {
+      present: true,
+      content: await readFile(filePath, "utf8"),
+      error: null
+    };
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return { present: false, content: "", error: null };
+    }
+    return { present: false, content: "", error: error.message };
+  }
+}
+
+function parseLauncherRoleModels(toml) {
+  const roleModels = new Map();
+  let currentRole = null;
+
+  for (const rawLine of String(toml).split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line.length === 0 || line.startsWith("#")) {
+      continue;
+    }
+
+    const section = line.match(/^\[roles\.([A-Za-z0-9_-]+)\]\s*(?:#.*)?$/);
+    if (section) {
+      currentRole = section[1];
+      if (!roleModels.has(currentRole)) {
+        roleModels.set(currentRole, null);
+      }
+      continue;
+    }
+
+    if (!currentRole) {
+      continue;
+    }
+
+    const model = line.match(/^model\s*=\s*"([^"]+)"\s*(?:#.*)?$/);
+    if (model && model[1].trim().length > 0) {
+      roleModels.set(currentRole, model[1].trim());
+    }
+  }
+
+  return roleModels;
+}
+
+function inspectLauncherToml(content) {
+  const roleModels = parseLauncherRoleModels(content);
+  const roles = Object.fromEntries(
+    LAUNCHER_REQUIRED_ROLES.map((role) => [role, roleModels.get(role) ?? null])
+  );
+  const missingRoleModels = LAUNCHER_REQUIRED_ROLES.filter(
+    (role) => typeof roleModels.get(role) !== "string" || roleModels.get(role).length === 0
+  );
+  return {
+    roles,
+    missing_role_models: missingRoleModels,
+    valid: missingRoleModels.length === 0
+  };
+}
+
+async function inspectLauncherRegistry(targetDir) {
+  const registry = await readTextIfPresent(path.join(targetDir, LAUNCHER_REGISTRY_PATH));
+  if (!registry.present) {
+    return {
+      present: false,
+      valid: false,
+      error: registry.error,
+      filesystem_mcp_backend_count: 0,
+      default_backend: null
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(registry.content);
+    const data = parsed && typeof parsed === "object" && parsed.data && typeof parsed.data === "object"
+      ? parsed.data
+      : parsed;
+    const backends =
+      data && typeof data === "object" && data.filesystem_mcp_backends && typeof data.filesystem_mcp_backends === "object"
+        ? data.filesystem_mcp_backends
+        : null;
+    const backendCount = backends ? Object.keys(backends).length : 0;
+    return {
+      present: true,
+      valid: backendCount > 0,
+      error: null,
+      filesystem_mcp_backend_count: backendCount,
+      default_backend:
+        typeof data?.filesystem_mcp_backend_default === "string"
+          ? data.filesystem_mcp_backend_default
+          : null
+    };
+  } catch (error) {
+    return {
+      present: true,
+      valid: false,
+      error: error.message,
+      filesystem_mcp_backend_count: 0,
+      default_backend: null
+    };
   }
 }
 
@@ -109,8 +220,6 @@ async function runWikiRetrievalCheck(targetDir) {
   };
 }
 
-const RECORDED_IMPLEMENTATION_SLICE_STATUSES = Object.freeze(new Set(["done", "blocked"]));
-
 async function runWorkRecordsCheck(targetDir) {
   const loaded = await readWorkRecordById({ dir: targetDir, id: ADOPTION_TRACKER_ID });
   const diagnostics = Array.isArray(loaded?.diagnostics) ? loaded.diagnostics : [];
@@ -136,48 +245,26 @@ async function runWorkRecordsCheck(targetDir) {
   }
 
   const slices = Array.isArray(loaded?.record?.slices) ? loaded.record.slices : [];
-  const implementationSlices = slices.filter((slice) => slice?.work_kind === "implementation");
-  const unrecorded = implementationSlices.filter(
-    (slice) => !RECORDED_IMPLEMENTATION_SLICE_STATUSES.has(slice?.status)
-  );
-  const sliceStatusOk = unrecorded.length === 0;
-
-  const baseEvidence = {
-    record_id: ADOPTION_TRACKER_ID,
-    valid: true,
-    diagnostics_count: diagnostics.length,
-    diagnostics: diagnostics.slice(0, 5),
-    implementation_slices: implementationSlices.map((slice) => ({
-      id: slice.id,
-      status: slice.status
-    })),
-    unrecorded_implementation_slices: unrecorded.map((slice) => ({
-      id: slice.id,
-      status: slice.status
-    }))
-  };
-
-  if (!sliceStatusOk) {
-    const names = unrecorded.map((slice) => `${slice.id}=${slice.status}`).join(", ");
-    return {
-      status: "fail",
-      detail: `Work record ${ADOPTION_TRACKER_ID} validated, but ${unrecorded.length} implementation slice(s) still carry unrecorded first-run status (${names}); a bare bootstrapped repo is not ready until each is recorded done/blocked.`,
-      evidence: baseEvidence,
-      blocker: {
-        code: "adoption_status_bookkeeping_incomplete",
-        message: `${unrecorded.length} ${ADOPTION_TRACKER_ID} implementation slice(s) are not recorded done/blocked: ${unrecorded
-          .map((slice) => slice.id)
-          .join(", ")}`
-      },
-      remediation:
-        'After the adoption workers finish, record each WK-0001 implementation slice done (or blocked with a concrete blocker) through structured work-record tools (set-status / set-closure), then re-run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir "$PWD" --json`.'
-    };
-  }
+  const implementationSlices = slices
+    .filter((slice) => slice?.work_kind === "implementation")
+    .map((slice) => ({ id: slice.id, status: slice.status }));
+  const reviewSlices = slices
+    .filter((slice) => slice?.work_kind === "review")
+    .map((slice) => ({ id: slice.id, status: slice.status }));
 
   return {
     status: "pass",
-    detail: `Work record ${ADOPTION_TRACKER_ID} loaded and validated (0 errors); all ${implementationSlices.length} implementation slice(s) are recorded done/blocked.`,
-    evidence: baseEvidence,
+    detail: `Work record ${ADOPTION_TRACKER_ID} loaded and validated (0 errors); review-only adoption tracker is not treated as an implementation dispatch target.`,
+    evidence: {
+      record_id: ADOPTION_TRACKER_ID,
+      valid: true,
+      diagnostics_count: diagnostics.length,
+      diagnostics: diagnostics.slice(0, 5),
+      work_kind: loaded?.record?.work_kind ?? null,
+      write_scope_count: Array.isArray(loaded?.record?.write_scope) ? loaded.record.write_scope.length : null,
+      review_slices: reviewSlices,
+      implementation_slices: implementationSlices
+    },
     blocker: null,
     remediation: null
   };
@@ -250,40 +337,141 @@ async function runGraphImpactCheck(targetDir, graphImpactPath) {
 }
 
 async function runDispatchPreflightCheck(targetDir) {
-  const result = await validateWorkRecordDispatch({
-    dir: targetDir,
-    unitAddress: ADOPTION_TRACKER_ID
-  });
-  const decisionCode = typeof result?.decision_code === "string" ? result.decision_code : null;
-  const reasons = Array.isArray(result?.reasons) ? result.reasons : [];
+  const loadedTracker = await readWorkRecordById({ dir: targetDir, id: ADOPTION_TRACKER_ID });
+  const tracker = loadedTracker?.valid === true ? loadedTracker.record : null;
+  const trackerSlices = Array.isArray(tracker?.slices) ? tracker.slices : [];
+  const implementationSlices = trackerSlices.filter((slice) => slice?.work_kind === "implementation");
+  const reviewSlices = trackerSlices.filter((slice) => slice?.work_kind === "review");
+  const reviewOnlyTracker =
+    tracker?.work_kind === "review" &&
+    implementationSlices.length === 0 &&
+    (Array.isArray(tracker?.write_scope) ? tracker.write_scope.length === 0 : true);
 
-  const dispatchable = result?.dispatchable === true;
-  const pass = dispatchable;
+  const agentsPresent = await pathExists(path.join(targetDir, ROOT_AGENTS_PATH));
+  const launcherToml = await readTextIfPresent(path.join(targetDir, LAUNCHER_TOML_PATH));
+  const launcherTomlInspection = launcherToml.present
+    ? inspectLauncherToml(launcherToml.content)
+    : { roles: {}, missing_role_models: [...LAUNCHER_REQUIRED_ROLES], valid: false };
+  const launcherRegistry = await inspectLauncherRegistry(targetDir);
+  const roleGuardSecretPresent = await pathExists(path.join(targetDir, LAUNCHER_ROLE_GUARD_SECRET_PATH));
+
+  const missing = [];
+  if (!launcherToml.present) {
+    missing.push(LAUNCHER_TOML_PATH);
+  } else if (!launcherTomlInspection.valid) {
+    missing.push(`${LAUNCHER_TOML_PATH} role model defaults`);
+  }
+  if (!launcherRegistry.valid) {
+    missing.push(LAUNCHER_REGISTRY_PATH);
+  }
+  if (!roleGuardSecretPresent) {
+    missing.push(LAUNCHER_ROLE_GUARD_SECRET_PATH);
+  }
+
+  const operatorPrerequisites = {
+    agents_md: {
+      path: ROOT_AGENTS_PATH,
+      present: agentsPresent
+    },
+    launcher_toml: {
+      path: LAUNCHER_TOML_PATH,
+      present: launcherToml.present,
+      read_error: launcherToml.error,
+      required_roles: LAUNCHER_REQUIRED_ROLES,
+      roles: launcherTomlInspection.roles,
+      missing_role_models: launcherTomlInspection.missing_role_models
+    },
+    launcher_init_config: {
+      registry_path: LAUNCHER_REGISTRY_PATH,
+      registry_present: launcherRegistry.present,
+      registry_valid: launcherRegistry.valid,
+      registry_error: launcherRegistry.error,
+      filesystem_mcp_backend_count: launcherRegistry.filesystem_mcp_backend_count,
+      default_backend: launcherRegistry.default_backend,
+      role_guard_secret_path: LAUNCHER_ROLE_GUARD_SECRET_PATH,
+      role_guard_secret_present: roleGuardSecretPresent
+    }
+  };
+
+  if (tracker && !reviewOnlyTracker) {
+    const readiness = await validateWorkRecordDispatch({
+      dir: targetDir,
+      unitAddress: ADOPTION_TRACKER_ID
+    });
+    const dispatchable = readiness?.dispatchable === true;
+    const reasons = Array.isArray(readiness?.reasons) ? readiness.reasons : [];
+    const decisionCode =
+      typeof readiness?.decision_code === "string" ? readiness.decision_code : "unknown";
+    const pass = missing.length === 0 && dispatchable;
+    const blockers = [];
+    if (missing.length > 0) {
+      blockers.push(`launcher first-run prerequisites are incomplete: ${missing.join(", ")}`);
+    }
+    if (!dispatchable) {
+      blockers.push(`validate-dispatch reported ${decisionCode}`);
+    }
+    return {
+      status: pass ? "pass" : "fail",
+      detail: pass
+        ? `${ADOPTION_TRACKER_ID} is not review-only, so validate-dispatch was evaluated and reported dispatchable; launcher first-run prerequisites are present.`
+        : `${ADOPTION_TRACKER_ID} is not review-only, so validate-dispatch was evaluated before treating the repo as ready: ${blockers.join("; ")}.`,
+      evidence: {
+        unit: ADOPTION_TRACKER_ID,
+        tracker_mode: "dispatch-target",
+        dispatch_target: true,
+        dispatchable,
+        decision_code: decisionCode,
+        reasons,
+        review_slices: reviewSlices.map((slice) => ({ id: slice.id, status: slice.status })),
+        implementation_slices: implementationSlices.map((slice) => ({
+          id: slice.id,
+          status: slice.status
+        })),
+        ...operatorPrerequisites,
+        coordination_preflight:
+          "non-review-only WK-0001 must pass validate-dispatch and launcher first-run setup before orchestration; AGENTS.md is advisory context"
+      },
+      blocker: pass
+        ? null
+        : {
+            code: dispatchable
+              ? "operator_first_run_prerequisites_missing"
+              : "tracker_validate_dispatch_failed",
+            message: dispatchable
+              ? `launcher first-run prerequisites are incomplete before orchestration: ${missing.join(", ")}`
+              : `${ADOPTION_TRACKER_ID} validate-dispatch failed with ${decisionCode}`
+          },
+      remediation: pass
+        ? null
+        : dispatchable
+          ? 'Follow the first-run launcher guidance: copy/review the detected agent-launch.<claude-or-codex>.toml template to agent-launch.toml, run `npx agent-launch init-config`, review/commit those setup surfaces, then re-run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir "$PWD" --json`.'
+          : 'Run `npx -p @agent-chassis/wiki-cli wiki validate-dispatch --unit WK-0001 --dir "$PWD" --json` and resolve the reported dispatch-readiness blockers before treating WK-0001 as an implementation dispatch target.'
+    };
+  }
+
+  const pass = missing.length === 0;
   return {
     status: pass ? "pass" : "fail",
     detail: pass
-      ? `Dispatch-readiness confirms ${ADOPTION_TRACKER_ID} is dispatchable (decision_code=${decisionCode}). MCP coordination preflight has no CLI surface and is operator/runtime-owned.`
-      : `${ADOPTION_TRACKER_ID} is not dispatchable (decision_code=${decisionCode ?? "none"}${
-          reasons.length ? `: ${reasons.slice(0, 3).join("; ")}` : ""
-        }).`,
+      ? "Launcher first-run prerequisites for orchestration are present: agent-launch.toml role defaults and launcher init-config local config surfaces."
+      : `Launcher first-run prerequisites for orchestration are incomplete: ${missing.join(", ")}.`,
     evidence: {
       unit: ADOPTION_TRACKER_ID,
-      decision_code: decisionCode,
-      dispatchable,
-      reasons: reasons.slice(0, 5),
-      coordination_preflight: "operator/runtime-owned (no CLI surface)"
+      tracker_mode: "review-only",
+      dispatch_target: false,
+      ...operatorPrerequisites,
+      coordination_preflight:
+        "launcher first-run setup must be completed before orchestrator dispatch; AGENTS.md is advisory context"
     },
     blocker: pass
       ? null
       : {
-          code: "dispatch_not_ready",
-          message: `WK-0001 is not dispatchable (decision_code=${decisionCode ?? "none"})${
-            reasons.length ? `: ${reasons.slice(0, 3).join("; ")}` : ""
-          }`
+          code: "operator_first_run_prerequisites_missing",
+          message: `launcher first-run prerequisites are incomplete before orchestration: ${missing.join(", ")}`
         },
     remediation: pass
       ? null
-      : 'Resolve the WK-0001 dispatch blocker (e.g. split a multi-cluster write_scope into per-slice work, add acceptance.validation, or set a non-empty write_scope), then re-run `npx -p @agent-chassis/wiki-cli wiki validate-dispatch --unit WK-0001 --json --dir "$PWD"`.'
+      : 'Follow the first-run launcher guidance: copy/review the detected agent-launch.<claude-or-codex>.toml template to agent-launch.toml, run `npx agent-launch init-config`, review/commit those setup surfaces, then re-run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir "$PWD" --json`.'
   };
 }
 
@@ -292,13 +480,13 @@ async function runAgentsMdInfo(targetDir) {
   return {
     status: present ? "pass" : "skipped",
     detail: present
-      ? "AGENTS.md is present (repo-local operating authority)."
-      : "AGENTS.md is not present. Bootstrap never generates it; authoring it is operator-owned and does not gate agent-operability.",
+      ? "AGENTS.md is present (repo-local operating authority); this check is advisory and does not gate agent-operability."
+      : "AGENTS.md is not present. Bootstrap never generates it; authoring it is operator-owned advisory context and does not gate agent-operability by itself.",
     evidence: { path: "AGENTS.md", present },
     blocker: null,
     remediation: present
       ? null
-      : "Author AGENTS.md from the seeded wiki/templates/AGENTS.md.boilerplate.md helper (operator-owned; does not block this check)."
+      : "Add or adapt AGENTS.md from the seeded wiki/templates/AGENTS.md.boilerplate.md helper for durable repo-local agent guidance."
   };
 }
 

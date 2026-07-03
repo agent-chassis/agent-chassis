@@ -140,7 +140,8 @@ threat-model limits.
 
 ## Install and set up
 
-First-time setup is four steps. For command details, see
+First-time setup starts with the package install, then follows the detected
+setup option printed by npm. For command details, see
 [docs/quickstart.md](docs/quickstart.md).
 
 ### 1. Install AgentChassis
@@ -159,46 +160,50 @@ npm install --save-dev @agent-chassis/core
 index; the `wiki-mcp` stdio MCP server agents call for structured repo/wiki
 operations; and the `agent-launch` human/operator entrypoint.
 
-npm install only installs the package and its binaries. It does not create a
-repo-root TOML launcher config. The shipped `IN-0001` adoption initiative and
-`WK-0001` adoption tracker drive creation of `agent-launch.toml` at the repo
-root during adoption work.
+The package postinstall hook performs best-effort detection for supported local
+agent CLIs (`claude` and `codex`) and prints only the matching setup choices. It
+is guidance only: it does not run bootstrap, copy templates, create or modify
+root guidance files or `agent-launch.toml`, initialize launcher config, build
+the code index, launch an orchestrator, alter repo or client configuration, or
+fail installation when detection fails.
 
-### 2. Bootstrap the repo
+### 2. Run the first-run setup command
 
-```bash
-npx wiki bootstrap
+After install, run the explicit setup command from your repo root:
+
+```sh
+npx agent-chassis setup
 ```
+
+The setup command runs bootstrap, asks for or detects the local agent launcher
+template, creates an empty root guidance placeholder/checkpoint for the selected
+agent when absent (`CLAUDE.md` for Claude, `AGENTS.md` for Codex), copies
+`agent-launch.toml` only when absent, runs `agent-launch init-config`, and
+prints the next code-index and orchestrator commands. It does not copy
+`wiki/templates/AGENTS.md.boilerplate.md` into any root guidance file. The
+touched guidance file is not repo-specific operating authority until you review
+and adapt it.
 
 Bootstrap seeds the local wiki contract surfaces, the owned `IN-0001` adoption
 initiative, the `WK-0001` adoption tracker, local cache directories, `.gitignore`
 entries, the gitignored `wiki/.wiki-mcp.json` workspace declaration, and the
 initial lexical search index. It is idempotent: rerunning preserves your edits
-and only fills in missing surfaces.
-
-Bootstrap does not directly create the repo-root `agent-launch.toml`; the seeded
-`IN-0001` orchestrator drives the `WK-0001` adoption work that creates it.
-
-### 3. Build the code index
-
-```bash
-npx wiki code-index build --json
-```
+and only fills in missing surfaces. Bootstrap and postinstall do not execute the
+setup command: the operator runs `npx agent-chassis setup`, reviews and adapts
+the selected root guidance placeholder, and commits the bootstrap output before
+the first orchestrator launch. `agent-launch init-config` provisions the
+launcher registry and role-guard secret that role dispatch requires.
 
 The code index is required for normal operation. Normal readiness, dispatch
-review, graph-impact, and review tooling depend on it. Run this after bootstrap
-once the worktree is clean (for example, after committing the bootstrap output).
-
-### 4. Initialize the launcher
-
-```bash
-npx agent-launch init-config
-```
-
-Provisions the launcher registry and role-guard secret that role dispatch
-requires. Then set each role's model in agent-launch.toml. For enforced Linux
-dispatch, put `bwrap` on your PATH. Whether a run without a usable backend
-proceeds unenforced or refuses depends on whether a CCE key is configured — see
+review, graph-impact, and review tooling depend on it. Build it after reviewing
+and committing the bootstrap output. The selected root guidance placeholder and
+`agent-launch.toml` are operator first-run prerequisites for
+`agent-launch orchestrator IN-0001`; they are not worker-owned `WK-0001` setup
+slices. The first orchestrator launch omits `--app`; family selection comes from
+the copied `agent-launch.toml` role model unless an operator explicitly
+overrides it outside this setup flow. For enforced Linux dispatch, put `bwrap`
+on your PATH. Whether a run without a usable backend proceeds unenforced or
+refuses depends on whether a CCE key is configured — see
 [Enforcement posture](#enforcement-posture),
 [docs/quickstart.md](docs/quickstart.md), and
 [docs/enforcement-model.md](docs/enforcement-model.md).
@@ -215,16 +220,17 @@ constant input.
 
 ```bash
 # Start an initiative orchestrator (interactive; stays attached).
-npx agent-launch orchestrator IN-0001 --model gpt-5.5
-npx agent-launch orchestrator IN-0001 --model opus
+npx agent-launch orchestrator IN-0001
 
 # Resume an existing orchestrator session (interactive; stays attached).
-npx agent-launch resume IN-0001 --model gpt-5.5
-npx agent-launch resume IN-0001 --model opus
+npx agent-launch resume IN-0001
 
 # List orchestrator runtime records.
 npx agent-launch orchestrator list --json
 ```
+
+Use `--model` only when intentionally overriding the role model from
+`agent-launch.toml` for a specific operator-run session.
 
 ## What AgentChassis provides
 

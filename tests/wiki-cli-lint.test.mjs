@@ -160,6 +160,32 @@ test("wiki lint --all lists every finding with no compact cap", async () => {
   });
 });
 
+test("wiki lint reports the effective standard profile for a clean standard repo", async () => {
+  await withTempRepo(async (tempDir) => {
+    await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/wiki-cli-lint-test" });
+
+    const result = await captureLintCommand(["--dir", tempDir]);
+
+    assert.equal(
+      result.thrown,
+      null,
+      `expected bootstrapped standard repo to lint cleanly:\n${result.errors.join("\n")}`
+    );
+    assert.ok(
+      result.stdout.some((line) => line.startsWith("Lint passed for ")),
+      "successful lint output should include the pass summary"
+    );
+    assert.ok(
+      result.stdout.includes("Profile: standard"),
+      "successful lint output must report the effective standard profile"
+    );
+    assert.ok(
+      !result.stdout.includes("Profile: undefined"),
+      "successful lint output must not expose an undefined profile"
+    );
+  });
+});
+
 test("wiki lint does not report docs mode-bit findings solely from Windows stat semantics", { skip: "WK-1352 is parked for v1" }, async () => {
   await withTempRepo(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/wiki-cli-lint-test" });
