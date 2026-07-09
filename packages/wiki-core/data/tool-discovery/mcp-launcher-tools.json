@@ -1,0 +1,229 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "mcp-launcher-tools.json",
+  "summary": "MCP launcher, runtime diagnostic, dispatch-readiness, and validation-run tools.",
+  "tool_count": 4,
+  "tools": [
+    {
+      "tool_name": "workspace_node_engine_admission_runtime_diagnostic",
+      "display_name": "Workspace Chassis Control Engine admission runtime diagnostic",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_node_engine_admission_runtime_diagnostic",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 106,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/agent-launch-quickstart.md",
+        "docs/mcp-dispatch-runtime-contract.md",
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-launcher-tools.json",
+        "packages/wiki-mcp/src/lib/dispatch-tools.mjs",
+        "packages/wiki-mcp/src/lib/tool-profile.mjs",
+        "packages/agent-launch-cli/src/lib/workspace-agent-worker-admission.mjs",
+        "packages/wiki-core/src/lib/node-engine-api-client.mjs"
+      ],
+      "notes": "Read-only agent-safe MCP route that diagnoses the running MCP server process (not the caller shell) for Chassis Control Engine worker_admission_v1 runtime config. Reports only source names and booleans (service URL, API key, worker-admission route, request-contract digest presence, and whether the remote-admission observability path is loaded); never returns any secret value, route value, digest, key hash, bearer material, project id, or request/response body."
+    },
+    {
+      "tool_name": "workspace_agent_dispatch_identity_contract",
+      "display_name": "Workspace agent dispatch identity contract",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_agent_dispatch_identity_contract",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 92,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/agent-launch-quickstart.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/agent-dispatch-identity.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-launcher-tools.json"
+      ],
+      "notes": "Read-only introspection for the dispatch caller/session identity and bootstrap review contract. Identity authority must be launcher- or transport-minted; caller-supplied role identity is refused. Reports the current bootstrap state (bootstrap_exception_active / bootstrap_review_missing / bootstrap_exception_consumed). workspace_agent_dispatch is the active supported MCP dispatch surface.",
+      "tier_text": {
+        "paid_cce": {
+          "notes": "Read-only introspection for the dispatch caller/session identity and bootstrap review contract. Identity authority must be launcher- or transport-minted; caller-supplied role identity is refused. Reports the current bootstrap state (bootstrap_exception_active / bootstrap_review_missing / bootstrap_exception_consumed), and under a valid paid/CCE key posture the graph_impact_persistence_unavailable state for graph-impact evidence persistence prerequisites. workspace_agent_dispatch is the active supported MCP dispatch surface."
+        }
+      }
+    },
+    {
+      "tool_name": "workspace_validate_dispatch",
+      "display_name": "Workspace validate dispatch",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_validate_dispatch",
+      "task_ids": [
+        "validate-dispatch"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 114,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/contract/manifest.json",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-launcher-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/validate-dispatch.mjs",
+        "packages/wiki-core/src/lib/work-record-dispatch.mjs"
+      ],
+      "notes": "Preferred MCP dispatch-readiness surface for a WK or slice; read-only, returns the structured readiness envelope without touching the record. Compact by default (decision code, bounded reasons, next action); verbose:true restores the full envelope. Free/local readiness covers only the structural runnability floor (write_scope, acceptance, validation present, a supported role, a resolvable subject, a fresh source digest). Per DEC-0123/DEC-0125 a confirmed no-Node-Engine posture renders no local admissibility judgment, so admissibility threshold analysis is not part of free-tier readiness guidance. CLI fallback is operator-only.",
+      "use_when": [
+        "dispatch_readiness",
+        "dispatch_role_call"
+      ],
+      "do_not_use_when": [
+        "initiative_status",
+        "initiative_next_action before a unit is selected",
+        "run_monitoring"
+      ],
+      "authoritative_for": [
+        "dispatch_readiness",
+        "dispatch_role_call:readiness_gate"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "dispatch_readiness",
+          "dispatch_role_call"
+        ],
+        "arguments": {
+          "unit": "$known_WK_or_slice_unit",
+          "dispatch_role": "$known_role"
+        },
+        "omit_null_arguments": true
+      },
+      "requires_prior_state": [
+        "known WK-* or WK-*#SLICE-*",
+        "role when validating a role-specific dispatch"
+      ],
+      "replacement_for_misuse": [
+        {
+          "misuse_code": "dispatch_without_readiness_validation",
+          "routing_intent": "dispatch_role_call",
+          "use_instead": "workspace_validate_dispatch"
+        },
+        {
+          "misuse_code": "ignored_required_next_action",
+          "routing_intent": "dispatch_readiness",
+          "use_instead": "workspace_validate_dispatch"
+        }
+      ],
+      "tier_text": {
+        "paid_cce": {
+          "notes": "Preferred MCP dispatch-readiness surface for a WK or slice; read-only, returns the structured readiness envelope without touching the record. Compact by default (decision code, bounded reasons, next action); verbose:true restores the full envelope. Under a valid paid/CCE key posture the readiness envelope also carries Node-Engine-returned admissibility detail: blast-radius level, cluster count, and the CCE verdict/reason codes and recovery. These are NE-returned judgments and are reported as such, distinguished from the raw measured carrier facts the local layer forwards; the local layer renders no threshold verdict of its own (DEC-0125). Set node_engine_admissibility:true to evaluate CCE-exclusive implementation admissibility for a structurally dispatchable unit; only the CCE pack path can return an admit and there is no local admit fallback. CLI fallback is operator-only."
+        }
+      }
+    },
+    {
+      "tool_name": "workspace_run_validation",
+      "display_name": "Workspace run validation",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_run_validation",
+      "task_ids": [
+        "run-validation"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent"
+      ],
+      "priority": 113,
+      "side_effects": [
+        "process_spawn"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "work_record",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-operation-reference.md",
+        "docs/enforcement-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-launcher-tools.json",
+        "packages/wiki-mcp/src/lib/work-record-read-tools.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Agent-safe MCP route for workers to run declared Node test validation for an implementation unit without raw shell or raw exec. Side effect: process_spawn. Caller input is exactly { unit, target } for the fixed enum command `node_test`; the handler loads the canonical work record/slice for `unit` itself and authorizes `target` solely from that unit's sections.structured_validation.allowed[] entries with command node_test. It then runs `node --check <target>` and, only if check passes, `node --test <target>` using argv arrays with shell:false. Node binary, cwd, env, per-step timeout, and output caps are internal server constants; caller-supplied authority-shaped fields (snapshot, runtime/env policy, node binary, cwd/workspace root, timeout, output cap, source digest, extra args) are rejected. Target must be repo-relative, canonical, existing, .js/.mjs, contained under the workspace repo, and not a symlink escape. Returns structured per-step evidence with node --test reported as skipped when node --check fails. Family-neutral: Codex, Claude, and Agy workers see the same contract. The structured evidence is command-surface validation, not a paid Chassis Control Engine enforcement attestation; arbitrary-command, npm-script, and cross-repo validation remain follow-up scope."
+    }
+  ]
+}

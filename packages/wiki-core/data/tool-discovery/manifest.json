@@ -6,8 +6,28 @@
   "fragments": [
     {
       "file": "mcp-tools.json",
-      "tool_count": 21,
-      "summary": "MCP discovery, read, validation, search, record evidence, and contract-manifest tools."
+      "tool_count": 15,
+      "summary": "MCP discovery, router, read, search, wiki hygiene, docs-policy, and contract-manifest tools."
+    },
+    {
+      "file": "mcp-work-record-tools.json",
+      "tool_count": 3,
+      "summary": "MCP work-record evidence and review-result recording tools."
+    },
+    {
+      "file": "mcp-launcher-tools.json",
+      "tool_count": 4,
+      "summary": "MCP launcher, runtime diagnostic, dispatch-readiness, and validation-run tools."
+    },
+    {
+      "file": "mcp-coordination-tools.json",
+      "tool_count": 2,
+      "summary": "MCP initiative and integration status coordination tools."
+    },
+    {
+      "file": "tool-usage-audit-tools.json",
+      "tool_count": 1,
+      "summary": "Tool-use audit observability tools."
     },
     {
       "file": "work-record-tools.json",
@@ -30,12 +50,17 @@
       "summary": "wiki and agent-launch CLI command rows."
     },
     {
+      "file": "integration-tools.json",
+      "tool_count": 1,
+      "summary": "Read-only WK-to-integration promote-check coordination tools."
+    },
+    {
       "file": "wrapper-commands.json",
       "tool_count": 0,
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 82,
+  "expected_tool_count": 87,
   "uniqueness": {
     "key": "tool_name",
     "scope": "assembled_corpus",

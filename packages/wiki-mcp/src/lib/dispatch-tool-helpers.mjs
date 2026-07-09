@@ -209,7 +209,12 @@ export function compactRunStatusReviewResult(reviewResult) {
   return Object.keys(compact).length > 0 ? compact : null;
 }
 
-export function buildBlockedDispatchResult({ blockerCode, reason, detail = null }) {
+function refusalNextActionSlot(nextAction) {
+
+  return nextAction === null || nextAction === undefined ? {} : { next_action: nextAction };
+}
+
+export function buildBlockedDispatchResult({ blockerCode, reason, detail = null, nextAction = null }) {
   return {
     schema_version: AGENT_DISPATCH_SCHEMA_VERSION,
     accepted: false,
@@ -221,11 +226,12 @@ export function buildBlockedDispatchResult({ blockerCode, reason, detail = null 
     transport: "mcp",
     run_id: null,
     monitor_handle: null,
-    readiness: null
+    readiness: null,
+    ...refusalNextActionSlot(nextAction)
   };
 }
 
-export function buildBlockedRunStatusResult({ blockerCode, reason, detail = null }) {
+export function buildBlockedRunStatusResult({ blockerCode, reason, detail = null, nextAction = null }) {
   return {
     schema_version: AGENT_RUN_STATUS_SCHEMA_VERSION,
     accepted: false,
@@ -235,11 +241,12 @@ export function buildBlockedRunStatusResult({ blockerCode, reason, detail = null
       detail: detail ?? null
     },
     run_id: null,
-    status: null
+    status: null,
+    ...refusalNextActionSlot(nextAction)
   };
 }
 
-export function buildBlockedRunWaitResult({ blockerCode, reason, detail = null }) {
+export function buildBlockedRunWaitResult({ blockerCode, reason, detail = null, nextAction = null }) {
   return {
     schema_version: AGENT_RUN_WAIT_SCHEMA_VERSION,
     accepted: false,
@@ -250,7 +257,8 @@ export function buildBlockedRunWaitResult({ blockerCode, reason, detail = null }
     },
     run_id: null,
     status: null,
-    timed_out: null
+    timed_out: null,
+    ...refusalNextActionSlot(nextAction)
   };
 }
 

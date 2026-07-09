@@ -1,0 +1,148 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "mcp-work-record-tools.json",
+  "summary": "MCP work-record evidence and review-result recording tools.",
+  "tool_count": 3,
+  "tools": [
+    {
+      "tool_name": "workspace_record_graph_impact_evidence",
+      "display_name": "Workspace record graph-impact evidence",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_record_graph_impact_evidence",
+      "task_ids": [
+        "persist-graph-impact-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 112,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/contract/manifest.json",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-admission-derived-evidence.mjs"
+      ],
+      "notes": "Agent-safe MCP route for persisting graph-impact derived evidence onto a WK or slice. Resolves the workspace through configured aliases; rejects caller-supplied filesystem roots and shell output as authority. The graph_impact payload must be an envelope produced by the workspace code-index graph-impact surface (graph_impact_paths or graph_impact_diff), and the persisted entry is validated against the work-record schema before writing. Compact by default; verbose:true for raw graph_state and full derived evidence."
+    },
+    {
+      "tool_name": "workspace_record_review_attestation",
+      "display_name": "Workspace record review attestation",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_record_review_attestation",
+      "task_ids": [
+        "record-review-attestation"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 113,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/contract/manifest.json"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/tool-profile.mjs",
+        "packages/wiki-mcp/src/lib/review-attestation-tools.mjs",
+        "packages/wiki-core/src/lib/work-record-review-attestation.mjs",
+        "packages/wiki-core/src/lib/review-attestation-pack-carry.mjs"
+      ],
+      "notes": "Agent-safe MCP route for recording bounded review-attestation evidence onto a WK or slice after a trusted findings-only reviewer or redteam run. Binds the selected unit to the canonical record and source_digest and derives review facts from launcher/backend-minted run status, not caller prose, shell output, or raw final_result bodies. Records evidence only: it does not write accepted_authorities[], does not locally convert needs_review to admit, and does not replace Chassis Control Engine admission-time review validation."
+    },
+    {
+      "tool_name": "workspace_record_review_result_evidence",
+      "display_name": "Workspace record review-result evidence",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_record_review_result_evidence",
+      "task_ids": [
+        "record-review-result-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 111,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/tool-profile.mjs",
+        "packages/wiki-core/src/lib/work-record-review-results.mjs",
+        "packages/wiki-core/src/operations/work-record-review-results.mjs"
+      ],
+      "notes": "Agent-safe MCP route for recording coordination-only review-result evidence onto a WK or slice when a trusted reviewer or redteam run yields `changes_requested` role-result evidence or structured missing-result/runtime-failure evidence. Keeps this surface distinct from accepted/no-findings review attestation and from completion-satisfying review evidence. Binds the selected unit to the canonical record and source_digest and derives facts from launcher/backend-minted run status, not caller prose, shell output, or raw final_result bodies. Records evidence only: it does not write accepted_authorities[], does not locally convert needs_review to admit, and does not replace Chassis Control Engine admission-time review validation."
+    }
+  ]
+}

@@ -35,7 +35,15 @@ family:
   values and the `expected_tool_count` corpus total, and is the registry
   identity anchor.
 - `packages/wiki-core/data/tool-discovery/mcp-tools.json` — MCP discovery,
-  read, validation, search, record evidence, and contract-manifest tools.
+  router, read, search, wiki hygiene, docs-policy, and contract-manifest tools.
+- `packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json` — MCP
+  work-record evidence and review-result recording tools.
+- `packages/wiki-core/data/tool-discovery/mcp-launcher-tools.json` — MCP
+  launcher, runtime diagnostic, dispatch-readiness, and validation-run tools.
+- `packages/wiki-core/data/tool-discovery/mcp-coordination-tools.json` — MCP
+  initiative and integration status coordination tools.
+- `packages/wiki-core/data/tool-discovery/tool-usage-audit-tools.json` —
+  tool-use audit observability tools.
 - `packages/wiki-core/data/tool-discovery/work-record-tools.json` —
   work-record create/edit/validate/migrate routes across MCP and CLI.
 - `packages/wiki-core/data/tool-discovery/code-index-tools.json` — code-index
@@ -44,16 +52,18 @@ family:
   run-status, coordination preflight, and runtime-blocker-taxonomy tools.
 - `packages/wiki-core/data/tool-discovery/cli-commands.json` — wiki and
   agent-launch CLI command rows.
+- `packages/wiki-core/data/tool-discovery/integration-tools.json` —
+  integration-scoped local coordination tools when present, including read-only
+  coordination checks for WK-to-integration promotion readiness.
 - `packages/wiki-core/data/tool-discovery/wrapper-commands.json` — empty
   historical role-wrapper fragment retained for manifest-order stability after
   the family-role wrapper commands were removed from package source.
 
 The manifest is the canonical source for the per-fragment counts and the
 corpus total; treat its `tool_count`/`expected_tool_count` values as
-authoritative rather than any count repeated in prose. The assembled corpus is
-exactly 82 tool entries (21 + 28 + 18 + 5 + 10 + 0 = 82), matching the
-manifest order above. Each `tool_name` is owned by exactly one fragment; a
-fragment must not repeat a `tool_name` that appears in any sibling fragment.
+authoritative rather than any count repeated in prose. Each `tool_name` is owned
+by exactly one fragment; a fragment must not repeat a `tool_name` that appears in
+any sibling fragment.
 
 ### Deterministic Fragment Order
 
@@ -61,11 +71,16 @@ Fragment assembly order is fixed by the manifest, not by filesystem read order,
 directory listing order, or glob expansion. The canonical order is:
 
 1. `mcp-tools.json`
-2. `work-record-tools.json`
-3. `code-index-tools.json`
-4. `launcher-tools.json`
-5. `cli-commands.json`
-6. `wrapper-commands.json`
+2. `mcp-work-record-tools.json`
+3. `mcp-launcher-tools.json`
+4. `mcp-coordination-tools.json`
+5. `tool-usage-audit-tools.json`
+6. `work-record-tools.json`
+7. `code-index-tools.json`
+8. `launcher-tools.json`
+9. `cli-commands.json`
+10. `integration-tools.json` when listed by the manifest
+11. `wrapper-commands.json`
 
 The loader assembles fragments strictly in manifest order so the assembled
 descriptor — and therefore its digest — is reproducible across machines and
@@ -103,8 +118,8 @@ descriptor.
 
 The fragment directory ships as package data with `wiki-core`. A published
 install must contain `packages/wiki-core/data/tool-discovery/manifest.json` and
-all six fragment files, resolved package-relative — the same install-layout
-asset-resolution contract for the relocated `contract/`
+every fragment file listed by that manifest, resolved package-relative — the
+same install-layout asset-resolution contract for the relocated `contract/`
 tree and the other checked-in descriptors. The loader resolves the manifest
 and fragments relative to the installed `wiki-core` package, not the monorepo
 working tree, so discovery behaves identically from a published tarball and
@@ -153,6 +168,15 @@ here unless the agent already knows it needs the deeper descriptor shape.
 tools by controlled task IDs or exact tool names without broadening into a
 catalog scan. It is the narrow lookup path for routine agent discovery when
 the caller already has a task ID or exact tool name in hand.
+
+`workspace_agent_faq` is the read-only MCP troubleshooting surface for
+recurring agent known issues. Agents should use it to list FAQ entries or query
+by stable entry id / related blocker code before guessing at unfamiliar tool
+output or worker complaints. Its CLI parity command is
+`npm run wiki -- agent-faq --json`, with `--id <entry-id>` or
+`--related-code <code>` for targeted fallback/operator inspection. The FAQ is
+advisory and read-only: it does not dispatch roles, decide readiness, satisfy
+review controls, change launcher policy, or authorize any runtime behavior.
 
 `workspace_search_repo` is a ranked search surface over canonical wiki/docs
 content. Its default compact output is bounded by `limit`, but the bound is a
@@ -246,6 +270,54 @@ unavailability, read-only mounts, stale graph impact, or monitor-handle
 mismatches should be reported with stable blocker codes instead of being
 absorbed into WK scope. See [docs/initiative-status.md](initiative-status.md)
 for the adopted coordinator workflow guidance.
+
+`workspace_integration_promote_check`, when present through the
+`integration-tools.json` fragment, is a read-only local coordination check for
+WK-to-integration promotion readiness. It reports local facts, unknowns, and
+blockers for the coordinator's next action; it is not policy authority and must
+not be described as authorizing promotion, merge, rebase, lifecycle changes,
+worktree cleanup, or ref updates.
+
+`workspace_tool_usage_audit` is the compact read-only observability surface for
+agent tool-use policy adherence. Discovery should present it as an
+operator/coordinator measurement lens over bounded historical and live audit
+facts, not as a launch, mutation, lint/generate, routing, refusal, enforcement,
+or policy-authority route. Its output may help a coordinator see whether agents
+used compact-first reads, followed next-action signals, avoided unsupported
+bulk sampling, or triggered known misuse classifications, but the underlying
+domain tools still own read, search, work-record, dispatch, review, validation,
+and lint semantics.
+
+The audit surface bridges owned contracts without duplicating them inline.
+work record owns the `tool-use-policy.v1` misuse codes, evidence envelopes, source
+and confidence labels, redaction posture, and audit-only interpretation.
+work record owns routing-intent ids and replacement-call guidance through
+`tool-routing-intents.v1`, router output, and discovery metadata. Audit results
+may report work record misuse codes and coarse replacement families, and may cite
+work record routing-intent or replacement guidance only when that guidance is
+available from the work record-owned surfaces. Discovery text must not create a
+second routing taxonomy, expand misuse vocabulary in prose, or treat audit
+classifications as exact recommended-call authority by themselves.
+
+Keep the five policy surfaces distinct:
+
+- FAQ and docs teach humans how to interpret known issues and tool output.
+- Discovery and the router guide agents toward appropriate first or recovery
+  calls.
+- Runtime refusals and enforcement decide whether a call is allowed to proceed.
+- Historical backfill measurement reports only what old artifacts can prove,
+  with confidence labels and unsupported-gap markers for MCP-specific questions
+  the artifacts cannot establish.
+- Live audit measurement reports bounded observed adherence going forward.
+
+`workspace_tool_usage_audit` is canonical only for the compact audit facts it
+returns. It must not be documented as a reason to scrape `.agent-runs`, broad
+logs, generated views, runtime artifacts, raw JSON work records, or shell output
+to reconstruct canonical audit state. When audit state is missing, stale, or
+unsupported, discovery should describe that as a bounded measurement gap or
+runtime availability issue, then route any actual read, dispatch, lint,
+generate, review, mutation, refusal, or enforcement decision to the tool that
+owns that authority.
 
 ## CCE Worker-Admission Recovery Projection
 
@@ -530,6 +602,29 @@ not product-tier availability. They may be used only when clearly qualified;
 registered-tier metadata remains the sole authority for free/local versus CCE
 exposure. Do not read either label as a free-tier availability signal.
 
+For MCP runtime exposure, the `agent-safe` profile is derived from the
+checked-in tool-discovery descriptor, not from a hand-maintained allowlist.
+An MCP tool is eligible for `agent-safe` exposure only when its descriptor
+entry has `kind: "mcp_tool"` and the raw descriptor value satisfies
+`Array.isArray(entry.audience) && entry.audience.includes("agent")`. The
+descriptor `audience` field is therefore the authoritative agent-exposure
+control for MCP tools; caller text, prompt intent, argv, environment, wrapper
+names, and inferred defaults are not exposure authority.
+
+The audience gate is default-deny. Missing `audience`, an empty array, a
+non-array value, or any non-literal/substring value such as `"agentic"` or
+`"agent-preview"` does not make a tool agent-safe. The runtime exposure gate
+must use the raw descriptor array membership test above; it must not apply
+tool-discovery audience defaults that are intended for descriptive projection.
+
+`agent-safe` audience eligibility composes independently with registered-tier
+exposure. A tool is callable through an `agent-safe` MCP server only when both
+the descriptor audience gate and the registered-tier gate allow it. A
+`paid_cce` tool whose descriptor audience includes `"agent"` remains hidden from
+free/local registrations, and registered-tier visibility never grants
+agent-safe exposure to an MCP tool whose descriptor does not explicitly include
+the literal `"agent"` audience.
+
 ### Terminology disambiguation
 
 Response-shape language such as the code-index compact/degraded/verbose contract is
@@ -647,6 +742,41 @@ Each result entry describes one discoverable tool or command.
 | `docs_refs` | yes | Durable docs that explain the tool or contract. |
 | `source_files` | yes | Repo-relative files that define or verify the tool. |
 | `notes` | no | Optional extra guidance that does not change status. |
+
+### Routing Metadata Fields
+
+Tool entries may include compact routing metadata for agent first-call
+selection. These fields are machine-actionable hints consumed by discovery,
+the router, and reviews; they are not prose policy inventories and do not make
+the descriptor the authority for executing the underlying operation.
+
+| Field | Meaning |
+| --- | --- |
+| `use_when` | Short routing-intent ids or bounded task conditions where this entry is an appropriate first or early call. |
+| `do_not_use_when` | Short routing-intent ids or bounded task conditions where this entry is the wrong first call. |
+| `authoritative_for` | Exact decision, evidence, read, mutation, or advisory domains this tool owns once its prerequisites are satisfied. |
+| `recommended_first_call` | Structured router hint containing `routing_intents`, derivable argument templates, and omission behavior for null/unknown arguments. |
+| `requires_prior_state` | Minimal state that must already be known or selected before the tool should be called, such as a `WK-*`, `WK-*#SLICE-*`, `IN-*`, role, monitor handle, or known repo path. |
+| `replacement_for_misuse` | Bounded replacement guidance from an observed misuse code and routing intent to the tool that should be used instead. |
+
+`use_when`, `do_not_use_when`, and `authoritative_for` should prefer stable
+routing-intent ids from `tool-routing-intents.v1` when a routing intent exists.
+When a field needs prose, use one concise condition that can be interpreted as
+a predicate, not a narrative description.
+
+`recommended_first_call` is advisory routing guidance. It may name the first
+tool and argument template an agent should try when the router can derive the
+required state; it must not dispatch, mutate, validate readiness, run lint, or
+read full records by itself. If the required state is absent, the router should
+return `ambiguous` or `unknown` according to `tool-routing-intents.v1` rather
+than guessing a broad fallback.
+
+`replacement_for_misuse` bridges two owned vocabularies without duplicating
+either one inline. work record owns the misuse-code vocabulary in
+`tool-use-policy.v1`; work record owns routing-intent ids and replacement-call
+guidance in `tool-routing-intents.v1` and the discovery metadata. Discovery
+entries may reference those ids, but changes to the code vocabulary or routing
+vocabulary belong in their owning WK/contracts.
 
 Example result entry:
 

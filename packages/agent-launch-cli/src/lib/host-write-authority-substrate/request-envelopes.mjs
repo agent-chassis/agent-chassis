@@ -69,6 +69,17 @@ export function buildHostWriteAuthorityLaunchInput(input) {
       sanitized[field] = input[field];
     }
   }
+  if (
+    Object.prototype.hasOwnProperty.call(sanitized, "provisionedWorktreeGitBinding") &&
+    !Object.prototype.hasOwnProperty.call(sanitized, "provisioned_worktree_git_binding")
+  ) {
+    sanitized.provisioned_worktree_git_binding = sanitized.provisionedWorktreeGitBinding;
+  } else if (
+    Object.prototype.hasOwnProperty.call(sanitized, "provisioned_worktree_git_binding") &&
+    !Object.prototype.hasOwnProperty.call(sanitized, "provisionedWorktreeGitBinding")
+  ) {
+    sanitized.provisionedWorktreeGitBinding = sanitized.provisioned_worktree_git_binding;
+  }
   return Object.freeze(sanitized);
 }
 

@@ -56,13 +56,15 @@ export {
   classifyLauncherRoleContractShape
 } from "./workspace-agent-role-contract.mjs";
 
-export function orchestratorPrompt({ initiative, threadName, focus }) {
+export function orchestratorPrompt({ initiative, threadName, focus, headless = false }) {
+
   return renderLauncherFamilyOrchestratorPrompt({
     appName: "Codex",
     renameHintLabel: "Codex",
     initiative,
     threadName,
-    focus
+    focus,
+    headless: headless === true
   });
 }
 

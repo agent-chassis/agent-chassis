@@ -76,6 +76,11 @@ Options:
   --model <model>        Override the selected binding's default model
   --effort <effort>      Neutral effort flag; xhigh selects orchestrator_xhigh
   --dry-run-json         Emit the launch plan without spawning
+  --headless             Run the orchestrator non-interactively to completion
+                         and exit (Claude --print / Codex exec), instead of the
+                         interactive TUI
+  --log-file <path>      Operator override for the launcher-owned headless log
+                         target (meaningful only with --headless)
 
 Set CODEX_ORCH_THREAD_NAME=... to override the default repo-disambiguated
 thread name.
@@ -140,6 +145,8 @@ export async function dispatchOrchestrator({ argv, role }, io) {
     initiative: parsed.initiative,
     focusArgs: parsed.focusArgs,
     dryRunJson: parsed.dryRunJson,
+    headless: parsed.headless,
+    logFile: parsed.logFile,
     env: process.env,
     cwd: process.cwd(),
     io
@@ -177,6 +184,8 @@ export function parseCanonicalArgs(argv) {
     initiative: null,
     focusArgs: [],
     dryRunJson: false,
+    headless: false,
+    logFile: null,
     errors: []
   };
 
@@ -245,6 +254,21 @@ export function parseCanonicalArgs(argv) {
     if (token === "--dry-run-json") {
       result.dryRunJson = true;
       index += 1;
+      continue;
+    }
+    if (token === "--headless") {
+      result.headless = true;
+      index += 1;
+      continue;
+    }
+    const logFileOpt = consumeOption(argv, index, "log-file");
+    if (logFileOpt) {
+      if (logFileOpt.missing) {
+        result.errors.push("--log-file requires a value");
+      } else {
+        result.logFile = logFileOpt.value;
+      }
+      index += logFileOpt.consumed;
       continue;
     }
     pushPositional(result, token, positionalIndex);

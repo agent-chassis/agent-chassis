@@ -8,33 +8,17 @@ import { loadWorkRecordById } from "@agent-chassis/wiki-core";
 import { parseArgs } from "../lib/cli.mjs";
 import {
   BubblewrapIsolationError,
-  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
   assertBubblewrapAvailable,
   spawnIsolated
 } from "../lib/launch-isolation.mjs";
 import {
-  WORKSPACE_AGENT_BACKEND_AVAILABILITY_STATES,
-  WORKSPACE_AGENT_FAIL_OPEN_CLOSED_REASONS,
-  WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS,
-  buildWorkspaceAgentFailOpenPlan
+  WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS
 } from "../lib/launch-isolation-failopen.mjs";
-import {
-  WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS
-} from "../lib/workspace-agent-run-enforcement.mjs";
 
 import {
   OPERATOR_DIRECT_MODE_WARNING,
-  ORCHESTRATOR_ISOLATION_MODES,
-  probeOrchestratorBwrapAvailability
+  ORCHESTRATOR_ISOLATION_MODES
 } from "../lib/orchestrator-launch-isolation.mjs";
-import {
-  createOrchestratorDispatchSidecarAdapter,
-  startOrchestratorDispatchSidecar
-} from "../lib/orchestrator-dispatch-sidecar.mjs";
-
-import {
-  spawnOrchestratorAndWait
-} from "../lib/orchestrator-launch-runtime.mjs";
 import {
   buildWorkerPlan,
   ensureNewWorkerWriteRoots
@@ -101,6 +85,7 @@ import {
   CODEX_WIKI_MCP_SERVER_NAME,
   WIKI_MCP_SERVER_PACKAGE_SUBPATH,
   WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
+  WIKI_MCP_TOOL_PROFILE_ENV_VAR,
   WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
   WIKI_MCP_WORKSPACE_DIR_ENV_VAR,
   buildCodexWikiMcpEnvOverride,
@@ -165,28 +150,40 @@ export {
   stripNestedCodexSandboxArgs
 } from "../lib/workspace-agent-codex-role-adapter.mjs";
 
+import {
+  buildCodexRoleSandboxFailOpenPlan,
+  emitCodexRolePlainSpawnNotice,
+  formatBubblewrapIsolationRefusal,
+  formatCodexRoleSandboxFailOpenRefusal,
+  formatOrchestratorResumeFailOpenRefusal,
+  formatOrchestratorResumePlainSpawnProvenance,
+  prepareCodexRoleSandboxLaunch
+} from "../lib/codex-role-sandbox-fail-open.mjs";
+export {
+  buildCodexOrchestratorResumeLateBwrapSpawnFailureSummary,
+  buildCodexRoleSandboxFailOpenPlan,
+  prepareCodexRoleSandboxLaunch
+} from "../lib/codex-role-sandbox-fail-open.mjs";
+import {
+  attachOperatorOrchestratorIsolation,
+  runInteractiveOrchestratorChild,
+  spawnDirectAndWait,
+  spawnIsolatedAndWait
+} from "../lib/codex-role-orchestrator-runtime.mjs";
+export {
+  attachOperatorOrchestratorIsolation,
+  runInteractiveOrchestratorChild
+} from "../lib/codex-role-orchestrator-runtime.mjs";
+import {
+  createCodexOrchestratorDispatchSidecarAdapter,
+  maybeStartOrchestratorDispatchSidecar
+} from "../lib/codex-role-dispatch-sidecar-adapter.mjs";
+export {
+  createCodexOrchestratorDispatchSidecarAdapter,
+  maybeStartOrchestratorDispatchSidecar
+} from "../lib/codex-role-dispatch-sidecar-adapter.mjs";
+
 const CODEX_ROLE_MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
-
-const BROKEN_OR_TAMPERED_BWRAP_DIAGNOSTIC_CODES = new Set([
-  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_NOT_EXECUTABLE,
-  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_PROBE_FAILED,
-  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_SPAWN_FAILED
-]);
-
-const ORCHESTRATOR_RESUME_PLAIN_SPAWN_PROVENANCE_CODE =
-  "agent_launch.codex_orchestrator_resume.unenforced_plain_spawn.v1";
-
-function formatBubblewrapIsolationRefusal(role, err) {
-  const base =
-    `codex-${role}: bubblewrap isolation refused: ${err.code}: ${err.message}`;
-  if (err.code === BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_UNAVAILABLE) {
-    return `${base}\nRemediation: install bubblewrap (bwrap) on PATH, or use an explicit supported unsandboxed opt-out/direct-mode path only where the invoked launch surface documents and supports it. Structured role launches remain fail-closed unless that surface has an explicit operator opt-in.`;
-  }
-  if (BROKEN_OR_TAMPERED_BWRAP_DIAGNOSTIC_CODES.has(err.code)) {
-    return `${base}\nRemediation: repair or reinstall bubblewrap (bwrap), then retry. A present but unusable bwrap backend is treated as broken or tampered and is not remediated by structured-role opt-out/direct mode.`;
-  }
-  return base;
-}
 
 const HELP_TEXT = `agent-launch codex-role <role> <ID> [instructions...]
 
@@ -247,13 +244,24 @@ export async function runCodexRole(argv, io = {}, context = {}) {
   }
 
   const promptArgs = stripLeadingDashDash(rest);
+  const headless = options.headless === true || context.headless === true;
+  const logFile = typeof options["log-file"] === "string"
+    ? options["log-file"]
+    : (typeof context.logFile === "string" ? context.logFile : null);
   const plan = await buildCodexRolePlan({
     role,
     subject: rawSubject,
     promptArgs,
     env: process.env,
     cwd: process.cwd(),
-    resolvedProfile: context.resolvedProfile ?? null
+    resolvedProfile: context.resolvedProfile ?? null,
+    headless,
+    logFile,
+    dispatchWorktreeRoot: context.dispatchWorktreeRoot ?? null,
+    provisionedWorktreeGitBinding: context.provisionedWorktreeGitBinding ?? null,
+    provisionedWorktreeGitIdentity: context.provisionedWorktreeGitIdentity ?? null,
+    provisioned_worktree_git_binding: context.provisioned_worktree_git_binding ?? null,
+    provisioned_worktree_git_identity: context.provisioned_worktree_git_identity ?? null
   });
 
   attachOperatorOrchestratorIsolation(plan, {
@@ -281,20 +289,33 @@ export async function buildCodexRolePlan({
   resolvedProfile = null,
   workspaceAlias = null,
   workspaceDir = null,
+  dispatchWorktreeRoot = null,
+  provisionedWorktreeGitBinding = null,
+  provisionedWorktreeGitIdentity = null,
+  provisioned_worktree_git_binding = null,
+  provisioned_worktree_git_identity = null,
   sourceToolSurface = null,
+  headless = false,
+  logFile = null,
 
   terminalStructuredRoleResultMode = undefined
 } = {}) {
   const normalizedRole = normalizeRole(role);
   if (normalizedRole === "orch" || normalizedRole === "orch-resume") {
-    return buildOrchestratorPlan({
+    const orchestratorPlan = buildOrchestratorPlan({
       role: normalizedRole,
       initiative: subject,
       promptArgs,
       env,
       cwd,
-      resolvedProfile
+      resolvedProfile,
+      headless,
+      logFile
     });
+    if (typeof dispatchWorktreeRoot === "string" && dispatchWorktreeRoot.length > 0) {
+      orchestratorPlan.dispatchWorktreeRoot = dispatchWorktreeRoot;
+    }
+    return orchestratorPlan;
   }
   if (normalizedRole === "worker-fast") {
     return buildFastDecommissionedRefusalPlan({ role: normalizedRole, subject, env });
@@ -309,16 +330,32 @@ export async function buildCodexRolePlan({
       resolvedProfile,
       workspaceAlias,
       workspaceDir,
-      sourceToolSurface
+      sourceToolSurface,
+      provisionedWorktreeGitBinding,
+      provisionedWorktreeGitIdentity,
+      provisioned_worktree_git_binding,
+      provisioned_worktree_git_identity
     });
     if (workerPlan && typeof workerPlan === "object" && workerPlan.mode !== "refusal") {
       const workspaceMcpEnvOverrides = buildCodexWorkspaceMcpEnvOverrides({
         workspaceAlias,
-        workspaceDir
-      });
+        workspaceDir,
+        dispatchWorktreeRoot
+      }).filter((override) =>
+        !override.startsWith(`mcp_servers.${CODEX_WIKI_MCP_SERVER_NAME}.env.${WIKI_MCP_TOOL_PROFILE_ENV_VAR}=`)
+      );
       if (workspaceMcpEnvOverrides.length > 0 && Array.isArray(workerPlan.args)) {
         injectCodexConfigOverridesBeforeFinalPositional(workerPlan.args, workspaceMcpEnvOverrides);
       }
+    }
+    if (
+      workerPlan &&
+      typeof workerPlan === "object" &&
+      workerPlan.mode !== "refusal" &&
+      typeof dispatchWorktreeRoot === "string" &&
+      dispatchWorktreeRoot.length > 0
+    ) {
+      workerPlan.dispatchWorktreeRoot = dispatchWorktreeRoot;
     }
     return ensureRefusalDependencyEvidence(workerPlan);
   }
@@ -329,7 +366,7 @@ export async function buildCodexRolePlan({
       cwd,
       workspaceDir
     });
-    return buildReadOnlyPlan({
+    const reviewPlan = await buildReadOnlyPlan({
       role: normalizedRole,
       subject,
       promptArgs,
@@ -338,9 +375,14 @@ export async function buildCodexRolePlan({
       resolvedProfile,
       workspaceAlias,
       workspaceDir,
+      dispatchWorktreeRoot,
       terminalStructuredRoleResultMode,
       ...acceptance
     });
+    if (typeof dispatchWorktreeRoot === "string" && dispatchWorktreeRoot.length > 0) {
+      reviewPlan.dispatchWorktreeRoot = dispatchWorktreeRoot;
+    }
+    return reviewPlan;
   }
   if (normalizedRole === "redteam") {
     const acceptance = await resolveCodexReadOnlyAcceptance({
@@ -349,7 +391,7 @@ export async function buildCodexRolePlan({
       cwd,
       workspaceDir
     });
-    return buildReadOnlyPlan({
+    const redteamPlan = await buildReadOnlyPlan({
       role: normalizedRole,
       subject,
       promptArgs,
@@ -358,9 +400,14 @@ export async function buildCodexRolePlan({
       resolvedProfile,
       workspaceAlias,
       workspaceDir,
+      dispatchWorktreeRoot,
       terminalStructuredRoleResultMode,
       ...acceptance
     });
+    if (typeof dispatchWorktreeRoot === "string" && dispatchWorktreeRoot.length > 0) {
+      redteamPlan.dispatchWorktreeRoot = dispatchWorktreeRoot;
+    }
+    return redteamPlan;
   }
   throw new Error(`Unknown codex role: ${role}\n\n${HELP_TEXT}`);
 }
@@ -415,6 +462,8 @@ async function executePlan(plan, io) {
 }
 
 async function runPlannedChild(plan, io) {
+  const supervisedOrchestratorPlan = isSupervisedOrchestratorPlan(plan);
+
   if (plan.operatorIsolation?.refusal) {
     writeStderr(
       io.stderr,
@@ -424,7 +473,10 @@ async function runPlannedChild(plan, io) {
     return;
   }
 
-  if (plan.operatorIsolation?.mode === ORCHESTRATOR_ISOLATION_MODES.DIRECT) {
+  if (
+    plan.operatorIsolation?.mode === ORCHESTRATOR_ISOLATION_MODES.DIRECT
+    && !isHeadlessOrchestratorPlan(plan)
+  ) {
     writeStderr(io.stderr, `${OPERATOR_DIRECT_MODE_WARNING}\n`);
     if (plan.operatorIsolation?.failOpenWarning) {
       writeStderr(
@@ -443,7 +495,7 @@ async function runPlannedChild(plan, io) {
 
   let bwrapPlan = null;
   let plainSpawnDecision = null;
-  if (plan.operatorIsolation) {
+  if (plan.operatorIsolation || supervisedOrchestratorPlan) {
     try {
       bwrapPlan = buildCodexRoleBubblewrapPlan(plan);
       assertBubblewrapAvailable({ env: plan.env, bwrapPath: bwrapPlan.bwrapPath });
@@ -475,7 +527,7 @@ async function runPlannedChild(plan, io) {
     }
   }
 
-  if (plan.mode === "interactive") {
+  if (supervisedOrchestratorPlan) {
     await runInteractiveOrchestratorChild({ plan, io, bwrapPlan });
     return;
   }
@@ -484,6 +536,18 @@ async function runPlannedChild(plan, io) {
     return;
   }
   await runHeadlessCaptureChild({ plan, io, bwrapPlan, plainSpawnDecision });
+}
+
+function isHeadlessOrchestratorPlan(plan) {
+  return Boolean(plan)
+    && (plan.headless === true || plan.mode === "orchestrator-headless")
+    && (plan.role === "orch" || plan.role === "orch-resume");
+}
+
+function isSupervisedOrchestratorPlan(plan) {
+  return Boolean(plan)
+    && (plan.mode === "interactive" || isHeadlessOrchestratorPlan(plan))
+    && (plan.role === "orch" || plan.role === "orch-resume");
 }
 
 async function handleHeadlessLateBwrapFailure({ plan, io, error, runPlain }) {
@@ -644,581 +708,6 @@ export async function runHeadlessCaptureChild({
   }
 }
 
-export async function maybeStartOrchestratorDispatchSidecar(plan, io = {}) {
-  const handle = await startOrchestratorDispatchSidecar({
-    plan,
-    io,
-    adapter: createCodexOrchestratorDispatchSidecarAdapter()
-  });
-  if (!handle) return null;
-  return {
-    endpoint: handle.endpoint,
-    mcpEnvOverride: handle.applyContext?.mcpEnvOverride ?? null,
-    mcpResponseStateDir: handle.applyContext?.mcpResponseStateDir ?? null,
-    stop: () => handle.stop()
-  };
-}
-
-export function createCodexOrchestratorDispatchSidecarAdapter() {
-  return createOrchestratorDispatchSidecarAdapter({
-
-    createBrokerPlanLaunch: ({ env, cwd }) =>
-      createHostWriteAuthorityBrokerPlanLaunch({ env, cwd }),
-    appPlanLaunchBuilders: {
-      codex: ({ env, cwd }) => createHostWriteAuthorityBrokerPlanLaunch({ env, cwd }),
-      claude: ({ env }) => createHostWriteAuthorityBrokerClaudePlanLaunch({ env }),
-      agy: ({ env }) => createHostWriteAuthorityBrokerAgyPlanLaunch({ env })
-    },
-    spawnLaunch: (bwrapPlan, opts) => spawnIsolated(bwrapPlan, opts),
-
-    applyEndpointToPlan: ({ plan, descriptor, endpointValue, envVar }) => {
-      const mcpServerName = typeof descriptor.mcpServerName === "string" && descriptor.mcpServerName.length > 0
-        ? descriptor.mcpServerName
-        : CODEX_WIKI_MCP_SERVER_NAME;
-
-      const posture = detectCodexWikiMcpServerPosture({
-        env: plan.env,
-        mcpServerName
-      });
-
-      if (posture === "url") {
-        return {
-          mcpServerPosture: posture,
-          mcpEnvOverride: null,
-          mcpEnvOverrides: [],
-          mcpEnvOverrideSpan: null,
-          mcpWorkspaceAliasOverride: null,
-          mcpWorkspaceDirOverride: null,
-          synthesizedWikiMcpServerPath: null,
-          originalIsolation: null
-        };
-      }
-
-      const workspaceAlias = resolveLauncherConfiguredWorkspaceAlias({
-        env: plan.env,
-        repo: plan.repo,
-        mcpServerName
-      });
-
-      const workspaceDir = typeof plan.repo === "string" && plan.repo.length > 0 && path.isAbsolute(plan.repo)
-        ? plan.repo
-        : null;
-      const responseStateDir = ensureWikiMcpResponseStateDir({
-        runtimeDir: plan.runtimeDir,
-        workspaceDir: plan.repo
-      });
-      const mcpEnvOverrides = [];
-
-      let synthesizedWikiMcpServerPath = null;
-      let originalIsolation = null;
-      if (posture === "absent") {
-        synthesizedWikiMcpServerPath = resolveWikiMcpServerPath();
-        if (!synthesizedWikiMcpServerPath) {
-          throw new Error(
-            "codex orchestrator wiki MCP override cannot resolve " +
-            `${WIKI_MCP_SERVER_PACKAGE_SUBPATH}; @agent-chassis/wiki-mcp must be ` +
-            "installed in the launcher package context"
-          );
-        }
-        for (const serverOverride of buildCodexWikiMcpServerOverrides({
-          mcpServerName,
-          serverPath: synthesizedWikiMcpServerPath,
-          repo: plan.repo
-        })) {
-          mcpEnvOverrides.push(serverOverride);
-        }
-
-        originalIsolation = rebuildCodexPlanIsolationWithReadOnlyRoot(
-          plan,
-          collectCodexSynthesizedWikiMcpReadOnlyRoots(synthesizedWikiMcpServerPath)
-        );
-      }
-
-      const wikiServerEnv = selectWikiMcpServerEnv({
-        workspaceAlias,
-        workspaceDir,
-        responseStateDir,
-        endpointEnvVar: envVar,
-        endpointValue
-      });
-      let mcpWorkspaceAliasOverride = null;
-      let mcpWorkspaceDirOverride = null;
-      let mcpResponseStateDirOverride = null;
-      let mcpEnvOverride = null;
-      for (const [envKey, envValue] of Object.entries(wikiServerEnv)) {
-        const override = buildCodexWikiMcpEnvOverride({
-          mcpServerName,
-          envVar: envKey,
-          value: envValue
-        });
-        if (envKey === WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR) {
-          mcpWorkspaceAliasOverride = override;
-        } else if (envKey === WIKI_MCP_WORKSPACE_DIR_ENV_VAR) {
-          mcpWorkspaceDirOverride = override;
-        } else if (envKey === WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR) {
-          mcpResponseStateDirOverride = override;
-        } else if (envKey === envVar) {
-          mcpEnvOverride = override;
-        }
-        mcpEnvOverrides.push(override);
-      }
-
-      const insertionIndex = Array.isArray(plan.args)
-        ? (plan.args.length > 0 ? plan.args.length - 1 : 0)
-        : 0;
-      if (Array.isArray(plan.args)) {
-        for (const override of [...mcpEnvOverrides].reverse()) {
-          plan.args.splice(insertionIndex, 0, "-c", override);
-        }
-      }
-      return {
-        mcpServerPosture: posture,
-        mcpEnvOverride,
-        mcpEnvOverrides,
-        mcpEnvOverrideSpan: Array.isArray(plan.args)
-          ? { start: insertionIndex, length: mcpEnvOverrides.length * 2 }
-          : null,
-        mcpWorkspaceAliasOverride,
-        mcpWorkspaceDirOverride,
-        mcpResponseStateDirOverride,
-        mcpResponseStateDir: responseStateDir,
-        synthesizedWikiMcpServerPath,
-        originalIsolation
-      };
-    },
-    removeEndpointFromPlan: ({ plan, applyContext }) => {
-
-      if (applyContext?.originalIsolation && plan && typeof plan === "object") {
-        plan.isolation = applyContext.originalIsolation;
-      }
-      if (!Array.isArray(plan.args)) return;
-      const span = applyContext?.mcpEnvOverrideSpan;
-      if (!span || !Number.isInteger(span.start) || !Number.isInteger(span.length) || span.length <= 0) {
-        return;
-      }
-      if (span.start < 0 || span.start + span.length > plan.args.length) return;
-      plan.args.splice(span.start, span.length);
-    }
-  });
-}
-
-function spawnIsolatedAndWait(bwrapPlan, options) {
-  return new Promise((resolve, reject) => {
-    let child;
-    try {
-      child = spawnIsolated(bwrapPlan, options);
-    } catch (err) {
-      reject(err);
-      return;
-    }
-    child.on("error", reject);
-    child.on("close", resolve);
-  });
-}
-
-const CODEX_ORCHESTRATOR_RUNTIME_STATE_SCHEMA_VERSION =
-  "codex-orchestrator-runtime-state.v1";
-
-function codexOrchestratorSessionDescriptor(plan) {
-  return {
-    schema_version: CODEX_ORCHESTRATOR_RUNTIME_STATE_SCHEMA_VERSION,
-    mode: plan.mode,
-    role: plan.role,
-    subject: plan.subject,
-    repo: plan.repo,
-    runtime_dir: plan.runtimeDir,
-    thread_name: plan.env?.CODEX_ORCH_THREAD_NAME ?? null,
-    command: plan.command,
-    args: plan.args
-  };
-}
-
-function spawnDirectAndWait(command, args, options) {
-  return new Promise((resolve, reject) => {
-    let child;
-    try {
-      child = spawn(command, Array.isArray(args) ? [...args] : [], options);
-    } catch (err) {
-      reject(err);
-      return;
-    }
-    child.on("error", reject);
-    child.on("close", resolve);
-  });
-}
-
-function isOperatorOrchestratorInteractivePlan(plan) {
-  return Boolean(plan)
-    && plan.mode === "interactive"
-    && (plan.role === "orch" || plan.role === "orch-resume");
-}
-
-function buildCodexOrchestratorIsolationSummary(availability) {
-  const direct = availability?.available !== true;
-  return {
-    mode: direct
-      ? ORCHESTRATOR_ISOLATION_MODES.DIRECT
-      : ORCHESTRATOR_ISOLATION_MODES.BUBBLEWRAP,
-    operator_direct_mode_allowed: true,
-    bwrap_available: !direct,
-    os_filesystem_isolation: !direct,
-    write_scope_enforced: !direct,
-    warning: direct ? OPERATOR_DIRECT_MODE_WARNING : null,
-    diagnostic: direct ? (availability?.diagnostic ?? null) : null
-  };
-}
-
-function backendAvailabilityFromOrchestratorProbe(
-  availability,
-  source = "codex_orchestrator_resume_probe"
-) {
-  if (!availability || typeof availability !== "object") {
-    return {
-      ok: false,
-      state: WORKSPACE_AGENT_BACKEND_AVAILABILITY_STATES.UNTRUSTED,
-      backend: null,
-      reason: "orchestrator bwrap probe result missing or malformed",
-      diagnostic: null,
-      source
-    };
-  }
-  if (availability.available === true) {
-    return {
-      ok: true,
-      state: WORKSPACE_AGENT_BACKEND_AVAILABILITY_STATES.AVAILABLE,
-      backend: WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.BWRAP,
-      reason: "bwrap backend is available for Codex orchestrator resume",
-      diagnostic: null,
-      source
-    };
-  }
-
-  const diagnostic = availability.diagnostic && typeof availability.diagnostic === "object"
-    ? {
-        code: availability.diagnostic.code ?? null,
-        message: availability.diagnostic.message ?? null,
-        detail: availability.diagnostic.detail ?? null
-      }
-    : null;
-  if (diagnostic?.code === BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_UNAVAILABLE) {
-    return {
-      ok: true,
-      state: WORKSPACE_AGENT_BACKEND_AVAILABILITY_STATES.NO_SUPPORTED_ENABLED_BACKEND,
-      backend: null,
-      reason: "bwrap backend is unavailable for Codex orchestrator resume",
-      diagnostic,
-      source
-    };
-  }
-  if (BROKEN_OR_TAMPERED_BWRAP_DIAGNOSTIC_CODES.has(diagnostic?.code)) {
-    return {
-      ok: false,
-      state: WORKSPACE_AGENT_BACKEND_AVAILABILITY_STATES.TAMPERED_OR_BROKEN,
-      backend: WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.BWRAP,
-      reason: "bwrap backend is present but unusable for Codex orchestrator resume",
-      diagnostic,
-      source
-    };
-  }
-  return {
-    ok: false,
-    state: WORKSPACE_AGENT_BACKEND_AVAILABILITY_STATES.UNTRUSTED,
-    backend: null,
-    reason: "orchestrator bwrap probe did not return a trusted availability decision",
-    diagnostic,
-    source
-  };
-}
-
-function backendAvailabilityFromCodexRoleBwrapError(error) {
-  return backendAvailabilityFromOrchestratorProbe(
-    {
-      available: false,
-      diagnostic: {
-        code: error?.code ?? null,
-        message: error?.message ?? null,
-        detail: error?.detail ?? null
-      }
-    },
-    "codex_role_bwrap_isolation"
-  );
-}
-
-export function buildCodexRoleSandboxFailOpenPlan(plan, error, {
-  resolveEnforcementPosture,
-  resolveUnsandboxedOptIn
-} = {}) {
-  return buildWorkspaceAgentFailOpenPlan({
-    launchFacts: {
-      command: plan.command,
-      args: plan.args,
-      cwd: plan.repo,
-      env: plan.env
-    },
-    role: plan.role,
-    subject: plan.subject,
-    workspaceDir: plan.repo,
-    classifyIsolationBackendAvailability: () =>
-      backendAvailabilityFromCodexRoleBwrapError(error),
-    ...(resolveEnforcementPosture ? { resolveEnforcementPosture } : {}),
-    ...(resolveUnsandboxedOptIn ? { resolveUnsandboxedOptIn } : {})
-  });
-}
-
-export function prepareCodexRoleSandboxLaunch(plan, {
-  buildBwrapPlan = buildCodexRoleBubblewrapPlan,
-  assertBackendAvailable = assertBubblewrapAvailable,
-  resolveSandboxFailOpenPlan = buildCodexRoleSandboxFailOpenPlan
-} = {}) {
-  let bwrapPlan;
-  try {
-    bwrapPlan = buildBwrapPlan(plan);
-    assertBackendAvailable({ env: plan.env, bwrapPath: bwrapPlan.bwrapPath });
-  } catch (err) {
-    if (!(err instanceof BubblewrapIsolationError)) {
-      throw err;
-    }
-    const decision = resolveSandboxFailOpenPlan(plan, err);
-    if (decision.disposition === WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN) {
-      return { outcome: "plain", decision, error: err };
-    }
-    return { outcome: "refused", decision, error: err };
-  }
-  return { outcome: "enforced", bwrapPlan };
-}
-
-const CODEX_ROLE_PLAIN_SPAWN_PROVENANCE_CODE =
-  "agent_launch.codex_role.unenforced_plain_spawn.v1";
-
-function formatCodexRolePlainSpawnProvenance(plan, decision) {
-  const warning = decision?.warning ?? {};
-  const posture = warning.enforcement_posture ?? {};
-  const backend = warning.backend_availability ?? {};
-  return `${CODEX_ROLE_PLAIN_SPAWN_PROVENANCE_CODE}: ${JSON.stringify({
-    role: plan.role,
-    subject: plan.subject,
-    disposition: WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN,
-    enforced: false,
-    isolation_backend: WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.NONE,
-    reason_code: posture.reason_code ?? null,
-    reason: posture.reason ?? null,
-    paid_node_engine_key_present: posture.paid_node_engine_key_present === true,
-    opt_out: posture.opt_out ?? null,
-    backend_state: backend.state ?? null,
-    backend_reason: backend.reason ?? null
-  })}`;
-}
-
-function emitCodexRolePlainSpawnNotice(plan, io, decision) {
-  const message = decision?.warning?.message
-    ?? "filesystem isolation is NOT active; this structured role launch is running unenforced";
-  writeStderr(io.stderr, `codex-${plan.role}: WARNING: ${message}\n`);
-  writeStderr(io.stderr, `${formatCodexRolePlainSpawnProvenance(plan, decision)}\n`);
-}
-
-function formatCodexRoleSandboxFailOpenRefusal(plan, decision, error) {
-  const refusal = decision?.refusal ?? null;
-  const reason = refusal?.reason ?? "enforcement_required";
-  const remediation = Array.isArray(refusal?.detail?.remediation)
-    ? refusal.detail.remediation
-    : [
-        "install or repair the configured isolation backend (bubblewrap)",
-        "remove the paid Chassis Control Engine key for local/free unenforced posture",
-        "set the explicit unsandboxed opt-out only if the operator deliberately accepts unenforced local execution"
-      ];
-  const diagnosticText = error?.code
-    ? `: ${error.code}: ${error.message ?? "isolation backend unavailable or unusable"}`
-    : "";
-  return [
-    `codex-${plan.role}: structured role launch refused: a paid enforcement key requires an enforced isolation backend${diagnosticText} (${reason})`,
-    `Remediation: ${remediation.join("; ")}.`
-  ].join("\n");
-}
-
-function buildCodexOrchestratorResumeFailOpenPlan(plan, availability) {
-  return buildWorkspaceAgentFailOpenPlan({
-    launchFacts: {
-      command: plan.command,
-      args: plan.args,
-      cwd: plan.repo,
-      env: plan.env
-    },
-    role: plan.role,
-    subject: plan.subject,
-    workspaceDir: plan.repo,
-    classifyIsolationBackendAvailability: () =>
-      backendAvailabilityFromOrchestratorProbe(availability)
-  });
-}
-
-function buildCodexOrchestratorResumeIsolationSummary(plan, availability) {
-  if (availability?.available === true) {
-    return buildCodexOrchestratorIsolationSummary(availability);
-  }
-
-  const failOpenPlan = buildCodexOrchestratorResumeFailOpenPlan(plan, availability);
-  if (failOpenPlan.disposition === WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN) {
-    return {
-      ...buildCodexOrchestratorIsolationSummary(availability),
-      fail_open_disposition: failOpenPlan.disposition,
-      failOpenWarning: failOpenPlan.warning ?? null,
-      enforcement: failOpenPlan.enforcement ?? null,
-      isolation: failOpenPlan.isolation ?? null
-    };
-  }
-  return {
-    mode: ORCHESTRATOR_ISOLATION_MODES.BUBBLEWRAP,
-    operator_direct_mode_allowed: true,
-    bwrap_available: false,
-    os_filesystem_isolation: true,
-    write_scope_enforced: true,
-    warning: null,
-    diagnostic: availability?.diagnostic ?? null,
-    fail_open_disposition: failOpenPlan.disposition,
-    refusal: failOpenPlan.refusal ?? {
-      reason: WORKSPACE_AGENT_FAIL_OPEN_CLOSED_REASONS.BACKEND_AVAILABILITY_UNTRUSTED,
-      detail: null
-    },
-    enforcement: failOpenPlan.enforcement ?? null
-  };
-}
-
-function formatOrchestratorResumeFailOpenRefusal(plan) {
-  const refusal = plan.operatorIsolation.refusal;
-  const reason = refusal?.reason ?? "unknown";
-  const detail = refusal?.detail ?? null;
-  const diagnostic = detail?.backend_availability?.diagnostic
-    ?? plan.operatorIsolation?.diagnostic
-    ?? null;
-  const diagnosticText = diagnostic?.code
-    ? `: ${diagnostic.code}: ${diagnostic.message ?? "bwrap backend unavailable or unusable"}`
-    : "";
-  const remediation = Array.isArray(detail?.remediation)
-    ? detail.remediation
-    : [
-        "install or repair bubblewrap (bwrap)",
-        "remove the paid Node Engine key for local/free unenforced posture",
-        "set the explicit unsandboxed opt-out only if the operator deliberately accepts unenforced local execution"
-      ];
-  return [
-    `codex-${plan.role}: bubblewrap isolation refused for Codex orchestrator resume: ${reason}${diagnosticText}`,
-    `Remediation: ${remediation.join("; ")}.`
-  ].join("\n");
-}
-
-function formatOrchestratorResumePlainSpawnProvenance(plan) {
-  const warning = plan.operatorIsolation.failOpenWarning;
-  const posture = warning?.enforcement_posture ?? {};
-  const backend = warning?.backend_availability ?? {};
-  return `${ORCHESTRATOR_RESUME_PLAIN_SPAWN_PROVENANCE_CODE}: ${JSON.stringify({
-    role: plan.role,
-    subject: plan.subject,
-    disposition: WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN,
-    enforced: false,
-    isolation_backend: WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.NONE,
-    reason_code: posture.reason_code ?? null,
-    reason: posture.reason ?? null,
-    paid_node_engine_key_present: posture.paid_node_engine_key_present === true,
-    opt_out: posture.opt_out ?? null,
-    backend_state: backend.state ?? null,
-    backend_reason: backend.reason ?? null
-  })}`;
-}
-
-export function buildCodexOrchestratorResumeLateBwrapSpawnFailureSummary(plan, error) {
-  const availability = {
-    available: false,
-    diagnostic: {
-      code: error?.code ?? null,
-      message: error?.message ?? null,
-      detail: error?.detail ?? null
-    }
-  };
-  return buildCodexOrchestratorResumeIsolationSummary(plan, availability);
-}
-
-export async function runInteractiveOrchestratorChild({
-  plan,
-  io,
-  bwrapPlan,
-  spawnOrchestrator = spawnOrchestratorAndWait,
-  spawnLaunch = spawnIsolated,
-  spawnDirect = spawnDirectAndWait
-} = {}) {
-  let outcome;
-  try {
-    outcome = await spawnOrchestrator({
-      runtimeDir: plan.runtimeDir,
-      descriptor: codexOrchestratorSessionDescriptor(plan),
-      bwrapPlan,
-      spawnLaunch,
-      spawnOptions: { env: plan.env }
-    });
-  } catch (err) {
-    if (!(err instanceof BubblewrapIsolationError) || plan.role !== "orch-resume") {
-      throw err;
-    }
-    plan.operatorIsolation =
-      buildCodexOrchestratorResumeLateBwrapSpawnFailureSummary(plan, err);
-    await dispatchOrchestratorResumeLateBwrapFallback(plan, io, err, { spawnDirect });
-    return;
-  }
-  process.exitCode = outcome.exitCode;
-}
-
-async function dispatchOrchestratorResumeLateBwrapFallback(
-  plan,
-  io,
-  error,
-  { spawnDirect = spawnDirectAndWait } = {}
-) {
-  if (
-    plan.operatorIsolation?.mode === ORCHESTRATOR_ISOLATION_MODES.DIRECT
-    && plan.operatorIsolation?.failOpenWarning
-  ) {
-    writeStderr(io.stderr, `${OPERATOR_DIRECT_MODE_WARNING}\n`);
-    writeStderr(
-      io.stderr,
-      `${formatOrchestratorResumePlainSpawnProvenance(plan)}\n`
-    );
-    const status = await spawnDirect(plan.command, plan.args, {
-      cwd: plan.repo,
-      env: plan.env,
-      stdio: "inherit"
-    });
-    process.exitCode = status ?? 0;
-    return;
-  }
-  if (plan.operatorIsolation?.refusal) {
-    writeStderr(
-      io.stderr,
-      `${formatOrchestratorResumeFailOpenRefusal(plan)}\n`
-    );
-    process.exitCode = 1;
-    return;
-  }
-  writeStderr(
-    io.stderr,
-    `${formatBubblewrapIsolationRefusal(plan.role, error)}\n`
-  );
-  process.exitCode = 1;
-}
-
-export function attachOperatorOrchestratorIsolation(plan, {
-  probeBwrapAvailability = probeOrchestratorBwrapAvailability
-} = {}) {
-  if (!isOperatorOrchestratorInteractivePlan(plan)) {
-    return plan;
-  }
-  const probe = (probeBwrapAvailability ?? probeOrchestratorBwrapAvailability)({
-    env: plan.env
-  });
-  plan.operatorIsolation = plan.role === "orch-resume"
-    ? buildCodexOrchestratorResumeIsolationSummary(plan, probe)
-    : buildCodexOrchestratorIsolationSummary(probe);
-  return plan;
-}
-
 function publicPlan(plan) {
   return {
     mode: plan.mode,
@@ -1249,6 +738,8 @@ function publicPlan(plan) {
     run_dir: plan.runDir,
     final_path: plan.finalPath,
     log_path: plan.logPath,
+    headless: plan.headless === true,
+    headless_log_target: plan.headlessLogTarget ?? null,
     env: {
       AGENT_ROLE: plan.env.AGENT_ROLE,
       AGENT_IN: plan.env.AGENT_IN,

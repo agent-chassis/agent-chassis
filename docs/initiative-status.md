@@ -41,6 +41,11 @@ docs lists, closure prose, long diagnostics, or raw evidence payloads. Use
 explicit verbose or selected-action disclosure only when the compact action row
 is insufficient to decide which structured tool to call next.
 
+For initiative frontier scans, start with `workspace_initiative_status` before
+sampling individual `workspace_work_record_summary` results. Use work-record
+summaries only for the selected unit or narrow follow-up called for by the
+compact status row, not as the first pass across an initiative.
+
 ## Consistency Channel
 
 In initiative (scan) scope the response carries a `consistency` array alongside

@@ -13,6 +13,121 @@ const INITIALIZE_PARAMS = {
   }
 };
 
+async function listAgentSafeServerToolNames() {
+  const child = spawn("node", ["packages/wiki-mcp/src/server.mjs"], {
+    cwd: REPO_ROOT,
+    stdio: ["pipe", "pipe", "pipe"],
+
+    env: { ...process.env, WIKI_MCP_TOOL_PROFILE: "agent-safe" }
+  });
+  const exitPromise = once(child, "exit");
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString("utf8");
+  });
+
+  const responses = new Map();
+  const waiters = new Map();
+  function deliver(id, message) {
+    responses.set(id, message);
+    const waiter = waiters.get(id);
+    if (waiter) {
+      waiters.delete(id);
+      waiter(message);
+    }
+  }
+  function waitForId(id) {
+    if (responses.has(id)) {
+      return Promise.resolve(responses.get(id));
+    }
+    return new Promise((resolve) => waiters.set(id, resolve));
+  }
+
+  let buffer = "";
+  child.stdout.on("data", (chunk) => {
+    buffer += chunk.toString("utf8");
+    let newlineIndex;
+    while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (!line) {
+        continue;
+      }
+      let message;
+      try {
+        message = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (message && message.id !== undefined && message.id !== null) {
+        deliver(message.id, message);
+      }
+    }
+  });
+
+  let settled = false;
+  child.on("exit", (code) => {
+    if (settled) {
+      return;
+    }
+    for (const waiter of waiters.values()) {
+      waiter({
+        error: {
+          message: `Server exited before response (code ${code}); stderr=${stderr || "none"}`
+        }
+      });
+    }
+    waiters.clear();
+  });
+
+  const send = (obj) => child.stdin.write(`${JSON.stringify(obj)}\n`);
+  const timeoutError = () =>
+    new Error(`Timeout waiting for agent-safe server tools/list; stderr=${stderr || "none"}`);
+  const withDeadline = (promise, ms) => {
+    let timer;
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(timeoutError()), ms);
+    });
+    return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+  };
+
+  try {
+    send({ jsonrpc: "2.0", id: 1, method: "initialize", params: INITIALIZE_PARAMS });
+    const initResponse = await withDeadline(waitForId(1), 6000);
+    assert.ok(initResponse.result, `initialize failed: ${JSON.stringify(initResponse.error ?? initResponse)}`);
+
+    send({ jsonrpc: "2.0", method: "notifications/initialized" });
+    send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+    const listResponse = await withDeadline(waitForId(2), 6000);
+
+    assert.ok(listResponse.result, "tools/list must return a result");
+    const tools = Array.isArray(listResponse.result.tools) ? listResponse.result.tools : [];
+    return tools.map((tool) => tool.name);
+  } finally {
+    settled = true;
+    child.stdin.end();
+    child.kill("SIGKILL");
+    await exitPromise;
+  }
+}
+
+test("agent-safe server startup derives free/local exposure from descriptor audience (WK-1446)", async () => {
+  const toolNames = await listAgentSafeServerToolNames();
+  const exposed = new Set(toolNames);
+
+  assert.ok(
+    exposed.has("workspace_integration_status"),
+    `expected agent-safe startup to expose workspace_integration_status; exposed=${[...exposed]
+      .sort()
+      .join(", ")}`
+  );
+
+  assert.ok(
+    !exposed.has("workspace_integration_promote_check"),
+    "operator-only workspace_integration_promote_check must not be exposed under agent-safe"
+  );
+});
+
 test("MCP server handles fast initialization frame sent immediately upon startup without dropping it (IN-0017)", async () => {
   const child = spawn("node", ["packages/wiki-mcp/src/server.mjs"], {
     cwd: REPO_ROOT,

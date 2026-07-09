@@ -10,6 +10,7 @@ import {
   validateDocsPolicyOperation,
   validateWorkRecordDispatch
 } from "@agent-chassis/wiki-core";
+import { runWorkRecordSummaryWithCompactGate } from "./work-record-compact-read-gate.mjs";
 
 const NODE_TEST_STEP_TIMEOUT_MS = 30000;
 const NODE_TEST_OUTPUT_CAP_BYTES = 65536;
@@ -37,6 +38,32 @@ const NODE_TEST_FORBIDDEN_CALLER_FIELDS = [
   "workspaceRoot",
   "args"
 ];
+
+const RUN_VALIDATION_REFUSAL_SCHEMA_VERSION = "workspace-run-validation-refusal.v1";
+const RUN_VALIDATION_TARGET_NOT_AUTHORIZED_CODE =
+  "workspace_run_validation.target_not_authorized.v1";
+const RUN_VALIDATION_TARGET_NOT_AUTHORIZED_NEXT_ACTION =
+  "Pick a target from authorized_targets, or add this target to the unit's " +
+  "sections.structured_validation.allowed[] with command node_test, then resubmit.";
+
+function buildRunValidationTargetNotAuthorizedError({ address, requestedTarget, authorizedTargets }) {
+  const message =
+    `workspace_run_validation target is not authorized by the work contract for ${address}: ` +
+    `${requestedTarget} is not a node_test entry in sections.structured_validation.allowed[].`;
+  const error = new Error(message);
+  error.envelope = {
+    schema_version: RUN_VALIDATION_REFUSAL_SCHEMA_VERSION,
+    tool: "workspace_run_validation",
+    accepted: false,
+    refusal_code: RUN_VALIDATION_TARGET_NOT_AUTHORIZED_CODE,
+    refusal_message: message,
+    unit: address,
+    requested_target: requestedTarget,
+    authorized_targets: [...authorizedTargets].sort(),
+    next_action: RUN_VALIDATION_TARGET_NOT_AUTHORIZED_NEXT_ACTION
+  };
+  return error;
+}
 
 function toPosixRelative(value) {
 
@@ -233,14 +260,15 @@ export function registerWorkRecordReadTools({
     "workspace_work_record_summary",
     {
       description:
-        "Return a compact selected-unit work-record summary without requiring shell/JQ parsing. Select the unit by id, unit, or path. For tracker WK-level summaries, output is compact by default: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. Included slice rows may expose agent_notes_bytes, the UTF-8 byte count of slice agent notes. Select a slice unit such as WK-0001#slice-id for that slice's details and notes. Full/debug opt-ins include verbose:true or include_full_summary:true; complete payloads may spill.",
+        "Return a compact selected-unit work-record summary. Select the unit by id, unit, or path. For tracker WK-level summaries, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. For more detail, rerun the compact call or select a slice unit such as WK-0001#slice-id for bounded details and notes. Expensive verbose:true or include_full_summary:true reads are gated behind a recent compact_read_token or selected slice unit.",
       inputSchema: {
         repo: z.string().optional(),
         id: z.string().optional(),
         unit: z.string().optional(),
         path: z.string().optional(),
         verbose: z.boolean().optional(),
-        include_full_summary: z.boolean().optional()
+        include_full_summary: z.boolean().optional(),
+        compact_read_token: z.string().optional()
       }
     },
     async (args) => {
@@ -249,13 +277,12 @@ export function registerWorkRecordReadTools({
         if (!args.id && !args.unit && !args.path) {
           throw new Error("workspace_work_record_summary requires id, unit, or path");
         }
-        const result = await getWorkRecordSummary({
-          dir: workspace.dir,
-          id: args.id ?? null,
-          unit: args.unit ?? null,
-          pathInput: args.path ?? null,
-          verbose: Boolean(args.verbose),
-          include_full_summary: Boolean(args.include_full_summary)
+        const result = await runWorkRecordSummaryWithCompactGate({
+          workspaceRepo: workspace.repo,
+          workspaceDir: workspace.dir,
+          args,
+          getWorkRecordSummary,
+          readWorkRecordById
         });
         return jsonContent({ workspaceRepo: workspace.repo, ...result });
       } catch (error) {
@@ -374,10 +401,11 @@ export function registerWorkRecordReadTools({
         const authorizedTargets = collectAuthorizedNodeTestTargets(sections);
         const { absolute, posixRelative } = resolveNodeTestTarget(workspace.dir, args.target);
         if (!authorizedTargets.has(posixRelative)) {
-          throw new Error(
-            `workspace_run_validation target is not authorized by the work contract for ${address}: ` +
-              `${posixRelative} is not a node_test entry in sections.structured_validation.allowed[].`
-          );
+          throw buildRunValidationTargetNotAuthorizedError({
+            address,
+            requestedTarget: posixRelative,
+            authorizedTargets
+          });
         }
 
         const checkStep = runNodeTestStep({

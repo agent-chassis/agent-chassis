@@ -33,6 +33,51 @@ const BOUNDED_EXTRACTION_REFACTOR_OVERSIZED_SOURCE_LOC_MIN = 1201;
 const BOUNDED_EXTRACTION_REFACTOR_INTENT_SCHEMA_VERSION =
   "bounded-large-file-extraction-refactor-intent.v1";
 
+export const BOUNDED_EXTRACTION_REFACTOR_PREDICATE = Object.freeze({
+  schema_version: BOUNDED_EXTRACTION_REFACTOR_INTENT_SCHEMA_VERSION,
+  intent_kind: "bounded_large_file_extraction_refactor",
+  expected_changed_line_budget: Object.freeze({
+    min: 0,
+    max: BOUNDED_EXTRACTION_REFACTOR_CHANGED_LINE_BUDGET_MAX
+  }),
+  oversized_source_loc_min: BOUNDED_EXTRACTION_REFACTOR_OVERSIZED_SOURCE_LOC_MIN,
+  operation_counts: Object.freeze({
+    modify: Object.freeze({ exactly: 1 }),
+    create: Object.freeze({ min: 1 }),
+    delete: Object.freeze({ exactly: 0 }),
+    inspect: Object.freeze({ exactly: 0 })
+  }),
+  requires: Object.freeze({
+    single_oversized_threshold_counted_source: true,
+    all_new_destinations_verifiable: true,
+    validation_covers_source_and_destinations: true
+  })
+});
+
+function operationCountsSatisfyBoundedExtractionPredicate(operationCounts) {
+  for (const [operation, rule] of Object.entries(
+    BOUNDED_EXTRACTION_REFACTOR_PREDICATE.operation_counts
+  )) {
+    const count = Number.isInteger(operationCounts?.[operation]) ? operationCounts[operation] : 0;
+    if (Number.isInteger(rule.exactly) && count !== rule.exactly) {
+      return false;
+    }
+    if (Number.isInteger(rule.min) && count < rule.min) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function changedLineBudgetSatisfiesBoundedExtractionPredicate(expectedChangedLineBudget) {
+  const { min, max } = BOUNDED_EXTRACTION_REFACTOR_PREDICATE.expected_changed_line_budget;
+  return (
+    Number.isInteger(expectedChangedLineBudget) &&
+    expectedChangedLineBudget >= min &&
+    expectedChangedLineBudget <= max
+  );
+}
+
 function isGraphImpactSummaryShape(value) {
   return (
     isObject(value) &&
@@ -514,7 +559,7 @@ function isExistingOversizedThresholdCountedFile(entry) {
     entry.is_directory === false &&
     entry.threshold_effect !== "coordination_only" &&
     Number.isInteger(entry.loc) &&
-    entry.loc >= BOUNDED_EXTRACTION_REFACTOR_OVERSIZED_SOURCE_LOC_MIN
+    entry.loc >= BOUNDED_EXTRACTION_REFACTOR_PREDICATE.oversized_source_loc_min
   );
 }
 
@@ -546,7 +591,7 @@ function collectBoundedExtractionTargets(targets, fileStats) {
   };
 }
 
-function createBoundedLargeFileExtractionRefactorIntent({
+export function evaluateBoundedExtractionRefactorPredicate({
   expectedEditTargets,
   expectedChangedLineBudget,
   fileStats,
@@ -555,18 +600,16 @@ function createBoundedLargeFileExtractionRefactorIntent({
   if (
     !Array.isArray(expectedEditTargets) ||
     expectedEditTargets.length === 0 ||
-    !Number.isInteger(expectedChangedLineBudget) ||
-    expectedChangedLineBudget < 0 ||
-    expectedChangedLineBudget > BOUNDED_EXTRACTION_REFACTOR_CHANGED_LINE_BUDGET_MAX ||
+    !changedLineBudgetSatisfiesBoundedExtractionPredicate(expectedChangedLineBudget) ||
     !Array.isArray(validationCommands) ||
     validationCommands.length === 0
   ) {
-    return null;
+    return { satisfied: false };
   }
 
   const targets = expectedEditTargets.map(normalizeExpectedEditTargetEntry);
   if (targets.some((target) => !target)) {
-    return null;
+    return { satisfied: false };
   }
 
   const operationCounts = {
@@ -578,13 +621,8 @@ function createBoundedLargeFileExtractionRefactorIntent({
   for (const target of targets) {
     operationCounts[target.operation] += 1;
   }
-  if (
-    operationCounts.modify !== 1 ||
-    operationCounts.create < 1 ||
-    operationCounts.delete !== 0 ||
-    operationCounts.inspect !== 0
-  ) {
-    return null;
+  if (!operationCountsSatisfyBoundedExtractionPredicate(operationCounts)) {
+    return { satisfied: false };
   }
 
   const { createTargets, modifyTargets, sourceCount, destinationsVerifiable } = collectBoundedExtractionTargets(
@@ -592,25 +630,38 @@ function createBoundedLargeFileExtractionRefactorIntent({
     fileStats
   );
   if (sourceCount !== 1 || !destinationsVerifiable) {
-    return null;
+    return { satisfied: false };
   }
 
   if (![...modifyTargets, ...createTargets].every((target) => validationCoversRepoPath(validationCommands, target.path))) {
+    return { satisfied: false };
+  }
+
+  return {
+    satisfied: true,
+    operation_counts: operationCounts,
+    verifiable_new_target_count: createTargets.length
+  };
+}
+
+function createBoundedLargeFileExtractionRefactorIntent(inputs) {
+  const evaluation = evaluateBoundedExtractionRefactorPredicate(inputs);
+  if (!evaluation.satisfied) {
     return null;
   }
 
   return {
-    schema_version: BOUNDED_EXTRACTION_REFACTOR_INTENT_SCHEMA_VERSION,
-    intent_kind: "bounded_large_file_extraction_refactor",
+    schema_version: BOUNDED_EXTRACTION_REFACTOR_PREDICATE.schema_version,
+    intent_kind: BOUNDED_EXTRACTION_REFACTOR_PREDICATE.intent_kind,
     evidence_basis: "structured_work_record_facts",
-    expected_changed_line_budget: expectedChangedLineBudget,
-    operation_counts: operationCounts,
+    expected_changed_line_budget: inputs.expectedChangedLineBudget,
+    operation_counts: evaluation.operation_counts,
     source: {
       existing_oversized_threshold_counted_target_count: 1,
       operation: "modify"
     },
     destinations: {
-      verifiable_new_target_count: createTargets.length,
+      verifiable_new_target_count: evaluation.verifiable_new_target_count,
       operation: "create"
     },
     validation_coverage: {

@@ -108,6 +108,17 @@ function assertRichToolEntry(tool) {
   }
 }
 
+function assertRoutingGuidance(fragment, toolName, expected) {
+  const tool = fragment.tools.find((entry) => entry.tool_name === toolName);
+  assert.ok(tool, `${toolName} must be present in the work-record fragment`);
+  assert.deepEqual(tool.use_when, expected.use_when, `${toolName} use_when`);
+  assert.deepEqual(tool.do_not_use_when, expected.do_not_use_when, `${toolName} do_not_use_when`);
+  assert.deepEqual(tool.authoritative_for, expected.authoritative_for, `${toolName} authoritative_for`);
+  assert.deepEqual(tool.recommended_first_call, expected.recommended_first_call, `${toolName} recommended_first_call`);
+  assert.deepEqual(tool.requires_prior_state, expected.requires_prior_state, `${toolName} requires_prior_state`);
+  assert.deepEqual(tool.replacement_for_misuse, expected.replacement_for_misuse, `${toolName} replacement_for_misuse`);
+}
+
 test('work-record-tools fragment is a canonical rich tool-discovery-fragment', async () => {
   const fragment = await readJson(fragmentUrl);
 
@@ -156,5 +167,70 @@ test('work-record-tools fragment entries carry full rich descriptor metadata', a
   const fragment = await readJson(fragmentUrl);
   for (const tool of fragment.tools) {
     assertRichToolEntry(tool);
+  }
+});
+
+test('hot work-record tools carry routing guidance metadata', async () => {
+  const fragment = await readJson(fragmentUrl);
+
+  assertRoutingGuidance(fragment, 'workspace_work_record_summary', {
+    use_when: ['selected_work_record_context', 'selected_slice_detail'],
+    do_not_use_when: ['initiative status/action', 'dispatch readiness', 'work-record mutation'],
+    authoritative_for: ['compact selected_work_record_context', 'compact selected_slice_detail'],
+    recommended_first_call: {
+      routing_intents: ['selected_work_record_context', 'selected_slice_detail'],
+      arguments: { unit: '$known_WK_or_slice_unit' },
+      omit_null_arguments: true,
+    },
+    requires_prior_state: ['known WK-* or WK-*#SLICE-*'],
+    replacement_for_misuse: [
+      {
+        misuse_code: 'full_read_without_selected_resource',
+        routing_intent: 'selected_work_record_context',
+        use_instead: 'workspace_work_record_summary',
+      },
+      {
+        misuse_code: 'high_output_option_without_compact_first',
+        routing_intent: 'selected_slice_detail',
+        use_instead: 'workspace_work_record_summary',
+      },
+      {
+        misuse_code: 'bulk_sampling_without_lens',
+        routing_intent: 'initiative_frontier_lens',
+        use_instead: 'workspace_initiative_status',
+      },
+    ],
+  });
+
+  const mutationTools = [
+    ['workspace_create_record', 'create', ['record kind', 'title/scope', 'no existing WK target'], ['allocator-backed record creation']],
+    ['workspace_work_record_set_status', 'status', ['unit', 'status'], ['status work-record mutations']],
+    ['workspace_work_record_set_task', 'task', ['unit', 'task selector/value'], ['task work-record mutations']],
+    ['workspace_work_record_set_closure', 'closure', ['unit', 'closure patch'], ['closure work-record mutations']],
+    ['workspace_work_record_upsert_slice', 'slice upsert', ['WK unit', 'slice body'], ['slice upsert work-record mutations']],
+    ['workspace_work_record_delete_slice', 'slice delete', ['WK unit', 'slice id'], ['slice delete work-record mutations']],
+    ['workspace_work_record_set_list_field', 'list field', ['unit', 'field', 'values'], ['list-field work-record mutations']],
+    ['workspace_work_record_set_acceptance', 'acceptance', ['unit', 'criteria/validation'], ['acceptance work-record mutations']],
+    ['workspace_work_record_shape_review_unit', 'review unit shaping', ['unit', 'review role intent'], ['review-unit work-record mutations']],
+  ];
+
+  for (const [toolName, operation, requires_prior_state, authoritative_for] of mutationTools) {
+    assertRoutingGuidance(fragment, toolName, {
+      use_when: ['work_record_mutation', `mutation_operation=${operation}`],
+      do_not_use_when:
+        toolName === 'workspace_create_record'
+          ? ['existing WK/slice update', 'read-only context']
+          : ['read-only context', 'different mutation route'],
+      authoritative_for,
+      recommended_first_call: { routing_intents: ['work_record_mutation'], operation },
+      requires_prior_state,
+      replacement_for_misuse: [
+        {
+          misuse_code: 'ignored_required_next_action',
+          routing_intent: 'work_record_mutation',
+          use_instead: toolName,
+        },
+      ],
+    });
   }
 });

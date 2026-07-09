@@ -1,6 +1,8 @@
 
 
 import { resolveClientConfig } from "@agent-chassis/wiki-core/src/lib/node-engine-api-client.mjs";
+import { loadToolDiscoveryDescriptor } from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
+import { WORKER_COMMIT_TOOL_NAME } from "../../../agent-launch-cli/src/lib/commit-tool-exposure-guard.mjs";
 
 const TOOL_PROFILE_FULL = "full";
 const TOOL_PROFILE_AGENT_SAFE = "agent-safe";
@@ -27,6 +29,7 @@ const AGENT_SAFE_TOOL_NAMES = new Set([
   "workspace_tools_list",
   "workspace_tools_describe",
   "workspace_tools_query",
+  "workspace_tool_router_recommend",
   "workspace_read_mcp_content_reference",
   "workspace_agent_dispatch_identity_contract",
   "workspace_agent_dispatch",
@@ -56,33 +59,45 @@ const AGENT_SAFE_TOOL_NAMES = new Set([
   "workspace_autofix_docs_backlinks",
   "workspace_docs_policy_validate",
   "workspace_work_record_summary",
+  "workspace_initiative_status",
   "workspace_agent_faq"
 ]);
 
 const WORKER_TOOL_NAMES = new Set([
-  "get_contract_manifest",
-  "workspace_search_repo",
-  "workspace_read_page",
-  "workspace_get_record",
-  "workspace_code_index_status",
-  "workspace_code_index_impact_paths",
-  "workspace_code_index_graph_impact_diff",
-  "workspace_code_index_graph_impact_paths",
-  "workspace_code_index_context_for_path",
-  "workspace_tools_list",
-  "workspace_tools_describe",
-  "workspace_tools_query",
-  "workspace_read_mcp_content_reference",
-  "workspace_agent_dispatch_identity_contract",
-  "workspace_node_engine_admission_runtime_diagnostic",
-  "workspace_runtime_blocker_taxonomy",
-  "workspace_docs_policy_validate",
-  "workspace_work_record_validate",
-  "workspace_validate_dispatch",
-  "workspace_work_record_summary",
-  "workspace_agent_faq",
-  "workspace_submit_for_review"
+  WORKER_COMMIT_TOOL_NAME
 ]);
+
+function isSetLike(value) {
+  return value instanceof Set || (value && typeof value.has === "function");
+}
+
+export function deriveAgentSafeToolNamesFromDescriptor(descriptor) {
+  const agentSafeToolNames = new Set();
+  const tools = Array.isArray(descriptor?.tools) ? descriptor.tools : [];
+
+  for (const entry of tools) {
+    if (
+      entry &&
+      entry.kind === "mcp_tool" &&
+      entry.install_state === "installed" &&
+      entry.runtime_posture === "supported" &&
+      Array.isArray(entry.audience) &&
+      entry.audience.includes("agent") &&
+      typeof entry.tool_name === "string" &&
+      entry.tool_name.trim() !== ""
+    ) {
+      agentSafeToolNames.add(entry.tool_name);
+    }
+  }
+
+  return agentSafeToolNames;
+}
+
+export async function loadAgentSafeToolNamesFromDescriptor(descriptorPath) {
+  return deriveAgentSafeToolNamesFromDescriptor(
+    await loadToolDiscoveryDescriptor(descriptorPath)
+  );
+}
 
 export function parseToolProfile(env = process.env) {
   const profile = String(env.WIKI_MCP_TOOL_PROFILE || TOOL_PROFILE_FULL).trim();
@@ -100,12 +115,15 @@ export function parseToolProfile(env = process.env) {
   );
 }
 
-export function shouldExposeTool(toolProfile, name) {
+export function shouldExposeTool(toolProfile, name, options = {}) {
   if (toolProfile === TOOL_PROFILE_FULL) {
     return true;
   }
   if (toolProfile === TOOL_PROFILE_AGENT_SAFE) {
-    return AGENT_SAFE_TOOL_NAMES.has(name);
+    const agentSafeToolNames = isSetLike(options?.agentSafeToolNames)
+      ? options.agentSafeToolNames
+      : AGENT_SAFE_TOOL_NAMES;
+    return agentSafeToolNames.has(name);
   }
   if (toolProfile === TOOL_PROFILE_WORKER) {
     return WORKER_TOOL_NAMES.has(name);

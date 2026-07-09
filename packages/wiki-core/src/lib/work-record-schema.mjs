@@ -34,6 +34,35 @@ import {
   OPTIONAL_STRING_TOP_LEVEL_FIELDS
 } from "./work-record-schema-constants.mjs";
 
+export const WORK_RECORD_EXPECTED_ENVELOPE_FIELD = "expected";
+export const WORK_RECORD_LEGACY_EXPECTED_ENVELOPE_FIELD = "expected_envelope";
+export const WORK_RECORD_EXPECTED_ENVELOPE_SCHEMA_VERSION = "expected-envelope.v1";
+export const WORK_RECORD_EXPECTED_ENVELOPE_FIELD_SCHEMA = Object.freeze({
+  schema_version: "expected-envelope-field.v1",
+  field: WORK_RECORD_EXPECTED_ENVELOPE_FIELD,
+  required_for_commit_path: true,
+  presence_guarantor: "WK-1432",
+  read_as_of: "base_sha_tree",
+  vocabulary: Object.freeze(["schema_version", "declared_metrics", "profile_ref"])
+});
+export const WORK_RECORD_DELIVERY_ENVELOPE_POLICY_PROFILE_SCHEMA = Object.freeze({
+  schema_version: "delivery-envelope-policy-profile.v1",
+  metric_vocabulary: Object.freeze([
+    "changed_line_count",
+    "final_file_size",
+    "changed_file_count",
+    "scope_count"
+  ]),
+  reduction_semantics: Object.freeze({
+    kind: "delta_aware",
+    compares: "final_delivered_size_vs_pre_edit_baseline",
+    absolute_ceiling: false
+  }),
+  values_owner: "org_repo_profile",
+  enforcement_owner: "node_engine",
+  engine_bakes_values: false
+});
+
 export {
   WORK_RECORD_SCHEMA_VERSION,
   WORK_RECORD_CLOSURE_FIELD_NAMES,
@@ -270,6 +299,135 @@ function validateReadScopeField(diagnostics, unit, basePath = "") {
   }
 }
 
+const EXPECTED_ENVELOPE_DECLARED_METRIC_FIELDS = new Set([
+  "changed_line_count",
+  "final_file_sizes",
+  "changed_file_count",
+  "scope_count"
+]);
+
+function validateNonNegativeIntegerValue(diagnostics, value, path) {
+  if (!Number.isInteger(value) || value < 0) {
+    addDiagnostic(diagnostics, "invalid_record", `${path} must be a non-negative integer`, {
+      path
+    });
+  }
+}
+
+function validateExpectedEnvelopeDeclaredMetrics(diagnostics, value, path) {
+  if (!isObject(value)) {
+    addDiagnostic(diagnostics, "invalid_record", `${path} must be an object`, { path });
+    return;
+  }
+
+  for (const [field, metricValue] of Object.entries(value)) {
+    const metricPath = `${path}.${field}`;
+    if (!EXPECTED_ENVELOPE_DECLARED_METRIC_FIELDS.has(field)) {
+      addDiagnostic(
+        diagnostics,
+        "invalid_record",
+        `${metricPath} must be one of: ${Array.from(EXPECTED_ENVELOPE_DECLARED_METRIC_FIELDS).join(", ")}`,
+        { path: metricPath }
+      );
+      continue;
+    }
+
+    if (field === "final_file_sizes") {
+      if (!isObject(metricValue)) {
+        addDiagnostic(diagnostics, "invalid_record", `${metricPath} must be an object`, {
+          path: metricPath
+        });
+        continue;
+      }
+      for (const [filePath, fileSize] of Object.entries(metricValue)) {
+        if (typeof filePath !== "string" || filePath.length === 0) {
+          addDiagnostic(
+            diagnostics,
+            "invalid_record",
+            `${metricPath} file-size keys must be non-empty path strings`,
+            { path: metricPath }
+          );
+        }
+        validateNonNegativeIntegerValue(diagnostics, fileSize, `${metricPath}.${filePath}`);
+      }
+      continue;
+    }
+
+    validateNonNegativeIntegerValue(diagnostics, metricValue, metricPath);
+  }
+}
+
+function validateExpectedEnvelopeField(diagnostics, unit, field, path) {
+  if (!hasOwn(unit, field)) {
+    return;
+  }
+  const value = unit[field];
+  if (!isObject(value)) {
+    addDiagnostic(diagnostics, "invalid_record", `${path} must be an object`, { path });
+    return;
+  }
+  if (Object.keys(value).length === 0) {
+    addDiagnostic(diagnostics, "invalid_record", `${path} must be a non-empty object`, { path });
+    return;
+  }
+
+  const allowedTopLevelFields = new Set(WORK_RECORD_EXPECTED_ENVELOPE_FIELD_SCHEMA.vocabulary);
+  for (const field of Object.keys(value)) {
+    if (!allowedTopLevelFields.has(field)) {
+      addDiagnostic(
+        diagnostics,
+        "invalid_record",
+        `${path}.${field} must be one of: ${Array.from(allowedTopLevelFields).join(", ")}`,
+        { path: `${path}.${field}` }
+      );
+    }
+  }
+
+  if (hasOwn(value, "schema_version") && value.schema_version !== WORK_RECORD_EXPECTED_ENVELOPE_SCHEMA_VERSION) {
+    addDiagnostic(
+      diagnostics,
+      "invalid_record",
+      `${path}.schema_version must be ${WORK_RECORD_EXPECTED_ENVELOPE_SCHEMA_VERSION}`,
+      { path: `${path}.schema_version` }
+    );
+  }
+  if (hasOwn(value, "declared_metrics")) {
+    validateExpectedEnvelopeDeclaredMetrics(diagnostics, value.declared_metrics, `${path}.declared_metrics`);
+  }
+  validateStringField(diagnostics, value, "profile_ref", {
+    path: `${path}.profile_ref`,
+    required: false,
+    allowEmpty: false
+  });
+  if (!hasOwn(value, "declared_metrics") && !hasOwn(value, "profile_ref")) {
+    addDiagnostic(
+      diagnostics,
+      "invalid_record",
+      `${path} must include declared_metrics or profile_ref`,
+      { path }
+    );
+  }
+}
+
+function validateExpectedEnvelopeFields(diagnostics, record) {
+  for (const field of [
+    WORK_RECORD_EXPECTED_ENVELOPE_FIELD,
+    WORK_RECORD_LEGACY_EXPECTED_ENVELOPE_FIELD
+  ]) {
+    validateExpectedEnvelopeField(diagnostics, record, field, field);
+  }
+  if (Array.isArray(record.slices)) {
+    record.slices.forEach((slice, index) => {
+      for (const field of [
+        WORK_RECORD_EXPECTED_ENVELOPE_FIELD,
+        WORK_RECORD_LEGACY_EXPECTED_ENVELOPE_FIELD
+      ]) {
+        validateExpectedEnvelopeField(diagnostics, slice, field, `slices[${index}].${field}`);
+      }
+    });
+  }
+}
+
 export function validateWorkRecord(record, { sourcePath = null, sourceDigest = null } = {}) {
   const diagnostics = [];
 
@@ -366,6 +524,7 @@ export function validateWorkRecord(record, { sourcePath = null, sourceDigest = n
   validateAcceptance(diagnostics, record.acceptance);
   validateSections(diagnostics, record.sections);
   validateMigration(diagnostics, record.migration);
+  validateExpectedEnvelopeFields(diagnostics, record);
   if (hasOwn(record, "expected_edit_targets")) {
     validateExpectedEditTargets(diagnostics, record.expected_edit_targets, "expected_edit_targets");
   }

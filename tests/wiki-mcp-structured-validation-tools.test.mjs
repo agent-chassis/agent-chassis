@@ -102,6 +102,43 @@ function assertErrorResult(result, pattern) {
   }
 }
 
+const RUN_VALIDATION_REFUSAL_SCHEMA_VERSION = "workspace-run-validation-refusal.v1";
+const RUN_VALIDATION_TARGET_NOT_AUTHORIZED_CODE =
+  "workspace_run_validation.target_not_authorized.v1";
+
+function assertStructuredAllowlistMissRefusal(result, { unit, requestedTarget, authorizedTargets }) {
+  assert.equal(result.isError, true, "expected an MCP error result");
+
+  const envelope = result.structuredContent;
+  assert.ok(envelope && typeof envelope === "object", "expected a structuredContent envelope");
+  assert.equal(envelope.schema_version, RUN_VALIDATION_REFUSAL_SCHEMA_VERSION);
+  assert.equal(envelope.tool, "workspace_run_validation");
+  assert.equal(envelope.accepted, false);
+  assert.equal(envelope.refusal_code, RUN_VALIDATION_TARGET_NOT_AUTHORIZED_CODE);
+  assert.equal(envelope.unit, unit);
+  assert.equal(envelope.requested_target, requestedTarget);
+
+  assert.deepEqual(envelope.authorized_targets, [...authorizedTargets].sort());
+  assert.ok(
+    envelope.authorized_targets.every((t) => !path.isAbsolute(t)),
+    "authorized_targets must be repo-relative, not absolute"
+  );
+
+  assert.equal(typeof envelope.next_action, "string");
+  assert.ok(envelope.next_action.length > 0, "expected a non-empty next_action");
+
+  assert.deepEqual(JSON.parse(result.content[0].text), envelope);
+}
+
+function assertBareErrorResult(result, pattern) {
+  assert.equal(result.isError, true, "expected an MCP error result");
+
+  assert.equal(result.structuredContent, undefined, "sibling errors carry no structured envelope");
+  if (pattern) {
+    assert.match(result.content[0].text, pattern);
+  }
+}
+
 test("authorized node_test runs node --check then node --test and reports success", async (t) => {
   const { handler, cleanup } = await setupWorkspace();
   t.after(cleanup);
@@ -199,6 +236,61 @@ test("a node_test target is not authorized by a different command's allowed entr
 
   const result = await handler({ unit: "WK-9001#SLICE-001", target: "other-only.test.mjs" });
   assertErrorResult(result, /not authorized by the work contract/);
+});
+
+test("an allowlist-miss returns a structured refusal with refusal_code, authorized_targets, and next_action", async (t) => {
+  const { handler, cleanup } = await setupWorkspace();
+  t.after(cleanup);
+
+  const result = await handler({ unit: "WK-9001#SLICE-001", target: "unlisted.mjs" });
+  assertStructuredAllowlistMissRefusal(result, {
+    unit: "WK-9001#SLICE-001",
+    requestedTarget: "unlisted.mjs",
+
+    authorizedTargets: ["passing.test.mjs", "checkfail.mjs", "testfail.test.mjs"]
+  });
+});
+
+test("the record-level allowlist-miss surfaces the record's authorized_targets, not the slice's", async (t) => {
+  const { handler, cleanup } = await setupWorkspace();
+  t.after(cleanup);
+
+  const result = await handler({ unit: "WK-9001", target: "passing.test.mjs" });
+  assertStructuredAllowlistMissRefusal(result, {
+    unit: "WK-9001",
+    requestedTarget: "passing.test.mjs",
+    authorizedTargets: ["record-level.test.mjs"]
+  });
+});
+
+test("the allowlist-miss refusal is distinguished from the sibling error cases", async (t) => {
+  const { root, handler, cleanup } = await setupWorkspace();
+  t.after(cleanup);
+
+  assertBareErrorResult(
+    await handler({ unit: "WK-9404#SLICE-001", target: "passing.test.mjs" }),
+    /could not load canonical work record/
+  );
+
+  assertBareErrorResult(
+    await handler({ unit: "WK-9001#SLICE-404", target: "passing.test.mjs" }),
+    /could not resolve unit/
+  );
+
+  assertBareErrorResult(
+    await handler({ unit: "WK-9001#SLICE-001", target: "passing.test.mjs", source_digest: "x" }),
+    /authority fields/
+  );
+
+  assertBareErrorResult(
+    await handler({ unit: "WK-9001#SLICE-001", target: "does-not-exist.mjs" }),
+    /does not exist/
+  );
+
+  assertBareErrorResult(
+    await handler({ unit: "WK-9001#SLICE-001", target: path.join(root, "passing.test.mjs") }),
+    /must be repo-relative/
+  );
 });
 
 test("a non-js/mjs target is rejected", async (t) => {

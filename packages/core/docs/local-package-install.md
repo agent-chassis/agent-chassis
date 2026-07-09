@@ -77,9 +77,9 @@ scripts and CI, install the core package as a dev dependency:
 npm install --save-dev @agent-chassis/core
 ```
 
-The `@agent-chassis/core` postinstall hook prints terse first-run setup guidance
-only. It does not run bootstrap, copy templates, write config, launch agents, or
-otherwise mutate the repo during package install.
+The `@agent-chassis/core` postinstall hook prints terse first-run setup
+guidance only. It does not run bootstrap, copy templates, write config, launch
+agents, or otherwise mutate the repo during package install.
 
 After install, run the explicit setup command from the consumer repo root:
 
@@ -87,12 +87,12 @@ After install, run the explicit setup command from the consumer repo root:
 npx agent-chassis setup
 ```
 
-The setup command runs bootstrap, helps select and copy the matching launcher
-template without overwriting an existing `agent-launch.toml`, runs
-`agent-launch init-config`, and prints the next code-index and orchestrator
-commands. It does not copy `AGENTS.md`; review and adapt the seeded
-`wiki/templates/AGENTS.md.boilerplate.md` helper for the consuming repo's own
-operating contract.
+The setup command runs bootstrap, guides launcher template selection for the
+detected Claude or Codex CLI, copies `agent-launch.toml` only when absent, runs
+`npx agent-launch init-config`, and prints the next code-index and orchestrator
+commands. It intentionally does not copy `AGENTS.md`; review
+`wiki/templates/AGENTS.md.boilerplate.md` and adapt it into the repo root
+because the operating contract is repo-specific.
 
 To pin the underlying surfaces individually instead, install
 `@agent-chassis/wiki-cli @agent-chassis/wiki-mcp @agent-chassis/agent-launch-cli`.

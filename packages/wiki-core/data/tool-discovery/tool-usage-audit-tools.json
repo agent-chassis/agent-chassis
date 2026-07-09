@@ -1,0 +1,52 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "tool-usage-audit-tools.json",
+  "summary": "Tool-use audit observability tools.",
+  "tool_count": 1,
+  "tools": [
+    {
+      "tool_name": "workspace_tool_usage_audit",
+      "display_name": "Workspace tool usage audit",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_tool_usage_audit",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 91,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/tool-usage-audit-tools.json",
+        "packages/wiki-core/data/tool-use-policy.v1.json",
+        "packages/wiki-core/data/tool-routing-intents.v1.json",
+        "packages/wiki-mcp/src/lib/tool-usage-audit-mcp-tools.mjs",
+        "wiki/work-records/WK-1437.json",
+        "wiki/work-records/WK-1438.json"
+      ],
+      "summary": "Read-only compact observability for bounded tool-use audit aggregates.",
+      "notes": "Operator/coordinator observability surface for compact, redacted tool-use audit aggregates from the workspace_tool_usage_audit MCP route. It observes policy-adherence evidence only: it does not dispatch agents, mutate records, run lint/generate, block or authorize calls, route agents, scrape broad logs, or reinterpret domain tool authority. Misuse-code vocabulary lives in packages/wiki-core/data/tool-use-policy.v1.json under WK-1437; routing-intent ids and replacement-call guidance remain owned by WK-1438 via packages/wiki-core/data/tool-routing-intents.v1.json and the router/discovery docs."
+    }
+  ]
+}

@@ -1,10 +1,18 @@
 
 
 import { randomBytes } from "node:crypto";
+import path from "node:path";
 import {
   BACKEND_REFUSAL_CODES,
   createWorkspaceAgentDispatchBackend
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
+import {
+  DEFAULT_EXPECTED_ENVELOPE_FIELD
+} from "@agent-chassis/agent-launch-cli/src/lib/worktree-provisioning-dispatch.mjs";
+import {
+  WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR,
+  WIKI_MCP_WORKSPACE_DIR_ENV_VAR
+} from "@agent-chassis/agent-launch-cli/src/lib/codex-role-mcp-env.mjs";
 import {
   createCodexWorkspaceAgentLaunchExecutor,
   CODEX_FAMILY_SOURCE_READ_MODE
@@ -210,6 +218,43 @@ function mintDispatchSessionIdentity() {
   return `${SESSION_IDENTITY_SCHEMA_VERSION}.${randomBytes(12).toString("hex")}`;
 }
 
+function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
+  const worktreeRoot = String(env[WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR] ?? "").trim();
+  if (!worktreeRoot) {
+    return null;
+  }
+  if (!path.isAbsolute(worktreeRoot)) {
+    throw new Error(
+      `${WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR} must be an absolute launcher-owned worktree root`
+    );
+  }
+
+  const mainRepo = String(env[WIKI_MCP_WORKSPACE_DIR_ENV_VAR] ?? "").trim();
+  if (!mainRepo) {
+    throw new Error(
+      `${WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR} requires ${WIKI_MCP_WORKSPACE_DIR_ENV_VAR} so dispatch provisioning has a trusted mainRepo`
+    );
+  }
+  if (!path.isAbsolute(mainRepo)) {
+    throw new Error(
+      `${WIKI_MCP_WORKSPACE_DIR_ENV_VAR} must be absolute when ${WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR} is configured`
+    );
+  }
+
+  return Object.freeze({
+    mainRepo: path.resolve(mainRepo),
+    worktreeRoot: path.resolve(worktreeRoot),
+    expectedEnvelopeField: DEFAULT_EXPECTED_ENVELOPE_FIELD,
+    resolveAttemptState: failMissingLauncherOwnedProvisioningAttemptState
+  });
+}
+
+async function failMissingLauncherOwnedProvisioningAttemptState() {
+  throw new Error(
+    "launcher-owned dispatch worktree attempt-state source is not configured; refusing provisioning instead of defaulting retryId to 0"
+  );
+}
+
 export function buildDispatchRuntime(env = process.env) {
   const dispatchSessionIdentity = mintDispatchSessionIdentity();
   const launchExecutors = buildDispatchLaunchExecutors(env);
@@ -217,6 +262,7 @@ export function buildDispatchRuntime(env = process.env) {
     launchExecutors && launchExecutors.codex
       ? createWorkspaceAgentDispatchBackend({
           launchExecutors,
+          worktreeProvisioning: resolveDispatchWorktreeProvisioningConfig(env),
           evaluateWorkerAdmission: evaluateWorkerAdmissionForBackend,
           prepareSourceToolSurface: createLauncherOwnedSourceToolSurfacePreparer({ env })
         })

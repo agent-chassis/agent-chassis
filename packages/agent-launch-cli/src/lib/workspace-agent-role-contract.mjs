@@ -21,6 +21,17 @@ export const LAUNCHER_FAMILY_ROLE_CONTRACT_ROLES = Object.freeze([
   'redteam',
 ]);
 
+export const LAUNCHER_ORCHESTRATOR_PROMPT_MODES = Object.freeze({
+  INTERACTIVE: 'interactive',
+  HEADLESS: 'headless',
+});
+
+export const LAUNCHER_ORCHESTRATOR_HEADLESS_DIRECTIVE = [
+  'Run UNATTENDED to completion, then EXIT.',
+  'Complete the full orchestration lifecycle end-to-end — design, dispatch, wait for the dispatched roles, review, and report — without pausing for human input at any step.',
+  'There is no interactive terminal and no human to prompt or resume: do not wait for input, do not ask for confirmation, and do not leave the session open after you have reported.',
+].join(' ');
+
 export const LAUNCHER_FAMILY_ROLE_CONTRACT_SHAPES = Object.freeze({
   worker: 'implementation',
   reviewer: 'findings_only',
@@ -411,29 +422,92 @@ export function renderWorkerPrompt(options = {}) {
   return renderLauncherFamilyRoleContract(options);
 }
 
+function isHeadlessOrchestratorPromptMode(input) {
+  if (!input || typeof input !== 'object') {
+    return false;
+  }
+  if (input.headless === true) {
+    return true;
+  }
+  const mode = toStringValue(
+    input.orchestratorPromptMode ?? input.promptMode ?? input.mode
+  )
+    .trim()
+    .toLowerCase();
+  return mode === LAUNCHER_ORCHESTRATOR_PROMPT_MODES.HEADLESS;
+}
+
+function renderOrchestratorAuthorityPacket({
+  appName,
+  subject,
+  subjectPath,
+  repo,
+  workspaceDir,
+}) {
+  const context = [
+    `role=${appName} orchestrator`,
+    `subject=${subject || subjectPath}`,
+  ];
+  if (repo) {
+    context.push(`repo=${repo}`);
+  }
+  if (workspaceDir) {
+    context.push(`workspace=${workspaceDir}`);
+  }
+
+  return [
+    'Coordinator authority reminder:',
+    `- Context: ${context.join('; ')}.`,
+    '- Allowed coordination surfaces: AGENTS.md, canonical docs/wiki/work records, and structured wiki/MCP coordination tools.',
+    '- Forbidden implementation/test surfaces: do not use the orchestrator role to edit packages/, tests/, product/runtime code, or runnable artifacts under docs/ or wiki/; dispatch the appropriate worker instead.',
+    '- After launch or resume, reread AGENTS.md and the subject record before choosing coordination actions.',
+    '- When role authority, mount state, dispatch readiness, or write authority is unclear, use structured tool discovery and workspace coordination/preflight/status checks before acting.',
+    '- This packet is a reminder for orchestrator startup/resume prompts; it is not runtime enforcement and does not solve mid-session compaction or non-Codex harness behavior.',
+  ].join('\n');
+}
+
 export function renderLauncherFamilyOrchestratorPrompt(options = {}) {
   const input = normalizeLauncherRoleContractInput(options);
   const appName = normalizeAppName(input.appName);
+  const headless = isHeadlessOrchestratorPromptMode(input);
   const resolvedRenameHintLabel = toStringValue(
     input.renameHintLabel ?? input.renameLabel ?? appName
   ).trim() || appName;
   const normalizedThreadName = toStringValue(
     input.threadName ?? input.subject ?? input.initiative ?? input.unit ?? input.path
   ).trim();
+  const repo = toStringValue(input.repo ?? input.repository ?? input.repoName).trim();
   const subjectPath = reviewPromptSubjectPath(
     input.subjectPath ?? input.initiative ?? input.subject ?? input.threadName
   );
+  const workspaceDir = toStringValue(input.workspaceDir).trim();
 
   const lines = [
     `# ${appName} orchestrator prompt`,
     `You are the ${appName} orchestrator for ${normalizedThreadName || subjectPath}.`,
-    `Suggested ${resolvedRenameHintLabel} rename command: /rename ${normalizedThreadName}`,
-    `Read AGENTS.md and ${subjectPath} first.`,
   ];
+  if (!headless) {
+    lines.push(
+      `Suggested ${resolvedRenameHintLabel} rename command: /rename ${normalizedThreadName}`
+    );
+  }
+  lines.push(`Read AGENTS.md and ${subjectPath} first.`);
 
-  const workspaceDir = toStringValue(input.workspaceDir).trim();
   if (workspaceDir) {
-    lines.splice(4, 0, `Workspace directory: ${workspaceDir}.`);
+
+    lines.splice(lines.length, 0, `Workspace directory: ${workspaceDir}.`);
+  }
+
+  lines.push(renderOrchestratorAuthorityPacket({
+    appName,
+    subject: normalizedThreadName,
+    subjectPath,
+    repo,
+    workspaceDir,
+  }));
+
+  if (headless) {
+    lines.push(LAUNCHER_ORCHESTRATOR_HEADLESS_DIRECTIVE);
   }
 
   return lines.filter(Boolean).join('\n\n');
@@ -445,6 +519,8 @@ const launcherRoleContractExports = Object.freeze({
   LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER,
   LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER,
   LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER,
+  LAUNCHER_ORCHESTRATOR_PROMPT_MODES,
+  LAUNCHER_ORCHESTRATOR_HEADLESS_DIRECTIVE,
   TERMINAL_STRUCTURED_ROLE_RESULT_MODES,
   LauncherRoleContractError,
   classifyLauncherRoleContractShape,

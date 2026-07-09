@@ -48,6 +48,11 @@
         "packages/wiki-core/data/tool-discovery/launcher-tools.json"
       ],
       "notes": "MCP-only agent role dispatch for worker, reviewer, and redteam over same-user stdio MCP (not an authentication boundary; the real boundary is the launcher sandbox plus work-record admission). Caller-supplied identity carriers (request payload, prompt text, ambient env, argv, claimed_identity.role) are refused. Worker and reviewer accept a WK or slice; redteam also accepts an IN. Non-dispatchable subjects refuse with work_record_readiness_failure. A reviewer subject with non-empty write_scope refuses with role_policy_violation / reviewer_write_scope_nonempty; remediate with a separate findings-only review unit, not a role change or readiness bypass. Refusals use stable runtime-blocker taxonomy codes. Route worker/reviewer/redteam dispatch through this MCP tool only; if the launch backend is unconfigured, report the blocker rather than falling back to wrappers, shell, env, or bwrap changes.",
+      "use_when": ["The dispatch_role_call intent has a dispatchable workspace_validate_dispatch result for the same unit and role."],
+      "do_not_use_when": ["Readiness is unknown; use workspace_validate_dispatch first.", "The task asks about an existing run; use workspace_agent_run_status or workspace_agent_run_wait."],
+      "authoritative_for": ["dispatch_role_call:launch_after_dispatchable", "launcher-owned worker/reviewer/redteam process spawn"],
+      "requires_prior_state": ["Known subject and role.", "Same-unit same-role workspace_validate_dispatch result with dispatchable=true."],
+      "replacement_for_misuse": [{"misuse_code": "dispatch_without_readiness_validation", "routing_intent": "dispatch_role_call", "use_instead": "workspace_validate_dispatch"}],
       "tier_text": {
         "paid_cce": {
           "notes": "MCP-only agent role dispatch for worker, reviewer, and redteam over same-user stdio MCP (not an authentication boundary; the real boundary is the launcher sandbox plus work-record admission). Caller-supplied identity carriers (request payload, prompt text, ambient env, argv, claimed_identity.role) are refused. Worker and reviewer accept a WK or slice; redteam also accepts an IN. Non-dispatchable subjects refuse with work_record_readiness_failure. A reviewer subject with non-empty write_scope refuses with role_policy_violation / reviewer_write_scope_nonempty; remediate with a separate findings-only review unit. Refusals use stable runtime-blocker taxonomy codes. When CCE/Node Engine refusal output includes a valid worker_admission.recovery.v1 object, treat it as the primary recovery projection: pack_result.recovery is current-decision recovery, while top-level route-problem recovery applies before a pack_result exists. Both are advisory, non-authorizing, resubmission-only guidance; they do not satisfy review evidence, accepted authority, launcher policy, or admission. Legacy reason-fact recovery is compatibility-only when no valid recovery object is present. Malformed, unknown-version, unknown-field, or projection-mismatched recovery fails closed: preserve the underlying refusal, report bounded recovery-contract mismatch guidance, resubmit through CCE, and do not infer local admission, hidden controls, bypasses, or synthesized authorities. Route worker/reviewer/redteam dispatch through this MCP tool only; if the launch backend is unconfigured, report the blocker rather than falling back to wrappers, shell, env, or bwrap changes."
@@ -92,7 +97,22 @@
         "packages/wiki-core/data/tool-discovery/manifest.json",
         "packages/wiki-core/data/tool-discovery/launcher-tools.json"
       ],
-      "notes": "Monitor-handle status query for workspace_agent_dispatch. Caller-supplied identity carriers are refused before handle lookup. Monitor handles are opaque server-issued tokens scoped to subject and role; subject mismatch, replay, and unknown handles refuse via the monitor_handle_* taxonomy. Reports the run lifecycle vocabulary launching, running, succeeded, failed, or cancelled. With no launch executor configured, every handle resolves to MONITOR_HANDLE_UNKNOWN (status=null) — a stable refusal, not the normal posture. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success with structured_role_result.valid:false is EXPECTED and is not a failed child run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key. Read-only."
+      "notes": "Monitor-handle status query for workspace_agent_dispatch. Caller-supplied identity carriers are refused before handle lookup. Monitor handles are opaque server-issued tokens scoped to subject and role; subject mismatch, replay, and unknown handles refuse via the monitor_handle_* taxonomy. Reports the run lifecycle vocabulary launching, running, succeeded, failed, or cancelled. With no launch executor configured, every handle resolves to MONITOR_HANDLE_UNKNOWN (status=null) — a stable refusal, not the normal posture. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success with structured_role_result.valid:false is EXPECTED and is not a failed child run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key. Read-only.",
+      "use_when": ["The run_monitoring intent asks for status, output, failure, or completion of an already dispatched run."],
+      "do_not_use_when": ["The task is a new role launch; use workspace_validate_dispatch first.", "No monitor handle is available; ask for it instead of searching, reading records, or relaunching."],
+      "authoritative_for": ["run_monitoring:status", "launcher run lifecycle by monitor_handle"],
+      "recommended_first_call": {
+        "routing_intents": [
+          "run_monitoring"
+        ],
+        "arguments": {
+          "monitor_handle": "$monitor_handle_if_known",
+          "subject": "$unit_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "requires_prior_state": ["Server-minted monitor_handle from workspace_agent_dispatch."],
+      "replacement_for_misuse": [{"misuse_code": "ignored_required_next_action", "routing_intent": "run_monitoring", "use_instead": "workspace_agent_run_status"}]
     },
     {
       "tool_name": "workspace_agent_run_wait",
@@ -131,7 +151,23 @@
         "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Bounded-wait companion to workspace_agent_run_status: waits for a dispatched run to reach a terminal state or until a bounded polling window expires, returning one response per call. Omit timeout_ms for the client-safe 60000 ms default; issue successive bounded waits across turns rather than one long client-blocking wait. timed_out:true is a clean wait-window timeout, not a failed run — retry the wait or call run-status with the same monitor_handle; do not relaunch. Out-of-range or non-integer timeout_ms/poll_interval_ms are refused, never silently clamped. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success with structured_role_result.valid:false is EXPECTED and is not a failed run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key. Shares identity-carrier refusals, workspace resolution, and the monitor_handle_* taxonomy with run-status. Read-only."
+      "notes": "Bounded-wait companion to workspace_agent_run_status: waits for a dispatched run to reach a terminal state or until a bounded polling window expires, returning one response per call. Omit timeout_ms for the client-safe 60000 ms default; issue successive bounded waits across turns rather than one long client-blocking wait. timed_out:true is a clean wait-window timeout, not a failed run — retry the wait or call run-status with the same monitor_handle; do not relaunch. Out-of-range or non-integer timeout_ms/poll_interval_ms are refused, never silently clamped. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success with structured_role_result.valid:false is EXPECTED and is not a failed run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key. Shares identity-carrier refusals, workspace resolution, and the monitor_handle_* taxonomy with run-status. Read-only.",
+      "use_when": ["The run_monitoring intent asks to wait briefly for an already dispatched run to finish."],
+      "do_not_use_when": ["The task is a new role launch; use workspace_validate_dispatch first.", "No monitor handle is available; ask for it instead of searching, reading records, or relaunching."],
+      "authoritative_for": ["run_monitoring:bounded_wait", "launcher run lifecycle by monitor_handle"],
+      "recommended_first_call": {
+        "routing_intents": [
+          "run_monitoring"
+        ],
+        "operation": "bounded wait",
+        "arguments": {
+          "monitor_handle": "$monitor_handle_if_known",
+          "subject": "$unit_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "requires_prior_state": ["Server-minted monitor_handle from workspace_agent_dispatch.", "A bounded wait request."],
+      "replacement_for_misuse": [{"misuse_code": "ignored_required_next_action", "routing_intent": "run_monitoring", "use_instead": "workspace_agent_run_wait"}]
     },
     {
       "tool_name": "workspace_runtime_blocker_taxonomy",

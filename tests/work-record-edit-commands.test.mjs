@@ -639,6 +639,57 @@ test("help text names edit commands and edit commands leave admission evidence s
   }
 });
 
+test("WK-0857 upsert-slice allocates the next ordinal for an omitted id and refuses explicit new semantic ids", async () => {
+  const repo = await setupRepo();
+  try {
+
+    const ordinal = await runWiki(
+      [
+        "work-records",
+        "upsert-slice",
+        "--unit",
+        "WK-9203",
+        "--slice-json",
+        JSON.stringify({ title: "Ordinal slice via omitted id" })
+      ],
+      { dir: repo.dir }
+    );
+    assert.equal(ordinal.json.written, true);
+    assert.equal(ordinal.json.selected_unit.address, "WK-9203");
+    const afterOrdinal = await readRecord(repo.recordPath);
+    const created = afterOrdinal.slices.find((slice) => slice.id === "SLICE-001");
+    assert.ok(created, "omitted slice id must persist the next SLICE-### ordinal");
+    assert.equal(created.title, "Ordinal slice via omitted id");
+
+    const before = await readFile(repo.recordPath, "utf8");
+    const refused = await runWiki(
+      [
+        "work-records",
+        "upsert-slice",
+        "--unit",
+        "WK-9203",
+        "--slice-json",
+        JSON.stringify({ id: "new-semantic", title: "Explicit semantic slice" })
+      ],
+      { dir: repo.dir, expectFailure: true }
+    );
+    assert.equal(refused.json.written, false);
+    assert.ok(
+      refused.json.diagnostics.some(
+        (entry) => entry.code === "semantic_slice_id_creation_not_allowed"
+      ),
+      "explicit new semantic id must be refused with semantic_slice_id_creation_not_allowed"
+    );
+    assert.equal(
+      await readFile(repo.recordPath, "utf8"),
+      before,
+      "a refused upsert must leave the on-disk record untouched"
+    );
+  } finally {
+    await repo.cleanup();
+  }
+});
+
 test("text output includes previous values, new values, validity, and diagnostics", async () => {
   const repo = await setupRepo();
   try {

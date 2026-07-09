@@ -13,28 +13,32 @@ import {
   writeStderr
 } from "./codex-role-io.mjs";
 import {
-  appendRepoProfileThreadSuffix,
-  loadRepoProfileLocalConfig,
+  appendRepoProfileThreadSuffix
 } from "./agent-launch-repo-profile-config.mjs";
-import { getLauncherProfile } from "./agent-launch-profiles.mjs";
 import {
   WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
   WIKI_MCP_SERVER_PACKAGE_SUBPATH,
-  WIKI_MCP_TOOL_PROFILE_ENV_VAR,
-  buildWikiMcpServerNodeCommand,
   ensureWikiMcpResponseStateDir,
   resolveLauncherConfiguredWorkspaceAlias,
-  resolveWikiMcpServerPath,
-  selectWikiMcpServerEnv
+  resolveWikiMcpServerPath
 } from "./codex-role-mcp-env.mjs";
 import {
   titleFromPage
 } from "./codex-role-orchestrator-history.mjs";
 
 import {
-  buildOrchestratorSettings,
   sanitizeOrchestratorPathSegment
 } from "./orchestrator-launch-settings.mjs";
+import {
+  CLAUDE_ORCHESTRATOR_HEADLESS_COORDINATION_EDIT_ALLOW,
+  CLAUDE_ORCHESTRATOR_HEADLESS_DENY_TOOLS,
+  CLAUDE_ORCHESTRATOR_HEADLESS_MODE,
+  CLAUDE_ORCHESTRATOR_MCP_CONFIG_SCHEMA_VERSION,
+  buildClaudeOrchestratorHeadlessPermissionSettings,
+  buildClaudeOrchestratorMcpConfig,
+  isValidClaudeOrchestratorWorkspaceAlias,
+  resolveClaudeOrchestratorLocalSettings
+} from "./claude-orchestrator-plan-settings.mjs";
 
 import {
   createOrchestratorDispatchSidecarAdapter,
@@ -61,6 +65,7 @@ import {
 
 import {
   buildInteractiveOrchestratorLaunchPlan,
+  buildHeadlessOrchestratorBwrapPlan,
   probeOrchestratorBwrapAvailability,
   ORCHESTRATOR_ISOLATION_MODES,
   OPERATOR_DIRECT_MODE_WARNING
@@ -72,8 +77,18 @@ import {
 import {
   hasResumableOrchestratorSession,
   superviseInteractiveOrchestratorLaunch,
+  resolveHeadlessLogTarget,
+  openHeadlessStdio,
+  HeadlessDirectModeError,
   ORCHESTRATOR_INTERACTIVE_STDIO
 } from "./orchestrator-launch-runtime.mjs";
+
+import {
+  mintLauncherOwnedClaudeNativePermissionSettings,
+  probeClaudeNativePermissionEnforcement,
+  CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
+  CLAUDE_NATIVE_PERMISSION_PROBE_UNPROVEN_REASON
+} from "./workspace-agent-claude-launch-support.mjs";
 
 import {
   makeOrchestratorRefusal,
@@ -86,12 +101,23 @@ import {
   resolveLauncherRoleWritePosture
 } from "./workspace-agent-family-policy.mjs";
 
+const CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_RUNTIME_DIR =
+  "headless-native-permission-settings";
+const CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_PROJECTED_PATH =
+  "<launcher-minted-headless-settings>/settings.json";
+
 export const CLAUDE_ORCHESTRATOR_PLAN_SCHEMA_VERSION =
   "claude-orchestrator-plan.v1";
-export const CLAUDE_ORCHESTRATOR_MCP_CONFIG_SCHEMA_VERSION =
-  "claude-orchestrator-mcp-config.v1";
 export const CLAUDE_ORCHESTRATOR_RUNTIME_STATE_SCHEMA_VERSION =
   "claude-orchestrator-runtime-state.v1";
+
+export {
+  CLAUDE_ORCHESTRATOR_HEADLESS_COORDINATION_EDIT_ALLOW,
+  CLAUDE_ORCHESTRATOR_HEADLESS_DENY_TOOLS,
+  CLAUDE_ORCHESTRATOR_HEADLESS_MODE,
+  CLAUDE_ORCHESTRATOR_MCP_CONFIG_SCHEMA_VERSION,
+  buildClaudeOrchestratorHeadlessPermissionSettings
+} from "./claude-orchestrator-plan-settings.mjs";
 
 export const CLAUDE_ORCHESTRATOR_STATE_DIR_NAME = "claude-orch";
 
@@ -114,9 +140,6 @@ export const CLAUDE_ORCHESTRATOR_WIKI_MCP_UNRESOLVED_REASON =
     ORCHESTRATOR_REFUSAL_REASON_KINDS.WIKI_MCP_UNRESOLVED
   );
 
-const CLAUDE_ORCHESTRATOR_WORKSPACE_ALIAS_PATTERN =
-  /^[A-Za-z0-9._-]+$/;
-
 function makeRefusal(code, message, detail = null) {
   return makeOrchestratorRefusal({
     command: CLAUDE_ORCHESTRATOR_COMMAND,
@@ -128,6 +151,24 @@ function makeRefusal(code, message, detail = null) {
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
+}
+
+function projectedClaudeOrchestratorHeadlessSettingsPath(runtimeDir) {
+  return path.join(
+    runtimeDir,
+    CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_RUNTIME_DIR,
+    CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_PROJECTED_PATH
+  );
+}
+
+function withClaudeOrchestratorHeadlessSettingsPath(args, settingsPath) {
+  const nextArgs = [...args];
+  const settingsIndex = nextArgs.indexOf("--settings");
+  if (settingsIndex === -1) {
+    throw new Error("claude-orchestrator: headless argv is missing --settings");
+  }
+  nextArgs[settingsIndex + 1] = settingsPath;
+  return nextArgs;
 }
 
 async function findRepoRoot(start) {
@@ -162,120 +203,9 @@ function claudeOrchestratorStateDirFor({ env, repo, initiative }) {
   );
 }
 
-function buildClaudeOrchestratorPrompt({ initiative, threadName, focus }) {
-  return renderLauncherFamilyOrchestratorPrompt({ appName: "Claude", renameHintLabel: "Claude", initiative, threadName, focus });
-}
+function buildClaudeOrchestratorPrompt({ initiative, threadName, focus, headless = false }) {
 
-function resolveClaudeOrchestratorLocalSettings({ repo, initiative, resolvedProfile }) {
-  const localConfig = loadRepoProfileLocalConfig(repo);
-  if (localConfig.refused) {
-    return {
-      refusal: {
-        code: CLAUDE_ORCHESTRATOR_LOCAL_CONFIG_REFUSAL_REASON,
-        message: "repo-local Claude orchestrator config refused",
-        detail: {
-          refusal_reason: localConfig.refusal_reason,
-          diagnostics: localConfig.diagnostics
-        }
-      }
-    };
-  }
-
-  const launcherProfile = isNonEmptyString(resolvedProfile?.profile_name)
-    ? getLauncherProfile(resolvedProfile.profile_name)
-    : null;
-  const profileModel = isNonEmptyString(resolvedProfile?.model)
-    ? resolvedProfile.model
-    : isNonEmptyString(resolvedProfile?.default_model)
-      ? resolvedProfile.default_model
-      : null;
-  const profileEffort = isNonEmptyString(launcherProfile?.planner_default_effort)
-    ? launcherProfile.planner_default_effort
-    : isNonEmptyString(resolvedProfile?.default_effort)
-      ? resolvedProfile.default_effort
-      : "default";
-
-  const sharedSettings = buildOrchestratorSettings({
-    appLabel: "Claude",
-    env: {
-      ORCHESTRATOR_EFFORT: localConfig.values.ORCHESTRATOR_EFFORT
-    },
-    localEffortKey: "ORCHESTRATOR_EFFORT",
-    profile: {
-      model: profileModel,
-      effort: profileEffort
-    },
-    profileEffortKey: "effort",
-    profileModelKey: "model",
-    repoName: path.basename(repo),
-    roleLabel: "orchestrator",
-    stateDirName: CLAUDE_ORCHESTRATOR_STATE_DIR_NAME,
-    subject: initiative
-  });
-
-  return {
-    localConfig,
-    settings: {
-      model: sharedSettings.model ?? null,
-      model_source: isNonEmptyString(resolvedProfile?.model_source)
-        ? resolvedProfile.model_source
-        : "profile_default",
-      effort: sharedSettings.effort ?? profileEffort,
-      effort_source: sharedSettings.effortSource === "local"
-        ? "repo_local_config"
-        : isNonEmptyString(launcherProfile?.planner_default_effort_source)
-          ? launcherProfile.planner_default_effort_source
-          : "profile_default",
-      threadName: sharedSettings.threadName,
-      thread_suffix: localConfig.normalized_thread_suffix
-    }
-  };
-}
-
-function buildClaudeOrchestratorMcpConfig({
-  repo,
-  mcpServerPath,
-  workspaceAlias,
-  workspaceDir,
-  responseStateDir,
-  endpointValue = null,
-  initiative,
-  threadName,
-  model,
-  effort
-} = {}) {
-
-  const wikiServerCommand = buildWikiMcpServerNodeCommand({ repo, serverPath: mcpServerPath });
-
-  const env = selectWikiMcpServerEnv({
-    workspaceAlias: isNonEmptyString(workspaceAlias) && CLAUDE_ORCHESTRATOR_WORKSPACE_ALIAS_PATTERN.test(workspaceAlias)
-      ? workspaceAlias
-      : null,
-    workspaceDir,
-    responseStateDir,
-    endpointEnvVar: HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR,
-    endpointValue
-  });
-  env[WIKI_MCP_TOOL_PROFILE_ENV_VAR] = "agent-safe";
-
-  return {
-    schema_version: CLAUDE_ORCHESTRATOR_MCP_CONFIG_SCHEMA_VERSION,
-    orchestrator: {
-      app: "claude",
-      initiative,
-      thread_name: threadName,
-      repo,
-      model,
-      effort
-    },
-    mcpServers: {
-      wiki: {
-        command: wikiServerCommand.command,
-        args: wikiServerCommand.args,
-        env
-      }
-    }
-  };
+  return renderLauncherFamilyOrchestratorPrompt({ appName: "Claude", renameHintLabel: "Claude", initiative, threadName, focus, headless });
 }
 
 export async function buildClaudeOrchestratorPlan({
@@ -286,11 +216,17 @@ export async function buildClaudeOrchestratorPlan({
   cwd = process.cwd(),
   resolvedProfile = null,
   resolveWikiMcpServer = resolveWikiMcpServerPath,
-  probeBwrapAvailability = probeOrchestratorBwrapAvailability
+  probeBwrapAvailability = probeOrchestratorBwrapAvailability,
+
+  headless = false,
+  logFile = null,
+  dispatchWorktreeRoot = null,
+  mintNativePermissionSettings = mintLauncherOwnedClaudeNativePermissionSettings
 } = {}) {
   if (role !== "orch" && role !== "orch-resume") {
     throw new Error(`buildClaudeOrchestratorPlan only supports orch/orch-resume (got ${role})`);
   }
+  const isHeadless = headless === true && role !== "orch-resume";
   if (!isNonEmptyString(initiative) || !/^IN-[0-9]+$/.test(initiative)) {
     throw new Error(`claude-orchestrator: expected initiative id like IN-0004, got: ${initiative}`);
   }
@@ -318,7 +254,13 @@ export async function buildClaudeOrchestratorPlan({
   });
   const title = await titleFromPage(initiativePath);
 
-  const localSettings = resolveClaudeOrchestratorLocalSettings({ repo, initiative, resolvedProfile });
+  const localSettings = resolveClaudeOrchestratorLocalSettings({
+    repo,
+    initiative,
+    resolvedProfile,
+    localConfigRefusalReason: CLAUDE_ORCHESTRATOR_LOCAL_CONFIG_REFUSAL_REASON,
+    stateDirName: CLAUDE_ORCHESTRATOR_STATE_DIR_NAME
+  });
   if (localSettings.refusal) {
     return makeRefusal(
       localSettings.refusal.code,
@@ -344,7 +286,8 @@ export async function buildClaudeOrchestratorPlan({
     : buildClaudeOrchestratorPrompt({
         initiative,
         threadName,
-        focus: promptArgs.join(" ")
+        focus: promptArgs.join(" "),
+        headless: isHeadless
       });
   const mcpConfigPath = path.join(runtimeDir, "mcp-config.json");
   const mcpConfigBase = buildClaudeOrchestratorMcpConfig({
@@ -352,6 +295,7 @@ export async function buildClaudeOrchestratorPlan({
     mcpServerPath,
     workspaceAlias,
     workspaceDir,
+    dispatchWorktreeRoot,
     responseStateDir,
     initiative,
     threadName,
@@ -370,7 +314,7 @@ export async function buildClaudeOrchestratorPlan({
     [WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR]: responseStateDir,
     WIKI_MCP_WORKSPACE_DIR: workspaceDir
   };
-  if (isNonEmptyString(workspaceAlias) && CLAUDE_ORCHESTRATOR_WORKSPACE_ALIAS_PATTERN.test(workspaceAlias)) {
+  if (isValidClaudeOrchestratorWorkspaceAlias(workspaceAlias)) {
     orchEnv.WIKI_MCP_WORKSPACE_ALIAS = workspaceAlias;
   } else {
     delete orchEnv.WIKI_MCP_WORKSPACE_ALIAS;
@@ -388,6 +332,31 @@ export async function buildClaudeOrchestratorPlan({
     throw new Error("claude-orchestrator: shared launcher write-posture did not return coordination-write posture");
   }
 
+  const headlessSettings = isHeadless
+    ? buildClaudeOrchestratorHeadlessPermissionSettings()
+    : null;
+  const headlessSettingsPath = isHeadless
+    ? projectedClaudeOrchestratorHeadlessSettingsPath(runtimeDir)
+    : null;
+  if (
+    isHeadless &&
+    mintNativePermissionSettings !== mintLauncherOwnedClaudeNativePermissionSettings
+  ) {
+    const availability = await mintNativePermissionSettings({
+      workspaceDir: repo,
+      writeScope: [],
+      env,
+      buildSettings: () => buildClaudeOrchestratorHeadlessPermissionSettings()
+    });
+    if (availability && availability.ok === false) {
+      return makeRefusal(
+        availability.code ?? CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
+        availability.reason ?? "launcher could not mint Claude headless orchestrator native-permission settings",
+        availability.detail ?? null
+      );
+    }
+  }
+
   const args = [
     "--permission-mode",
     "default",
@@ -397,6 +366,10 @@ export async function buildClaudeOrchestratorPlan({
     mcpConfigPath,
     "--strict-mcp-config"
   ];
+
+  if (isHeadless) {
+    args.push("--print", "--settings", headlessSettingsPath);
+  }
   if (isNonEmptyString(model)) {
     args.push("--model", model);
   }
@@ -410,16 +383,37 @@ export async function buildClaudeOrchestratorPlan({
     probeBwrapAvailability({ env: orchEnv })
   );
 
+  let headlessLogTarget = null;
+  if (isHeadless) {
+    try {
+      headlessLogTarget = resolveHeadlessLogTarget({
+        runtimeDir,
+        logFileOverride: logFile,
+        isolationMode: isolation.mode
+      });
+    } catch (error) {
+      if (error instanceof HeadlessDirectModeError) {
+        return makeRefusal(error.code, error.reason, { isolation_mode: isolation.mode });
+      }
+      throw error;
+    }
+  }
+
   return {
     schema_version: CLAUDE_ORCHESTRATOR_PLAN_SCHEMA_VERSION,
     planner_kind: "claude_orchestrator",
-    mode: "interactive",
+    mode: isHeadless ? CLAUDE_ORCHESTRATOR_HEADLESS_MODE : "interactive",
     role,
     subject: initiative,
     repo,
     repo_name: repoName,
     runtimeDir,
+    dispatchWorktreeRoot,
     isolation,
+    headless: isHeadless,
+    headlessLogTarget,
+    headlessSettings,
+    headlessSettingsPath,
     threadName,
     title,
     command: "claude",
@@ -458,6 +452,10 @@ function publicClaudeOrchestratorPlan(plan) {
     runtime_dir: plan.runtimeDir,
 
     isolation: plan.isolation,
+
+    headless: plan.headless === true,
+    headless_log_target: plan.headlessLogTarget ?? null,
+    headless_settings: plan.headlessSettings ?? null,
     thread_name: plan.threadName,
     title: plan.title,
     command: plan.command,
@@ -483,6 +481,7 @@ function writeClaudeOrchestratorMcpConfig(plan, endpointValue = null) {
     mcpServerPath: plan.mcpServerPath,
     workspaceAlias: plan.env.WIKI_MCP_WORKSPACE_ALIAS ?? null,
     workspaceDir: plan.env.WIKI_MCP_WORKSPACE_DIR,
+    dispatchWorktreeRoot: plan.dispatchWorktreeRoot,
     responseStateDir: plan.env.WIKI_MCP_RESPONSE_STATE_DIR,
     endpointValue,
     initiative: plan.subject,
@@ -606,6 +605,27 @@ export function buildClaudeOrchestratorLaunchPlan({
   });
 }
 
+export function buildClaudeOrchestratorHeadlessLaunchPlan({
+  plan,
+  resolveExecutable = resolveFamilyRuntimeExecutable,
+  launcherOwnedHostHome = null,
+  resolveClaudeRuntimeFacts = resolveLauncherOwnedClaudeRuntimeFacts,
+  probeBwrapAvailability = probeOrchestratorBwrapAvailability
+} = {}) {
+  const probe = probeBwrapAvailability({ env: plan.env ?? process.env });
+  if (probe.available !== true) {
+    throw new HeadlessDirectModeError();
+  }
+  return buildHeadlessOrchestratorBwrapPlan(
+    claudeOrchestratorIsolationProfile({
+      plan,
+      resolveExecutable,
+      launcherOwnedHostHome,
+      resolveClaudeRuntimeFacts
+    })
+  );
+}
+
 function buildClaudeOrchestratorIsolationSummary(availability) {
   const direct = availability?.available !== true;
   return {
@@ -622,6 +642,16 @@ function buildClaudeOrchestratorIsolationSummary(availability) {
 }
 
 function spawnClaudeOrchestratorChild({ plan, io = {} }) {
+
+  if (plan.headless === true) {
+    const headlessLaunchPlan = buildClaudeOrchestratorHeadlessLaunchPlan({ plan });
+    const opened = openHeadlessStdio(plan.headlessLogTarget);
+    try {
+      return spawnIsolated(headlessLaunchPlan, { stdio: opened.stdio });
+    } finally {
+      opened.close();
+    }
+  }
   const launchPlan = buildClaudeOrchestratorLaunchPlan({ plan });
   if (launchPlan.isolationMode === ORCHESTRATOR_ISOLATION_MODES.DIRECT) {
     writeStderr(io.stderr, `${launchPlan.warning}\n`);
@@ -634,7 +664,11 @@ function spawnClaudeOrchestratorChild({ plan, io = {} }) {
   return spawnIsolated(launchPlan, { stdio: ORCHESTRATOR_INTERACTIVE_STDIO });
 }
 
-async function runClaudeOrchestratorCommand(plan, io = {}) {
+async function runClaudeOrchestratorCommand(plan, io = {}, {
+  verifyNativePermissionEnforcement = probeClaudeNativePermissionEnforcement,
+  mintNativePermissionSettings = mintLauncherOwnedClaudeNativePermissionSettings,
+  resolveClaudeRuntimeFacts = resolveLauncherOwnedClaudeRuntimeFacts
+} = {}) {
   if (plan.mode === "refusal") {
     const refusal = {
       schema_version: CLAUDE_ORCHESTRATOR_PLAN_SCHEMA_VERSION,
@@ -646,19 +680,79 @@ async function runClaudeOrchestratorCommand(plan, io = {}) {
     return refusal;
   }
 
+  let launchPlan = plan;
+  if (plan.headless === true) {
+    const settingsRuntimeDir = path.join(
+      plan.runtimeDir,
+      CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_RUNTIME_DIR
+    );
+    const minted = await mintNativePermissionSettings({
+      workspaceDir: plan.repo,
+      writeScope: [],
+      env: {
+        ...plan.env,
+        AGENT_LAUNCH_RUNTIME_STATE_DIR: settingsRuntimeDir
+      },
+      buildSettings: () => buildClaudeOrchestratorHeadlessPermissionSettings()
+    });
+    if (
+      !minted ||
+      minted.ok !== true ||
+      typeof minted.settingsPath !== "string" ||
+      minted.settingsPath.length === 0
+    ) {
+      const reason = minted?.code ?? CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON;
+      writeStderr(
+        io.stderr,
+        `claude orchestrator: ${minted?.reason ?? "launcher could not mint Claude headless orchestrator native-permission settings"}\n`
+      );
+      process.exitCode = 1;
+      return {
+        status: "failed",
+        exitCode: 1,
+        signal: null,
+        refusal: { code: reason, detail: minted?.detail ?? null }
+      };
+    }
+    launchPlan = {
+      ...plan,
+      args: withClaudeOrchestratorHeadlessSettingsPath(plan.args, minted.settingsPath),
+      headlessSettings: minted.settings ?? buildClaudeOrchestratorHeadlessPermissionSettings(),
+      headlessSettingsPath: minted.settingsPath
+    };
+
+    const factsResult = resolveClaudeRuntimeFacts({});
+    const claudePath = factsResult?.ok === true ? factsResult.facts.symlink : null;
+    const enforcementProof = await verifyNativePermissionEnforcement({
+      claudePath,
+      env: launchPlan.env
+    });
+    if (!enforcementProof || enforcementProof.ok !== true) {
+      const reason = enforcementProof?.reason ?? CLAUDE_NATIVE_PERMISSION_PROBE_UNPROVEN_REASON;
+      writeStderr(io.stderr, `claude orchestrator: ${reason}\n`);
+      process.exitCode = 1;
+      return {
+        status: "failed",
+        exitCode: 1,
+        signal: null,
+        refusal: { code: reason, detail: enforcementProof?.detail ?? enforcementProof?.checks ?? null }
+      };
+    }
+  }
+
   const sidecarHandle = await startOrchestratorDispatchSidecar({
-    plan,
+    plan: launchPlan,
     io,
     adapter: createClaudeOrchestratorDispatchSidecarAdapter()
   });
 
   try {
-    await writeJsonAtomic(plan.mcpConfigPath, plan.mcpConfig);
+    await writeJsonAtomic(launchPlan.mcpConfigPath, launchPlan.mcpConfig);
 
     const outcome = await superviseInteractiveOrchestratorLaunch({
-      runtimeDir: plan.runtimeDir,
-      descriptor: claudeOrchestratorSessionDescriptor(plan),
-      spawnChild: () => spawnClaudeOrchestratorChild({ plan, io })
+      runtimeDir: launchPlan.runtimeDir,
+      descriptor: claudeOrchestratorSessionDescriptor(launchPlan),
+      spawnChild: () => spawnClaudeOrchestratorChild({ plan: launchPlan, io })
     });
 
     if (outcome.status !== "succeeded") {
@@ -677,7 +771,7 @@ async function runClaudeOrchestratorCommand(plan, io = {}) {
     try {
       await sidecarHandle?.stop();
     } finally {
-      await writeJsonAtomic(plan.mcpConfigPath, plan.mcpConfigBase).catch(() => {});
+      await writeJsonAtomic(launchPlan.mcpConfigPath, launchPlan.mcpConfigBase).catch(() => {});
     }
   }
 }
@@ -691,7 +785,12 @@ export async function runClaudeOrchestrator({
   resolvedProfile = null,
   io = {},
   dryRunJson = false,
-  probeBwrapAvailability = probeOrchestratorBwrapAvailability
+
+  headless = false,
+  logFile = null,
+  probeBwrapAvailability = probeOrchestratorBwrapAvailability,
+  mintNativePermissionSettings = mintLauncherOwnedClaudeNativePermissionSettings,
+  verifyNativePermissionEnforcement = probeClaudeNativePermissionEnforcement
 } = {}) {
   const plan = await buildClaudeOrchestratorPlan({
     role,
@@ -700,7 +799,10 @@ export async function runClaudeOrchestrator({
     env,
     cwd,
     resolvedProfile,
-    probeBwrapAvailability
+    probeBwrapAvailability,
+    headless,
+    logFile,
+    mintNativePermissionSettings
   });
 
   if (plan.mode === "refusal") {
@@ -723,7 +825,10 @@ export async function runClaudeOrchestrator({
     return plan;
   }
 
-  return runClaudeOrchestratorCommand(plan, io);
+  return runClaudeOrchestratorCommand(plan, io, {
+    verifyNativePermissionEnforcement,
+    mintNativePermissionSettings
+  });
 }
 
 export async function runClaudeOrchestratorResume({

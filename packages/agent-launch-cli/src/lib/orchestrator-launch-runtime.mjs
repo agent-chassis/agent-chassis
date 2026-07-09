@@ -3,6 +3,7 @@
 import path from "node:path";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
+import { openSync, closeSync } from "node:fs";
 
 import {
   fileExists,
@@ -15,6 +16,8 @@ import {
   isTerminalRuntimeState
 } from "./workspace-agent-launch-adapter-contract.mjs";
 
+import { ORCHESTRATOR_ISOLATION_MODES } from "./orchestrator-launch-isolation.mjs";
+
 export const ORCHESTRATOR_LAUNCH_RUNTIME_SCHEMA_VERSION =
   "orchestrator-launch-runtime.v1";
 
@@ -23,6 +26,25 @@ export const ORCHESTRATOR_SESSION_STATE_FILE_NAME = "session.json";
 export const ORCHESTRATOR_FORWARDED_SIGNALS = Object.freeze(["SIGINT", "SIGTERM"]);
 
 export const ORCHESTRATOR_INTERACTIVE_STDIO = "inherit";
+
+export const ORCHESTRATOR_HEADLESS_LOG_FILE_NAME = "orchestrator-headless.log";
+
+export const HEADLESS_REQUIRES_BUBBLEWRAP_REASON =
+  "headless orchestrator launch requires bubblewrap isolation; the DEC-0060 " +
+  "direct (non-bwrap) operator mode is not supported under --headless";
+
+export class HeadlessDirectModeError extends Error {
+  constructor(reason = HEADLESS_REQUIRES_BUBBLEWRAP_REASON) {
+    super(reason);
+    this.name = "HeadlessDirectModeError";
+    this.code = "HEADLESS_DIRECT_MODE_UNSUPPORTED";
+    this.reason = reason;
+  }
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.length > 0;
+}
 
 export const ORCHESTRATOR_LEGACY_TERMINAL_STATE = "completed";
 export const ORCHESTRATOR_RESUMABLE_RUNTIME_STATES = Object.freeze([
@@ -167,6 +189,7 @@ export async function spawnOrchestratorAndWait({
   bwrapPlan,
   spawnLaunch,
   spawnOptions = {},
+  stdio = ORCHESTRATOR_INTERACTIVE_STDIO,
   signals = ORCHESTRATOR_FORWARDED_SIGNALS
 } = {}) {
   if (typeof spawnLaunch !== "function") {
@@ -183,9 +206,45 @@ export async function spawnOrchestratorAndWait({
     spawnChild: () =>
       spawnLaunch(bwrapPlan, {
         ...spawnOptions,
-        stdio: ORCHESTRATOR_INTERACTIVE_STDIO
+        stdio
       })
   });
+}
+
+export function resolveHeadlessLogTarget({
+  runtimeDir,
+  logFileOverride = null,
+  isolationMode = ORCHESTRATOR_ISOLATION_MODES.BUBBLEWRAP
+} = {}) {
+  if (isolationMode === ORCHESTRATOR_ISOLATION_MODES.DIRECT) {
+    throw new HeadlessDirectModeError();
+  }
+  if (!isNonEmptyString(runtimeDir)) {
+    throw new TypeError("resolveHeadlessLogTarget requires a runtimeDir string");
+  }
+  const logPath = isNonEmptyString(logFileOverride)
+    ? path.resolve(logFileOverride)
+    : path.join(runtimeDir, ORCHESTRATOR_HEADLESS_LOG_FILE_NAME);
+  return { logPath, tty: false };
+}
+
+export function openHeadlessStdio(target) {
+  const logPath = typeof target === "string" ? target : target?.logPath;
+  if (!isNonEmptyString(logPath)) {
+    throw new TypeError("openHeadlessStdio requires a resolved headless log path");
+  }
+  const fd = openSync(logPath, "a");
+  return {
+    logPath,
+    stdio: ["ignore", fd, fd],
+    close() {
+      try {
+        closeSync(fd);
+      } catch {
+
+      }
+    }
+  };
 }
 
 export { isTerminalRuntimeState };

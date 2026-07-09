@@ -1,8 +1,6 @@
 
 
 import path from "node:path";
-import { realpathSync } from "node:fs";
-import { createHash } from "node:crypto";
 import {
   mkdir,
   mkdtemp
@@ -15,7 +13,7 @@ import { resolveAgentRoleResultSchemaPath } from "@agent-chassis/agent-launch-co
 import {
   TERMINAL_STRUCTURED_ROLE_RESULT_MODES
 } from "@agent-chassis/agent-launch-core/src/lib/work-record-launch-prompt.mjs";
-import { loadWorkRecordById, validateWorkRecordDispatchById } from "@agent-chassis/wiki-core";
+import { validateWorkRecordDispatchById } from "@agent-chassis/wiki-core";
 import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 import {
@@ -29,17 +27,13 @@ import {
   applyGraphImpactBridge
 } from "./graph-impact-bridge.mjs";
 import {
-  FAST_PROFILE_REFUSAL_DIAGNOSTIC,
-  neutralEffortMapping,
-  resolveEffectiveRoleEffort
+  FAST_PROFILE_REFUSAL_DIAGNOSTIC
 } from "./agent-launch-profiles.mjs";
-import { buildBubblewrapLaunchPlan } from "./launch-isolation.mjs";
 import { HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR } from "./host-write-authority-substrate.mjs";
 import { assembleRoleIsolationInputs } from "./workspace-agent-launch-core.mjs";
 import {
   assertFile,
-  isDirectory,
-  isNonEmptyStringInternal
+  isDirectory
 } from "./codex-role-io.mjs";
 
 import {
@@ -66,6 +60,8 @@ import {
 import {
   buildOrchestratorThreadName
 } from "./orchestrator-launch-settings.mjs";
+
+import { resolveHeadlessLogTarget } from "./orchestrator-launch-runtime.mjs";
 import {
   CODEX_WIKI_MCP_SERVER_NAME,
   buildCodexWorkerWikiMcpEnvOverrides,
@@ -76,7 +72,6 @@ import {
 import {
   buildCodexWikiMcpServerOverrides
 } from "./codex-role-wiki-mcp-override.mjs";
-import { CODEX_BWRAP_ENV_POLICY } from "./codex-role-isolation.mjs";
 import {
   buildOrchestratorMcpSandboxProfileRequest
 } from "./mcp-sandbox-profile.mjs";
@@ -86,7 +81,32 @@ import {
   resolveLauncherRoleWritePosture
 } from "./workspace-agent-family-policy.mjs";
 import { gateRoleWriteScope } from "./workspace-agent-launch-adapter-contract.mjs";
+import { buildBubblewrapLaunchPlan } from "./launch-isolation.mjs";
+import { CODEX_BWRAP_ENV_POLICY } from "./codex-role-isolation.mjs";
 import { buildWorkerSecretMaskInputs } from "./workspace-agent-family-bwrap-plan.mjs";
+
+import {
+  codexArgsWithSandboxRepoRealpath,
+  envToSetenvMap,
+  extractRepoInternalAddDirRoots,
+  isCodexOrchestratorRole
+} from "./codex-role-sandbox-args.mjs";
+import {
+  buildCodexReasoningEffortConfigOverrides,
+  codexModelArgs
+} from "./codex-role-reasoning-effort.mjs";
+export {
+  buildCodexReasoningEffortConfigOverrides
+} from "./codex-role-reasoning-effort.mjs";
+import {
+  buildCodexFactResolutionRefusalPlan,
+  isCodexFactResolutionRefusal
+} from "./codex-role-fact-refusal.mjs";
+import {
+  buildReadOnlyRolePreparationAudit,
+  classifyReadOnlySubject,
+  loadReviewerSubjectScope
+} from "./codex-role-read-only-support.mjs";
 
 export const CODEX_ROLE_ISOLATION_SCHEMA_VERSION = "codex-role-isolation.v1";
 export const CODEX_ROLE_ISOLATION_FAIL_CLOSED_MODE = "bubblewrap";
@@ -94,10 +114,6 @@ export const CODEX_ROLE_ISOLATION_FAIL_CLOSED_MODE = "bubblewrap";
 export const CODEX_ROLE_FAST_REFUSAL_DIAGNOSTIC = FAST_PROFILE_REFUSAL_DIAGNOSTIC;
 
 export const CODEX_ROLE_FAST_REFUSAL_GATE_CODE = "wrapper.role.worker_fast_decommissioned.v1";
-
-function isCodexOrchestratorRole(role) {
-  return role === "orch" || role === "orch-resume";
-}
 
 function resolveCodexScopeMountWritePosture(role) {
   const resolved = resolveLauncherRoleWritePosture({
@@ -198,91 +214,6 @@ export function buildCodexRoleIsolationInputs({
   });
 }
 
-function isCodexFactResolutionRefusal(value) {
-  return value && typeof value === "object" && value.ok === false && typeof value.reason === "string";
-}
-
-function buildCodexFactResolutionRefusalPlan({
-  role,
-  subject,
-  repo,
-  env,
-  result
-}) {
-  const reason = result?.reason ?? "launcher_runtime_home_fact_unresolvable";
-  const detail = result?.detail ?? null;
-  return {
-    mode: "refusal",
-    role,
-    subject,
-    repo,
-    command: "codex",
-    args: [],
-    env,
-    refusal: {
-      wrapper_gate_code: reason,
-      allowed: false,
-      role,
-      unit_address: typeof subject === "string" ? subject : null,
-      expected_unit_address: typeof subject === "string" ? subject : null,
-      diagnostics: [
-        {
-          code: reason,
-          message: `codex-${role}: could not resolve Codex source home`,
-          path: "runtime.codex_source_home",
-          reason,
-          detail
-        }
-      ],
-      readiness: null,
-      worker_admission: null,
-      dependency_evidence: null
-    }
-  };
-}
-
-function extractRepoInternalAddDirRoots(argv, repo) {
-  if (!Array.isArray(argv) || !isNonEmptyStringInternal(repo)) return [];
-  const repoPrefix = repo.endsWith(path.sep) ? repo : repo + path.sep;
-  const out = [];
-  const seen = new Set();
-  for (let i = 0; i < argv.length - 1; i += 1) {
-    if (argv[i] !== "--add-dir") continue;
-    const v = argv[i + 1];
-    if (typeof v !== "string" || !path.isAbsolute(v)) continue;
-    if (v !== repo && !v.startsWith(repoPrefix)) continue;
-    if (seen.has(v)) continue;
-    seen.add(v);
-    out.push(v);
-  }
-  return out;
-}
-
-function envToSetenvMap(env) {
-  const out = {};
-  if (!env || typeof env !== "object") return out;
-  for (const [k, v] of Object.entries(env)) {
-    if (typeof v === "string") out[k] = v;
-  }
-  return out;
-}
-
-function codexArgsWithSandboxRepoRealpath(args, repo) {
-  if (!Array.isArray(args)) return args;
-  let repoReal;
-  try {
-    repoReal = realpathSync(repo);
-  } catch {
-    return args;
-  }
-  return args.map((arg, idx) => {
-    if (arg === repo && args[idx - 1] === "-C") {
-      return repoReal;
-    }
-    return arg;
-  });
-}
-
 export function stripNestedCodexSandboxArgs(args) {
   if (!Array.isArray(args)) return args;
   const out = [];
@@ -307,7 +238,8 @@ export function buildCodexRoleBubblewrapPlan(plan, {
   argsOverride = null,
   envOverride = null,
   cwdOverride = null,
-  envPolicy = plan?.mode === "interactive" ? null : CODEX_BWRAP_ENV_POLICY
+
+  envPolicy = isCodexOrchestratorRole(plan?.role) ? null : CODEX_BWRAP_ENV_POLICY
 } = {}) {
   if (!plan || plan.mode === "refusal" || !plan.isolation) {
     throw new Error(
@@ -323,6 +255,11 @@ export function buildCodexRoleBubblewrapPlan(plan, {
   const workerSecretMaskInputs = isCodexOrchestratorRole(plan.role)
     ? { readOnlyRoots: [], maskTmpfsDirs: [] }
     : buildWorkerSecretMaskInputs({ workspaceDir: plan.repo });
+  const serverProvisionedWorktreeGitIdentity = plan.provisionedWorktreeGitIdentity
+    ?? plan.provisionedWorktreeGitBinding
+    ?? plan.provisioned_worktree_git_identity
+    ?? plan.provisioned_worktree_git_binding
+    ?? null;
   return buildBubblewrapLaunchPlan({
     repo: plan.repo,
     command: childCommand,
@@ -339,6 +276,9 @@ export function buildCodexRoleBubblewrapPlan(plan, {
       ? [...plan.isolation.read_only_roots, ...workerSecretMaskInputs.readOnlyRoots]
       : [...workerSecretMaskInputs.readOnlyRoots],
     maskTmpfsDirs: [...workerSecretMaskInputs.maskTmpfsDirs],
+    ...(serverProvisionedWorktreeGitIdentity !== null
+      ? { provisionedWorktreeGitIdentity: serverProvisionedWorktreeGitIdentity }
+      : {}),
     homePolicy: plan.isolation.home_policy_reads.length > 0
       ? { reads: [...plan.isolation.home_policy_reads] }
       : null,
@@ -412,7 +352,7 @@ export function buildFastDecommissionedRefusalPlan({ role, subject, env = proces
   };
 }
 
-export async function buildOrchestratorPlan({ role, initiative, promptArgs, env, cwd, resolvedProfile = null }) {
+export async function buildOrchestratorPlan({ role, initiative, promptArgs, env, cwd, resolvedProfile = null, headless = false, logFile = null }) {
   assertId(initiative, /^IN-[0-9]+$/, "initiative id like IN-0004", role);
   const repo = await findRepoRoot(env.CODEX_ORCH_REPO || cwd);
   const initiativePath = path.join(repo, "wiki", "initiatives", `${initiative}.md`);
@@ -452,9 +392,12 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
     ? resolvedProfile.backend_profile_key
     : "orchestrator";
   const modelArgs = codexModelArgs(resolvedProfile);
+
+  const isHeadless = headless === true && role !== "orch-resume";
   const prompt = role === "orch-resume"
     ? null
-    : orchestratorPrompt({ initiative, threadName, focus: promptArgs.join(" ") });
+    : orchestratorPrompt({ initiative, threadName, focus: promptArgs.join(" "), headless: isHeadless });
+  const execSubcommandArgs = isHeadless ? ["exec", "--ignore-rules"] : [];
   const codexArgs = role === "orch-resume"
     ? [
         "--disable", "shell_snapshot",
@@ -472,6 +415,7 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
         ...sandboxArgs,
         ...approvalArgs,
         "-p", profile,
+        ...execSubcommandArgs,
         ...modelArgs,
         prompt
       ];
@@ -508,8 +452,12 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
 
     mcpServerName: CODEX_WIKI_MCP_SERVER_NAME
   };
+
+  const headlessLogTarget = isHeadless
+    ? resolveHeadlessLogTarget({ runtimeDir, logFileOverride: logFile })
+    : null;
   return {
-    mode: "interactive",
+    mode: isHeadless ? "orchestrator-headless" : "interactive",
     role,
     subject: initiative,
     repo,
@@ -518,7 +466,9 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
     args: codexArgs,
     env: orchEnv,
     isolation,
-    dispatchSidecar
+    dispatchSidecar,
+    headless: isHeadless,
+    headlessLogTarget
   };
 }
 
@@ -533,68 +483,6 @@ export function ensureRefusalDependencyEvidence(plan) {
   return plan;
 }
 
-function classifyReadOnlySubject(role, subject) {
-  if (typeof subject !== "string" || subject.length === 0) {
-    return {
-      ok: false,
-      error: `codex-${role}: subject is required (${role === "review"
-        ? "WK-#### or WK-#####slice-id"
-        : "WK-####, WK-#####slice-id, or IN-####"})`
-    };
-  }
-  if (subject.startsWith("WK-")) {
-    const parsed = parseWorkRecordUnitAddress(subject);
-    if (!parsed.ok) {
-      return {
-        ok: false,
-        error: `codex-${role}: invalid WK unit address ${subject}: ${(parsed.diagnostics?.[0]?.message) ?? "parse error"}`
-      };
-    }
-    return {
-      ok: true,
-      kind: "work_record",
-      unit_address: parsed.value.address,
-      record_id: parsed.value.record_id,
-      slice_id: parsed.value.slice_id
-    };
-  }
-  if (role === "redteam" && /^IN-[0-9]+$/.test(subject)) {
-    return { ok: true, kind: "initiative", subject };
-  }
-  const expected = role === "review"
-    ? "WK id like WK-0348 or WK-0348#slice-id"
-    : "subject id like WK-0348, WK-0348#slice-id, or IN-0004";
-  return { ok: false, error: `codex-${role}: expected ${expected}, got: ${subject}` };
-}
-
-function buildReadOnlyRolePreparationAudit({ role, profile, unitAddress, repoRoot, now }) {
-  const sourceDigests = [];
-  const unitDigest = computeReadOnlySha256Hex(unitAddress ?? "");
-  if (unitDigest) {
-    sourceDigests.push({ kind: "synthetic_wrapper_unit_address", ref: unitAddress, digest: `sha256:${unitDigest}` });
-  }
-  if (typeof repoRoot === "string" && repoRoot.length > 0) {
-    sourceDigests.push({
-      kind: "synthetic_wrapper_repo_root",
-      ref: repoRoot,
-      digest: `sha256:${computeReadOnlySha256Hex(repoRoot)}`
-    });
-  }
-  return {
-    required: false,
-    actor: {
-      kind: "tool",
-      id: `agent-chassis:codex-role:${role}:${profile ?? "default"}`
-    },
-    source_digests: sourceDigests,
-    evaluated_at: now
-  };
-}
-
-function computeReadOnlySha256Hex(value) {
-  return createHash("sha256").update(String(value)).digest("hex");
-}
-
 export async function buildReadOnlyPlan({
   role,
   subject,
@@ -604,6 +492,7 @@ export async function buildReadOnlyPlan({
   resolvedProfile = null,
   workspaceAlias = null,
   workspaceDir = null,
+  dispatchWorktreeRoot = null,
   acceptanceCriteria = [],
   acceptanceValidation = [],
   terminalStructuredRoleResultMode = undefined
@@ -764,6 +653,7 @@ export async function buildReadOnlyPlan({
     prompt,
     workspaceAlias,
     workspaceDir,
+    dispatchWorktreeRoot,
 
     terminalStructuredRoleResultMode
   });
@@ -789,33 +679,6 @@ export function enforceReviewerWriteScope(role, declaredWriteScope) {
     return [];
   }
   return Array.isArray(declaredWriteScope) ? declaredWriteScope : [];
-}
-
-async function loadReviewerSubjectScope({ repo, recordId, sliceId }) {
-  let loaded;
-  try {
-    loaded = await loadWorkRecordById({ dir: repo, id: recordId });
-  } catch {
-    return null;
-  }
-  if (!loaded || !loaded.record) {
-    return null;
-  }
-  const record = loaded.record;
-  const selectedSlice = sliceId && Array.isArray(record.slices)
-    ? record.slices.find((entry) => entry && entry.id === sliceId) || null
-    : null;
-  if (sliceId && !selectedSlice) {
-    return null;
-  }
-  const selectedUnit = selectedSlice ?? record;
-  return {
-    record_id: recordId,
-    slice_id: sliceId ?? null,
-    title: typeof selectedUnit.title === "string" ? selectedUnit.title : (record.title ?? null),
-    write_scope: Array.isArray(selectedUnit.write_scope) ? selectedUnit.write_scope : [],
-    repo_paths: Array.isArray(selectedUnit.repo_paths) ? selectedUnit.repo_paths : []
-  };
 }
 
 export function buildCodexReviewerWriteScopeRefusal({
@@ -876,40 +739,6 @@ export function buildCodexReviewerWriteScopeRefusal({
   };
 }
 
-function codexModelArgs(resolvedProfile) {
-  const model = typeof resolvedProfile?.model === "string" ? resolvedProfile.model.trim() : "";
-  return model.length > 0 ? ["-m", model] : [];
-}
-
-export function buildCodexReasoningEffortConfigOverrides({
-  role,
-  repo,
-  model
-} = {}) {
-  const selectedModel = typeof model === "string" && model.trim().length > 0
-    ? model.trim()
-    : null;
-  if (selectedModel === null && (typeof repo !== "string" || repo.length === 0)) {
-    return [];
-  }
-  const effortResolution = resolveEffectiveRoleEffort({
-    role,
-    selectedModel,
-    dir: repo
-  });
-  if (!effortResolution.ok) {
-    return [];
-  }
-  const mapped = neutralEffortMapping({
-    family: "codex",
-    effort: effortResolution.effort
-  });
-  const reasoningEffort = typeof mapped?.model_reasoning_effort === "string"
-    ? mapped.model_reasoning_effort
-    : null;
-  return reasoningEffort ? [`model_reasoning_effort=${reasoningEffort}`] : [];
-}
-
 export async function buildHeadlessPlan({
   role,
   subject,
@@ -924,6 +753,7 @@ export async function buildHeadlessPlan({
   writableFiles: explicitWritableFiles = null,
   workspaceAlias = null,
   workspaceDir = null,
+  dispatchWorktreeRoot = null,
   terminalStructuredRoleResultMode = undefined
 }) {
   const runtimeHomeResult = await setupCodexRuntimeHome({ env, repo, subject, role });
@@ -945,7 +775,8 @@ export async function buildHeadlessPlan({
       : [];
   const workspaceMcpEnvOverrides = buildCodexWorkspaceMcpEnvOverrides({
     workspaceAlias,
-    workspaceDir
+    workspaceDir,
+    dispatchWorktreeRoot
   });
   const writePosture = resolveCodexScopeMountWritePosture(role);
   const runDirBase = path.join(runtimeEnv.CODEX_HOME, "tmp");

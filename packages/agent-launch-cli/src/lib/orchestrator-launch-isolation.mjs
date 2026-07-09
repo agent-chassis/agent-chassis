@@ -77,7 +77,9 @@ export function probeOrchestratorBwrapAvailability({ env = process.env, bwrapPat
   }
 }
 
-export function buildInteractiveOrchestratorBwrapPlan({
+function buildOrchestratorBwrapPlanForPosture({
+  posture,
+  newSession,
   repo,
   command,
   args = [],
@@ -93,13 +95,13 @@ export function buildInteractiveOrchestratorBwrapPlan({
   if (!isNonEmptyString(repo)) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.REPO_INVALID,
-      `interactive orchestrator profile requires a repo path, got: ${typeof repo}`
+      `${posture} orchestrator profile requires a repo path, got: ${typeof repo}`
     );
   }
   if (!isNonEmptyString(runtimeDir)) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
-      `interactive orchestrator profile requires a runtimeDir path, got: ${typeof runtimeDir}`
+      `${posture} orchestrator profile requires a runtimeDir path, got: ${typeof runtimeDir}`
     );
   }
 
@@ -110,7 +112,7 @@ export function buildInteractiveOrchestratorBwrapPlan({
     pathEnv: resolverPathEnv,
     approvedRuntimePrefixes: familyRuntimePolicyProfile?.executablePrefixes,
     familyRuntimePolicyProfile,
-    label: "interactiveOrchestratorExecutable"
+    label: `${posture}OrchestratorExecutable`
   });
   const mergedFamilyRuntimeReadOnlyRoots = mergeFamilyRuntimeReadOnlyRoots(
     familyRuntimeReadOnlyRoots,
@@ -147,7 +149,7 @@ export function buildInteractiveOrchestratorBwrapPlan({
     familyRuntimePolicyProfile,
     shareNet: true,
 
-    newSession: false
+    newSession
   });
 
   return Object.freeze({
@@ -156,6 +158,22 @@ export function buildInteractiveOrchestratorBwrapPlan({
     isolation: buildOrchestratorIsolationMetadata({
       mode: ORCHESTRATOR_ISOLATION_MODES.BUBBLEWRAP
     })
+  });
+}
+
+export function buildInteractiveOrchestratorBwrapPlan(profile = {}) {
+  return buildOrchestratorBwrapPlanForPosture({
+    ...profile,
+    posture: "interactive",
+    newSession: false
+  });
+}
+
+export function buildHeadlessOrchestratorBwrapPlan(profile = {}) {
+  return buildOrchestratorBwrapPlanForPosture({
+    ...profile,
+    posture: "headless",
+    newSession: true
   });
 }
 

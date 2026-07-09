@@ -1,0 +1,182 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "mcp-coordination-tools.json",
+  "summary": "MCP initiative and integration status coordination tools.",
+  "tool_count": 2,
+  "tools": [
+    {
+      "tool_name": "workspace_initiative_status",
+      "display_name": "Workspace initiative status",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_initiative_status",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 115,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/initiative-status.md",
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-coordination-tools.json",
+        "packages/wiki-core/data/initiative-status-actions.v1.json",
+        "packages/wiki-core/src/operations/initiative-status.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Compact read-only initiative or selected-unit status and next-action lens. Requires initiative or unit; returns bounded action/status guidance and does not dispatch, mutate, lint, or read full records.",
+      "use_when": [
+        "initiative_status",
+        "initiative_next_action"
+      ],
+      "do_not_use_when": [
+        "selected_work_record_context after a unit is already chosen for detailed reading",
+        "dispatch_readiness for a selected launch unit",
+        "dispatch_role_call after readiness already returned dispatchable",
+        "run_monitoring"
+      ],
+      "authoritative_for": [
+        "initiative_status",
+        "initiative_next_action"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "initiative_status",
+          "initiative_next_action"
+        ],
+        "arguments": {
+          "initiative": "$known_IN",
+          "unit": "$known_WK_or_slice_unit"
+        },
+        "omit_null_arguments": true
+      },
+      "requires_prior_state": [
+        "known IN-* or WK-* or WK-*#SLICE-*"
+      ],
+      "replacement_for_misuse": [
+        {
+          "misuse_code": "search_used_for_status_aggregation",
+          "routing_intent": "initiative_status",
+          "use_instead": "workspace_initiative_status"
+        },
+        {
+          "misuse_code": "bulk_sampling_without_lens",
+          "routing_intent": "initiative_next_action",
+          "use_instead": "workspace_initiative_status"
+        },
+        {
+          "misuse_code": "ignored_required_next_action",
+          "routing_intent": "initiative_next_action",
+          "use_instead": "workspace_initiative_status"
+        }
+      ]
+    },
+    {
+      "tool_name": "workspace_integration_status",
+      "display_name": "Workspace integration status",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_integration_status",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 113,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "the project documentation",
+        "wiki/initiatives/IN-0021.md",
+        "wiki/work-records/WK-1442.json",
+        "wiki/work-records/WK-1443.json"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-coordination-tools.json",
+        "packages/wiki-mcp/src/lib/integration-status-tools.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Read-only local coordination status for an initiative integration branch. Accepts only server-resolved repo selection plus an initiative id, then reports expected integration/WK ref naming, related WK rows, and explicit unknown/not_available/not_evaluated local fact states. It does not dispatch, mutate records, merge branches, satisfy review policy, authorize promotion, or replace workspace_validate_dispatch or future promote-check tools.",
+      "use_when": [
+        "initiative integration branch coordination",
+        "branch/worktree local fact inventory for a known IN-*",
+        "pre-promote local status inspection before a dedicated promote-check exists"
+      ],
+      "do_not_use_when": [
+        "dispatch_readiness",
+        "dispatch_role_call",
+        "review-policy satisfaction",
+        "merge or promotion decision",
+        "work-record mutation"
+      ],
+      "authoritative_for": [
+        "read-only local integration coordination facts",
+        "expected integration/WK ref naming",
+        "explicit unknown/not_available/not_evaluated fact states"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "initiative integration branch coordination"
+        ],
+        "arguments": {
+          "initiative": "$known_IN"
+        },
+        "omit_null_arguments": true
+      },
+      "requires_prior_state": [
+        "known IN-*"
+      ],
+      "replacement_for_misuse": [
+        {
+          "misuse_code": "status_used_for_dispatch_readiness",
+          "routing_intent": "dispatch_readiness",
+          "use_instead": "workspace_validate_dispatch"
+        },
+        {
+          "misuse_code": "status_used_for_initiative_next_action",
+          "routing_intent": "initiative_next_action",
+          "use_instead": "workspace_initiative_status"
+        }
+      ]
+    }
+  ]
+}

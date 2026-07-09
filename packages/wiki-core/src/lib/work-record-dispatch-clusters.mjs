@@ -1,5 +1,8 @@
 
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import {
   clone,
   compareArrays,
@@ -9,7 +12,6 @@ import {
   getShimWrapperPackageAndBasename,
   isShimDelegatePathForWrapper,
   isShimTestPathForWrapper,
-  normalizeOperationShape,
   stringifyPathList,
   toNonNegativeInteger,
   uniqueBy
@@ -19,23 +21,20 @@ import {
   graphImpactHasUnavailableSubjectPath,
   graphImpactMatchesSubject
 } from "./work-record-dispatch-graph.mjs";
+import {
+  computeReviewedUnitSourceDigest,
+  validateReviewAttestation
+} from "./work-record-review-attestation.mjs";
+import {
+  computeAdmissionSidecarDigest,
+  findPersistedWorkerAdmissionEvidenceEntry,
+  normalizeAdmissionSidecarPath,
+  sidecarBindsToPersistedEntry
+} from "./work-record-admission-evidence-sidecar.mjs";
 
 const EXTRACTION_SPLICE_ALLOWED_TARGET_OPERATIONS = new Set(["create", "modify"]);
 const EXTRACTION_SPLICE_MAX_CHANGED_LINE_BUDGET = 200;
-const EXTRACTION_SPLICE_ALLOWED_OPERATION_SHAPES = new Set([
-  "behavior-preserving extraction splice",
-  "behavior-preserving extraction-splice",
-  "behavior-preserving extraction splices from tests/wiki-core.test.mjs",
-  "behavior-preserving extraction splice from tests/wiki-core.test.mjs into one or more focused tests/wiki-core-*.test.mjs destination files as needed by the concrete slice; every new test file must remain under 1200 physical loc; this initial slice is budgeted at 180 changed lines and must preserve assertion meaning."
-]);
-
-function isAuthorizedExtractionSpliceOperationShape(operationShape) {
-  const normalizedOperationShape = normalizeOperationShape(operationShape);
-  return (
-    normalizedOperationShape !== null &&
-    EXTRACTION_SPLICE_ALLOWED_OPERATION_SHAPES.has(normalizedOperationShape)
-  );
-}
+const EXTRACTION_SPLICE_REVIEW_ATTESTATION_CONTROL = "write_scope_total_loc";
 
 function isExpiredEscalation(escalation, now) {
   if (!isNonEmptyString(escalation?.expires_at)) {
@@ -279,27 +278,6 @@ function isCoordinationOnlyCluster(cluster) {
   );
 }
 
-function matchesExtractionSpliceAuthorityUnit(authorityUnit, unit) {
-  if (!isNonEmptyString(authorityUnit) || !isObject(unit) || !isNonEmptyString(unit.address)) {
-    return false;
-  }
-
-  if (authorityUnit === unit.address) {
-    return true;
-  }
-
-  if (unit.kind === "work_item" && authorityUnit === unit.record_id) {
-    return true;
-  }
-
-  if (!authorityUnit.endsWith("*")) {
-    return false;
-  }
-
-  const prefix = authorityUnit.slice(0, -1);
-  return prefix.length > 0 && unit.address.startsWith(prefix);
-}
-
 function normalizeExtractionSpliceTargets(subject) {
   const expectedTargets = Array.isArray(subject?.expected_edit_targets)
     ? subject.expected_edit_targets
@@ -356,52 +334,76 @@ function normalizeExtractionSpliceTargets(subject) {
   };
 }
 
-function collectExtractionSpliceAuthorities(record, subject, unit, now) {
-  const authorities = uniqueBy(
-    [
-      ...(Array.isArray(subject?.large_file_dec_authority) ? subject.large_file_dec_authority : []),
-      ...(subject !== record && Array.isArray(record?.large_file_dec_authority)
-        ? record.large_file_dec_authority
-        : [])
-    ],
-    (entry) =>
-      `${isNonEmptyString(entry?.authority_ref) ? entry.authority_ref.trim() : ""}|${isNonEmptyString(entry?.unit) ? entry.unit.trim() : ""}|${stringifyPathList(entry?.file_paths).join(",")}`
-  );
-
-  const matchedAuthorities = [];
-  for (const authority of authorities) {
-    if (!isObject(authority) || !isNonEmptyString(authority.status) || authority.status.trim() !== "accepted") {
-      continue;
-    }
-
-    const authorityUnit = isNonEmptyString(authority.unit) ? authority.unit.trim() : null;
-    if (!matchesExtractionSpliceAuthorityUnit(authorityUnit, unit)) {
-      continue;
-    }
-
-    if (!isAuthorizedExtractionSpliceOperationShape(authority.permitted_operation_shape)) {
-      continue;
-    }
-
-    const expiresAt = isNonEmptyString(authority.expires_at) ? Date.parse(authority.expires_at) : Number.NaN;
-    const current = Date.parse(now);
-    if (Number.isNaN(expiresAt) || Number.isNaN(current) || expiresAt <= current) {
-      continue;
-    }
-
-    const filePaths = stringifyPathList(authority.file_paths);
-    if (filePaths.length !== 1) {
-      continue;
-    }
-
-    matchedAuthorities.push({
-      ...clone(authority),
-      unit: authorityUnit,
-      file_paths: filePaths
-    });
+function resolveExtractionSpliceAdmissionEvidence(record, unit, sourceDigest, suppliedAdmissionEvidence) {
+  if (isObject(suppliedAdmissionEvidence)) {
+    return suppliedAdmissionEvidence;
   }
 
-  return matchedAuthorities;
+  const persistedEntry = findPersistedWorkerAdmissionEvidenceEntry(record, unit, sourceDigest);
+  if (!persistedEntry) {
+    return null;
+  }
+  if (isObject(persistedEntry.normalized_request)) {
+    return clone(persistedEntry);
+  }
+
+  const sidecarPath = normalizeAdmissionSidecarPath(persistedEntry.sidecar_path);
+  if (!sidecarPath || !isNonEmptyString(persistedEntry.sidecar_digest)) {
+    return null;
+  }
+
+  const sidecar = JSON.parse(readFileSync(path.resolve(process.cwd(), sidecarPath), "utf8"));
+
+  if (!sidecarBindsToPersistedEntry(sidecar, persistedEntry)) {
+    return null;
+  }
+  if (computeAdmissionSidecarDigest(sidecar) !== persistedEntry.sidecar_digest) {
+    return null;
+  }
+  return clone(sidecar);
+}
+
+function collectExtractionSpliceReviewAttestations(record, subject, unit, persistedAdmissionEvidence, now) {
+  const sourceDigest = computeReviewedUnitSourceDigest({ record, unit: subject });
+  const admissionEvidence = resolveExtractionSpliceAdmissionEvidence(
+    record,
+    unit,
+    sourceDigest,
+    persistedAdmissionEvidence
+  );
+  const attestations = uniqueBy(
+    Array.isArray(admissionEvidence?.normalized_request?.evidence?.review_attestations)
+      ? admissionEvidence.normalized_request.evidence.review_attestations
+      : [],
+    (entry) => (isNonEmptyString(entry?.attestation_id) ? entry.attestation_id.trim() : JSON.stringify(entry))
+  );
+
+  if (!isNonEmptyString(sourceDigest)) {
+    return [];
+  }
+
+  const matchedAttestations = [];
+  for (const attestation of attestations) {
+    if (!isObject(attestation)) {
+      continue;
+    }
+
+    const verdict = validateReviewAttestation(attestation, {
+      repo: record?.repo,
+      unit_address: unit?.address,
+      source_digest: sourceDigest,
+      required_role_class: attestation.reviewer_role_class,
+      required_controls: [EXTRACTION_SPLICE_REVIEW_ATTESTATION_CONTROL],
+      admitting_run_id: "extraction_splice_single_cluster.v1",
+      now
+    });
+
+    if (verdict?.valid === true) {
+      matchedAttestations.push(clone(attestation));
+    }
+  }
+
+  return matchedAttestations;
 }
 
 function graphImpactCoversExtractionSpliceTargets(graphImpact, subject, unit, targetPaths) {
@@ -431,7 +433,7 @@ function graphImpactCoversExtractionSpliceTargets(graphImpact, subject, unit, ta
   );
 }
 
-export function maybeCollapseExtractionSpliceClusters(policy, record, subject, unit, effectiveGraphState, graphImpact, now) {
+export function maybeCollapseExtractionSpliceClusters(policy, record, subject, unit, effectiveGraphState, graphImpact, persistedAdmissionEvidence, now) {
 
   if (!effectiveGraphState?.graph_available) {
     return policy;
@@ -448,25 +450,17 @@ export function maybeCollapseExtractionSpliceClusters(policy, record, subject, u
     return policy;
   }
 
-  const matchedAuthorities = collectExtractionSpliceAuthorities(record, subject, unit, now);
-  if (matchedAuthorities.length === 0) {
+  const matchedAttestations = collectExtractionSpliceReviewAttestations(record, subject, unit, persistedAdmissionEvidence, now);
+  if (matchedAttestations.length === 0) {
     return policy;
   }
 
-  const sourcePaths = stringifyPathList(
-    matchedAuthorities.flatMap((authority) => stringifyPathList(authority.file_paths))
-  );
-  if (sourcePaths.length !== 1) {
-    return policy;
-  }
-
-  const sourcePath = sourcePaths[0];
-  const sourceTargets = extractionTargets.targets.filter(
-    (target) => target.path === sourcePath && target.operation === "modify"
-  );
+  const sourceTargets = extractionTargets.targets.filter((target) => target.operation === "modify");
   if (sourceTargets.length !== 1) {
     return policy;
   }
+
+  const sourcePath = sourceTargets[0].path;
 
   const destinationTargets = extractionTargets.targets.filter((target) => target.path !== sourcePath);
   if (destinationTargets.length === 0) {
@@ -543,8 +537,8 @@ export function maybeCollapseExtractionSpliceClusters(policy, record, subject, u
         rule: "extraction_splice_single_cluster.v1",
         source_path: sourcePath,
         destination_paths: stringifyPathList(destinationTargets.map((target) => target.path)),
-        authority_refs: stringifyPathList(
-          matchedAuthorities.map((authority) => authority.authority_ref)
+        review_attestation_ids: stringifyPathList(
+          matchedAttestations.map((attestation) => attestation.attestation_id)
         ),
         expected_changed_line_budget: extractionTargets.expectedChangedLineBudget,
         graph_coverage: {

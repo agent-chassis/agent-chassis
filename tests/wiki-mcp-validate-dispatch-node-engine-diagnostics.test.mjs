@@ -12,6 +12,7 @@ import {
   NODE_ENGINE_ADMISSIBILITY_UNRATIFIED_DECISION_CODE
 } from "../packages/wiki-core/src/lib/work-record-dispatch.mjs";
 import { createCompactValidateDispatchResponse } from "../packages/wiki-mcp/src/lib/work-record-write-route-helpers.mjs";
+import { REGISTERED_TIER_FREE_LOCAL } from "../packages/wiki-mcp/src/lib/tool-profile.mjs";
 
 async function withTempRepo(fn) {
   const tempDir = await mkdtemp(path.join(tmpdir(), "agent-chassis-mcp-diagnostics-"));
@@ -1051,4 +1052,97 @@ test("fail-closed next_action is deterministic for a given diagnostic_code", () 
     })
   );
   assert.equal(first.next_action, second.next_action);
+});
+
+const FORBIDDEN_FREE_LOCAL_PAID_TOOL_SUBSTRINGS = Object.freeze([
+  "workspace_code_index_",
+  "workspace_work_record_refresh_target_resolution_evidence",
+  "workspace_record_graph_impact_evidence"
+]);
+
+const FREE_LOCAL_GENERIC_STRUCTURAL_DEFAULT = "Resolve structural dispatch-readiness issues reported in reasons";
+
+function syntheticFreeLocalStructuralReadiness(decisionCode) {
+  return {
+    record_id: "WK-9970",
+    unit: "WK-9970#SLICE-001",
+    dispatch_role: "implementation",
+    dispatchable: false,
+    decision_code: decisionCode,
+    reasons: [`structural dispatch-readiness gate (${decisionCode})`],
+    clusters: []
+  };
+}
+
+function assertNamesNoPaidTool(nextAction, label) {
+  for (const forbidden of FORBIDDEN_FREE_LOCAL_PAID_TOOL_SUBSTRINGS) {
+    assert.equal(
+      nextAction.includes(forbidden),
+      false,
+      `${label} free-local next_action must not name the paid MCP tool "${forbidden}"`
+    );
+  }
+}
+
+test("free-local missing_graph_impact next_action is the free-safe self-heal remedy naming no paid tool", () => {
+  const compact = createCompactValidateDispatchResponse(
+    WORKSPACE_REPO,
+    syntheticFreeLocalStructuralReadiness("missing_graph_impact"),
+    REGISTERED_TIER_FREE_LOCAL
+  );
+
+  assert.equal(typeof compact.next_action, "string");
+  assert.ok(compact.next_action.length > 0, "free-local missing_graph_impact next_action must be non-empty");
+
+  assert.notEqual(
+    compact.next_action,
+    FREE_LOCAL_GENERIC_STRUCTURAL_DEFAULT,
+    "free-local missing_graph_impact must be a directed remedy, not the generic structural default"
+  );
+
+  assert.ok(
+    compact.next_action.includes("workspace_validate_dispatch"),
+    "free-local missing_graph_impact must direct a re-run of the free workspace_validate_dispatch route"
+  );
+  assert.match(
+    compact.next_action,
+    /npm run wiki -- code-index build/,
+    "free-local missing_graph_impact must offer the free code-index CLI build path"
+  );
+  assert.match(compact.next_action, /graph/i, "free-local missing_graph_impact must reference the dependency graph");
+
+  assertNamesNoPaidTool(compact.next_action, "missing_graph_impact");
+
+  assert.ok(
+    !Object.prototype.hasOwnProperty.call(compact, "blast_radius_level"),
+    "free-local projection must not surface blast_radius_level"
+  );
+  assert.ok(
+    !Object.prototype.hasOwnProperty.call(compact, "cluster_count"),
+    "free-local projection must not surface cluster_count"
+  );
+  assert.ok(
+    !Object.prototype.hasOwnProperty.call(compact, "admissibility"),
+    "free-local projection must not surface a paid admissibility mirror"
+  );
+
+  assertNoSecretLeak(compact, "free-local missing_graph_impact");
+});
+
+test("free-local missing_target_resolution_evidence falls to the generic structural default (DEC-0125), naming no paid refresh tool", () => {
+  const compact = createCompactValidateDispatchResponse(
+    WORKSPACE_REPO,
+    syntheticFreeLocalStructuralReadiness("missing_target_resolution_evidence"),
+    REGISTERED_TIER_FREE_LOCAL
+  );
+
+  assert.equal(
+    compact.next_action,
+    FREE_LOCAL_GENERIC_STRUCTURAL_DEFAULT,
+    "free-local missing_target_resolution_evidence must route to the generic structural default"
+  );
+
+  assertNamesNoPaidTool(compact.next_action, "missing_target_resolution_evidence");
+
+  assertNoSecretLeak(compact, "free-local missing_target_resolution_evidence");
 });

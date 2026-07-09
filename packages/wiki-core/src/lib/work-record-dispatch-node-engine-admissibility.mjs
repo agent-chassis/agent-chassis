@@ -20,6 +20,8 @@ import {
   isObject
 } from "./work-record-dispatch-shared.mjs";
 
+import { BOUNDED_EXTRACTION_REFACTOR_PREDICATE } from "./work-record-admission-record-inputs.mjs";
+
 export const NODE_ENGINE_ADMISSIBILITY_UNDETERMINED_DECISION_CODE =
   "node_engine_admissibility_undetermined";
 export const NODE_ENGINE_ADMISSIBILITY_UNAVAILABLE_DECISION_CODE =
@@ -667,6 +669,43 @@ function validRatifiedCurrentDecisionRecovery(outcome) {
   return recovery?.projection_mode === "bounded_current_decision_recovery" ? recovery : null;
 }
 
+function synthesizeBoundedExtractionNeedsReviewRecovery() {
+  const predicate = BOUNDED_EXTRACTION_REFACTOR_PREDICATE;
+  const budget = predicate.expected_changed_line_budget;
+  const ops = predicate.operation_counts;
+  const nextAction =
+    "Reshape as a bounded large-file extraction refactor: " +
+    `exactly ${ops.modify.exactly} modify + >=${ops.create.min} create, ` +
+    `${ops.delete.exactly} delete, ${ops.inspect.exactly} inspect, ` +
+    `expected_changed_line_budget ${budget.min}-${budget.max}, ` +
+    `one >=${predicate.oversized_source_loc_min}-LOC source, ` +
+    "verifiable new destinations, validation covers source and destinations.";
+  return projectWorkerAdmissionRecoverySummary({
+    schema_version: WORKER_ADMISSION_RECOVERY_SCHEMA_VERSION,
+    projection_mode: "bounded_current_decision_recovery",
+    authority: WORKER_ADMISSION_RECOVERY_AUTHORITY,
+    requires_resubmission: true,
+    truncated: false,
+    actions: [
+      {
+        kind: "split_or_reduce_scope",
+        controls: ["expected_changed_line_budget", "expected_edit_targets"],
+        next_action: nextAction
+      }
+    ]
+  });
+}
+
+function resolveNeedsReviewEnumerableRecovery(outcome) {
+  if (isObject(outcome.recovery)) {
+    const packRecovery = projectWorkerAdmissionRecoverySummary(outcome.recovery);
+    return packRecovery?.projection_mode === "bounded_current_decision_recovery"
+      ? packRecovery
+      : null;
+  }
+  return synthesizeBoundedExtractionNeedsReviewRecovery();
+}
+
 export function interpretNodeEngineAdmissibility(packResult) {
   if (!isObject(packResult)) {
     return buildNodeEngineAdmissibilityOutcome(
@@ -815,8 +854,13 @@ export function foldNodeEngineAdmissibilityIntoReadiness(readiness, outcome) {
   const boundedReasons = outcome.status === "needs_review"
     ? projectBoundedPublicReasons(outcome.reasons)
     : outcome.reasons;
-  const primaryRecovery = validRatifiedCurrentDecisionRecovery(outcome);
-  const attachNeedsReviewRecovery = outcome.status === "needs_review";
+  const isNeedsReview = outcome.status === "needs_review";
+
+  const needsReviewRecovery = isNeedsReview ? resolveNeedsReviewEnumerableRecovery(outcome) : null;
+  const primaryRecovery = isNeedsReview
+    ? needsReviewRecovery
+    : validRatifiedCurrentDecisionRecovery(outcome);
+  const attachNeedsReviewRecovery = isNeedsReview;
   const admissibility = {
     evaluated: outcome.evaluated,
     authority: outcome.authority,

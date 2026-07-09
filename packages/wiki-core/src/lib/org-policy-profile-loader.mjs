@@ -5,6 +5,8 @@ import { computeNormalizedInputDigest } from './work-record-admission-shared.mjs
 
 const PACK_ID = 'worker_admission_v1';
 const PROFILE_SCHEMA_VERSION = 'worker_admission.policy_profile.v1';
+const DELIVERY_ENVELOPE_POLICY_PACK_ID = 'delivery_envelope_policy_v1';
+const DELIVERY_ENVELOPE_POLICY_SCHEMA_VERSION = 'delivery-envelope-policy-profile.v1';
 
 const CONTROL_SPECS = [
   { id: 'write_scope_count', deny: true },
@@ -21,6 +23,24 @@ const ALLOWED_WAIVER_ALLOWABILITY = new Set([
   'reviewer_attestation',
   'accepted_authority',
 ]);
+
+const DELIVERY_ENVELOPE_POLICY_METRICS = [
+  'changed_line_count',
+  'final_file_size',
+  'changed_file_count',
+  'scope_count',
+];
+
+const DELIVERY_ENVELOPE_POLICY_VALUE_KINDS = [
+  'tolerance',
+  'window',
+];
+
+const DELIVERY_ENVELOPE_POLICY_PARAMETER_VALUE_KEYS = new Set(
+  DELIVERY_ENVELOPE_POLICY_METRICS.flatMap((metric) =>
+    DELIVERY_ENVELOPE_POLICY_VALUE_KINDS.map((kind) => `${metric}.${kind}`),
+  ),
+);
 
 const PROFILE_CANDIDATE_FILENAMES = [
   'org-policy-profile.json',
@@ -171,7 +191,7 @@ function extractParameterValues(candidate) {
     throw schemaInvalid('org policy profile must expose parameter_values');
   }
 
-  if (keys.length !== 1) {
+  if (keys.some((key) => key !== 'parameter_values' && key !== 'delivery_envelope_policy')) {
     throw extraTopLevelKey('unexpected top-level key in org policy profile carrier');
   }
 
@@ -263,6 +283,49 @@ function validateControl(controlId, parameterValues) {
   }
 }
 
+function validateDeliveryEnvelopePolicy(candidate) {
+  if (candidate === undefined) {
+    return null;
+  }
+
+  if (!isPlainObject(candidate)) {
+    throw schemaInvalid('delivery_envelope_policy must be a plain object');
+  }
+
+  const keys = Object.keys(candidate);
+  if (!Object.hasOwn(candidate, 'schema_version')) {
+    throw schemaInvalid('delivery_envelope_policy must expose schema_version');
+  }
+  if (!Object.hasOwn(candidate, 'parameter_values')) {
+    throw schemaInvalid('delivery_envelope_policy must expose parameter_values');
+  }
+  if (keys.some((key) => key !== 'schema_version' && key !== 'parameter_values')) {
+    throw extraTopLevelKey('unexpected key in delivery_envelope_policy');
+  }
+  if (candidate.schema_version !== DELIVERY_ENVELOPE_POLICY_SCHEMA_VERSION) {
+    throw schemaInvalid('unsupported delivery_envelope_policy schema_version');
+  }
+  if (!isPlainObject(candidate.parameter_values)) {
+    throw schemaInvalid('delivery_envelope_policy.parameter_values must be a plain object');
+  }
+
+  validateStructuralBounds(candidate.parameter_values);
+
+  for (const [key, value] of Object.entries(candidate.parameter_values)) {
+    if (!DELIVERY_ENVELOPE_POLICY_PARAMETER_VALUE_KEYS.has(key)) {
+      throw schemaInvalid(`unknown delivery_envelope_policy parameter: ${key}`);
+    }
+    if (!isNonNegativeInteger(value)) {
+      throw schemaInvalid(`delivery_envelope_policy.${key} must be a non-negative integer`);
+    }
+  }
+
+  return {
+    schema_version: DELIVERY_ENVELOPE_POLICY_SCHEMA_VERSION,
+    parameter_values: candidate.parameter_values,
+  };
+}
+
 function validateStructuralBounds(value) {
   const state = {
     nodes: 0,
@@ -343,6 +406,7 @@ function validateProfile(candidate) {
   try {
     const parameterValues = extractParameterValues(candidate);
     validateStructuralBounds(parameterValues);
+    const deliveryEnvelopePolicy = validateDeliveryEnvelopePolicy(candidate.delivery_envelope_policy);
 
     if (!hasExpectedParameterValueKeys(parameterValues)) {
       throw schemaInvalid('org policy profile must contain exactly the expected parameter_values keys');
@@ -359,7 +423,21 @@ function validateProfile(candidate) {
       profile,
     });
 
-    return { status: 'profile', profile, digest };
+    if (!deliveryEnvelopePolicy) {
+      return { status: 'profile', profile, digest };
+    }
+
+    return {
+      status: 'profile',
+      profile,
+      digest,
+      delivery_envelope_policy: deliveryEnvelopePolicy,
+      delivery_envelope_policy_digest: computeNormalizedInputDigest({
+        pack_id: DELIVERY_ENVELOPE_POLICY_PACK_ID,
+        profile_schema_version: DELIVERY_ENVELOPE_POLICY_SCHEMA_VERSION,
+        profile: deliveryEnvelopePolicy,
+      }),
+    };
   } catch (error) {
     if (error?.message === 'over_structural_bound') {
       return failClosed('over_structural_bound');
@@ -419,6 +497,9 @@ const readOrgPolicyProfile = loadOrgPolicyProfile;
 export {
   ALLOWED_WAIVER_ALLOWABILITY,
   CONTROL_SPECS,
+  DELIVERY_ENVELOPE_POLICY_PACK_ID,
+  DELIVERY_ENVELOPE_POLICY_PARAMETER_VALUE_KEYS,
+  DELIVERY_ENVELOPE_POLICY_SCHEMA_VERSION,
   PACK_ID,
   PROFILE_SCHEMA_VERSION,
   loadOrgPolicyProfile,

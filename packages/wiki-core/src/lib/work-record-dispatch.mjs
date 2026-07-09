@@ -552,6 +552,7 @@ function buildReadinessFromRecord({
     unit,
     clusteringGraphState,
     graphImpact,
+    null,
     now
   );
 

@@ -203,7 +203,263 @@ test('runtime/operator blocked unit surfaces as a blocking next action', () => {
 
   assert.ok(blockedAction, 'expected an action for the blocked record');
   assert.equal(blockedAction.blocking, true);
+  assert.equal(kindOf(blockedAction), 'inspect');
+  assert.equal(blockedAction.suggested_tool, 'workspace_work_record_summary');
+  assert.equal(reasonCodeOf(blockedAction), 'record_needs_validation');
+});
 
+test('selected-unit runtime blocker evidence emits the grounded runtime reason code', () => {
+  const result = workspaceInitiativeStatus({
+    repoRoot,
+    records: [
+      {
+        id: 'WK-9700',
+        initiative: testInitiative,
+        status: 'active',
+        derived_evidence: [
+          {
+            target_unit: 'WK-9700',
+            runtime_blocker_code: 'read_only_mount',
+          },
+        ],
+      },
+    ],
+    unit: 'WK-9700',
+  });
+  const nextAction = result.next_action;
+
+  assert.equal(reasonCodeOf(nextAction), 'runtime_blocker_present');
+  assert.equal(kindOf(nextAction), 'resolve_runtime_blocker');
+  assert.equal(nextAction.suggested_tool, 'workspace_runtime_blocker_taxonomy');
+  assert.equal(nextAction.priority, 'critical');
+  assert.equal(nextAction.blocking, true);
+});
+
+test('selected-unit graph-required evidence emits the grounded graph reason code', () => {
+  const result = workspaceInitiativeStatus({
+    repoRoot,
+    records: [
+      {
+        id: 'WK-9710',
+        initiative: testInitiative,
+        status: 'active',
+        slices: [
+          {
+            id: 'SLICE-001',
+            work_kind: 'implementation',
+            status: 'todo',
+            dispatch_intent: { target_unit: 'slice', intended_agent_role: 'worker' },
+          },
+        ],
+        derived_evidence: [
+          {
+            target_unit: 'WK-9710#SLICE-001',
+            graph_impact: { required: true },
+          },
+        ],
+      },
+    ],
+    unit: 'WK-9710#SLICE-001',
+  });
+  const nextAction = result.next_action;
+
+  assert.equal(reasonCodeOf(nextAction), 'graph_impact_evidence_needed');
+  assert.equal(kindOf(nextAction), 'record_graph_impact_evidence');
+  assert.equal(nextAction.suggested_tool, 'workspace_record_graph_impact_evidence');
+  assert.equal(nextAction.blocking, true);
+});
+
+test('selected-unit stale admission metric evidence emits the grounded admission reason code', () => {
+  const result = workspaceInitiativeStatus({
+    repoRoot,
+    records: [
+      {
+        id: 'WK-9720',
+        initiative: testInitiative,
+        status: 'active',
+        derived_evidence: [
+          {
+            selected_unit: 'WK-9720',
+            admission_metrics: { freshness_state: 'stale' },
+          },
+        ],
+      },
+    ],
+    unit: 'WK-9720',
+  });
+  const nextAction = result.next_action;
+
+  assert.equal(reasonCodeOf(nextAction), 'admission_metrics_stale_or_missing');
+  assert.equal(kindOf(nextAction), 'refresh_admission_metrics');
+  assert.equal(nextAction.suggested_tool, 'workspace_work_record_refresh_admission_metrics');
+  assert.equal(nextAction.blocking, true);
+});
+
+test('ordinary blocked units without runtime taxonomy evidence stay ordinary blocked actions', () => {
+  const result = workspaceInitiativeStatus({
+    repoRoot,
+    records: [
+      {
+        id: 'WK-9730',
+        initiative: testInitiative,
+        status: 'blocked',
+        blockers: ['Waiting on coordinator scope decision.'],
+      },
+    ],
+    unit: 'WK-9730',
+  });
+  const nextAction = result.next_action;
+
+  assert.equal(reasonCodeOf(nextAction), 'record_needs_validation');
+  assert.equal(kindOf(nextAction), 'inspect');
+  assert.equal(nextAction.suggested_tool, 'workspace_work_record_summary');
+  assert.equal(nextAction.blocking, true);
+});
+
+test('derived evidence is selected-unit aware for sibling slice evidence', () => {
+  const result = workspaceInitiativeStatus({
+    repoRoot,
+    records: [
+      {
+        id: 'WK-9740',
+        initiative: testInitiative,
+        status: 'active',
+        slices: [
+          { id: 'SLICE-001', work_kind: 'implementation', status: 'todo' },
+          { id: 'SLICE-002', work_kind: 'implementation', status: 'todo' },
+        ],
+        derived_evidence: [
+          {
+            target_unit: 'WK-9740#SLICE-002',
+            runtime_blocker_code: 'read_only_mount',
+            graph_impact: { required: true },
+            missing_metrics: ['artifact_kind_metadata'],
+          },
+        ],
+      },
+    ],
+    unit: 'WK-9740#SLICE-001',
+  });
+  const nextAction = result.next_action;
+
+  assert.equal(reasonCodeOf(nextAction), 'record_needs_validation');
+  assert.equal(kindOf(nextAction), 'inspect');
+  assert.notEqual(reasonCodeOf(nextAction), 'runtime_blocker_present');
+  assert.notEqual(reasonCodeOf(nextAction), 'graph_impact_evidence_needed');
+  assert.notEqual(reasonCodeOf(nextAction), 'admission_metrics_stale_or_missing');
+});
+
+test('derived evidence is selected-unit aware between parent and slice addresses', () => {
+  const parentResult = workspaceInitiativeStatus({
+    repoRoot,
+    records: [
+      {
+        id: 'WK-9750',
+        initiative: testInitiative,
+        status: 'active',
+        slices: [{ id: 'SLICE-001', work_kind: 'implementation', status: 'todo' }],
+        derived_evidence: [
+          {
+            target_unit: 'WK-9750#SLICE-001',
+            graph_impact: { stale: true },
+          },
+        ],
+      },
+    ],
+    unit: 'WK-9750',
+  });
+  const sliceResult = workspaceInitiativeStatus({
+    repoRoot,
+    records: [
+      {
+        id: 'WK-9751',
+        initiative: testInitiative,
+        status: 'active',
+        slices: [{ id: 'SLICE-001', work_kind: 'implementation', status: 'todo' }],
+        derived_evidence: [
+          {
+            target_unit: 'WK-9751',
+            missing_metrics: ['runtime_mode_metadata'],
+          },
+        ],
+      },
+    ],
+    unit: 'WK-9751#SLICE-001',
+  });
+
+  assert.equal(reasonCodeOf(parentResult.next_action), 'record_needs_validation');
+  assert.equal(kindOf(parentResult.next_action), 'inspect');
+  assert.equal(reasonCodeOf(sliceResult.next_action), 'record_needs_validation');
+  assert.equal(kindOf(sliceResult.next_action), 'inspect');
+});
+
+test('selected slice body and closure fields do not trigger reserved evidence actions', () => {
+  const result = workspaceInitiativeStatus({
+    repoRoot,
+    records: [
+      {
+        id: 'WK-9755',
+        initiative: testInitiative,
+        status: 'active',
+        slices: [
+          {
+            id: 'SLICE-001',
+            work_kind: 'implementation',
+            status: 'active',
+            runtime_blocker_code: 'read_only_mount',
+            graph_impact: { required: true, freshness_state: 'stale' },
+            admission_metrics: { freshness_state: 'stale' },
+            sections: {
+              closure: {
+                runtime_blocker_code: 'read_only_mount',
+                graph_impact: { required: true },
+                missing_metrics: ['artifact_kind_metadata'],
+              },
+            },
+          },
+        ],
+      },
+    ],
+    unit: 'WK-9755#SLICE-001',
+  });
+  const nextAction = result.next_action;
+
+  assert.equal(reasonCodeOf(nextAction), 'record_needs_validation');
+  assert.equal(kindOf(nextAction), 'inspect');
+  assert.equal(nextAction.suggested_tool, 'workspace_work_record_summary');
+  assert.equal(nextAction.blocking, false);
+  assert.notEqual(reasonCodeOf(nextAction), 'runtime_blocker_present');
+  assert.notEqual(reasonCodeOf(nextAction), 'graph_impact_evidence_needed');
+  assert.notEqual(reasonCodeOf(nextAction), 'admission_metrics_stale_or_missing');
+  assert.notEqual(kindOf(nextAction), 'resolve_runtime_blocker');
+  assert.notEqual(kindOf(nextAction), 'record_graph_impact_evidence');
+  assert.notEqual(kindOf(nextAction), 'refresh_admission_metrics');
+});
+
+test('repo-wide lint evidence is not synthesized as a selected-WK blocker', () => {
+  const result = workspaceInitiativeStatus({
+    repoRoot,
+    records: [
+      {
+        id: 'WK-9760',
+        initiative: testInitiative,
+        status: 'active',
+        derived_evidence: [
+          {
+            lint: { validation_failure: true },
+            lint_verification: { required: true },
+          },
+        ],
+      },
+    ],
+    unit: 'WK-9760',
+  });
+  const nextAction = result.next_action;
+
+  assert.equal(reasonCodeOf(nextAction), 'record_needs_validation');
+  assert.equal(kindOf(nextAction), 'inspect');
+  assert.notEqual(reasonCodeOf(nextAction), 'lint_verification_needed');
+  assert.notEqual(kindOf(nextAction), 'run_lint');
 });
 
 test('verbose disclosure returns more detail than compact mode', () => {
@@ -220,6 +476,50 @@ test('selected_action_id pulls the chosen action to the front', () => {
 
   assert.equal(idOf(selected.top_actions[0]), 'WK-9006');
   assert.equal(reasonCodeOf(selected.top_actions[0]), 'parent_ready_to_close');
+});
+
+test('compact and selected-action disclosure work for grounded evidence actions', () => {
+  const records = [
+    {
+      id: 'WK-9770',
+      initiative: testInitiative,
+      status: 'active',
+      derived_evidence: [{ target_unit: 'WK-9770', runtime_blocker_code: 'read_only_mount' }],
+    },
+    {
+      id: 'WK-9771',
+      initiative: testInitiative,
+      status: 'active',
+      derived_evidence: [{ target_unit: 'WK-9771', graph_impact: { required: true } }],
+    },
+  ];
+  const compact = workspaceInitiativeStatus({
+    repoRoot,
+    initiative: testInitiative,
+    records,
+    top_action_limit: 1,
+  });
+  const selected = workspaceInitiativeStatus({
+    repoRoot,
+    initiative: testInitiative,
+    records,
+    top_action_limit: 1,
+    selected_action_id: 'WK-9771',
+  });
+  const verbose = workspaceInitiativeStatus({
+    repoRoot,
+    initiative: testInitiative,
+    records,
+    selected_action_id: 'WK-9771',
+    verbose: true,
+  });
+
+  assert.equal(compact.top_actions.length, 1);
+  assert.equal(reasonCodeOf(compact.top_actions[0]), 'runtime_blocker_present');
+  assert.equal(jsonBytes(compact) < 2048, true, 'compact evidence output should stay decision-sized');
+  assert.equal(idOf(selected.top_actions[0]), 'WK-9771');
+  assert.equal(reasonCodeOf(selected.top_actions[0]), 'graph_impact_evidence_needed');
+  assert.ok(verbose.evidence && typeof verbose.evidence === 'object', 'verbose output should expose evidence metadata');
 });
 
 test('unit scope keeps review-required dispatch explicit', () => {

@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/core",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -22,9 +22,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "postinstall": "node scripts/postinstall-guidance.mjs",
-    "prepack": "node scripts/sync-public-docs.mjs",
-    "sync-public-docs": "node scripts/sync-public-docs.mjs"
+    "postinstall": "node scripts/postinstall-guidance.mjs"
   },
   "bin": {
     "wiki": "bin/wiki",
@@ -37,9 +35,9 @@
     ".": "./src/index.mjs"
   },
   "dependencies": {
-    "@agent-chassis/agent-launch-cli": "^0.4.2",
-    "@agent-chassis/wiki-cli": "^0.4.2",
-    "@agent-chassis/wiki-mcp": "^0.4.2"
+    "@agent-chassis/agent-launch-cli": "^0.4.3",
+    "@agent-chassis/wiki-cli": "^0.4.3",
+    "@agent-chassis/wiki-mcp": "^0.4.3"
   },
   "engines": {
     "node": ">=22"

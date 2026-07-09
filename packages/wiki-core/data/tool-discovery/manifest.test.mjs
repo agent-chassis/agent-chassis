@@ -13,14 +13,19 @@ import {
 const manifestUrl = new URL('./manifest.json', import.meta.url);
 
 const EXPECTED_FRAGMENTS = [
-  ['mcp-tools.json', 21],
+  ['mcp-tools.json', 15],
+  ['mcp-work-record-tools.json', 3],
+  ['mcp-launcher-tools.json', 4],
+  ['mcp-coordination-tools.json', 2],
+  ['tool-usage-audit-tools.json', 1],
   ['work-record-tools.json', 28],
   ['code-index-tools.json', 18],
   ['launcher-tools.json', 5],
   ['cli-commands.json', 10],
+  ['integration-tools.json', 1],
   ['wrapper-commands.json', 0],
 ];
-const EXPECTED_TOOL_COUNT = 82;
+const EXPECTED_TOOL_COUNT = 87;
 
 async function readJson(url) {
   return JSON.parse(await readFile(url, 'utf8'));
@@ -115,6 +120,21 @@ test('the manifest assembles into the full corpus through the loader', async () 
 
   const uniqueNames = new Set(descriptor.tools.map((tool) => tool.tool_name));
   assert.equal(uniqueNames.size, descriptor.tools.length, 'assembled tool_name set must be unique');
+});
+
+test('manifest counts match each checked-in fragment file', async () => {
+  const manifest = await readJson(manifestUrl);
+  let actualTotal = 0;
+
+  for (const fragment of manifest.fragments) {
+    const fragmentBody = await readJson(new URL(`./${fragment.file}`, import.meta.url));
+    assert.equal(fragmentBody.fragment, fragment.file);
+    assert.equal(fragmentBody.tool_count, fragment.tool_count, `${fragment.file} self count must match manifest`);
+    assert.equal(fragmentBody.tools.length, fragment.tool_count, `${fragment.file} tools length must match manifest`);
+    actualTotal += fragmentBody.tools.length;
+  }
+
+  assert.equal(actualTotal, manifest.expected_tool_count);
 });
 
 test('WK-1377: every assembled entry carries an explicit valid tier classification', async () => {

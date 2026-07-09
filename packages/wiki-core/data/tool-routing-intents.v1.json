@@ -1,0 +1,944 @@
+{
+  "schema_version": "tool-routing-intents.v1",
+  "repository": "agent-chassis/agent-chassis",
+  "summary": "Intent-indexed first-tool routing vocabulary for repo-aware agents. This data guides workspace_tool_router_recommend and discovery metadata; it does not dispatch, mutate, lint, or replace the authority of the recommended tools.",
+  "authority": {
+    "kind": "checked_in_routing_vocabulary",
+    "non_authoritative_for": [
+      "dispatch readiness decisions",
+      "work-record validation results",
+      "runtime enforcement",
+      "tool-use misuse-code ownership"
+    ],
+    "misuse_vocabulary_owner": "WK-1437",
+    "misuse_code_policy": "Do not define WK-1437 misuse codes in this file. Replacement guidance names tools and bounded reasons only until the WK-1437 tool-use-policy.v1 vocabulary is available."
+  },
+  "router_result_states": {
+    "matched": {
+      "description": "Exactly one routing intent is selected after deterministic overlap handling.",
+      "required_output": [
+        "result_state",
+        "classified_intent",
+        "recommended_first_tool",
+        "suggested_arguments",
+        "do_not_start_with",
+        "allowed_next_calls",
+        "reason"
+      ],
+      "must_not_include": [
+        "candidate_intents"
+      ]
+    },
+    "ambiguous": {
+      "description": "Two or more intents remain plausible after deterministic overlap handling and available prerequisite state is insufficient to choose.",
+      "required_output": [
+        "result_state",
+        "candidate_intents",
+        "missing_disambiguating_state",
+        "do_not_start_with",
+        "allowed_next_calls",
+        "reason"
+      ],
+      "must_not_include": [
+        "classified_intent",
+        "recommended_first_tool"
+      ],
+      "bounded_guidance": {
+        "max_candidate_intents": 3,
+        "ask_for": "the smallest missing identifier, state marker, or user choice needed to distinguish the candidate intents"
+      }
+    },
+    "unknown": {
+      "description": "No routing intent matches the task after normalization and phrase matching.",
+      "required_output": [
+        "result_state",
+        "reason",
+        "unsupported_intent_guidance"
+      ],
+      "must_not_include": [
+        "classified_intent",
+        "recommended_first_tool",
+        "candidate_intents"
+      ],
+      "deterministic_no_match_behavior": "Return unknown without guessing, reading records, dispatching, mutating, linting, or selecting a broad/full tool as a fallback.",
+      "bounded_unsupported_intent_guidance": {
+        "max_guidance_items": 3,
+        "guidance": [
+          "Use workspace_tools_query or workspace_tools_describe only for bounded tool discovery when the task is still a repo-tool question.",
+          "Use workspace_search_repo only when the user is asking for docs/wiki lookup or canonical page discovery.",
+          "Ask the user for the missing durable identifier or scope when the task cannot be classified from the provided text."
+        ]
+      }
+    }
+  },
+  "classifier_policy": {
+    "normalization": [
+      "lowercase ASCII task text",
+      "treat hyphen, underscore, slash, and whitespace as token separators",
+      "preserve durable identifiers such as IN-*, WK-*, WK-*#SLICE-*, DEC-*, SRC-*, and docs paths as prerequisite state"
+    ],
+    "deterministic_overlap_order": [
+      "dispatch_role_call",
+      "dispatch_readiness",
+      "run_monitoring",
+      "work_record_mutation",
+      "selected_slice_detail",
+      "selected_work_record_context",
+      "initiative_next_action",
+      "initiative_status",
+      "lint_repair",
+      "docs_lookup"
+    ],
+    "overlap_rules": [
+      {
+        "when": "task asks to launch, start, assign, run, or dispatch a worker, reviewer, or redteam role",
+        "choose": "dispatch_role_call",
+        "instead_of": [
+          "dispatch_readiness"
+        ],
+        "reason": "role dispatch still starts with readiness validation, but the user intent is a role call"
+      },
+      {
+        "when": "task asks whether a unit is dispatchable or ready without asking to launch a role",
+        "choose": "dispatch_readiness",
+        "instead_of": [
+          "selected_work_record_context"
+        ],
+        "reason": "dispatch readiness is a structured decision, not manual record inspection"
+      },
+      {
+        "when": "task includes a selected slice address such as WK-0001#SLICE-002 or asks for one slice's detail",
+        "choose": "selected_slice_detail",
+        "instead_of": [
+          "selected_work_record_context"
+        ],
+        "reason": "selected-slice reads avoid full tracker payloads"
+      },
+      {
+        "when": "task asks what should happen next, next action, frontier action, blocker to clear, or prepare dispatch across an initiative",
+        "choose": "initiative_next_action",
+        "instead_of": [
+          "initiative_status"
+        ],
+        "reason": "next-action questions need the action lens, not only status counts"
+      },
+      {
+        "when": "task asks for status, where things stand, open counts, or current frontier without action language",
+        "choose": "initiative_status",
+        "instead_of": [
+          "docs_lookup"
+        ],
+        "reason": "initiative state is aggregated by the status lens, not docs search"
+      }
+    ]
+  },
+  "call_families": {
+    "tool_discovery": [
+      "workspace_tools_list",
+      "workspace_tools_query",
+      "workspace_tools_describe"
+    ],
+    "docs_lookup": [
+      "workspace_search_repo",
+      "workspace_read_page"
+    ],
+    "initiative_lens": [
+      "workspace_initiative_status"
+    ],
+    "work_record_read": [
+      "workspace_work_record_summary",
+      "workspace_get_record",
+      "workspace_read_page"
+    ],
+    "dispatch_readiness": [
+      "workspace_validate_dispatch"
+    ],
+    "dispatch": [
+      "workspace_agent_dispatch"
+    ],
+    "run_monitoring": [
+      "workspace_agent_run_status",
+      "workspace_agent_run_wait"
+    ],
+    "lint": [
+      "workspace_lint_repo",
+      "workspace_generate_and_lint",
+      "workspace_docs_policy_validate"
+    ],
+    "work_record_mutation": [
+      "workspace_create_record",
+      "workspace_work_record_set_status",
+      "workspace_work_record_set_task",
+      "workspace_work_record_set_closure",
+      "workspace_work_record_set_list_field",
+      "workspace_work_record_set_acceptance",
+      "workspace_work_record_upsert_slice",
+      "workspace_work_record_delete_slice",
+      "workspace_work_record_shape_review_unit"
+    ]
+  },
+  "required_initial_intents": [
+    "initiative_status",
+    "initiative_next_action",
+    "selected_work_record_context",
+    "selected_slice_detail",
+    "dispatch_readiness",
+    "dispatch_role_call",
+    "run_monitoring",
+    "docs_lookup",
+    "lint_repair",
+    "work_record_mutation"
+  ],
+  "intents": [
+    {
+      "intent": "initiative_status",
+      "tie_break_rank": 80,
+      "use_when": [
+        "The user asks for the current state, status, frontier, counts, or blockers for an initiative or selected unit.",
+        "The user asks where an initiative stands without requesting a specific next action or role launch."
+      ],
+      "match_phrases": [
+        "initiative status",
+        "where are we",
+        "frontier status",
+        "what is blocked",
+        "current state",
+        "status for IN-"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_initiative_status",
+        "argument_template": {
+          "initiative": "$initiative_if_known",
+          "unit": "$unit_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_search_repo",
+          "reason": "Search finds documents and records; it does not aggregate initiative state.",
+          "use_instead": "workspace_initiative_status"
+        },
+        {
+          "tool": "workspace_work_record_summary",
+          "reason": "A full or selected record summary is a follow-up after the status lens selects a unit.",
+          "use_instead": "workspace_initiative_status"
+        },
+        {
+          "tool": "workspace_get_record",
+          "reason": "Raw record reads are not the compact first step for broad status.",
+          "use_instead": "workspace_initiative_status"
+        }
+      ],
+      "allowed_next_call_families": [
+        "work_record_read",
+        "dispatch_readiness",
+        "run_monitoring",
+        "lint",
+        "work_record_mutation"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "initiative_or_unit",
+          "required": true,
+          "accepted_sources": [
+            "user-provided IN-*",
+            "user-provided WK-* or WK-*#SLICE-*",
+            "prior selected unit"
+          ],
+          "if_missing": "return ambiguous if the task could apply to several initiatives or units; otherwise ask for the initiative or unit id"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "workspace_search_repo",
+          "with": "workspace_initiative_status",
+          "when": "the task asks for initiative status, frontier, blockers, or current state"
+        }
+      ]
+    },
+    {
+      "intent": "initiative_next_action",
+      "tie_break_rank": 70,
+      "use_when": [
+        "The user asks what should happen next for an initiative or selected unit.",
+        "The user asks to prepare the next coordinator action, identify the next dispatch candidate, or choose the next blocker to clear."
+      ],
+      "match_phrases": [
+        "next action",
+        "what should happen next",
+        "what do we do next",
+        "prepare dispatch",
+        "next coordinator action",
+        "frontier action"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_initiative_status",
+        "argument_template": {
+          "initiative": "$initiative_if_known",
+          "unit": "$unit_if_known",
+          "view": "next_action"
+        },
+        "omit_null_arguments": true
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_search_repo",
+          "reason": "Search does not compute the initiative action frontier.",
+          "use_instead": "workspace_initiative_status"
+        },
+        {
+          "tool": "workspace_get_record",
+          "reason": "Reading raw records first samples state instead of using the compact action lens.",
+          "use_instead": "workspace_initiative_status"
+        },
+        {
+          "tool": "workspace_agent_dispatch",
+          "reason": "Dispatch requires a selected ready unit and readiness validation first.",
+          "use_instead": "workspace_validate_dispatch"
+        }
+      ],
+      "allowed_next_call_families": [
+        "work_record_read",
+        "dispatch_readiness",
+        "dispatch",
+        "run_monitoring",
+        "lint",
+        "work_record_mutation"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "initiative_or_unit",
+          "required": true,
+          "accepted_sources": [
+            "user-provided IN-*",
+            "user-provided WK-* or WK-*#SLICE-*",
+            "prior selected unit"
+          ],
+          "if_missing": "ask for the initiative or unit id before choosing a next action"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "workspace_search_repo",
+          "with": "workspace_initiative_status",
+          "when": "the task asks what to do next or which unit to act on"
+        },
+        {
+          "replace": "workspace_agent_dispatch",
+          "with": "workspace_validate_dispatch",
+          "when": "the next action may be dispatch but readiness has not been validated"
+        }
+      ]
+    },
+    {
+      "intent": "selected_work_record_context",
+      "tie_break_rank": 60,
+      "use_when": [
+        "The user asks for the contract, acceptance criteria, dependencies, blockers, closure, write scope, or selected context for a known WK record.",
+        "The task starts from a known WK-* and needs compact work-record details before implementation, review, or coordination."
+      ],
+      "match_phrases": [
+        "read WK-",
+        "work record context",
+        "acceptance criteria",
+        "write scope",
+        "selected record",
+        "load the work record"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_work_record_summary",
+        "argument_template": {
+          "unit": "$unit_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_search_repo",
+          "reason": "The record id is already known; search is not the selected-record reader.",
+          "use_instead": "workspace_work_record_summary"
+        },
+        {
+          "tool": "workspace_get_record",
+          "reason": "Default to the compact summary before full/debug record payloads.",
+          "use_instead": "workspace_work_record_summary"
+        },
+        {
+          "tool": "workspace_read_page",
+          "reason": "Direct page reads are for known docs paths or targeted selected-slice reads, not routine compact WK context.",
+          "use_instead": "workspace_work_record_summary"
+        }
+      ],
+      "allowed_next_call_families": [
+        "dispatch_readiness",
+        "docs_lookup",
+        "work_record_mutation",
+        "lint",
+        "dispatch"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "unit",
+          "required": true,
+          "accepted_sources": [
+            "user-provided WK-*",
+            "prior selected unit"
+          ],
+          "if_missing": "return ambiguous with docs_lookup if the task only gives keywords; ask for the WK id or use docs lookup if the user is searching"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "workspace_search_repo",
+          "with": "workspace_work_record_summary",
+          "when": "a WK id is already known and selected record context is requested"
+        }
+      ]
+    },
+    {
+      "intent": "selected_slice_detail",
+      "tie_break_rank": 50,
+      "use_when": [
+        "The user asks for one slice's details, notes, acceptance, validation, or closure.",
+        "The task includes a selected slice address such as WK-1438#SLICE-002."
+      ],
+      "match_phrases": [
+        "#SLICE-",
+        "selected slice",
+        "slice detail",
+        "slice acceptance",
+        "slice closure",
+        "slice notes"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_work_record_summary",
+        "argument_template": {
+          "unit": "$slice_unit_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_get_record",
+          "reason": "Full tracker reads are unnecessary for one selected slice.",
+          "use_instead": "workspace_work_record_summary"
+        },
+        {
+          "tool": "workspace_search_repo",
+          "reason": "The selected slice id is already the locator.",
+          "use_instead": "workspace_work_record_summary"
+        },
+        {
+          "tool": "workspace_read_page",
+          "reason": "Use selected-slice page reads only when the caller specifically needs canonical JSON page projection; the compact summary is the normal first step.",
+          "use_instead": "workspace_work_record_summary"
+        }
+      ],
+      "allowed_next_call_families": [
+        "dispatch_readiness",
+        "work_record_mutation",
+        "docs_lookup",
+        "lint"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "slice_unit",
+          "required": true,
+          "accepted_sources": [
+            "user-provided WK-*#SLICE-*",
+            "prior selected slice"
+          ],
+          "if_missing": "ask for the slice id or return ambiguous with selected_work_record_context"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "workspace_get_record",
+          "with": "workspace_work_record_summary",
+          "when": "the task targets one selected slice"
+        }
+      ]
+    },
+    {
+      "intent": "dispatch_readiness",
+      "tie_break_rank": 20,
+      "use_when": [
+        "The user asks whether a WK or slice is dispatchable, ready, blocked, or valid for a role.",
+        "The task needs the structured dispatch-readiness decision before a role call."
+      ],
+      "match_phrases": [
+        "dispatch readiness",
+        "is it ready to dispatch",
+        "validate dispatch",
+        "dispatchable",
+        "ready for worker",
+        "ready for reviewer",
+        "ready for redteam"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_validate_dispatch",
+        "argument_template": {
+          "unit": "$unit_if_known",
+          "dispatch_role": "$role_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_agent_dispatch",
+          "reason": "Role launch must not start before readiness validation.",
+          "use_instead": "workspace_validate_dispatch"
+        },
+        {
+          "tool": "workspace_get_record",
+          "reason": "Manual record inspection is not the readiness authority.",
+          "use_instead": "workspace_validate_dispatch"
+        },
+        {
+          "tool": "workspace_search_repo",
+          "reason": "Search cannot decide dispatch readiness.",
+          "use_instead": "workspace_validate_dispatch"
+        }
+      ],
+      "allowed_next_call_families": [
+        "dispatch",
+        "work_record_read",
+        "work_record_mutation",
+        "docs_lookup"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "unit",
+          "required": true,
+          "accepted_sources": [
+            "user-provided WK-*",
+            "user-provided WK-*#SLICE-*",
+            "prior selected unit"
+          ],
+          "if_missing": "ask for the WK or slice id"
+        },
+        {
+          "name": "role",
+          "required": false,
+          "accepted_sources": [
+            "worker",
+            "reviewer",
+            "redteam",
+            "read_only"
+          ],
+          "if_missing": "omit dispatch_role when the readiness question is role-agnostic"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "workspace_agent_dispatch",
+          "with": "workspace_validate_dispatch",
+          "when": "the user asks whether launch is allowed or readiness is unknown"
+        }
+      ]
+    },
+    {
+      "intent": "dispatch_role_call",
+      "tie_break_rank": 10,
+      "use_when": [
+        "The user asks to start, launch, dispatch, assign, or run a worker, reviewer, or redteam role for a WK, slice, or initiative.",
+        "The user names a wrapper command but the intended action is a role dispatch."
+      ],
+      "match_phrases": [
+        "dispatch worker",
+        "dispatch reviewer",
+        "dispatch redteam",
+        "start a worker",
+        "launch reviewer",
+        "run redteam",
+        "assign worker",
+        "requested wrapper role"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_validate_dispatch",
+        "argument_template": {
+          "unit": "$unit_if_known",
+          "dispatch_role": "$role_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_agent_dispatch",
+          "reason": "The role call path starts with readiness validation; dispatch is the allowed follow-up only after a dispatchable result.",
+          "use_instead": "workspace_validate_dispatch"
+        },
+        {
+          "tool": "workspace_search_repo",
+          "reason": "Search is not role-call admission.",
+          "use_instead": "workspace_validate_dispatch"
+        },
+        {
+          "tool": "workspace_get_record",
+          "reason": "Manual record reads do not replace dispatch readiness.",
+          "use_instead": "workspace_validate_dispatch"
+        }
+      ],
+      "allowed_next_call_families": [
+        "dispatch",
+        "run_monitoring",
+        "work_record_read",
+        "work_record_mutation"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "unit",
+          "required": true,
+          "accepted_sources": [
+            "user-provided WK-*",
+            "user-provided WK-*#SLICE-*",
+            "user-provided IN-* for redteam where supported"
+          ],
+          "if_missing": "ask for the dispatch subject id"
+        },
+        {
+          "name": "role",
+          "required": true,
+          "accepted_sources": [
+            "worker",
+            "reviewer",
+            "redteam"
+          ],
+          "if_missing": "ask which role to dispatch"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "operator shell wrapper",
+          "with": "workspace_validate_dispatch",
+          "when": "an agent is asked to start a role call from inside an agent session"
+        },
+        {
+          "replace": "workspace_agent_dispatch",
+          "with": "workspace_validate_dispatch",
+          "when": "dispatch readiness has not already returned dispatchable"
+        }
+      ]
+    },
+    {
+      "intent": "run_monitoring",
+      "tie_break_rank": 30,
+      "use_when": [
+        "The user asks for the status, result, output, failure, or completion of an already dispatched agent run.",
+        "The task includes a monitor handle or run id and asks what happened."
+      ],
+      "match_phrases": [
+        "monitor handle",
+        "run status",
+        "agent run",
+        "wait for run",
+        "what happened in this run",
+        "is the worker done",
+        "wkmh_"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_agent_run_status",
+        "argument_template": {
+          "monitor_handle": "$monitor_handle_if_known",
+          "subject": "$unit_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_search_repo",
+          "reason": "Search cannot resolve launcher run lifecycle.",
+          "use_instead": "workspace_agent_run_status"
+        },
+        {
+          "tool": "workspace_get_record",
+          "reason": "The work record is not the runtime status authority for an active run.",
+          "use_instead": "workspace_agent_run_status"
+        },
+        {
+          "tool": "workspace_agent_dispatch",
+          "reason": "Do not relaunch to learn the status of an existing run.",
+          "use_instead": "workspace_agent_run_status"
+        }
+      ],
+      "allowed_next_call_families": [
+        "run_monitoring",
+        "work_record_read",
+        "work_record_mutation",
+        "dispatch_readiness"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "monitor_handle",
+          "required": true,
+          "accepted_sources": [
+            "server-minted monitor handle",
+            "prior workspace_agent_dispatch response"
+          ],
+          "if_missing": "ask for the monitor handle; do not infer from a run id alone unless the monitoring tool supports that field"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "workspace_agent_dispatch",
+          "with": "workspace_agent_run_status",
+          "when": "the task asks about an existing run"
+        }
+      ]
+    },
+    {
+      "intent": "docs_lookup",
+      "tie_break_rank": 100,
+      "use_when": [
+        "The user asks which docs or wiki page explains a concept, protocol, area, decision, source, or repository context.",
+        "The task is canonical page discovery and no exact page path is already known."
+      ],
+      "match_phrases": [
+        "docs",
+        "documentation",
+        "wiki page",
+        "where is this documented",
+        "canonical page",
+        "find docs",
+        "look up"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_search_repo",
+        "argument_template": {
+          "query": "$task_description",
+          "filters": {
+            "paths": [
+              "docs/",
+              "wiki/"
+            ]
+          }
+        },
+        "omit_null_arguments": true
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_get_record",
+          "reason": "Record reads require a known durable id; use search for page discovery.",
+          "use_instead": "workspace_search_repo"
+        },
+        {
+          "tool": "workspace_work_record_summary",
+          "reason": "Work-record summaries are not general docs lookup.",
+          "use_instead": "workspace_search_repo"
+        },
+        {
+          "tool": "workspace_agent_dispatch",
+          "reason": "Docs lookup is read-only and must not launch roles.",
+          "use_instead": "workspace_search_repo"
+        }
+      ],
+      "allowed_next_call_families": [
+        "docs_lookup",
+        "tool_discovery",
+        "work_record_read"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "query_or_path",
+          "required": true,
+          "accepted_sources": [
+            "natural-language query",
+            "known docs path",
+            "known wiki path",
+            "known durable id"
+          ],
+          "if_missing": "ask for the topic or path"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "workspace_get_record",
+          "with": "workspace_search_repo",
+          "when": "the user asks to find the canonical docs/wiki page and no durable id is known"
+        }
+      ]
+    },
+    {
+      "intent": "lint_repair",
+      "tie_break_rank": 90,
+      "use_when": [
+        "The user asks to inspect repo lint, generated-view lint, docs policy, validation findings, or repair a lint finding.",
+        "The task is read-only lint verification or a lint-fix workflow assigned by a WK."
+      ],
+      "match_phrases": [
+        "lint",
+        "generate and lint",
+        "docs policy",
+        "validate docs",
+        "repair lint",
+        "fix lint finding",
+        "wiki lint"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_lint_repo",
+        "argument_template": {
+          "max_findings": "$bounded_max_findings_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_search_repo",
+          "reason": "Search does not produce authoritative lint diagnostics.",
+          "use_instead": "workspace_lint_repo"
+        },
+        {
+          "tool": "workspace_generate_and_lint",
+          "reason": "Generate-and-lint writes generated views; start with read-only lint unless generated output refresh is explicitly required.",
+          "use_instead": "workspace_lint_repo"
+        },
+        {
+          "tool": "workspace_agent_dispatch",
+          "reason": "Routine read-only verification is coordinator-owned and is not a role dispatch.",
+          "use_instead": "workspace_lint_repo"
+        }
+      ],
+      "allowed_next_call_families": [
+        "lint",
+        "docs_lookup",
+        "work_record_read",
+        "work_record_mutation"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "lint_scope",
+          "required": false,
+          "accepted_sources": [
+            "repo alias",
+            "docs path list",
+            "WK acceptance validation command",
+            "prior lint diagnostic"
+          ],
+          "if_missing": "run bounded repo lint only when the task is repo-wide; otherwise ask for the file or validation surface"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "workspace_search_repo",
+          "with": "workspace_lint_repo",
+          "when": "the task asks for lint diagnostics"
+        },
+        {
+          "replace": "workspace_generate_and_lint",
+          "with": "workspace_lint_repo",
+          "when": "no generated-view refresh is required"
+        }
+      ]
+    },
+    {
+      "intent": "work_record_mutation",
+      "tie_break_rank": 40,
+      "use_when": [
+        "The user asks to create, update, close, reopen, status-change, add closure, edit acceptance, edit list fields, or shape a review unit for a work record.",
+        "The task requires schema-backed persistence to a canonical WK, issue, initiative, decision, source, or area record."
+      ],
+      "match_phrases": [
+        "update WK-",
+        "close WK-",
+        "set status",
+        "add closure",
+        "edit acceptance",
+        "create work record",
+        "upsert slice",
+        "shape review unit",
+        "mutate work record"
+      ],
+      "recommended_first_tool": {
+        "name": "$validated_work_record_mutation_tool",
+        "selection": "derive from mutation_operation; return ambiguous if the operation is not known",
+        "argument_template": {
+          "unit": "$unit_if_known",
+          "slice_id": "$slice_id_if_known",
+          "field": "$field_if_known",
+          "value": "$value_if_known"
+        },
+        "omit_null_arguments": true,
+        "operation_tool_map": {
+          "create": "workspace_create_record",
+          "status": "workspace_work_record_set_status",
+          "task": "workspace_work_record_set_task",
+          "closure": "workspace_work_record_set_closure",
+          "list field": "workspace_work_record_set_list_field",
+          "acceptance": "workspace_work_record_set_acceptance",
+          "slice upsert": "workspace_work_record_upsert_slice",
+          "slice delete": "workspace_work_record_delete_slice",
+          "review unit shaping": "workspace_work_record_shape_review_unit"
+        },
+        "note": "Mutation routing points to validated create/setter routes. Use workspace_work_record_summary only as a follow-up when a setter needs compact current state."
+      },
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_get_record",
+          "reason": "Mutation workflows should start from compact current state and then use validated setters.",
+          "use_instead": "validated work-record setter route"
+        },
+        {
+          "tool": "workspace_read_page",
+          "reason": "Raw page reads are not mutation authority.",
+          "use_instead": "validated work-record setter route"
+        },
+        {
+          "tool": "manual JSON edit",
+          "reason": "Routine work-record mutations should use validated setter/create routes when available.",
+          "use_instead": "workspace_work_record_set_status"
+        }
+      ],
+      "allowed_next_call_families": [
+        "work_record_mutation",
+        "work_record_read",
+        "lint",
+        "dispatch_readiness"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "mutation_target",
+          "required": true,
+          "accepted_sources": [
+            "existing WK-* or WK-*#SLICE-*",
+            "record kind plus title for create",
+            "field-specific setter target"
+          ],
+          "if_missing": "ask for the record id or record kind/title before recommending a setter"
+        },
+        {
+          "name": "mutation_operation",
+          "required": true,
+          "accepted_sources": [
+            "status",
+            "task",
+            "closure",
+            "list field",
+            "acceptance",
+            "slice upsert/delete",
+            "review unit shaping",
+            "create"
+          ],
+          "if_missing": "ask which work-record operation is intended"
+        }
+      ],
+      "replacement_guidance": [
+        {
+          "replace": "manual JSON edit",
+          "with": "validated work-record setter route",
+          "when": "the mutation is supported by a structured setter"
+        },
+        {
+          "replace": "workspace_get_record",
+          "with": "validated work-record setter route",
+          "when": "the mutation operation is known and supported by a structured setter"
+        },
+        {
+          "replace": "workspace_work_record_summary",
+          "with": "validated work-record setter route",
+          "when": "the task is already a specific create, status, task, closure, list-field, acceptance, slice, or review-unit mutation"
+        }
+      ]
+    }
+  ]
+}

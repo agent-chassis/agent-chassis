@@ -12,6 +12,7 @@ import {
   TOOL_DISCOVERY_MANIFEST_PATH,
   TOOL_DISCOVERY_MANIFEST_RELATIVE_PATH,
   TOOL_DISCOVERY_SCHEMA_VERSION,
+  compactToolDiscoveryEntry,
   createToolDiscoveryEnvelope,
   digestToolDiscoveryDescriptor,
   isToolDiscoveryFragmentManifest,
@@ -51,6 +52,14 @@ const PAID_PROSE_TOKENS = [
 ];
 
 const TARGET_RESOLUTION_TOOL_NAME = "workspace_work_record_refresh_target_resolution_evidence";
+const LAUNCHER_GUIDANCE_FIELD_NAMES = [
+  "use_when",
+  "do_not_use_when",
+  "authoritative_for",
+  "recommended_first_call",
+  "requires_prior_state",
+  "replacement_for_misuse"
+];
 
 function makeFullDescriptorTool(tool_name, overrides = {}) {
   return {
@@ -389,6 +398,119 @@ test("run-status/run-wait descriptors document free-tier structured_role_result.
     assert.ok(row, `${name} present`);
     assert.match(row.notes, /structured_role_result\.valid:false/);
     assert.match(row.notes, /DEC-0128/);
+  }
+});
+
+test("launcher discovery entries carry compact routing guidance metadata", async () => {
+  const descriptor = await loadToolDiscoveryDescriptor();
+  const tools = new Map(descriptor.tools.map((tool) => [tool.tool_name, tool]));
+
+  const dispatch = tools.get("workspace_agent_dispatch");
+  assert.ok(dispatch, "workspace_agent_dispatch present");
+  assert.deepEqual(
+    {
+      use_when: dispatch.use_when,
+      do_not_use_when: dispatch.do_not_use_when,
+      authoritative_for: dispatch.authoritative_for,
+      recommended_first_call: dispatch.recommended_first_call,
+      requires_prior_state: dispatch.requires_prior_state,
+      replacement_for_misuse: dispatch.replacement_for_misuse
+    },
+    {
+      use_when: [
+        "The dispatch_role_call intent has a dispatchable workspace_validate_dispatch result for the same unit and role."
+      ],
+      do_not_use_when: [
+        "Readiness is unknown; use workspace_validate_dispatch first.",
+        "The task asks about an existing run; use workspace_agent_run_status or workspace_agent_run_wait."
+      ],
+      authoritative_for: [
+        "dispatch_role_call:launch_after_dispatchable",
+        "launcher-owned worker/reviewer/redteam process spawn"
+      ],
+      recommended_first_call: undefined,
+      requires_prior_state: [
+        "Known subject and role.",
+        "Same-unit same-role workspace_validate_dispatch result with dispatchable=true."
+      ],
+      replacement_for_misuse: [
+        {
+          misuse_code: "dispatch_without_readiness_validation",
+          routing_intent: "dispatch_role_call",
+          use_instead: "workspace_validate_dispatch"
+        }
+      ]
+    }
+  );
+
+  for (const [toolName, expectedGuidance] of [
+    [
+      "workspace_agent_run_status",
+      {
+        use_when: [
+          "The run_monitoring intent asks for status, output, failure, or completion of an already dispatched run."
+        ],
+        authoritative_for: ["run_monitoring:status", "launcher run lifecycle by monitor_handle"],
+        recommended_first_call: {
+          routing_intents: ["run_monitoring"],
+          arguments: {
+            monitor_handle: "$monitor_handle_if_known",
+            subject: "$unit_if_known"
+          },
+          omit_null_arguments: true
+        },
+        requires_prior_state: ["Server-minted monitor_handle from workspace_agent_dispatch."],
+        misuse_use_instead: "workspace_agent_run_status"
+      }
+    ],
+    [
+      "workspace_agent_run_wait",
+      {
+        use_when: [
+          "The run_monitoring intent asks to wait briefly for an already dispatched run to finish."
+        ],
+        authoritative_for: ["run_monitoring:bounded_wait", "launcher run lifecycle by monitor_handle"],
+        recommended_first_call: {
+          routing_intents: ["run_monitoring"],
+          operation: "bounded wait",
+          arguments: {
+            monitor_handle: "$monitor_handle_if_known",
+            subject: "$unit_if_known"
+          },
+          omit_null_arguments: true
+        },
+        requires_prior_state: [
+          "Server-minted monitor_handle from workspace_agent_dispatch.",
+          "A bounded wait request."
+        ],
+        misuse_use_instead: "workspace_agent_run_wait"
+      }
+    ]
+  ]) {
+    const tool = tools.get(toolName);
+    assert.ok(tool, `${toolName} present`);
+    assert.deepEqual(tool.use_when, expectedGuidance.use_when);
+    assert.deepEqual(tool.do_not_use_when, [
+      "The task is a new role launch; use workspace_validate_dispatch first.",
+      "No monitor handle is available; ask for it instead of searching, reading records, or relaunching."
+    ]);
+    assert.deepEqual(tool.authoritative_for, expectedGuidance.authoritative_for);
+    assert.deepEqual(tool.recommended_first_call, expectedGuidance.recommended_first_call);
+    assert.deepEqual(tool.requires_prior_state, expectedGuidance.requires_prior_state);
+    assert.deepEqual(tool.replacement_for_misuse, [
+      {
+        misuse_code: "ignored_required_next_action",
+        routing_intent: "run_monitoring",
+        use_instead: expectedGuidance.misuse_use_instead
+      }
+    ]);
+  }
+
+  for (const toolName of ["workspace_agent_dispatch", "workspace_agent_run_status", "workspace_agent_run_wait"]) {
+    const compact = compactToolDiscoveryEntry(tools.get(toolName));
+    for (const fieldName of LAUNCHER_GUIDANCE_FIELD_NAMES) {
+      assert.equal(fieldName in compact, false, `${toolName} compact projection must omit ${fieldName}`);
+    }
   }
 });
 

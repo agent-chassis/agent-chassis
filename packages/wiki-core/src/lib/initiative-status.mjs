@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectSelectedDerivedEvidence } from './initiative-status-evidence.mjs';
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = process.cwd();
@@ -375,36 +376,8 @@ function getDispatchIntent(node) {
   return dispatchIntent;
 }
 
-function hasSelectedUnitField(object, selection) {
-  const address = asNonEmptyString(selection?.address);
-  if (!isPlainObject(object) || !address) {
-    return false;
-  }
-  const recordId = asNonEmptyString(selection.record_id);
-  const sliceId = asNonEmptyString(selection.slice_id);
-  return (
-    ['unit', 'target_unit', 'selected_unit', 'work_unit', 'unit_address', 'subject', 'address'].some(
-      (field) => asNonEmptyString(object[field]) === address,
-    ) ||
-    Boolean(
-      recordId &&
-        asNonEmptyString(object.record_id) === recordId &&
-        (sliceId ? asNonEmptyString(object.slice_id) === sliceId : !asNonEmptyString(object.slice_id))
-    )
-  );
-}
-
 function collectSelectedEvidence(selection, record) {
-  const values = selection?.kind === 'slice' && isPlainObject(selection?.entry) ? [selection.entry] : [];
-  const selectedEntry = selection?.entry;
-  if (isPlainObject(record)) {
-    walk(record, (value) => {
-      if (isPlainObject(value) && value !== selectedEntry && hasSelectedUnitField(value, selection)) {
-        values.push(value);
-      }
-    });
-  }
-  return values;
+  return collectSelectedDerivedEvidence(selection, record);
 }
 
 function evidenceHasStructuredState(evidence, nameNeedles, stateNeedles) {
@@ -479,9 +452,7 @@ function getStructuredEvidenceAction(taxonomy, selection, record) {
     });
   }
 
-  const dispatchIntent = getDispatchIntent(selection.entry);
   if (
-    dispatchIntent?.requires_graph_impact === true ||
     evidenceHasStructuredState(evidence, ['graph_impact', 'graph-impact'], ['missing', 'stale', 'degraded', 'unavailable', 'required'])
   ) {
     return makeEvidenceAction(taxonomy, selection, ['graph', 'impact'], {

@@ -210,6 +210,101 @@ has been recorded or that graph-impact persistence is required for a real
 WK. Durable proof of bootstrap review evidence lives in the owning WK
 closure.
 
+### AI-Agent Review Separation
+
+The active local dispatch model enforces AI-agent review separation through
+role, tool, write-scope, and evidence controls rather than by comparing two
+authenticated AI-agent principals. Stdio MCP is a same-user local transport,
+and the current launcher does not mint a human/service principal envelope for
+each AI-agent role session. Therefore same-principal comparison is not a
+meaningful security boundary for the current AI-agent review flow and is not a
+prerequisite for dispatching findings-only reviews.
+
+The current control boundary is:
+
+- implementation workers may edit only their assigned `write_scope` and can
+  move only their own implementation unit to `review` through the scoped
+  commit/submit-for-review path; they cannot complete their own work
+- reviewer sessions are findings-only role sessions with `write_scope: []`;
+  dispatch-readiness refuses reviewer units whose canonical JSON write scope is
+  non-empty with `role_policy_violation` and diagnostic reason
+  `reviewer_write_scope_nonempty`
+- structured review-evidence routes are part of this enforceable boundary:
+  accepted no-findings review evidence is recorded through
+  `workspace_record_review_attestation`, and changes-requested or other
+  non-completion reviewer/redteam results are recorded through
+  `workspace_record_review_result_evidence`
+- reviewer output is evidence for coordinator disposition; it is not a
+  role-session authority to change the reviewed unit to `done`
+- the coordinator-owned `review` to `done` transition remains the trusted
+  completion boundary after mandatory findings-only review evidence is read and
+  dispositioned
+
+Under this model, a worker cannot satisfy the mandatory review gate by
+reviewing and closing its own implementation session because the worker role
+lacks the review completion authority, the reviewer role has no write scope,
+and completion is coordinator-owned. The review separation invariant is thus
+enforced by independent role admission, empty reviewer write authority,
+structured review-evidence recording, and coordinator closure, not by asserting
+that the AI-agent reviewer is a different authenticated principal from the
+AI-agent author.
+
+Git `author.name`, `author.email`, committer metadata, branch names, `run_id`,
+`launch_ref`, retry ids, worktree paths, output branches, monitor handles,
+dispatch session ids, generated launch briefs, prompt text, ambient env,
+launcher argv visible to a child, request payloads, `claimed_identity`,
+work-record prose, slice notes, and runtime artifacts may provide provenance,
+debugging context, correlation, or binding evidence. They are not security
+authority for AI-agent reviewer independence and must not be promoted into an
+author or reviewer principal for the current dispatch flow.
+
+work record, work record, and work record are revised by this role/evidence model. They
+are no longer blocked on inventing an AI-agent principal solely to compare
+implementation and reviewer sessions in the active local dispatch path.
+work record remains the consumer of review-separation policy, but its current
+AI-agent enforcement target is role/evidence separation. work record may record
+trusted provenance from the commit path when useful, but it must not describe
+that provenance as reviewer-independence authority. work record's earlier
+principal-envelope prerequisite is superseded for the current AI-agent flow by
+this section.
+
+### Future Authenticated Principal Extension
+
+A future authenticated human/service-principal substrate may add hard
+principal-envelope comparison on top of the current role/evidence controls. In
+that extension, reviewer and commit-author authority would need launcher- or
+transport-minted envelopes that are unforgeable by the MCP request caller,
+available before the relevant admission decision, and canonically comparable
+without reinterpreting prompt text or work-record prose.
+
+That future envelope, if adopted, would carry a stable schema version, a
+non-empty opaque principal, a controlled principal kind, a controlled trust
+source such as `launcher_minted` or `transport_minted`, opaque mint evidence,
+and selected-unit binding semantics. Its equality check would be meaningful
+only for authenticated human/service principals or another adopted principal
+registry that is distinct from run/session/worktree metadata.
+
+Until such a substrate is accepted and implemented, the following sources are
+explicitly not author or reviewer principal authority:
+
+- `workspace_agent_dispatch` request fields, including requested `role`,
+  `subject`, free-form metadata, or any request-level reviewer/caller field
+- prompt text, instructions, role labels, generated launch briefs, or docs
+  inference
+- ambient env, launcher argv as seen by the child, or any agent-authored
+  env/argv override
+- `claimed_identity`, `claimed_identity.role`, or any similarly wrapped
+  caller assertion
+- work-record title/body/closure prose, slice notes, ad hoc work-record fields,
+  or the fact that a unit's `work_kind` is `review`
+- git author/name/email, committer metadata, branch names,
+  `dispatchSessionIdentity`, `run_id`, `launch_ref`, retry ids, worktree paths,
+  output branches, monitor handles, and runtime artifacts
+
+Those values may locate a binding or explain provenance. They must not be
+compared as security principals, hashed into substitute principals, or used to
+fail or pass AI-agent reviewer independence in the current role/evidence model.
+
 The controlled vocabulary of caller role kinds is:
 
 - `coordinator`

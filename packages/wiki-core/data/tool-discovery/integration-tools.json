@@ -1,0 +1,51 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "integration-tools.json",
+  "summary": "Read-only WK-to-integration promote-check coordination tools.",
+  "tool_count": 1,
+  "tools": [
+    {
+      "tool_name": "workspace_integration_promote_check",
+      "display_name": "Workspace integration promote check",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_integration_promote_check",
+      "task_ids": [
+        "inspect-provenance"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 90,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "the project documentation"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/integration-tools.json",
+        "packages/wiki-mcp/src/lib/integration-promote-check-tools.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "wiki/initiatives/IN-0021.md",
+        "wiki/work-records/WK-1444.json",
+        "wiki/work-records/WK-1445.json"
+      ],
+      "summary": "Read-only local coordination surface reporting WK-to-integration promote-check facts and fail-closed blockers.",
+      "notes": "Read-only local coordination route (free_local, no key required) that reports promote-check facts and fail-closed local blockers for one WK/unit relative to its integration/IN-XXXX branch. It accepts only server-resolved repo selection plus a canonical WK id or tracker-local unit id, and it observes coordination facts only. It is not policy authority and does not authorize promotion, merge, rebase, worktree cleanup, lifecycle/status changes, ref updates, or review-policy satisfaction; unknown live refs, candidate identity, liveness, quiescence, lease, touched paths, detached workspace, evidence binding, and branch binding all fail closed. Introduced under IN-0021 by WK-1444 (design/contract) and WK-1445 (metadata split); see the project documentation for the coordination contract and packages/wiki-mcp/src/lib/integration-promote-check-tools.mjs plus packages/wiki-mcp/src/server.mjs for the registered implementation."
+    }
+  ]
+}

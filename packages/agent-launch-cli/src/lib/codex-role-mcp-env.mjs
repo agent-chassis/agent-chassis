@@ -53,11 +53,13 @@ export function resolveWikiMcpServerPath() {
 
 export const WIKI_MCP_WORKSPACE_DIR_ENV_VAR = "WIKI_MCP_WORKSPACE_DIR";
 export const WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR = "WIKI_MCP_WORKSPACE_ALIAS";
+export const WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR = "WIKI_MCP_DISPATCH_WORKTREE_ROOT";
 export const WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR = "WIKI_MCP_RESPONSE_STATE_DIR";
 export const WIKI_MCP_TOOL_PROFILE_ENV_VAR = "WIKI_MCP_TOOL_PROFILE";
 export const WIKI_MCP_ASSIGNED_UNIT_ENV_VAR = "WIKI_MCP_ASSIGNED_UNIT";
 export const WIKI_MCP_RESPONSE_STATE_DIR_NAME = "wiki-mcp-response-state";
 export const WIKI_MCP_AGENT_SAFE_TOOL_PROFILE = "agent-safe";
+export const WIKI_MCP_WORKER_TOOL_PROFILE = "worker";
 
 function pathContainsOrEquals(parent, candidate) {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
@@ -102,6 +104,7 @@ export function ensureWikiMcpResponseStateDir({
 export function selectWikiMcpServerEnv({
   workspaceAlias = null,
   workspaceDir = null,
+  dispatchWorktreeRoot = null,
   responseStateDir = null,
   endpointEnvVar = null,
   endpointValue = null
@@ -112,6 +115,12 @@ export function selectWikiMcpServerEnv({
   }
   if (isNonEmptyStringInternal(workspaceDir)) {
     env[WIKI_MCP_WORKSPACE_DIR_ENV_VAR] = workspaceDir;
+  }
+  if (isNonEmptyStringInternal(dispatchWorktreeRoot)) {
+    if (!path.isAbsolute(dispatchWorktreeRoot)) {
+      throw new Error("launcher-owned dispatch worktree root requires an absolute path");
+    }
+    env[WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR] = dispatchWorktreeRoot;
   }
   env[WIKI_MCP_TOOL_PROFILE_ENV_VAR] = WIKI_MCP_AGENT_SAFE_TOOL_PROFILE;
   if (isNonEmptyStringInternal(responseStateDir) && path.isAbsolute(responseStateDir)) {
@@ -137,7 +146,8 @@ export function buildCodexWikiMcpEnvOverride({ mcpServerName, envVar, value }) {
 export function buildCodexWorkspaceMcpEnvOverrides({
   mcpServerName = CODEX_WIKI_MCP_SERVER_NAME,
   workspaceAlias = null,
-  workspaceDir = null
+  workspaceDir = null,
+  dispatchWorktreeRoot = null
 } = {}) {
   const normalizedAlias = typeof workspaceAlias === "string" && workspaceAlias.trim().length > 0
     ? workspaceAlias.trim()
@@ -145,6 +155,13 @@ export function buildCodexWorkspaceMcpEnvOverrides({
   const normalizedDir = typeof workspaceDir === "string" && workspaceDir.length > 0 && path.isAbsolute(workspaceDir)
     ? workspaceDir
     : "";
+  const normalizedDispatchWorktreeRoot =
+    typeof dispatchWorktreeRoot === "string" && dispatchWorktreeRoot.length > 0
+      ? dispatchWorktreeRoot
+      : "";
+  if (normalizedDispatchWorktreeRoot && !path.isAbsolute(normalizedDispatchWorktreeRoot)) {
+    throw new Error("launcher-owned dispatch worktree root requires an absolute path");
+  }
 
   if (!normalizedDir) {
     return [];
@@ -153,15 +170,22 @@ export function buildCodexWorkspaceMcpEnvOverrides({
   if (normalizedAlias) {
     overrides.push(buildCodexWikiMcpEnvOverride({
       mcpServerName,
-      envVar: "WIKI_MCP_WORKSPACE_ALIAS",
+      envVar: WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
       value: normalizedAlias
     }));
   }
   overrides.push(buildCodexWikiMcpEnvOverride({
     mcpServerName,
-    envVar: "WIKI_MCP_WORKSPACE_DIR",
+    envVar: WIKI_MCP_WORKSPACE_DIR_ENV_VAR,
     value: normalizedDir
   }));
+  if (normalizedDispatchWorktreeRoot) {
+    overrides.push(buildCodexWikiMcpEnvOverride({
+      mcpServerName,
+      envVar: WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR,
+      value: normalizedDispatchWorktreeRoot
+    }));
+  }
   overrides.push(buildCodexWikiMcpEnvOverride({
     mcpServerName,
     envVar: WIKI_MCP_TOOL_PROFILE_ENV_VAR,
@@ -181,7 +205,7 @@ export function buildCodexWorkerWikiMcpEnvOverrides({
     buildCodexWikiMcpEnvOverride({
       mcpServerName,
       envVar: WIKI_MCP_TOOL_PROFILE_ENV_VAR,
-      value: WIKI_MCP_AGENT_SAFE_TOOL_PROFILE
+      value: WIKI_MCP_WORKER_TOOL_PROFILE
     }),
     buildCodexWikiMcpEnvOverride({
       mcpServerName,

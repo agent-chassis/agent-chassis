@@ -14,11 +14,9 @@ import {
 } from "./workspace-agent-launch-core.mjs";
 
 import {
-  adaptFamilyBrokerRefusal,
   resolveFamilyExecutorRole
 } from "./workspace-agent-family-launch-policy.mjs";
 import {
-  HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS,
   HOST_WRITE_AUTHORITY_SUBSTRATE_ID,
   HOST_WRITE_AUTHORITY_SUBSTRATE_UNAVAILABLE_REASON
 } from "./host-write-authority-substrate.mjs";
@@ -41,12 +39,6 @@ import {
 import { ensureNewWorkerWriteRoots } from "./codex-worker-plan.mjs";
 
 import {
-  buildStructuredDispatchProvenance,
-  createDispatchProvenanceEnforcementFromSandboxDecision,
-  describeDispatchArtifactReference
-} from "./workspace-agent-dispatch-provenance.mjs";
-
-import {
   CODEX_LAUNCH_POLICY_ENACTMENT,
   CODEX_LAUNCH_POLICY_FAIL_CLOSED_CLASS,
   CODEX_LAUNCH_POLICY_SOURCE_SURFACE_DISPOSITIONS,
@@ -67,7 +59,6 @@ import { launchWorkspaceAgentFamilyLaunchLifecycle } from "./workspace-agent-fam
 import {
   CODEX_CLEAN_REVIEW_LINE_PATTERN,
   CODEX_FINAL_MESSAGE_FINDINGS_SCHEMA_VERSION,
-  codexTransportSecretEnvVars,
   defaultCaptureCodexFinalResult,
   detectCodexCleanReviewLine,
   redactCodexTransportSecrets
@@ -87,6 +78,15 @@ import {
   mapCodexArtifactsFailureToInProcessRefusal,
   resolveCodexTerminalStructuredRoleResultMode
 } from "./workspace-agent-dispatch-codex-launch-support.mjs";
+import {
+  attachProvenanceToSupervisedResult
+} from "./workspace-agent-dispatch-codex-provenance.mjs";
+import {
+  createHostWriteAuthorityBrokerPlanLaunchImpl
+} from "./workspace-agent-dispatch-codex-broker-plan-launch.mjs";
+import {
+  buildCodexDispatchWorkerPlanArgs
+} from "./workspace-agent-dispatch-codex-plan-args.mjs";
 
 import { resolveLauncherSchemaConstrainedTierIsPaid } from "@agent-chassis/agent-launch-core/src/lib/config.mjs";
 export {
@@ -173,104 +173,6 @@ async function evaluateDispatchRoleModelGate({ role, isWorker, resolvedProfile, 
     cwd,
     resolveWorkspaceEnvDir
   });
-}
-
-async function buildCodexChildRunProvenance({
-  finalPath,
-  logPath,
-  env,
-  enforcement = null,
-  sandboxDecision = null
-}) {
-
-  const effectiveEnforcement = sandboxDecision
-    ? createDispatchProvenanceEnforcementFromSandboxDecision(sandboxDecision)
-    : enforcement;
-  const transportSecrets = codexTransportSecretEnvVars()
-    .map((name) => (env && typeof env === "object" ? env[name] : null))
-    .filter((value) => typeof value === "string" && value.length > 0);
-  const artifacts = [];
-  const finalRef = typeof finalPath === "string" && finalPath.length > 0
-    ? await describeDispatchArtifactReference({
-        kind: "final_response",
-        path: finalPath,
-        mediaType: "text/markdown",
-        sensitivity: "routine",
-        transportSecrets
-      })
-    : null;
-  if (finalRef) artifacts.push(finalRef);
-  const logRef = typeof logPath === "string" && logPath.length > 0
-    ? await describeDispatchArtifactReference({
-        kind: "session_log",
-        path: logPath,
-        mediaType: "text/plain",
-        sensitivity: "sensitive",
-        transportSecrets
-      })
-    : null;
-  if (logRef) artifacts.push(logRef);
-  const transcriptSource = logRef && logRef.exists
-    ? "runtime_artifact"
-    : finalRef && finalRef.exists
-      ? "child_process_output_file"
-      : "unavailable";
-  return buildStructuredDispatchProvenance({ transcriptSource, enforcement: effectiveEnforcement, artifacts, transportSecrets });
-}
-
-async function attachCodexChildRunProvenance(envelope, context) {
-  if (!envelope || typeof envelope !== "object") {
-    return envelope;
-  }
-  const provenance = await buildCodexChildRunProvenance(context);
-  return { ...envelope, provenance };
-}
-
-function attachProvenanceToSupervisedResult(supervised, provenanceContext) {
-  if (!supervised || typeof supervised !== "object" || typeof supervised.probe !== "function") {
-    return supervised;
-  }
-  const innerProbe = supervised.probe;
-  return {
-    ...supervised,
-    probe: async () => {
-      const probed = await innerProbe();
-      if (
-        probed &&
-        typeof probed === "object" &&
-        probed.final_result &&
-        typeof probed.final_result === "object"
-      ) {
-        return {
-          ...probed,
-          final_result: await attachCodexChildRunProvenance(probed.final_result, provenanceContext)
-        };
-      }
-      return probed;
-    }
-  };
-}
-
-function captureCodexFinalResultFromPlan(captureFinalResult) {
-  return async function codexParseFinalResult({ status, exit, plan, stdout, stderr }) {
-    const finalPath = typeof plan?.finalPath === "string" && plan.finalPath.length > 0
-      ? plan.finalPath
-      : null;
-    const logPath = typeof plan?.logPath === "string" && plan.logPath.length > 0
-      ? plan.logPath
-      : null;
-    const envelope = await captureFinalResult({
-      status,
-      exit,
-      finalPath,
-      role: plan?.role ?? null,
-      codexRole: plan?.role ?? null,
-      subject: plan?.subject ?? null,
-      stderr,
-      env: plan?.env
-    });
-    return attachCodexChildRunProvenance(envelope, { finalPath, logPath, env: plan?.env });
-  };
 }
 
 async function spawnPlainChildProcess(command, args, options) {
@@ -450,7 +352,7 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
     });
 
     const artifacts = await buildCodexLaunchArtifacts({
-      planArgs: {
+      planArgs: buildCodexDispatchWorkerPlanArgs({
         role: codexRole,
         subject,
         promptArgs,
@@ -466,7 +368,10 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
         sourceToolSurface: forwardedSourceToolSurface,
 
         terminalStructuredRoleResultMode,
-      },
+        dispatchWorktreeRoot: input?.dispatchWorktreeRoot ?? null,
+        provisionedWorktreeGitBinding: input?.provisionedWorktreeGitBinding ?? null,
+        provisioned_worktree_git_binding: input?.provisioned_worktree_git_binding ?? null
+      }),
       buildPlan,
       buildBwrapPlan,
       ensureWriteRoots,
@@ -662,153 +567,18 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
   };
 }
 
-export function createHostWriteAuthorityBrokerPlanLaunch({
-  buildPlan = buildCodexRolePlan,
-  buildBwrapPlan = buildCodexRoleBubblewrapPlan,
-  ensureWriteRoots = ensureNewWorkerWriteRoots,
-  env = process.env,
-  cwd: defaultCwd = process.cwd(),
-  promptArgs = [],
-  resolvedProfile = null,
-  prepareSourceToolSurface = null,
-  captureFinalResult = defaultCaptureCodexFinalResult,
-
-  resolveSchemaConstrainedTier = resolveLauncherSchemaConstrainedTierIsPaid,
-  loadWorkRecord = loadWorkRecordById
-} = {}) {
-  const brokerSourceSurfacePreparer = typeof prepareSourceToolSurface === "function"
-    ? prepareSourceToolSurface
-    : createLauncherOwnedSourceToolSurfacePreparer({ env, cwd: defaultCwd });
-  return async function brokerPlanLaunch(launchInput) {
-    const codexRole = typeof launchInput?.codex_role === "string"
-      ? launchInput.codex_role
-      : null;
-    const subject = typeof launchInput?.subject === "string"
-      ? launchInput.subject
-      : null;
-    const workspaceAlias = typeof launchInput?.workspace_alias === "string" && launchInput.workspace_alias.length > 0
-      ? launchInput.workspace_alias
-      : null;
-    const workspaceDir = typeof launchInput?.workspace_dir === "string"
-      && launchInput.workspace_dir.length > 0
-      ? launchInput.workspace_dir
-      : null;
-
-    if (!codexRole) {
-      return adaptFamilyBrokerRefusal({
-        reason: "broker_codex_role_missing",
-        detail: { received: launchInput?.codex_role ?? null }
-      });
+export function createHostWriteAuthorityBrokerPlanLaunch(options = {}) {
+  return createHostWriteAuthorityBrokerPlanLaunchImpl({
+    options,
+    deps: {
+      buildPlan: buildCodexRolePlan,
+      buildBwrapPlan: buildCodexRoleBubblewrapPlan,
+      ensureWriteRoots: ensureNewWorkerWriteRoots,
+      captureFinalResult: defaultCaptureCodexFinalResult,
+      resolveCodexWorkerSourceSurfacePolicy,
+      evaluateDispatchRoleModelGate
     }
-    if (!subject) {
-      return adaptFamilyBrokerRefusal({
-        reason: "broker_subject_missing",
-        detail: { received: launchInput?.subject ?? null }
-      });
-    }
-
-    const brokerSourceSurfacePolicy = await resolveCodexWorkerSourceSurfacePolicy({
-      role: codexRole,
-      suppliedSourceToolSurface: launchInput?.source_tool_surface ?? null,
-      preparer: brokerSourceSurfacePreparer,
-      preparerInput: {
-        app: "codex",
-        role: "worker",
-        subject,
-        workspace_alias: workspaceAlias,
-        workspace_dir: workspaceDir,
-        readiness: launchInput?.readiness ?? null,
-        run_id: typeof launchInput?.run_id === "string" ? launchInput.run_id : null,
-        model: launchInput?.model ?? null
-      }
-    });
-    if (
-      brokerSourceSurfacePolicy.disposition
-      === CODEX_LAUNCH_POLICY_SOURCE_SURFACE_DISPOSITIONS.REFUSAL
-    ) {
-      return adaptFamilyBrokerRefusal({
-        reason: brokerSourceSurfacePolicy.reason,
-        detail: brokerSourceSurfacePolicy.detail
-      });
-    }
-    const sourceToolSurface = brokerSourceSurfacePolicy.forwardedSourceToolSurface;
-
-    const brokerModelGate = await evaluateDispatchRoleModelGate({
-      role: codexRole,
-      isWorker: codexRole === "worker",
-      resolvedProfile,
-      modelHint: launchInput?.model,
-      cwd: workspaceDir ?? defaultCwd
-    });
-    if (!brokerModelGate.ok) {
-      return adaptFamilyBrokerRefusal({
-        reason: brokerModelGate.reason,
-        detail: brokerModelGate.detail
-      });
-    }
-    const effectiveResolvedProfile = brokerModelGate.resolvedProfile;
-
-    let findingsOnlyAcceptance;
-    try {
-      findingsOnlyAcceptance = await resolveFindingsOnlyAcceptanceContract({
-        role: codexRole,
-        subject,
-        workspaceDir: workspaceDir ?? defaultCwd,
-        loadWorkRecord
-      });
-    } catch (err) {
-      return adaptFamilyBrokerRefusal({
-        reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.PLAN_THREW,
-        detail: {
-          stage: "findings_only_acceptance_contract",
-          message: err?.message ?? String(err),
-          code: err?.code ?? null,
-          detail: err?.detail ?? null
-        }
-      });
-    }
-
-    const brokerSchemaConstrainedTierIsPaid = workspaceDir
-      ? resolveSchemaConstrainedTier({ workspaceDir }) === true
-      : false;
-    const terminalStructuredRoleResultMode = resolveCodexTerminalStructuredRoleResultMode({
-      schemaConstrainedTierIsPaid: brokerSchemaConstrainedTierIsPaid,
-      codexRole
-    });
-
-    const artifacts = await buildCodexLaunchArtifacts({
-      planArgs: {
-        role: codexRole,
-        subject,
-        promptArgs,
-        env,
-        cwd: workspaceDir ?? defaultCwd,
-
-        resolvedProfile: effectiveResolvedProfile,
-        workspaceAlias,
-        workspaceDir,
-        acceptanceCriteria: findingsOnlyAcceptance?.acceptanceCriteria ?? [],
-        acceptanceValidation: findingsOnlyAcceptance?.acceptanceValidation ?? [],
-        sourceToolSurface,
-
-        terminalStructuredRoleResultMode
-      },
-      buildPlan,
-      buildBwrapPlan,
-      ensureWriteRoots,
-
-      assertBwrap: () => undefined
-    });
-    if (!artifacts.ok) {
-      return mapCodexArtifactsFailureToBrokerRefusal(artifacts);
-    }
-    return {
-      ok: true,
-      plan: artifacts.plan,
-      bwrapPlan: artifacts.bwrapPlan,
-      parseFinalResult: captureCodexFinalResultFromPlan(captureFinalResult)
-    };
-  };
+  });
 }
 
 export const __TERMINAL_STATUSES_FOR_TESTS = __LAUNCH_CORE_TERMINAL_STATUSES_FOR_TESTS;

@@ -11,6 +11,7 @@ import {
   getWikiRecord,
   loadManifest,
   lintRepo,
+  readWorkRecordById,
   readWikiPage,
   searchRepo,
   syncContract
@@ -18,6 +19,7 @@ import {
 
 import { buildLintFindingsResponse } from "@agent-chassis/wiki-core/src/operations/generate-and-lint.mjs";
 import { autofixDocsBacklinks } from "@agent-chassis/wiki-core/src/operations/autofix-docs-backlinks.mjs";
+import { runWorkRecordReadWithCompactGate } from "./work-record-compact-read-gate.mjs";
 
 export function registerWikiCoreTools({
   registerTool,
@@ -277,7 +279,7 @@ export function registerWikiCoreTools({
     "workspace_read_page",
     {
       description:
-        "Read a markdown page, JSON work-record, or graph-evidence sidecar from a workspace repository (no caller-supplied filesystem root). For tracker work-records, WK-level output is compact by default: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. Included slice rows may expose agent_notes_bytes, the UTF-8 byte count of slice agent notes. Use selected_slice:<id> for one slice's full actionable details and notes. Full/debug opt-ins include include_body, include_raw, include_record, or verbose:true; complete payloads may spill. Graph-evidence sidecars are replay/debug data and never dispatch authority; use selected_slice or selected_record (mutually exclusive) to pull a single replay entry.",
+        "Read a markdown page, JSON work-record, or graph-evidence sidecar from a workspace repository (no caller-supplied filesystem root). For work-record reads, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. For more detail, rerun compact or use selected_slice:<id> for bounded slice details and notes. Expensive include_body, include_raw, include_record, or verbose:true reads are gated behind a recent compact_read_token or selected slice. Graph-evidence sidecars are replay/debug data and never dispatch authority; use selected_slice or selected_record (mutually exclusive) to pull one replay entry.",
       inputSchema: {
         path: z.string(),
         repo: z.string().optional(),
@@ -288,15 +290,21 @@ export function registerWikiCoreTools({
         include_raw: z.boolean().optional(),
         include_record: z.boolean().optional(),
         selected_slice: z.string().optional(),
-        selected_record: z.boolean().optional()
+        selected_record: z.boolean().optional(),
+        compact_read_token: z.string().optional()
       }
     },
     async (args) => {
       try {
         const workspace = resolveWorkspaceReadPageRepo(args);
-        const result = await readWikiPage({
-          ...args,
-          dir: workspace.dir
+        const result = await runWorkRecordReadWithCompactGate({
+          workspaceRepo: workspace.repo,
+          workspaceDir: workspace.dir,
+          args,
+          toolFamily: "workspace_read_page",
+          readCompact: readWikiPage,
+          readExpensive: readWikiPage,
+          readWorkRecordById
         });
         return jsonContent({
           ...result,
@@ -334,7 +342,7 @@ export function registerWikiCoreTools({
     "workspace_get_record",
     {
       description:
-        "Read a canonical wiki record from a workspace repository (no caller-supplied filesystem root). For tracker work-records, WK-level output is compact by default: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. Included slice rows may expose agent_notes_bytes, the UTF-8 byte count of slice agent notes. Use selected_slice:<id> for one slice's full actionable details and notes. Full/debug opt-ins include include_record, include_body, include_raw, or verbose:true; complete payloads may spill.",
+        "Read a canonical wiki record from a workspace repository (no caller-supplied filesystem root). For work records, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. For more detail, rerun compact or use selected_slice:<id> for bounded slice details and notes. Expensive include_record, include_body, include_raw, or verbose:true reads are gated behind a recent compact_read_token or selected slice.",
       inputSchema: {
         id: z.string(),
         repo: z.string().optional(),
@@ -344,15 +352,21 @@ export function registerWikiCoreTools({
         include_record: z.boolean().optional(),
         include_body: z.boolean().optional(),
         include_raw: z.boolean().optional(),
-        selected_slice: z.string().optional()
+        selected_slice: z.string().optional(),
+        compact_read_token: z.string().optional()
       }
     },
     async (args) => {
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const result = await getWikiRecord({
-          ...args,
-          dir: workspace.dir
+        const result = await runWorkRecordReadWithCompactGate({
+          workspaceRepo: workspace.repo,
+          workspaceDir: workspace.dir,
+          args,
+          toolFamily: "workspace_get_record",
+          readCompact: getWikiRecord,
+          readExpensive: getWikiRecord,
+          readWorkRecordById
         });
         return jsonContent({
           workspaceRepo: workspace.repo,

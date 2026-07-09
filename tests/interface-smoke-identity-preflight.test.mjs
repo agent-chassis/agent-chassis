@@ -48,7 +48,7 @@ function createMcpSession({ env = {}, prelude = "" } = {}) {
   return createBoundedMcpSession({ env, prelude, repoRoot: REPO_ROOT });
 }
 
-test("MCP workspace_agent_dispatch_identity_contract publishes the WK-0532 contract and refuses caller-supplied identity", { skip: "WK-1377 pending CCE/no-CCE test-structure refactor" }, async () => {
+test("MCP workspace_agent_dispatch_identity_contract publishes the WK-0532 contract and refuses caller-supplied identity", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/identity-demo" });
 
@@ -75,7 +75,7 @@ test("MCP workspace_agent_dispatch_identity_contract publishes the WK-0532 contr
 
       assert.equal(contract.mcp_dispatch_reviewer_available, true);
 
-      assert.equal(contract.graph_impact_persistence_available, true);
+      assert.equal(contract.graph_impact_persistence_available, false);
 
       assert.equal(contract.bootstrap_review.state, "bootstrap_exception_consumed");
       assert.equal(contract.bootstrap_review.blocking, false);
@@ -96,11 +96,15 @@ test("MCP workspace_agent_dispatch_identity_contract publishes the WK-0532 contr
       });
       assert.equal(
         graphRequiredExceptionActive.structuredContent.bootstrap_review.state,
-        "bootstrap_exception_consumed"
+        "graph_impact_persistence_unavailable"
+      );
+      assert.equal(
+        graphRequiredExceptionActive.structuredContent.bootstrap_review.blocking,
+        true
       );
       assert.equal(
         graphRequiredExceptionActive.structuredContent.graph_impact_persistence_available,
-        true
+        false
       );
 
       const refused = await session.request(5, "tools/call", {

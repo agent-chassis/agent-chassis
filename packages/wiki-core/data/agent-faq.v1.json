@@ -129,7 +129,9 @@
         "review_threshold_exceeded",
         "worker_admission.work_unit_atomicity.write_scope_total_loc_denied.v1",
         "worker_admission.work_unit_atomicity.max_write_file_loc_denied.v1",
-        "worker_admission.work_unit_atomicity.large_file_requires_review.v1"
+        "worker_admission.work_unit_atomicity.large_file_requires_review.v1",
+        "node_engine_needs_review",
+        "node_engine_admissibility_needs_review"
       ],
       "related_docs": [
         "docs/tool-discovery.md"
@@ -228,7 +230,114 @@
         "request_schema_digest_mismatch",
         "precondition_graph_too_large",
         "non_object_data",
-        "invalid_request"
+        "invalid_request",
+        "node_engine_pack_input_required",
+        "node_engine_pack_input_invalid",
+        "node_engine_request_schema_digest_mismatch",
+        "node_engine_precondition_graph_too_large",
+        "node_engine_non_object_data",
+        "node_engine_request_invalid"
+      ],
+      "related_docs": [
+        "docs/tool-discovery.md"
+      ]
+    },
+    {
+      "id": "dispatch-readiness-multi-cluster-or-critical-blast-radius",
+      "title": "validate_dispatch non-dispatchable on multi_cluster or critical_blast_radius_*",
+      "symptom": "workspace_validate_dispatch reports the selected unit non-dispatchable with decision code `multi_cluster` (the unit's write_scope spans more than one cohesive change cluster) or a `critical_blast_radius_*` code (the change reaches a critical surface with no current, in-scope accepted escalation).",
+      "cause": "Both are LOCAL dispatch-readiness structural gates an agent can see before any launch — not Node-Engine threshold verdicts — so they need no paid tool. multi_cluster wants one cohesive write_scope cluster per unit; critical_blast_radius_* wants a recorded, accepted, in-scope `critical_blast_radius` escalation whose scope matches the change.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "free_local"
+      ],
+      "routes": [],
+      "fork": [
+        {
+          "when": "multi_cluster: the unit's write_scope spans more than one cohesive change cluster.",
+          "actor": "agent",
+          "routes": [
+            {
+              "tool": "workspace_work_record_upsert_slice",
+              "note": "Split the unit so each slice's write_scope covers one cluster, or narrow this unit to a single cohesive cluster."
+            },
+            {
+              "tool": "workspace_validate_dispatch",
+              "note": "Re-probe dispatch readiness after narrowing/splitting; a single-cluster unit clears the multi_cluster gate."
+            }
+          ],
+          "note": "Agent-resolvable structural readiness gate; no paid tool required."
+        },
+        {
+          "when": "critical_blast_radius_requires_escalation / critical_blast_radius_escalation_expired / critical_blast_radius_escalation_scope_mismatch: the change touches a critical surface with no current, in-scope accepted escalation.",
+          "actor": "agent_or_operator",
+          "routes": [
+            {
+              "tool": "workspace_validate_dispatch",
+              "note": "After a coordinator/operator records an accepted `critical_blast_radius` escalation whose scope matches this unit (expired or scope-mismatch escalations do not clear the gate), re-probe dispatch readiness. Do not self-accept the escalation to bypass the gate."
+            }
+          ],
+          "note": "Escalation acceptance is a coordinator/operator decision, not an agent threshold-recovery action."
+        }
+      ],
+      "related_codes": [
+        "multi_cluster",
+        "critical_blast_radius_requires_escalation",
+        "critical_blast_radius_escalation_expired",
+        "critical_blast_radius_escalation_scope_mismatch"
+      ],
+      "related_docs": [
+        "docs/tool-discovery.md"
+      ]
+    },
+    {
+      "id": "run-validation-target-not-authorized",
+      "title": "workspace_run_validation refuses target_not_authorized (target not in the unit's allowlist)",
+      "symptom": "workspace_run_validation returns a structured refusal with refusal_code `workspace_run_validation.target_not_authorized.v1`: the requested target is not a node_test entry in the unit's sections.structured_validation.allowed[].",
+      "cause": "workspace_run_validation only runs targets the unit's work contract authorizes. The refusal carries the caller-visible authorized_targets set; a miss is a contract/allowlist gap resolvable locally with no paid tool.",
+      "actor": "agent",
+      "tier_visibility": [
+        "free_local"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_run_validation",
+          "note": "Re-run with a target from the refusal's authorized_targets, or first add the intended target to the unit's sections.structured_validation.allowed[] (command node_test) so the contract authorizes it, then resubmit."
+        }
+      ],
+      "related_codes": [
+        "workspace_run_validation.target_not_authorized.v1"
+      ],
+      "related_docs": [
+        "docs/tool-discovery.md"
+      ]
+    },
+    {
+      "id": "worker-admission-breadth-write-scope-or-validation-count",
+      "title": "worker-admission breadth refusal on write_scope_count or validation_command_count",
+      "symptom": "workspace_agent_dispatch or workspace_validate_dispatch (with node_engine_admissibility: true) returns a Chassis Control Engine breadth refusal keyed on control_id `write_scope_count` or `validation_command_count` (e.g. `worker_admission.work_unit_atomicity.write_scope_count_denied.v1`): the unit declares too many write_scope files or too many validation commands for one atomic unit.",
+      "cause": "These are Node-Engine-owned breadth thresholds over the raw carrier metrics (write-scope file breadth / validation-command breadth). Under DEC-0125 large-file / breadth admissibility is CCE-exclusive, so only the paid_cce tier reaches this refusal (a free/local agent fails open). The remedy is to split the unit, not to loosen a threshold.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_work_record_upsert_slice",
+          "note": "Split the unit into narrower slices so each carries a single cohesive write_scope and a bounded validation set, reducing write_scope_count / validation_command_count per unit."
+        },
+        {
+          "tool": "workspace_validate_dispatch",
+          "args": {
+            "node_engine_admissibility": true
+          },
+          "note": "Re-probe admissibility for the narrowed unit. If it still refuses on breadth with no accepted policy authority, record an admission/breadth blocker rather than loosening a threshold."
+        }
+      ],
+      "related_codes": [
+        "worker_admission.work_unit_atomicity.write_scope_count_denied.v1",
+        "write_scope_count",
+        "validation_command_count"
       ],
       "related_docs": [
         "docs/tool-discovery.md"

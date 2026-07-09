@@ -166,13 +166,22 @@ default_tools_approval_mode = "approve"
 WIKI_MCP_TOOL_PROFILE = "agent-safe"
 ```
 
-The `agent-safe` profile registers the workspace-scoped repository tools,
-`workspace_tools_list`, `workspace_tools_describe`, `workspace_tools_query`,
-`get_contract_manifest`, and the structured work-record coordination tools
-listed below. It does not register raw `dir` tools, allocator-backed creation
-tools, generate/lint mutation tools, bootstrap tools, or sync tools. Those
-remain available in the default `full` profile for explicit operator and
-tooling-test use.
+The `agent-safe` profile does not use a hand-maintained route list. Agent-safe
+exposure is descriptor-audience-derived. An MCP tool is registered under
+`agent-safe` only when both gates allow it:
+its checked-in tool-discovery descriptor entry has `kind: "mcp_tool"` and a raw
+`audience` array that includes the literal `"agent"`
+(`Array.isArray(entry.audience) && entry.audience.includes("agent")`), **and**
+the registered-tier gate permits it for the resolved session. The two gates
+compose as an independent AND: descriptor audience never overrides tier
+visibility, and tier visibility never grants agent-safe exposure to a tool whose
+descriptor omits the literal `"agent"` audience. The audience gate is
+default-deny — a missing, empty, non-array, or non-literal/substring `audience`
+value does not make a tool agent-safe. The descriptor `audience` field is
+therefore the authoritative agent-exposure control; caller text, prompt intent,
+argv, environment, and wrapper names are not exposure authority. See
+[docs/tool-discovery.md](tool-discovery.md) (`agent-safe` / `agent-authoritative`
+are not tier labels) for the full derivation and fail-closed rules.
 
 ## Repo-Local Workspace Declaration
 
@@ -551,14 +560,16 @@ not recover them by shelling out, editing raw JSON, changing spill limits, or
 changing storage; use a targeted selected-slice read/summary or an explicit
 full/debug opt-in.
 
-`workspace_create_record` is the agent-safe structured create route for allocator-backed canonical wiki records:
+`workspace_create_record` is the workspace-scoped structured create route agents
+should use for allocator-backed canonical wiki records when that MCP tool is
+exposed by the active descriptor-audience and registered-tier gates:
 
 - Inputs are `{ repo?, type, title, id? }`. Omitted `repo` follows the same workspace resolver precedence as the other repo-scoped tools: explicit caller `repo`, then launcher/server-minted local repo alias, then structured not-in-repo / wrong-session refusal. The tool never accepts a caller-supplied filesystem `dir`.
 - `type: "issue"` allocates the next `WK-####` and writes canonical `wiki/work-records/WK-####.json`, consuming any outstanding `allocate_id` reservation. Returned structured content includes `id`, `jsonRelativeFile`, and `jsonAbsoluteFile` for the JSON authority.
 - `type: "initiative"` allocates the next `IN-####` and writes `wiki/initiatives/IN-####.md`. Returned structured content includes `id` and `relativeFile` set to the `wiki/initiatives/IN-####.md` path.
 - Other allocator-backed types (`decision`, `source`) and slug-based `area` records follow the same shared allocator/template path.
 - Unknown `repo` aliases return the standard workspace `Unknown workspace repo alias` error and never silently fall back to another root.
-- The non-workspace `create_record` tool with a caller-supplied `dir` is reserved for admin/operator flows and is not the agent-safe workspace path.
+- The non-workspace `create_record` tool with a caller-supplied `dir` is reserved for admin/operator flows; agent-safe exposure is still determined by descriptor audience plus registered-tier gating, not by this prose distinction.
 
 For agents, the structured workspace tool to use is:
 
@@ -710,6 +721,70 @@ The three tool-discovery tools have distinct scopes to avoid pulling the full ca
 - `workspace_tools_query` — targeted lookup by `task_id` or `tool_name`. Returns compact entry shape. Use when you already know the exact identifier and want the narrowest possible result.
 
 All three are read-only and bounded by default. Do not call `workspace_tools_describe` without a filter when a bounded `workspace_tools_list` scan would answer the question first. Do not call any tool-discovery route with `verbose: true` unless the compact entry fields are insufficient.
+
+Router and discovery guidance rule:
+
+`workspace_tool_router_recommend` is an advisory first-call router. Agents and
+operators should use it when the correct first MCP tool is unclear, especially
+for coordination tasks where search, full record reads, dispatch, lint, or
+mutation might be the wrong starting point. A matched router response recommends
+the first call and any derivable arguments; ambiguous or unknown responses bound
+the next question instead of guessing, reading full records, dispatching,
+mutating, linting, or validating on the caller's behalf.
+
+Tool discovery exposes the same routing contract as compact metadata on tool
+entries. Fields such as `use_when`, `do_not_use_when`, `authoritative_for`,
+`recommended_first_call`, `requires_prior_state`, and
+`replacement_for_misuse` are machine-actionable selection hints for agents,
+reviews, and operators. They are not a second source of execution authority and
+they do not make discovery responsible for performing the underlying operation.
+
+Domain tools retain authority for their domains: read tools own reads, dispatch
+readiness tools own dispatchability decisions, dispatch tools own role launch,
+lint tools own lint results, mutation tools own writes, and validation tools own
+validation outcomes. Router and discovery output may tell an agent which of
+those tools to call first or avoid as a first call; the called domain tool's
+structured result remains the authority for the operation.
+
+Vocabulary ownership is split by WK. `work record` owns the misuse-code vocabulary
+in `tool-use-policy.v1`; `work record` owns routing-intent ids and replacement-call
+guidance in `tool-routing-intents.v1` and tool-discovery metadata. MCP
+integration docs should reference that split rather than duplicating either
+vocabulary inline.
+
+`workspace_tool_usage_audit` is an observed-adherence telemetry surface for
+operators and coordinators. Treat its output as bounded evidence about tool-use
+patterns seen in historical artifacts or live MCP calls, not as canonical
+work-record state, dispatch readiness, review attestation, lint status, or tool
+authority. The canonical state for a work item remains the work record and the
+domain-specific structured tools that own validation, dispatch, mutation,
+review, lint, and generation.
+
+The audit path uses historical backfill first when existing artifacts can prove
+facts with an evidence envelope. Historical evidence can establish bounded facts
+such as observed structured tool events, confidence, source kind, redacted path
+categories, and unsupported gaps. Live MCP runtime capture exists only for
+MCP-policy questions that historical artifacts cannot answer, such as
+caller/session/profile provenance for an observed MCP call or whether a live MCP
+call followed the expected compact-first and next-action policy. Historical
+stderr, launcher metadata, local shell traces, or review bundles must not be
+upgraded into confirmed MCP-specific misuse when they cannot prove that fact;
+the audit result should mark those questions as unsupported gaps.
+
+By default, `workspace_tool_usage_audit` returns compact aggregate telemetry:
+counts by tool and misuse code, expensive-call indicators, next-action adherence
+signals where derivable, source/confidence labels, unsupported-gap labels, and
+caller/session/profile provenance buckets. It preserves redaction rather than
+returning raw prompts, full arguments, raw results, filesystem roots, secrets,
+or child-agent final text. Caller provenance, session provenance, and tool
+profile are separate dimensions so operator/full-profile/test calls are not
+conflated with launcher-managed agent-safe role sessions.
+
+`workspace_tool_usage_audit` does not dispatch agents, mutate records, run
+lint/generate, block or refuse calls, route agents, grant tool authority, revoke
+tool authority, or reinterpret a domain tool's result. It may report misuse
+codes owned by `tool-use-policy.v1` and coarse or work record-derived guidance when
+available, but the relevant domain tool still owns the operation itself.
 
 Backlink rule:
 

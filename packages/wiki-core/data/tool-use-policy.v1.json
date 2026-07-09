@@ -1,0 +1,152 @@
+{
+  "schema_version": "tool-use-policy.v1",
+  "policy_id": "agent_tool_use_policy",
+  "policy_posture": {
+    "mode": "audit_only",
+    "data_only": true,
+    "enforces_tool_calls": false,
+    "authorizes_tool_calls": false,
+    "routes_tool_calls": false,
+    "refuses_tool_calls": false,
+    "description": "This vocabulary classifies observed tool-use patterns for audit and telemetry only. Domain tools, dispatch/readiness tools, runtime refusal layers, and WK-1438 routing metadata remain the authority for behavior."
+  },
+  "routing_intent_contract": {
+    "owned_by": "WK-1438",
+    "vocabulary": "tool-routing-intents.v1",
+    "references_available": false,
+    "guidance": "routing_guidance_unavailable",
+    "reason": "packages/wiki-core/data/tool-routing-intents.v1.json is empty in this slice; this policy uses only coarse replacement-family references and does not define routing-intent identifiers."
+  },
+  "severity_levels": [
+    {
+      "id": "info",
+      "description": "Observed pattern is useful for trend analysis and does not imply immediate remediation."
+    },
+    {
+      "id": "low",
+      "description": "Observed pattern is inefficient or weakly sequenced, but usually recoverable without changing durable state."
+    },
+    {
+      "id": "medium",
+      "description": "Observed pattern can waste substantial context, skip a documented prerequisite, or obscure audit evidence."
+    },
+    {
+      "id": "high",
+      "description": "Observed pattern can bypass an authority-bearing validation step or create high-risk coordination ambiguity."
+    }
+  ],
+  "recoverability_levels": [
+    {
+      "id": "recoverable",
+      "description": "A follow-up call can usually return the workflow to the expected sequence."
+    },
+    {
+      "id": "operator_review_recommended",
+      "description": "A coordinator or operator should inspect the run before treating the workflow as complete."
+    },
+    {
+      "id": "non_recoverable_from_audit",
+      "description": "The audit vocabulary can identify the pattern, but it cannot repair or authorize a replacement action."
+    }
+  ],
+  "replacement_families": [
+    {
+      "id": "initiative_status_or_action_lens",
+      "description": "Use a compact status, frontier, or next-action lens before search or record sampling for broad state questions.",
+      "exact_call_authority": "WK-1438 router output when available"
+    },
+    {
+      "id": "selected_resource_compact_read",
+      "description": "Use a compact read of resources selected by a prior lens, status, search, or router result before detailed/full expansion.",
+      "exact_call_authority": "WK-1438 router output when available"
+    },
+    {
+      "id": "scoped_lens_or_filtered_summary",
+      "description": "Use a bounded lens, filtered summary, or selected-resource view instead of broad sampling without a stated selection lens.",
+      "exact_call_authority": "WK-1438 router output when available"
+    },
+    {
+      "id": "dispatch_readiness_validation",
+      "description": "Run the structured dispatch-readiness validation path before role dispatch.",
+      "exact_call_authority": "dispatch readiness tooling and WK-1438 router output when available"
+    },
+    {
+      "id": "required_next_action",
+      "description": "Follow the required next_action or allowed-next-call signal returned by the previous authoritative tool response.",
+      "exact_call_authority": "the previous tool response"
+    },
+    {
+      "id": "compact_or_summarized_output_first",
+      "description": "Request compact or summarized output before high-output, verbose, full, or bulk views unless prior selected context requires detail.",
+      "exact_call_authority": "WK-1438 router output when available"
+    }
+  ],
+  "misuse_codes": [
+    {
+      "code": "search_used_for_status_aggregation",
+      "title": "Search used for status aggregation",
+      "summary": "A search/discovery call was used as the first or primary step for initiative status, frontier state, next action, or dispatch-state aggregation.",
+      "severity": "medium",
+      "recoverability": "recoverable",
+      "replacement_family": "initiative_status_or_action_lens",
+      "routing_intent_ref": null,
+      "route_guidance": "routing_guidance_unavailable",
+      "audit_only": true
+    },
+    {
+      "code": "full_read_without_selected_resource",
+      "title": "Full read without selected resource",
+      "summary": "A full or detailed resource read was requested before a compact/lens/search/router result selected the resource or established the need for detail.",
+      "severity": "medium",
+      "recoverability": "recoverable",
+      "replacement_family": "selected_resource_compact_read",
+      "routing_intent_ref": null,
+      "route_guidance": "routing_guidance_unavailable",
+      "audit_only": true
+    },
+    {
+      "code": "bulk_sampling_without_lens",
+      "title": "Bulk sampling without lens",
+      "summary": "Multiple records, files, runs, or pages were sampled to infer aggregate state without first using a compact lens, status, or filtered summary.",
+      "severity": "medium",
+      "recoverability": "recoverable",
+      "replacement_family": "scoped_lens_or_filtered_summary",
+      "routing_intent_ref": null,
+      "route_guidance": "routing_guidance_unavailable",
+      "audit_only": true
+    },
+    {
+      "code": "dispatch_without_readiness_validation",
+      "title": "Dispatch without readiness validation",
+      "summary": "A worker, reviewer, redteam, or role-session dispatch was attempted before the structured dispatch-readiness validation path established the unit is dispatchable.",
+      "severity": "high",
+      "recoverability": "operator_review_recommended",
+      "replacement_family": "dispatch_readiness_validation",
+      "routing_intent_ref": null,
+      "route_guidance": "routing_guidance_unavailable",
+      "audit_only": true
+    },
+    {
+      "code": "ignored_required_next_action",
+      "title": "Ignored required next action",
+      "summary": "A tool response supplied a required next_action, selected-resource follow-up, or allowed-next-call boundary, but the subsequent observed call did not follow it.",
+      "severity": "medium",
+      "recoverability": "operator_review_recommended",
+      "replacement_family": "required_next_action",
+      "routing_intent_ref": null,
+      "route_guidance": "routing_guidance_unavailable",
+      "audit_only": true
+    },
+    {
+      "code": "high_output_option_without_compact_first",
+      "title": "High-output option without compact first",
+      "summary": "A verbose, full, high-output, bulk, or unbounded response mode was requested before a compact response or selected-resource prerequisite justified the larger output.",
+      "severity": "low",
+      "recoverability": "recoverable",
+      "replacement_family": "compact_or_summarized_output_first",
+      "routing_intent_ref": null,
+      "route_guidance": "routing_guidance_unavailable",
+      "audit_only": true
+    }
+  ]
+}

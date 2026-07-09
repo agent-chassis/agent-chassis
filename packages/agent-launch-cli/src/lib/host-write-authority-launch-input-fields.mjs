@@ -12,7 +12,10 @@ export const HOST_WRITE_AUTHORITY_LAUNCH_INPUT_FIELDS = Object.freeze([
   "app",
   "codex_role",
   "model",
-  "source_tool_surface"
+  "source_tool_surface",
+  "provisionedWorktreeGitBinding",
+  "provisioned_worktree_git_binding",
+  "dispatchWorktreeRoot"
 ]);
 
 const HOST_WRITE_AUTHORITY_LAUNCH_INPUT_FIELD_SET = new Set(

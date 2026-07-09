@@ -42,6 +42,10 @@ export function buildFamilyExecutorBwrapPlan({
   readOnlyRoots = [],
 
   additionalMaskTmpfsDirs = [],
+  provisionedWorktreeGitIdentity = null,
+  provisionedWorktreeGitBinding = null,
+  provisioned_worktree_git_identity = null,
+  provisioned_worktree_git_binding = null,
   envPolicy = null,
   familyRuntimeReadOnlyRoots = [],
   familySystemReadOnlyRoots = null,
@@ -97,6 +101,11 @@ export function buildFamilyExecutorBwrapPlan({
     deriveWritableMounts
   });
   const workerSecretMaskInputs = buildWorkerSecretMaskInputs({ workspaceDir });
+  const serverProvisionedWorktreeGitIdentity = provisionedWorktreeGitIdentity
+    ?? provisionedWorktreeGitBinding
+    ?? provisioned_worktree_git_identity
+    ?? provisioned_worktree_git_binding
+    ?? null;
 
   return buildBubblewrapLaunchPlan({
     repo: workspaceDir,
@@ -110,6 +119,9 @@ export function buildFamilyExecutorBwrapPlan({
     writableRoots,
     writableFiles,
     runtimeRoots: asArray(runtimeRoots),
+    ...(serverProvisionedWorktreeGitIdentity !== null
+      ? { provisionedWorktreeGitIdentity: serverProvisionedWorktreeGitIdentity }
+      : {}),
     familyRuntimeReadOnlyRoots: mergedFamilyRuntimeReadOnlyRoots,
     familySystemReadOnlyRoots,
     familyRuntimeWritableRoots,

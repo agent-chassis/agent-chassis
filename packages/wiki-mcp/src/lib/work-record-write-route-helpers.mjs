@@ -23,6 +23,25 @@ function cloneJson(value) {
 
 export { shapeWriteResponse };
 
+const STALE_SOURCE_DIGEST_RETRY_NEXT_ACTION =
+  "The on-disk record changed since it was read (stale_source_digest): re-read the record, then resubmit this write with expected_source_digest set to the current_source_digest returned here";
+
+function hasStaleSourceDigestDiagnostic(result) {
+  const diagnostics = Array.isArray(result?.diagnostics) ? result.diagnostics : [];
+  return diagnostics.some((entry) => entry && entry.code === "stale_source_digest");
+}
+
+function attachStaleSourceDigestRetry(response, result) {
+  if (!hasStaleSourceDigestDiagnostic(result)) {
+    return response;
+  }
+  response.current_source_digest = result?.current_source_digest ?? null;
+  if (!response.next_action) {
+    response.next_action = STALE_SOURCE_DIGEST_RETRY_NEXT_ACTION;
+  }
+  return response;
+}
+
 export function createCompactWorkRecordEditResponse(workspaceRepo, result) {
   const response = {
     workspaceRepo,
@@ -43,7 +62,7 @@ export function createCompactWorkRecordEditResponse(workspaceRepo, result) {
     response.current_source_digest = result.current_source_digest ?? null;
   }
 
-  return response;
+  return attachStaleSourceDigestRetry(response, result);
 }
 
 const COMPACT_VALIDATE_DISPATCH_REASONS_LIMIT = 5;
@@ -96,7 +115,7 @@ function nextActionForNodeEngineAdmissibility(admissibility) {
   return NODE_ENGINE_ADMISSIBILITY_NEXT_ACTIONS[diagnosticCode] ?? null;
 }
 
-function nextActionForDecisionCode(decisionCode, dispatchRole, dispatchable, admissibility = null) {
+export function nextActionForDecisionCode(decisionCode, dispatchRole, dispatchable, admissibility = null) {
   if (dispatchable) {
     return dispatchRole === "read_only"
       ? "Dispatch reviewer/redteam via workspace_agent_dispatch"
@@ -136,7 +155,7 @@ function nextActionForDecisionCode(decisionCode, dispatchRole, dispatchable, adm
   }
 }
 
-function nextActionForFreeLocalDecisionCode(decisionCode, dispatchRole, dispatchable) {
+export function nextActionForFreeLocalDecisionCode(decisionCode, dispatchRole, dispatchable) {
   if (dispatchable) {
     return nextActionForDecisionCode(decisionCode, dispatchRole, dispatchable, null);
   }
@@ -153,6 +172,10 @@ function nextActionForFreeLocalDecisionCode(decisionCode, dispatchRole, dispatch
       return "Define write_scope on this work item before dispatch";
     case "work_record_readiness_failure":
       return "Resolve blocking readiness issues reported in reasons";
+
+    case "missing_graph_impact":
+      return "Re-run workspace_validate_dispatch — its default graph resolver rebuilds the live dependency graph on use for graph-bearing implementation units — or build the code-index graph locally with the free CLI (`npm run wiki -- code-index build`, then `npm run wiki -- code-index graph-impact-paths`), then re-validate";
+
     default:
       return "Resolve structural dispatch-readiness issues reported in reasons";
   }
@@ -240,7 +263,7 @@ export function createCompactContractEditResponse(workspaceRepo, result) {
     response.record = result.record;
   }
 
-  return response;
+  return attachStaleSourceDigestRetry(response, result);
 }
 
 function parseWorkRecordUnitAddress(unitAddress) {

@@ -1,3 +1,4 @@
+
 # Adoption Flow
 
 This document describes how a new or existing repository should adopt the shared wiki contract.
@@ -12,8 +13,10 @@ This document describes how a new or existing repository should adopt the shared
    For a normal operational adoption, first install the core package as a dev
    dependency:
    `npm install --save-dev @agent-chassis/core`.
-   Then run `npx wiki bootstrap --profile <profile>` after the registry mapping
-   and token setup in [docs/local-package-install.md](local-package-install.md).
+   The `@agent-chassis` packages are published to the public npm registry, so no
+   `.npmrc`, registry mapping, or auth token is required to install them. Then
+   run `npx wiki bootstrap --profile <profile>` after that package install; see
+   [docs/local-package-install.md](local-package-install.md) for install detail.
    The zero-install form
    `npx -p @agent-chassis/wiki-cli wiki bootstrap --profile <profile>` is
    bootstrap-only and does not pin the local MCP server or launcher entrypoints.

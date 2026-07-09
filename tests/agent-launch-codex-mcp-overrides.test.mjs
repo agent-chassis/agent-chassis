@@ -14,6 +14,7 @@ import {
   WIKI_MCP_AGENT_SAFE_TOOL_PROFILE,
   WIKI_MCP_ASSIGNED_UNIT_ENV_VAR,
   WIKI_MCP_TOOL_PROFILE_ENV_VAR,
+  WIKI_MCP_WORKER_TOOL_PROFILE,
   WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
   WIKI_MCP_WORKSPACE_DIR_ENV_VAR
 } from "../packages/agent-launch-cli/src/lib/codex-role-mcp-env.mjs";
@@ -34,22 +35,23 @@ function collectCodexConfigOverrides(args) {
   return overrides;
 }
 
-test("Codex worker wiki MCP env overrides pin launcher-owned agent-safe profile and assigned unit", () => {
+test("Codex worker wiki MCP env overrides pin launcher-owned worker profile and assigned unit", () => {
   assert.equal(CODEX_WIKI_MCP_SERVER_NAME, "wiki");
   assert.equal(WIKI_MCP_TOOL_PROFILE_ENV_VAR, "WIKI_MCP_TOOL_PROFILE");
   assert.equal(WIKI_MCP_AGENT_SAFE_TOOL_PROFILE, "agent-safe");
+  assert.equal(WIKI_MCP_WORKER_TOOL_PROFILE, "worker");
 
   const overrides = buildCodexWorkerWikiMcpEnvOverrides({
     assignedUnit: "WK-1393#SLICE-015"
   });
 
   assert.deepEqual(overrides, [
-    'mcp_servers.wiki.env.WIKI_MCP_TOOL_PROFILE="agent-safe"',
+    'mcp_servers.wiki.env.WIKI_MCP_TOOL_PROFILE="worker"',
     'mcp_servers.wiki.env.WIKI_MCP_ASSIGNED_UNIT="WK-1393#SLICE-015"'
   ]);
   assert.ok(
-    overrides.every((override) => !override.includes("worker")),
-    "worker role label must not replace the canonical agent-safe MCP tool profile"
+    overrides.every((override) => !override.includes("agent-safe")),
+    "launcher-assigned worker sessions must use the restricted worker MCP tool profile"
   );
   assert.throws(
     () => buildCodexWorkerWikiMcpEnvOverrides({ assignedUnit: "" }),

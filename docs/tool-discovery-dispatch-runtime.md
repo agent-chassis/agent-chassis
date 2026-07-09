@@ -28,6 +28,10 @@ review contract. Consumers of `workspace_agent_dispatch` and
   evaluator's output for the current introspection call and are not proof that
   WK review evidence has been recorded or that graph-impact persistence is
   required for a real WK
+- current AI-agent review separation is enforced through role admission,
+  scoped tool authority, structured review evidence, and coordinator-owned
+  completion; it is not enforced by comparing two authenticated AI-agent
+  principals
 
 Reviewer-dispatch availability for the bootstrap-state evaluator is derived
 live from the registered MCP tool set: the evaluator flips to
@@ -55,6 +59,63 @@ authenticated cross-session dispatch, it must use a different transport or
 launcher-owned broker, not a wrapper_command row, inline env policy, bwrap
 mount change, graph-impact side channel, registration frame, per-connection
 identity registry, or stdio prelude.
+
+Current AI-agent reviewer independence is enforced through role, tool, and
+evidence boundaries rather than author/reviewer principal equality. The
+authoritative contract is in
+[MCP Dispatch Runtime Contract](mcp-dispatch-runtime-contract.md): stdio MCP is
+a same-user local transport, and the active launcher does not mint a
+human/service principal envelope for each AI-agent role session. Tool discovery
+and dispatch identity introspection therefore must not describe hard principal
+comparison as an active prerequisite for findings-only reviewer dispatch.
+
+The enforceable current boundary is:
+
+- implementation workers may edit only their assigned `write_scope` and can
+  move only their own implementation unit to `review` through the scoped
+  commit/submit-for-review path; they cannot complete their own work
+- reviewer sessions are findings-only role sessions with `write_scope: []`;
+  dispatch-readiness refuses reviewer units whose canonical JSON write scope is
+  non-empty with `role_policy_violation` and diagnostic reason
+  `reviewer_write_scope_nonempty`
+- structured review-evidence routes are part of this boundary: no-findings
+  review evidence is recorded through `workspace_record_review_attestation`,
+  and changes-requested or other non-completion reviewer/redteam results are
+  recorded through `workspace_record_review_result_evidence`
+- reviewer output is evidence for coordinator disposition, not authority for
+  the reviewer role session to change the reviewed unit to `done`
+- the coordinator-owned `review` to `done` transition remains the trusted
+  completion boundary after mandatory findings-only review evidence is read and
+  dispositioned
+
+Under this model, a worker cannot satisfy the mandatory review gate by
+reviewing and closing its own implementation session because the worker role
+lacks review completion authority, the reviewer role has no write scope,
+review evidence is recorded through structured routes, and completion is
+coordinator-owned. work record remains the consumer of review-separation policy,
+but its current AI-agent enforcement target is this role/evidence separation.
+work record may record trusted commit-path provenance when useful, but that
+provenance is not reviewer-independence authority. work record's earlier
+principal-envelope prerequisite is superseded for the current AI-agent flow.
+
+Git `author.name`, `author.email`, committer metadata, branch names, `run_id`,
+`launch_ref`, retry ids, worktree paths, output branches, monitor handles,
+dispatch session ids, generated launch briefs, prompt text, ambient env,
+launcher argv visible to a child, request payloads, `claimed_identity`,
+work-record prose, slice notes, and runtime artifacts may provide provenance,
+debugging context, correlation, or binding evidence. They are not security
+authority for AI-agent reviewer independence and must not be promoted into an
+author or reviewer principal for the current dispatch flow.
+
+A future authenticated human/service-principal substrate may add hard
+principal-envelope comparison on top of the current role/evidence controls. In
+that future extension, reviewer and commit-author authority would need
+launcher- or transport-minted envelopes that are unforgeable by the MCP request
+caller, available before the relevant admission decision, and canonically
+comparable without reinterpreting prompt text or work-record prose. That
+future-only equality check is meaningful only for authenticated human/service
+principals or another adopted principal registry distinct from
+run/session/worktree metadata.
 
 The non-MCP role-wrapper `wrapper_command` discovery rows were removed with the
 family-role wrapper files; structured discovery no longer advertises

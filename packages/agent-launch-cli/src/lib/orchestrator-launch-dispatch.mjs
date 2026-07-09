@@ -5,8 +5,15 @@ import {
   runClaudeOrchestrator,
   runClaudeOrchestratorResume
 } from "./claude-orchestrator-plan.mjs";
+import { ORCHESTRATOR_ISOLATION_MODES } from "./orchestrator-launch-isolation.mjs";
+import { HEADLESS_REQUIRES_BUBBLEWRAP_REASON } from "./orchestrator-launch-runtime.mjs";
 
 export const ORCHESTRATOR_AGY_UNSUPPORTED_REASON = "agy_orchestrator_unsupported";
+
+export const ORCHESTRATOR_HEADLESS_NOT_ENABLED_REASON = "headless_not_yet_enabled";
+
+export const ORCHESTRATOR_HEADLESS_DIRECT_MODE_UNSUPPORTED_REASON =
+  HEADLESS_REQUIRES_BUBBLEWRAP_REASON;
 
 export const DEFAULT_ORCHESTRATOR_FAMILY_RUNNERS = Object.freeze({
   runClaudeOrchestrator,
@@ -20,11 +27,23 @@ export async function routeOrchestratorLaunch({
   initiative = null,
   focusArgs = [],
   dryRunJson = false,
+  headless = false,
+  logFile = null,
   env = process.env,
   cwd = process.cwd(),
   io = {},
   runners = DEFAULT_ORCHESTRATOR_FAMILY_RUNNERS
 } = {}) {
+
+  if (headless && resolvedOrchestratorIsolationMode(resolved) === ORCHESTRATOR_ISOLATION_MODES.DIRECT) {
+    writeRaw(
+      io.stderr,
+      `agent-launch orchestrator: --headless is not supported with DEC-0060 direct mode for app=${resolved.app} (${ORCHESTRATOR_HEADLESS_DIRECT_MODE_UNSUPPORTED_REASON})\n`
+    );
+    process.exitCode = 2;
+    return undefined;
+  }
+
   if (resolved.app === "claude") {
     const claudeRunner = role === "orch-resume"
       ? runners.runClaudeOrchestratorResume
@@ -37,7 +56,9 @@ export async function routeOrchestratorLaunch({
       cwd,
       resolvedProfile: resolved,
       io,
-      dryRunJson
+      dryRunJson,
+      headless,
+      logFile
     });
   }
 
@@ -57,10 +78,20 @@ export async function routeOrchestratorLaunch({
   if (dryRunJson) {
     codexArgv.push("--dry-run-json");
   }
+  if (headless) {
+    codexArgv.push("--headless");
+    if (typeof logFile === "string") {
+      codexArgv.push("--log-file", logFile);
+    }
+  }
   for (const focusArg of focusArgs) {
     codexArgv.push(focusArg);
   }
-  return runners.runCodexRole(codexArgv, io, { resolvedProfile: resolved });
+  return runners.runCodexRole(codexArgv, io, {
+    resolvedProfile: resolved,
+    headless,
+    logFile
+  });
 }
 
 function writeRaw(stream, value) {
@@ -69,4 +100,29 @@ function writeRaw(stream, value) {
   } else {
     process.stdout.write(value);
   }
+}
+
+function resolvedOrchestratorIsolationMode(resolved) {
+  if (!resolved || typeof resolved !== "object") {
+    return null;
+  }
+  const candidates = [
+    resolved.isolationMode,
+    resolved.isolation_mode,
+    resolved.operatorIsolation?.mode,
+    resolved.operator_isolation?.mode,
+    resolved.isolation?.mode
+  ];
+  for (const candidate of candidates) {
+    if (candidate === ORCHESTRATOR_ISOLATION_MODES.DIRECT) {
+      return ORCHESTRATOR_ISOLATION_MODES.DIRECT;
+    }
+    if (candidate === ORCHESTRATOR_ISOLATION_MODES.BUBBLEWRAP) {
+      return ORCHESTRATOR_ISOLATION_MODES.BUBBLEWRAP;
+    }
+  }
+  if (resolved.direct_mode === true || resolved.operator_direct_mode === true) {
+    return ORCHESTRATOR_ISOLATION_MODES.DIRECT;
+  }
+  return null;
 }

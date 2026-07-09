@@ -26,6 +26,8 @@ import {
   AGENT_DISPATCH_ROLE_VALUES,
   AGENT_DISPATCH_SCHEMA_VERSION,
   AGENT_DISPATCH_SUBJECT_KIND_INITIATIVE,
+  AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD,
+  AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD_SLICE,
   AGENT_DISPATCH_TOOL_NAME,
   DISPATCH_BLOCKER_CODES,
   GRAPH_IMPACT_PERSISTENCE_TOOL_NAME
@@ -39,6 +41,11 @@ import {
   mapBackendRefusalToDispatchCode
 } from "./dispatch-tool-helpers.mjs";
 import { registerRunMonitorRoutes } from "./dispatch-run-monitor-routes.mjs";
+
+import {
+  nextActionForDecisionCode,
+  nextActionForFreeLocalDecisionCode
+} from "./work-record-write-route-helpers.mjs";
 import { REGISTERED_TIER_FREE_LOCAL, REGISTERED_TIER_PAID_CCE } from "./tool-profile.mjs";
 import { registerDiagnosticRoutes } from "./dispatch-diagnostic-routes.mjs";
 
@@ -52,6 +59,23 @@ const DISPATCH_LAUNCH_BACKEND_DETAIL = Object.freeze({
 
 function dispatchRoleForLauncherResolver(role) {
   return role === "reviewer" ? "review" : role;
+}
+
+function acceptedSubjectKindsForRole(role) {
+  if (role === "worker" || role === "reviewer") {
+    return Object.freeze([
+      AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD,
+      AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD_SLICE
+    ]);
+  }
+  if (role === "redteam") {
+    return Object.freeze([
+      AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD,
+      AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD_SLICE,
+      AGENT_DISPATCH_SUBJECT_KIND_INITIATIVE
+    ]);
+  }
+  return Object.freeze([]);
 }
 
 function normalizeDispatchAppModelSelection({ role, app, model }) {
@@ -245,7 +269,12 @@ export function registerDispatchTools({
             buildBlockedDispatchResult({
               blockerCode: DISPATCH_BLOCKER_CODES.ROLE_POLICY_VIOLATION,
               reason: "subject_role_matrix_violation",
-              detail: { role: args.role, subject_kind: subjectKind, subject: args.subject }
+              detail: {
+                role: args.role,
+                subject_kind: subjectKind,
+                subject: args.subject,
+                accepted_subject_kinds: acceptedSubjectKindsForRole(args.role)
+              }
             })
           );
         }
@@ -294,14 +323,37 @@ export function registerDispatchTools({
             }
 
             if (!readiness.dispatchable) {
+
+              const readinessDecisionCode = readiness.decision_code;
+              const nextAction = isPaidTier
+                ? nextActionForDecisionCode(
+                    readinessDecisionCode,
+                    readiness.dispatch_role ?? readinessDispatchRole,
+                    false
+                  )
+                : nextActionForFreeLocalDecisionCode(
+                    readinessDecisionCode,
+                    readiness.dispatch_role ?? readinessDispatchRole,
+                    false
+                  );
+              const detail = {
+                readiness_decision_code: readinessDecisionCode,
+                readiness_reasons: readiness.reasons ?? []
+              };
+
+              if (
+                isPaidTier &&
+                Array.isArray(readiness.validation_hints) &&
+                readiness.validation_hints.length > 0
+              ) {
+                detail.readiness_validation_hints = readiness.validation_hints;
+              }
               return jsonContent(
                 buildBlockedDispatchResult({
                   blockerCode: DISPATCH_BLOCKER_CODES.WORK_RECORD_READINESS_FAILURE,
                   reason: "work_record_not_dispatchable",
-                  detail: {
-                    readiness_decision_code: readiness.decision_code,
-                    readiness_reasons: readiness.reasons ?? []
-                  }
+                  detail,
+                  nextAction
                 })
               );
             }

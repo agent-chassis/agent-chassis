@@ -55,23 +55,23 @@ If you prefer to pin the underlying packages individually, you can install
 ### Postinstall first-run guidance
 
 During install, `@agent-chassis/core` runs a postinstall guidance hook that
-prints detected setup choices only. It does not create files, run bootstrap,
-write `agent-launch.toml`, run `agent-launch init-config`, build the code index,
-launch an orchestrator, mutate MCP/client configuration, or fail the install
-when detection cannot complete.
+points at the explicit first-run setup command. It does not create files, run
+bootstrap, write `agent-launch.toml`, run `agent-launch init-config`, build the
+code index, launch an orchestrator, mutate MCP/client configuration, or fail the
+install when detection cannot complete.
 
-After install, run the explicit first-run setup command from your consumer repo
-root:
+After install, run the setup command from your consumer repo root:
 
 ```sh
 npx agent-chassis setup
 ```
 
-The setup command runs bootstrap, selects or asks for the launcher template when
-Claude or Codex CLIs are available, creates an empty root guidance
+The setup command runs bootstrap, prompts or selects the launcher template for a
+detected Claude or Codex CLI, creates an empty root guidance
 placeholder/checkpoint for the selected agent when absent (`CLAUDE.md` for
-Claude, `AGENTS.md` for Codex), initializes launcher config, and prints the
-next code-index and orchestrator commands. It does not copy
+Claude, `AGENTS.md` for Codex), copies `agent-launch.toml` only when it is
+absent, runs `npx agent-launch init-config`, and prints the review, commit,
+code-index, and orchestrator commands to run next. It does not copy
 `wiki/templates/AGENTS.md.boilerplate.md` into any root guidance file. The
 touched guidance file is not repo-specific operating authority until you review
 and adapt it.
@@ -112,10 +112,6 @@ client config, and does **not** build the code index. Use
 selected empty root guidance placeholder/checkpoint when absent (`AGENTS.md` for
 Codex or `CLAUDE.md` for Claude). Review and adapt that file before treating it
 as repo-local operating authority, review the launcher config, and commit the
-bootstrap-created files before building the code index.
-
-When following the postinstall first-run flow, run `npx agent-chassis setup`,
-review or adapt the selected root guidance placeholder, and commit the
 bootstrap-created files before building the code index.
 
 ## 4. Build the code index
