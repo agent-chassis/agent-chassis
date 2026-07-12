@@ -1,5 +1,8 @@
 
 
+import path from "node:path";
+import { realpathSync } from "node:fs";
+
 import { runCodexRole } from "../commands/codex-role.mjs";
 import {
   runClaudeOrchestrator,
@@ -21,6 +24,11 @@ export const DEFAULT_ORCHESTRATOR_FAMILY_RUNNERS = Object.freeze({
   runCodexRole
 });
 
+export function deriveLauncherOwnedDispatchWorktreeRoot(cwd = process.cwd()) {
+  const repo = realpathSync(path.resolve(cwd));
+  return path.join(path.dirname(repo), ".agent-worktrees", path.basename(repo));
+}
+
 export async function routeOrchestratorLaunch({
   role,
   resolved,
@@ -34,6 +42,8 @@ export async function routeOrchestratorLaunch({
   io = {},
   runners = DEFAULT_ORCHESTRATOR_FAMILY_RUNNERS
 } = {}) {
+
+  const dispatchWorktreeRoot = deriveLauncherOwnedDispatchWorktreeRoot(cwd);
 
   if (headless && resolvedOrchestratorIsolationMode(resolved) === ORCHESTRATOR_ISOLATION_MODES.DIRECT) {
     writeRaw(
@@ -58,7 +68,8 @@ export async function routeOrchestratorLaunch({
       io,
       dryRunJson,
       headless,
-      logFile
+      logFile,
+      dispatchWorktreeRoot
     });
   }
 
@@ -90,7 +101,8 @@ export async function routeOrchestratorLaunch({
   return runners.runCodexRole(codexArgv, io, {
     resolvedProfile: resolved,
     headless,
-    logFile
+    logFile,
+    dispatchWorktreeRoot
   });
 }
 

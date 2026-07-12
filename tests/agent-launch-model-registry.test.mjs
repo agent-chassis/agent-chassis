@@ -36,6 +36,18 @@ test("array-source duplicate model names throw before building the registry map"
 test("resolveModel returns the model spec and derives app/backend from the registry", () => {
   assert.equal(resolveModel("gpt-5.5").app, "codex");
   assert.equal(resolveModel("gpt-5.5").backend, "codex");
+  const addedCodexModels = MODEL_REGISTRY.slice(1, 4);
+  assert.deepEqual(
+    addedCodexModels.map(([model]) => {
+      const spec = resolveModel(model);
+      return [spec.app, spec.backend, spec.codex_profile, spec.default_effort, spec.app_default];
+    }),
+    [
+      ["codex", "codex", "orchestrator", "high", false],
+      ["codex", "codex", "worker", "medium", false],
+      ["codex", "codex", "worker", "low", false]
+    ]
+  );
   assert.equal(resolveModel("gpt-5.5-pro").codex_profile, "orchestrator_xhigh");
   assert.equal(resolveModel("gpt-5.4-nano").default_effort, "low");
   assert.equal(resolveModel("fable").app, "claude");
@@ -97,6 +109,7 @@ test("default_effort must be in the neutral effort enum", () => {
 
 test("registry exports the array source and model-name set used by the DEC-0114 scan", () => {
   assert.ok(Array.isArray(MODEL_REGISTRY));
+  const addedCodexModels = MODEL_REGISTRY.slice(1, 4).map(([model]) => model);
   assert.deepEqual(
     [...MODEL_NAME_SET].sort(),
     [
@@ -109,6 +122,7 @@ test("registry exports the array source and model-name set used by the DEC-0114 
       "gpt-5.4-pro",
       "gpt-5.5",
       "gpt-5.5-pro",
+      ...addedCodexModels,
       "haiku",
       "opus",
       "sonnet"

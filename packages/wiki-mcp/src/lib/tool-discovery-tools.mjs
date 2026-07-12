@@ -11,6 +11,8 @@ import {
   TOOL_DISCOVERY_LIST_DEFAULT_LIMIT
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
 
+import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
+
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
@@ -77,8 +79,37 @@ export function registerToolDiscoveryTools({
   errorContent,
   augmentDescriptor,
 
-  registeredTier = null
+  registeredTier = null,
+
+  sessionRole = null
 }) {
+
+  function resolveSessionRole() {
+    if (typeof sessionRole === "string" && sessionRole !== "") {
+      return sessionRole;
+    }
+    try {
+      return parseToolProfile();
+    } catch {
+      return null;
+    }
+  }
+
+  function scopeToolDiscoveryResultsToSessionRole(results) {
+    if (!Array.isArray(results)) {
+      return [];
+    }
+    const role = resolveSessionRole();
+    return results.filter((entry) => {
+      const toolName =
+        entry && typeof entry.tool_name === "string" ? entry.tool_name : "";
+      if (toolName === "") {
+        return false;
+      }
+      return shouldExposeTool(role, toolName);
+    });
+  }
+
   function jsonToolDiscoveryContent(data) {
     const response = jsonContent(data);
     if (
@@ -104,7 +135,7 @@ export function registerToolDiscoveryTools({
       typeof registeredTier === "string" && registeredTier
         ? { ...query, registered_tier: registeredTier }
         : query;
-    return createToolDiscoveryEnvelope({
+    const envelope = createToolDiscoveryEnvelope({
       interface: "mcp",
       source_kind: "runtime_snapshot",
       package_versions,
@@ -112,6 +143,11 @@ export function registerToolDiscoveryTools({
       query: tierQuery,
       verbose
     });
+
+    if (Array.isArray(envelope.results)) {
+      envelope.results = scopeToolDiscoveryResultsToSessionRole(envelope.results);
+    }
+    return envelope;
   }
 
   async function loadWorkspaceToolDiscoveryListEnvelope(options = {}) {

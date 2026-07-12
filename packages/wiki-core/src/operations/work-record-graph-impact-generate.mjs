@@ -178,7 +178,7 @@ export async function generateAndPersistWorkRecordGraphImpactByUnit({
   if (written) {
 
     outcome =
-      graphAvailable && staleness === "fresh" && dirtyState === "clean"
+      graphAvailable && staleness === "fresh"
         ? "persisted"
         : "degraded_persisted";
   } else if (graphUnavailable) {

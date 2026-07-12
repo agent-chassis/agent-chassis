@@ -473,47 +473,6 @@ const CLAUDE_SCHEMA_CONSTRAINED_TERMINAL_RESULT_ROLES = new Set([
   "redteam"
 ]);
 
-export const CLAUDE_OAUTH_PREFLIGHT_REFUSAL_REASON =
-  "claude_oauth_credential_preflight_refused";
-
-export function defaultReadClaudeOAuthPreflightNowMs() {
-  return Date.now();
-}
-
-export async function defaultReadClaudeOAuthCredentialText(credentialPath) {
-  return readFile(credentialPath, "utf8");
-}
-
-export async function maybeBuildClaudeOAuthPreflightRefusal({
-  classifyOAuthCredentialPreflight,
-  credentialsReadOnlyFile,
-  readOAuthCredentialText,
-  readOAuthPreflightNowMs,
-  oauthCredentialRefreshSafetyWindowMs,
-  buildRefusal
-}) {
-  let oauthPreflight;
-  try {
-    oauthPreflight = await classifyOAuthCredentialPreflight({
-      credentialPath: credentialsReadOnlyFile,
-      readFile: readOAuthCredentialText,
-      nowMs: readOAuthPreflightNowMs(),
-      refreshSafetyWindowMs: oauthCredentialRefreshSafetyWindowMs
-    });
-  } catch (err) {
-    return buildRefusal({
-      preflight_error: { message: err?.message ?? String(err) }
-    });
-  }
-  if (oauthPreflight?.shouldRefuse === true) {
-    return buildRefusal({
-      state: oauthPreflight.state ?? null,
-      ...(oauthPreflight.diagnostics ?? {})
-    });
-  }
-  return null;
-}
-
 export function makeRefusal(code, reason, detail) {
   const { schema_version: _schemaVersion, ...envelope } = buildRefusalEnvelope({
     code,
@@ -771,9 +730,10 @@ export function defaultBuildClaudeBwrapPlan({
         messagePrefix: "agent-launch isolation: "
       });
   const approvedCredentialsReadOnlyFile = credentialGuard.assertAllowed(credentialsReadOnlyFile);
+
   const homePolicy = approvedCredentialsReadOnlyFile !== null
     ? {
-        reads: [{
+        writableFiles: [{
           src: approvedCredentialsReadOnlyFile,
           dst: approvedCredentialsReadOnlyFile
         }]

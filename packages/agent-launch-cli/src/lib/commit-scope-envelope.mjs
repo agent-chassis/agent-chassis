@@ -1,6 +1,7 @@
 
 
 import { spawnSync } from "node:child_process";
+import { getForbiddenSidecarPathMatch } from "@agent-chassis/wiki-core";
 
 export const COMMIT_SCOPE_ENVELOPE_SCHEMA_VERSION = "commit-scope-envelope.v1";
 
@@ -12,12 +13,14 @@ export const COMMIT_SCOPE_ENVELOPE_DIAGNOSTIC_CODES = Object.freeze({
   GATE_DIFF_FAILED: "agent_launch.commit_scope_envelope.gate_diff_failed.v1",
 
   OUT_OF_SCOPE: "agent_launch.commit_scope_envelope.out_of_scope.v1",
+  FORBIDDEN_REPOSITORY_PATH: "agent_launch.commit_scope_envelope.forbidden_repository_path.v1",
 
   SYMLINK_OR_TYPE_SWAP: "agent_launch.commit_scope_envelope.symlink_or_type_swap.v1"
 });
 
 export const COMMIT_SCOPE_ENVELOPE_REFUSAL_REASONS = Object.freeze({
   OUT_OF_SCOPE: "out_of_scope",
+  FORBIDDEN_REPOSITORY_PATH: "forbidden_repository_path",
   SYMLINK_OR_TYPE_SWAP: "symlink_or_type_swap"
 });
 
@@ -126,16 +129,26 @@ function computeGatePathSet(runGit, gitDir, baseSha, commit) {
   const entries = parseRawDiffTree(res.stdout);
   const changedPaths = [];
   const symlinkOrTypeSwap = [];
+  const forbiddenRepositoryPaths = [];
   for (const e of entries) {
     changedPaths.push(e.path);
 
     if (e.newMode === SYMLINK_MODE || e.oldMode === SYMLINK_MODE || e.status.startsWith("T")) {
       symlinkOrTypeSwap.push(e.path);
     }
+    const forbidden = getForbiddenSidecarPathMatch(e.path);
+    if (forbidden) {
+      forbiddenRepositoryPaths.push(Object.freeze({
+        path: e.path,
+        pattern: forbidden.pattern,
+        reason: forbidden.reason
+      }));
+    }
   }
   changedPaths.sort();
   symlinkOrTypeSwap.sort();
-  return { changedPaths, symlinkOrTypeSwap };
+  forbiddenRepositoryPaths.sort((left, right) => left.path.localeCompare(right.path));
+  return { changedPaths, symlinkOrTypeSwap, forbiddenRepositoryPaths };
 }
 
 function buildScopeMatcher(resolveWriteScope, writeScope) {
@@ -368,13 +381,14 @@ export function verifyAndMeasureCommitScope({
     fail(COMMIT_SCOPE_ENVELOPE_DIAGNOSTIC_CODES.INVALID_ARG, "writeScope must be an array");
   }
 
-  const { changedPaths, symlinkOrTypeSwap } = computeGatePathSet(runGit, gitDir, baseSha, commit);
+  const { changedPaths, symlinkOrTypeSwap, forbiddenRepositoryPaths } = computeGatePathSet(runGit, gitDir, baseSha, commit);
 
   const matcher = buildScopeMatcher(resolveWriteScope, writeScope);
   const outOfScope = computeOutOfScope(matcher, changedPaths);
 
   const reasons = [];
   if (symlinkOrTypeSwap.length > 0) reasons.push(COMMIT_SCOPE_ENVELOPE_REFUSAL_REASONS.SYMLINK_OR_TYPE_SWAP);
+  if (forbiddenRepositoryPaths.length > 0) reasons.push(COMMIT_SCOPE_ENVELOPE_REFUSAL_REASONS.FORBIDDEN_REPOSITORY_PATH);
   if (outOfScope.length > 0) reasons.push(COMMIT_SCOPE_ENVELOPE_REFUSAL_REASONS.OUT_OF_SCOPE);
   const contained = reasons.length === 0;
   const refusal = contained
@@ -385,10 +399,13 @@ export function verifyAndMeasureCommitScope({
         code:
           symlinkOrTypeSwap.length > 0
             ? COMMIT_SCOPE_ENVELOPE_DIAGNOSTIC_CODES.SYMLINK_OR_TYPE_SWAP
-            : COMMIT_SCOPE_ENVELOPE_DIAGNOSTIC_CODES.OUT_OF_SCOPE,
+            : forbiddenRepositoryPaths.length > 0
+              ? COMMIT_SCOPE_ENVELOPE_DIAGNOSTIC_CODES.FORBIDDEN_REPOSITORY_PATH
+              : COMMIT_SCOPE_ENVELOPE_DIAGNOSTIC_CODES.OUT_OF_SCOPE,
         reasons: Object.freeze(reasons),
         out_of_scope: Object.freeze(outOfScope.slice()),
-        symlink_or_type_swap: Object.freeze(symlinkOrTypeSwap.slice())
+        symlink_or_type_swap: Object.freeze(symlinkOrTypeSwap.slice()),
+        forbidden_repository_paths: Object.freeze(forbiddenRepositoryPaths.slice())
       });
 
   const metrics = measureEnvelope({ runGit, gitDir, baseSha, commit, changedPaths, writeScope });

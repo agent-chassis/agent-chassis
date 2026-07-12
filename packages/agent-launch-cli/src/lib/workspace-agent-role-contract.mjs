@@ -10,7 +10,7 @@ const DEFAULT_REVIEW_PROMPT_SUBJECT_PATH = 'wiki/work-records/WK-0000.json';
 export const LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER =
   'Findings only. Do not modify files.';
 export const LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER =
-  'Implementation workers may use launcher-granted native Edit/Write only within assigned write_scope/bwrap; raw shell/Bash and raw exec_command remain forbidden.';
+  'Implementation workers may use launcher-granted native edit capability (Codex: apply_patch) only within assigned write_scope/bwrap; raw shell/Bash and raw exec_command remain forbidden.';
 
 export const LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER =
   'Public seam steering: when admission-related behavior needs a test seam, drive and assert it through the launcher-registered public backend and tool surfaces; do not target private or unexported admission-recovery helper internals.';
@@ -49,10 +49,13 @@ const FINDINGS_ONLY_TOOL_SURFACE_GUIDANCE = [
 const IMPLEMENTATION_TOOL_SURFACE_GUIDANCE = [
   'Use the launcher-provided structured read tools for inspection.',
   'Your repo read/write access is exactly the launcher-provided session contract, not inferred from filesystem layout or bwrap internals.',
-  'Native Edit/Write only to explicitly assigned write_scope paths, and only when launcher-granted for this session.',
+  'Use the launcher-granted native edit capability only for explicitly assigned write_scope paths.',
+  'For Codex, the native edit mechanism is the directly granted apply_patch tool: use apply_patch for in-place edits instead of Edit/Write, shell, Bash, or raw exec_command.',
+  'Before reporting that Codex editing is unavailable, check the exact apply_patch entry in the directly granted tool inventory (including ALL_TOOLS when tools are deferred); filtering ALL_TOOLS only for wiki, filesystem, read, or related names is not evidence that apply_patch is absent.',
   'WK closure, status, review evidence, dispatch-readiness, and other coordination writes must use launcher-provided structured MCP/work-record tools.',
   'Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.',
   'You may read your assigned read_scope, repo_paths, and write_scope using the launcher-granted source-read access for this session; when no structured filesystem-MCP reader is configured for the session, native read-only inspection of that assigned scope from the read-only repo mount is the authorized read mechanism, so do not report a blocker merely because a structured filesystem-MCP reader is absent.',
+  'For Codex, use the launcher-granted unified exec inspection surface only for non-mutating reads of assigned paths; this does not grant raw exec_command, Bash, shell, or mutation.',
   'This launcher-granted read access takes precedence over the AGENTS.md "structured tools first / shell denied" default: native read-only inspection of in-scope files is the session\'s authorized read mechanism, is not raw shell, and does not require a structured reader to be present.',
   'If needed access or structured tools are unavailable, stop and report a blocker rather than trying shell, raw filesystem writes, environment overrides, or fallback paths.',
 ].join(' ');

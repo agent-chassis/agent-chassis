@@ -2,7 +2,9 @@
 
 import {
   validateExpectedEditTargetKind,
-  validateExpectedEditTargetOperation
+  validateExpectedEditTargetOperation,
+  WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES,
+  WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES
 } from "./work-record-target-metrics.mjs";
 import {
   hasOwn,
@@ -204,7 +206,7 @@ function validateExpectedEditTargets(diagnostics, value, path) {
       addDiagnostic(
         diagnostics,
         "invalid_record",
-        `${entryPath}.kind must be one of the controlled expected_edit_targets kind values`,
+        `${entryPath}.kind must be one of: ${WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES.join(", ")}`,
         { path: `${entryPath}.kind` }
       );
     } else {
@@ -221,7 +223,7 @@ function validateExpectedEditTargets(diagnostics, value, path) {
       addDiagnostic(
         diagnostics,
         "invalid_record",
-        `${entryPath}.operation must be one of: create, modify, delete, inspect`,
+        `${entryPath}.operation must be one of: ${WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES.join(", ")}`,
         { path: `${entryPath}.operation` }
       );
     } else {

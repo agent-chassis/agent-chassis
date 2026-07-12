@@ -18,17 +18,6 @@ const RESPONSE_SIZE_CLASSES = Object.freeze([
   ["large", 512 * 1024],
   ["very_large", Number.POSITIVE_INFINITY]
 ]);
-const WK1438_ROUTER_OUTPUT_LABELS = new Set([
-  "wk1438_router_output",
-  "workspace_tool_router_recommend"
-]);
-const ROUTER_OUTPUT_LABELS = new Set([
-  "router_output",
-  "tool_router_result",
-  "tool_router_output",
-  "workspace_tool_router_recommend"
-]);
-
 export function createLiveMcpToolUsageRecorder(options = {}) {
   const maxEvents = boundedMaxEvents(options.maxEvents);
   const now = typeof options.now === "function" ? options.now : () => new Date().toISOString();
@@ -112,7 +101,6 @@ export function createLiveMcpToolEvent(input = {}) {
   const observedAt = normalizeTimestamp(input.observedAt ?? input.observed_at);
   const argsSummary = redactPayload(input.args ?? input.arguments ?? input.input);
   const responseSummary = summarizeResponse(input);
-  const misuse = normalizeMisuse(input.misuse ?? input.misuse_classifications);
   const selected = normalizeSelectedContext(input.selected ?? input.context);
 
   return normalizeAuditFact(
@@ -127,8 +115,7 @@ export function createLiveMcpToolEvent(input = {}) {
         origin,
         selected,
         args: argsSummary,
-        response: responseSummary,
-        misuse_classifications: misuse
+        response: responseSummary
       }
     },
     evidence
@@ -255,138 +242,6 @@ function normalizeSelectedContext(value) {
   if (initiative) selected.initiative = redactSubject(initiative);
   if (resourcePath) selected.resource_path = redactPayload(resourcePath);
   return selected;
-}
-
-function normalizeMisuse(value) {
-  const entries = Array.isArray(value) ? value : [];
-  return entries.map((entry) => {
-    if (typeof entry === "string") return { code: entry.slice(0, 96) };
-    if (!isPlainObject(entry)) return { code: "unknown_misuse_shape" };
-    const code = normalizeString(entry.code)?.slice(0, 96) ?? "unknown_misuse_code";
-    const replacementFamily = normalizeString(entry.replacement_family ?? entry.replacementFamily);
-    const routingIntentRef = normalizeString(entry.routing_intent_ref ?? entry.routingIntentRef);
-    const exactGuidance = normalizeExactRouterGuidance(entry);
-    return {
-      code,
-      ...(replacementFamily ? { replacement_family: replacementFamily.slice(0, 96) } : {}),
-      ...(routingIntentRef ? { routing_intent_ref: routingIntentRef.slice(0, 96) } : {}),
-      ...(entry.confidence ? { confidence: boundedToken(entry.confidence) ?? "low" } : {}),
-      ...(exactGuidance
-        ? {
-            exact_recommended_call: exactGuidance.call,
-            exact_recommended_call_provenance: exactGuidance.provenance
-          }
-        : {})
-    };
-  });
-}
-
-function normalizeExactRouterGuidance(entry) {
-  const exactRecommendedCall = entry.exact_recommended_call ?? entry.exactRecommendedCall;
-  if (!isPlainObject(exactRecommendedCall)) return null;
-  const provenance = routerGuidanceProvenance(entry);
-  if (!provenance) return null;
-  return {
-    call: redactPayload(exactRecommendedCall),
-    provenance
-  };
-}
-
-function routerGuidanceProvenance(entry) {
-  const candidates = [
-    entry.exact_recommended_call_provenance,
-    entry.exactRecommendedCallProvenance,
-    entry.guidance_provenance,
-    entry.guidanceProvenance,
-    entry.router_output,
-    entry.routerOutput,
-    entry.exact_recommended_call_source,
-    entry.exactRecommendedCallSource,
-    entry.guidance_source,
-    entry.guidanceSource,
-    entry.source
-  ];
-  for (const candidate of candidates) {
-    if (!hasExplicitWk1438RouterOutputProvenance(candidate)) continue;
-    return normalizeRouterOutputProvenance(candidate);
-  }
-  return null;
-}
-
-function hasExplicitWk1438RouterOutputProvenance(value) {
-  if (typeof value === "string") return isExplicitWk1438RouterOutputLabel(value);
-  if (!isPlainObject(value)) return false;
-  if (value.wk1438_router_output === true) return true;
-  const sourceRecordId = value.source_record_id ?? value.sourceRecordId;
-  const labels = [
-    value.kind,
-    value.source_kind,
-    value.sourceKind,
-    value.provenance_type,
-    value.provenanceType,
-    value.operation,
-    value.tool_name,
-    value.toolName,
-    value.schema_version,
-    value.schemaVersion,
-    value.source,
-    value.source_id,
-    value.sourceId,
-    value.owner,
-    value.producer,
-    value.router_output === true ? "router_output" : null,
-    value.routerOutput === true ? "router_output" : null
-  ].filter(Boolean);
-  return (hasWk1438RouterSource(labels) || isWk1438RecordId(sourceRecordId)) && hasRouterOutputProvenance(labels);
-}
-
-function normalizeRouterOutputProvenance(value) {
-  if (typeof value === "string") {
-    return {
-      source_kind: normalizeRouterLabel(value),
-      provenance_type: "router_output"
-    };
-  }
-  const provenance = {};
-  addBoundedProvenanceField(provenance, "kind", value.kind);
-  addBoundedProvenanceField(provenance, "source_kind", value.source_kind ?? value.sourceKind);
-  addBoundedProvenanceField(provenance, "provenance_type", value.provenance_type ?? value.provenanceType);
-  addBoundedProvenanceField(provenance, "operation", value.operation);
-  addBoundedProvenanceField(provenance, "tool_name", value.tool_name ?? value.toolName);
-  addBoundedProvenanceField(provenance, "schema_version", value.schema_version ?? value.schemaVersion);
-  addBoundedProvenanceField(provenance, "source_id", value.source_id ?? value.sourceId);
-  addBoundedProvenanceField(provenance, "source_record_id", value.source_record_id ?? value.sourceRecordId);
-  addBoundedProvenanceField(provenance, "owner", value.owner);
-  addBoundedProvenanceField(provenance, "producer", value.producer);
-  if (value.wk1438_router_output === true) provenance.wk1438_router_output = true;
-  if (value.router_output === true || value.routerOutput === true) provenance.router_output = true;
-  return provenance;
-}
-
-function addBoundedProvenanceField(target, key, value) {
-  const token = boundedToken(value);
-  if (token) target[key] = token;
-}
-
-function isExplicitWk1438RouterOutputLabel(value) {
-  const normalized = normalizeRouterLabel(value);
-  return WK1438_ROUTER_OUTPUT_LABELS.has(normalized);
-}
-
-function hasWk1438RouterSource(labels) {
-  return labels.some((label) => WK1438_ROUTER_OUTPUT_LABELS.has(normalizeRouterLabel(label)));
-}
-
-function hasRouterOutputProvenance(labels) {
-  return labels.some((label) => ROUTER_OUTPUT_LABELS.has(normalizeRouterLabel(label)));
-}
-
-function isWk1438RecordId(value) {
-  return normalizeString(value)?.toUpperCase() === "WK-1438";
-}
-
-function normalizeRouterLabel(value) {
-  return normalizeString(value)?.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") ?? "";
 }
 
 function boundedToken(value) {

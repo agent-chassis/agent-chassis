@@ -24,6 +24,7 @@ import {
   validateDerivedEvidence
 } from "./work-record-schema-structure.mjs";
 import { validateWorkUnitFeatureVectorInto } from "./work-record-schema-feature-vector.mjs";
+import { validateRecordByKind } from "./work-record-kind-registry.mjs";
 import {
   WORK_RECORD_SCHEMA_VERSION,
   WORK_RECORD_RECORD_KIND_VALUES,
@@ -482,13 +483,8 @@ export function validateWorkRecord(record, { sourcePath = null, sourceDigest = n
     return diagnostics;
   }
   if (record.record_kind !== "work_item") {
-    addDiagnostic(
-      diagnostics,
-      "unsupported_record_kind",
-      `Unsupported work record kind for v1: ${record.record_kind}`,
-      { path: "record_kind" }
-    );
-    return diagnostics;
+
+    return validateRecordByKind(record);
   }
 
   if (hasOwn(record, "dispatchable")) {

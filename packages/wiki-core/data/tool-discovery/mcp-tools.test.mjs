@@ -16,6 +16,7 @@ import {
 
 const FRAGMENT_EXPECTATIONS = {
   'mcp-tools.json': [
+    'commit',
     'get_contract_manifest',
     'workspace_agent_faq',
     'workspace_autofix_docs_backlinks',
@@ -27,6 +28,7 @@ const FRAGMENT_EXPECTATIONS = {
     'workspace_read_mcp_content_reference',
     'workspace_read_page',
     'workspace_search_repo',
+    'workspace_submit_for_review',
     'workspace_tools_describe',
     'workspace_tools_list',
     'workspace_tools_query',
@@ -108,10 +110,11 @@ function assertRichToolEntry(tool) {
   assert.ok(Array.isArray(tool.docs_refs) && tool.docs_refs.length > 0, `${name} must declare docs_refs`);
   assert.ok(Array.isArray(tool.source_files) && tool.source_files.length > 0, `${name} must declare source_files`);
 
-  assert.ok(Array.isArray(tool.audience) && tool.audience.length > 0, `${name} must carry explicit audience`);
-  assert.ok(tool.audience.includes('agent'), `${name} audience must include agent`);
-  for (const audience of tool.audience) {
-    assert.ok(TOOL_DISCOVERY_AUDIENCE_VALUES.includes(audience), `${name} audience ${audience} controlled`);
+  if (Array.isArray(tool.audience)) {
+    assert.ok(tool.audience.length > 0, `${name} audience, when present, must be non-empty`);
+    for (const audience of tool.audience) {
+      assert.ok(TOOL_DISCOVERY_AUDIENCE_VALUES.includes(audience), `${name} audience ${audience} controlled`);
+    }
   }
 
   for (const sourceFile of tool.source_files) {

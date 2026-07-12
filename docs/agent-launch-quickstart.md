@@ -185,6 +185,17 @@ same-user local transport, not an authentication boundary. Dispatch is controlle
 by the tool being exposed in the current session plus the structured
 work-record dispatch-readiness checks.
 
+The normal agent call shape is `{ role, subject }`. When typed `app` and
+`model` are omitted, the launcher re-reads the selected role's model from the
+workspace-root `agent-launch.toml` for that dispatch, then derives app/backend
+through the neutral model registry. Typed `app` and `model` remain explicit
+per-dispatch overrides only. Missing, malformed, or unknown role config refuses
+with a role-specific diagnostic that names the operator-owned config to fix;
+there is no family fallback and caller prompt/request/argv/environment/identity
+cannot select the runtime. Editing `agent-launch.toml` affects the next dispatch
+without a restart. Updating loaded launcher or MCP code still requires restarting
+the owning MCP server or launcher session.
+
 With a launch executor configured on the MCP server process, dispatch-readiness
 hands off to the launcher-side run-lifecycle backend, which mints `wkdb_`-prefixed
 run ids and `wkmh_`-prefixed monitor handles and reports lifecycle state through
@@ -283,6 +294,25 @@ with the refusal code at the MCP boundary. Coordinators that
 discover a blocking preflight entry must stop and report the stable code
 rather than implement inline, fall back to shell, or rewrite the WK to
 absorb the runtime failure.
+
+The same envelope publishes `capabilities`, with nine independently sourced
+planes: `structured_dispatch`, `native_edit`, `repository_read_boundary`,
+`commit`, `managed_worktree_provisioning`, `slice_to_wk_integration`,
+`wk_context_review`, `validation_ownership`, and
+`automatic_main_promotion`. Each plane reports availability, its server-owned
+source, freshness, blockers, and a structured recovery route. A missing,
+unknown, or stale fact is unavailable; a plane never inherits availability
+from another plane.
+
+In the current release, structured dispatch, native edit, commit, and
+coordinator-owned validation are available. The repository read boundary,
+managed worktree provisioning, slice-to-WK integration, WK-context review, and
+automatic main promotion are unavailable. Managed lifecycle refusals use
+`managed_lifecycle_required`; provisioning refusals use
+`managed_worktree_provisioning_unavailable`. Recovery rechecks the server-owned
+facts through `workspace_coordination_preflight`. Free/local and paid/CCE
+responses keep the same plane meanings and differ only in their enforcement
+metadata.
 
 ### Agent Dispatch Boundary
 

@@ -188,9 +188,14 @@ export function normalizeDeclaredPathEntries(values) {
   return sortStrings(output);
 }
 
+export function isTestWriteScopePath(path) {
+  const value = String(path || "");
+  return value.startsWith("tests/") || value.includes(".test.") || value.includes(".spec.");
+}
+
 export function pathCategory(path) {
   const value = String(path || "");
-  if (value.startsWith("tests/") || value.includes(".test.") || value.includes(".spec.")) {
+  if (isTestWriteScopePath(value)) {
     return "test";
   }
   if (value.startsWith("docs/")) {

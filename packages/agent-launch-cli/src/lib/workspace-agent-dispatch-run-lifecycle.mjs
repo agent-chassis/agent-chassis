@@ -15,6 +15,11 @@ import {
 } from "@agent-chassis/agent-launch-core";
 
 import { HOST_WRITE_AUTHORITY_FORBIDDEN_TOKENS } from "./host-write-authority-substrate.mjs";
+import {
+  resolveDispatchedRoleModel,
+  resolveExplicitOverrideSelection
+} from "./agent-launch-profiles.mjs";
+import { resolveModel } from "./agent-launch-model-registry.mjs";
 
 import {
   dispatchRefusal,
@@ -40,6 +45,61 @@ function attachWriteScopeVerification(envelope, rawFinalResult) {
     return envelope;
   }
   return Object.freeze({ ...envelope, write_scope_verification: candidate });
+}
+
+function resolveDispatchSelection({ role, app, model, workspaceDir }) {
+  const appToken = typeof app === "string" && app.trim().length > 0 ? app.trim() : null;
+  const modelToken = typeof model === "string" && model.trim().length > 0 ? model.trim() : null;
+
+  if (appToken !== null && !BACKEND_SUPPORTED_APPS.includes(appToken)) {
+    return {
+      ok: false,
+      reason: "unsupported_app",
+      detail: { app: appToken, supported_apps: [...BACKEND_SUPPORTED_APPS] }
+    };
+  }
+
+  let selection;
+  if (appToken !== null || modelToken !== null) {
+
+    selection = appToken !== null && modelToken === null
+      ? { ok: true, app: appToken, model: null, model_spec: null }
+      : resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken });
+  } else {
+    try {
+      selection = resolveDispatchedRoleModel({ role, dir: workspaceDir });
+    } catch (error) {
+      const refusalRole = role === "review" ? "reviewer" : role;
+      return {
+        ok: false,
+        reason: `${refusalRole ?? "role"}_role_config_invalid`,
+        detail: {
+          role: typeof refusalRole === "string" ? refusalRole : null,
+          config_file: "agent-launch.toml",
+          source_code: error?.code ?? "agent_launch_role_config_error",
+          source_detail: error?.detail ?? null,
+          message: error?.message ?? String(error)
+        }
+      };
+    }
+  }
+
+  if (!selection || selection.ok !== true) {
+    return selection ?? {
+      ok: false,
+      reason: "launcher_selection_unresolved",
+      detail: { role: typeof role === "string" ? role : null }
+    };
+  }
+
+  const modelSpec = selection.model_spec
+    ?? (typeof selection.model === "string" ? resolveModel(selection.model) : null);
+  return {
+    ok: true,
+    app: selection.app,
+    model: selection.model ?? null,
+    backend: modelSpec?.backend ?? null
+  };
 }
 
 export function createDispatchRunLifecycle(ctx = {}) {
@@ -88,25 +148,20 @@ export function createDispatchRunLifecycle(ctx = {}) {
       }
     }
 
-    let app;
-    if (requestedApp === null || requestedApp === undefined) {
+    const selection = resolveDispatchSelection({
+      role,
+      app: requestedApp,
+      model: dispatchModel,
+      workspaceDir: workspace_dir
+    });
+    if (!selection.ok) {
       return dispatchRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-        "app_required",
-        { supported_apps: [...BACKEND_SUPPORTED_APPS] }
-      );
-    } else if (typeof requestedApp === "string" && BACKEND_SUPPORTED_APPS.includes(requestedApp)) {
-      app = requestedApp;
-    } else {
-      return dispatchRefusal(
-        BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-        "unsupported_app",
-        {
-          app: typeof requestedApp === "string" ? requestedApp : null,
-          supported_apps: [...BACKEND_SUPPORTED_APPS]
-        }
+        selection.reason,
+        selection.detail ?? null
       );
     }
+    const { app, model: resolvedModel, backend: resolvedBackend } = selection;
 
     const familyExecutor = executors[app] ?? null;
     if (typeof familyExecutor !== "function") {
@@ -189,7 +244,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
       workspace_alias,
       workspace_dir,
       readiness,
-      dispatchModel,
+      dispatchModel: resolvedModel,
       familyExecutorRegistryEntry,
       prepareSourceToolSurface,
       proveAssignedSourceReadable
@@ -221,7 +276,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
         monitor_handle,
         app,
 
-        model: dispatchModel,
+        model: resolvedModel,
+        backend: resolvedBackend,
         source_tool_surface: sourceToolSurface
       });
     } catch (error) {
@@ -260,6 +316,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
       run_id,
       monitor_handle,
       app,
+      model: resolvedModel,
+      backend: resolvedBackend,
       role,
       subject,
       workspace_alias: workspace_alias ?? null,
@@ -298,6 +356,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
       run_id,
       monitor_handle,
       app,
+      model: resolvedModel,
+      backend: resolvedBackend,
       role,
       subject,
       workspace_alias: record.workspace_alias,
@@ -528,17 +588,16 @@ export function createDispatchRunLifecycle(ctx = {}) {
       }
     }
 
-    let app;
-    if (requestedApp === null || requestedApp === undefined) {
-      return planRefusal("app_required", { supported_apps: [...BACKEND_SUPPORTED_APPS] });
-    } else if (typeof requestedApp === "string" && BACKEND_SUPPORTED_APPS.includes(requestedApp)) {
-      app = requestedApp;
-    } else {
-      return planRefusal("unsupported_app", {
-        app: typeof requestedApp === "string" ? requestedApp : null,
-        supported_apps: [...BACKEND_SUPPORTED_APPS]
-      });
+    const selection = resolveDispatchSelection({
+      role,
+      app: requestedApp,
+      model: dispatchModel,
+      workspaceDir: workspace_dir
+    });
+    if (!selection.ok) {
+      return planRefusal(selection.reason, selection.detail ?? null);
     }
+    const { app, model: resolvedModel, backend: resolvedBackend } = selection;
 
     if (!validateLauncherFamilyRole(role).ok) {
       return planRefusal("unsupported_role", { role });
@@ -556,8 +615,9 @@ export function createDispatchRunLifecycle(ctx = {}) {
       accepted: true,
       role,
       app,
+      backend: resolvedBackend,
       subject,
-      model: dispatchModel,
+      model: resolvedModel,
       workspace_dir: workspace_dir ?? null,
       executor_available,
       refusal: null

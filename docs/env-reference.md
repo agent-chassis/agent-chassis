@@ -94,6 +94,15 @@ over the role default, and missing or unknown declarations refuse pre-spawn in
 the resolver funnel. `.env` remains the repo-local carrier for Chassis Control Engine
 service configuration and secrets only.
 
+For agent MCP dispatch, the normal `workspace_agent_dispatch` input is
+`{ role, subject }`. The backend reads this file on every dispatch, so a later
+`agent-launch.toml` edit applies to the next call without restarting the server.
+Typed `app` and `model` are explicit per-dispatch overrides, not required
+fields. Missing, malformed, or registry-unknown role models refuse with an
+actionable role-specific configuration diagnostic. Launcher/MCP source-code
+changes are loaded modules and require restarting the owning server or launcher
+session; that restart boundary does not apply to this per-dispatch config read.
+
 ## 3. MCP server environment keys
 
 Configuration for the `wiki-mcp` stdio server process — **server configuration,

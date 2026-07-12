@@ -21,6 +21,33 @@ export const MODEL_REGISTRY = Object.freeze([
     })
   ]),
   Object.freeze([
+    "gpt-5.6-sol",
+    Object.freeze({
+      app: "codex",
+      backend: "codex",
+      codex_profile: "orchestrator",
+      default_effort: "high"
+    })
+  ]),
+  Object.freeze([
+    "gpt-5.6-terra",
+    Object.freeze({
+      app: "codex",
+      backend: "codex",
+      codex_profile: "worker",
+      default_effort: "medium"
+    })
+  ]),
+  Object.freeze([
+    "gpt-5.6-luna",
+    Object.freeze({
+      app: "codex",
+      backend: "codex",
+      codex_profile: "worker",
+      default_effort: "low"
+    })
+  ]),
+  Object.freeze([
     "gpt-5.5-pro",
     Object.freeze({
       app: "codex",

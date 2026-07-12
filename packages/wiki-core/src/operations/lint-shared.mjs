@@ -100,7 +100,7 @@ export function hasBacklink(docPage, expectedId, expectedRelation) {
 }
 
 export function isClosedStatus(status) {
-  return ["done", "cancelled", "deprecated", "duplicate", "superseded", "wont_do"].includes(
+  return ["done", "cancelled", "deprecated", "duplicate", "superseded", "expired", "wont_do"].includes(
     String(status ?? "").toLowerCase()
   );
 }

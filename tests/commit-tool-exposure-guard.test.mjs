@@ -162,10 +162,11 @@ test("worker surface construction registers exactly commit and never instantiate
   assert.deepEqual(constructed, [], "disallowed fs/exec surface request must fail before commit construction");
 });
 
-test("production worker wiki MCP profile exposes exactly commit and excludes non-commit tools", () => {
+test("production worker wiki MCP profile exposes exactly commit + submit-for-review and excludes the rest", () => {
+
   const profile = parseToolProfile({ WIKI_MCP_TOOL_PROFILE: "worker" });
-  const nonCommitWikiTools = [
-    "workspace_submit_for_review",
+  const workerWikiTools = [WORKER_COMMIT_TOOL_NAME, "workspace_submit_for_review"];
+  const nonWorkerWikiTools = [
     "workspace_read_page",
     "workspace_get_record",
     "workspace_search_repo",
@@ -184,8 +185,10 @@ test("production worker wiki MCP profile exposes exactly commit and excludes non
 
   assert.equal(profile, "worker");
   assert.deepEqual(WORKER_TOOL_ALLOWLIST, [WORKER_COMMIT_TOOL_NAME]);
-  assert.equal(shouldExposeTool(profile, WORKER_COMMIT_TOOL_NAME), true);
-  for (const name of nonCommitWikiTools) {
+  for (const name of workerWikiTools) {
+    assert.equal(shouldExposeTool(profile, name), true, `${name} must be registered for worker profile`);
+  }
+  for (const name of nonWorkerWikiTools) {
     assert.equal(shouldExposeTool(profile, name), false, `${name} must not be registered for worker profile`);
   }
 });

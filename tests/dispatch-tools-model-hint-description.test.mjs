@@ -7,7 +7,6 @@ import { z } from "zod";
 import { registerDispatchTools } from "../packages/wiki-mcp/src/lib/dispatch-tools.mjs";
 
 const TOOL_NAME = "workspace_agent_dispatch";
-const STALE_MODEL_HINT_VERBS = /\b(?:ignore|ignores|ignored|drop|drops|dropped)\b/i;
 
 const DISPATCH_DESCRIPTION_BUDGET = 1800;
 
@@ -47,85 +46,52 @@ function getDispatchDescription() {
   return desc;
 }
 
-function getModelHintBehaviorSentence(desc) {
-  const sentenceMatch = desc.match(
-    /[^.]*?(?:model_hint_unsupported_for_codex_executor|model_hint_unsupported_for_agy_executor)[^.]*\./i
-  );
-
-  assert.ok(
-    sentenceMatch,
-    "description must include the caller-visible model-hint behavior sentence"
-  );
-
-  return sentenceMatch[0];
-}
-
 test("WK-0764 workspace_agent_dispatch description is registered", () => {
   const desc = getDispatchDescription();
   assert.ok(desc.length > 0, "description must be non-empty");
 });
 
-test("WK-0764 model hint: Codex refuses with stable reason code", () => {
-  const desc = getModelHintBehaviorSentence(getDispatchDescription());
-  assert.ok(
-    desc.includes("model_hint_unsupported_for_codex_executor"),
-    "description must name the Codex model-hint refusal reason code"
-  );
-});
-
-test("WK-0764 model hint: Agy refuses with stable reason code", () => {
-  const desc = getModelHintBehaviorSentence(getDispatchDescription());
-  assert.ok(
-    desc.includes("model_hint_unsupported_for_agy_executor"),
-    "description must name the Agy model-hint refusal reason code"
-  );
-});
-
-test("WK-0764 model hint: description says Codex and Agy explicitly refuse", () => {
-  const desc = getModelHintBehaviorSentence(getDispatchDescription());
-  assert.ok(
-    /(?:Codex.*Agy|Agy.*Codex).*?\brefuse\b.*\bunsupported model hints\b/i.test(desc),
-    "description must say Codex and Agy refuse unsupported model hints"
-  );
-});
-
-test("WK-0764 model hint: Claude honors supported hints", () => {
-  const desc = getModelHintBehaviorSentence(getDispatchDescription());
-  assert.ok(
-    /\bClaude honors supported model hints\b/i.test(desc),
-    "description must say Claude honors supported model hints"
-  );
-});
-
-test("WK-0764 model hint: description must not say Codex/Agy ignore hints (anti-regression)", () => {
-  const desc = getModelHintBehaviorSentence(getDispatchDescription());
-  assert.ok(
-    !STALE_MODEL_HINT_VERBS.test(desc),
-    "description must not say Codex or Agy ignore or drop the model hint"
-  );
-});
-
-test("WK-1010 model hint: app selector caveat stays caller-visible", () => {
+test("WK-1381 description makes role and subject the normal call shape", () => {
   const desc = getDispatchDescription();
   assert.ok(
-    /\bapp_required\b/.test(desc),
-    "description must keep the app_required refusal caveat for a missing app"
+    /normal agent call supplies only `role` and `subject`/i.test(desc),
+    "description must teach the normal role+subject call shape"
   );
   assert.ok(
-    /\bunsupported_app\b/.test(desc),
-    "description must keep the unsupported_app refusal caveat"
+    !/\bapp_required\b/.test(desc),
+    "description must not train agents to supply app"
+  );
+});
+
+test("WK-1381 description identifies agent-launch.toml and neutral derivation", () => {
+  const desc = getDispatchDescription();
+  assert.ok(
+    /agent-launch\.toml/i.test(desc) && /neutral model registry/i.test(desc),
+    "description must name the role config and neutral registry"
+  );
+});
+
+test("WK-1381 description reserves typed app/model for explicit overrides", () => {
+  const desc = getDispatchDescription();
+  assert.ok(
+    /Typed `app` and `model` are explicit per-dispatch overrides only/i.test(desc),
+    "description must keep app/model override-only"
+  );
+  assert.ok(
+    /identity carriers.*never become selection authority/i.test(desc),
+    "description must keep caller carriers out of selection authority"
+  );
+});
+
+test("WK-1381 description keeps actionable refusal and supported-family posture", () => {
+  const desc = getDispatchDescription();
+  assert.ok(
+    /actionable role-specific configuration blocker/i.test(desc),
+    "description must state actionable role-config refusal"
   );
   assert.ok(
     /codex/i.test(desc) && /claude/i.test(desc) && /agy/i.test(desc),
-    "description must name the codex/claude/agy app selector that gates a launch"
-  );
-});
-
-test("WK-1010 model hint: typed model field is the only hint source", () => {
-  const desc = getDispatchDescription();
-  assert.ok(
-    /\bmodel\b/i.test(desc) && /\bhint\b/i.test(desc),
-    "description must keep the typed model-hint caveat for app/model disposition"
+    "description must retain the supported family vocabulary"
   );
 });
 

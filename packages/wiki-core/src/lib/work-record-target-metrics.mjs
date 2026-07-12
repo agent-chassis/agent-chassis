@@ -3,7 +3,7 @@ import { normalizeStructuralTargetResolverEvidence } from "./work-record-target-
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 
-const WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES = Object.freeze([
+export const WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES = Object.freeze([
   "function",
   "method",
   "class",
@@ -16,7 +16,7 @@ const WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES = Object.freeze([
   "other"
 ]);
 
-const WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES = Object.freeze([
+export const WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES = Object.freeze([
   "create",
   "modify",
   "delete",

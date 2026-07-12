@@ -13,7 +13,7 @@ import {
 const manifestUrl = new URL('./manifest.json', import.meta.url);
 
 const EXPECTED_FRAGMENTS = [
-  ['mcp-tools.json', 15],
+  ['mcp-tools.json', 17],
   ['mcp-work-record-tools.json', 3],
   ['mcp-launcher-tools.json', 4],
   ['mcp-coordination-tools.json', 2],
@@ -25,7 +25,7 @@ const EXPECTED_FRAGMENTS = [
   ['integration-tools.json', 1],
   ['wrapper-commands.json', 0],
 ];
-const EXPECTED_TOOL_COUNT = 87;
+const EXPECTED_TOOL_COUNT = 89;
 
 async function readJson(url) {
   return JSON.parse(await readFile(url, 'utf8'));

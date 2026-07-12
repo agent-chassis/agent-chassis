@@ -278,26 +278,26 @@ blockers for the coordinator's next action; it is not policy authority and must
 not be described as authorizing promotion, merge, rebase, lifecycle changes,
 worktree cleanup, or ref updates.
 
-`workspace_tool_usage_audit` is the compact read-only observability surface for
-agent tool-use policy adherence. Discovery should present it as an
+`workspace_tool_usage_audit` is the compact read-only observability surface that
+emits a NEUTRAL usage catalog of agent tool-use. Discovery should present it as an
 operator/coordinator measurement lens over bounded historical and live audit
 facts, not as a launch, mutation, lint/generate, routing, refusal, enforcement,
-or policy-authority route. Its output may help a coordinator see whether agents
-used compact-first reads, followed next-action signals, avoided unsupported
-bulk sampling, or triggered known misuse classifications, but the underlying
-domain tools still own read, search, work-record, dispatch, review, validation,
-and lint semantics.
+or policy-authority route. Its output is descriptive only -- counts, provenance,
+first-tool, and response-size indicators -- and renders no misuse or adherence
+verdict; assessing the catalog for misuse is an offline, out-of-band activity. The
+underlying domain tools still own read, search, work-record, dispatch, review,
+validation, and lint semantics.
 
-The audit surface bridges owned contracts without duplicating them inline.
-work record owns the `tool-use-policy.v1` misuse codes, evidence envelopes, source
-and confidence labels, redaction posture, and audit-only interpretation.
-work record owns routing-intent ids and replacement-call guidance through
-`tool-routing-intents.v1`, router output, and discovery metadata. Audit results
-may report work record misuse codes and coarse replacement families, and may cite
-work record routing-intent or replacement guidance only when that guidance is
-available from the work record-owned surfaces. Discovery text must not create a
-second routing taxonomy, expand misuse vocabulary in prose, or treat audit
-classifications as exact recommended-call authority by themselves.
+The audit surface reports neutral facts without duplicating owned contracts
+inline. work record owns the `tool-use-policy.v1` evidence envelopes, source and
+confidence labels, redaction posture, and audit-only interpretation; its misuse
+vocabulary remains only as offline reference data and is no longer reported by the
+runtime audit output (work record). work record owns routing-intent ids and
+replacement-call guidance through `tool-routing-intents.v1`, router output, and
+discovery metadata. The audit result does NOT report misuse codes, next-action
+adherence, or work record routing/replacement guidance -- that runtime coupling was
+removed (work record). Discovery text must not describe the audit surface as emitting
+misuse classifications or recommended-call authority.
 
 Keep the five policy surfaces distinct:
 
@@ -308,7 +308,9 @@ Keep the five policy surfaces distinct:
 - Historical backfill measurement reports only what old artifacts can prove,
   with confidence labels and unsupported-gap markers for MCP-specific questions
   the artifacts cannot establish.
-- Live audit measurement reports bounded observed adherence going forward.
+- Live audit measurement records bounded observed usage facts going forward
+  (provenance, response size, outcome) -- a neutral catalog, with no adherence or
+  misuse verdict.
 
 `workspace_tool_usage_audit` is canonical only for the compact audit facts it
 returns. It must not be documented as a reason to scrape `.agent-runs`, broad
@@ -995,6 +997,24 @@ taxonomy categories are `role_policy`, `caller_identity`,
 against those codes. See
 [Runtime Blocker Taxonomy And Coordination Preflight](tool-discovery-dispatch-runtime.md#runtime-blocker-taxonomy-and-coordination-preflight)
 for the detailed taxonomy and preflight contract.
+
+Its `capabilities` projection keeps nine planes separate:
+`structured_dispatch`, `native_edit`, `repository_read_boundary`, `commit`,
+`managed_worktree_provisioning`, `slice_to_wk_integration`,
+`wk_context_review`, `validation_ownership`, and
+`automatic_main_promotion`. Every plane includes a server-owned source and
+freshness state. Missing, unknown, or stale facts fail closed and are not
+inferred from neighboring planes. The current release reports repository read
+confinement, managed provisioning, slice integration, WK-context review, and
+automatic main promotion unavailable; it reports the other four planes
+available. Free/local and paid/CCE projections preserve identical capability
+meaning and differ only in enforcement metadata.
+
+The stable Phase-1 managed-lifecycle blockers are
+`managed_lifecycle_required` and
+`managed_worktree_provisioning_unavailable`. Their taxonomy entries identify
+the responsible actor and route recovery through
+`workspace_coordination_preflight`.
 
 ## Representative Coverage
 

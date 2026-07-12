@@ -72,7 +72,7 @@ export function uniqueSurfaceEntries(entries, keyForEntry, limit = 10) {
 }
 
 function terminalStatus(status) {
-  return new Set(["done", "accepted", "rejected", "superseded", "deprecated"]).has(
+  return new Set(["done", "accepted", "rejected", "superseded", "deprecated", "expired"]).has(
     String(status || "").toLowerCase()
   );
 }

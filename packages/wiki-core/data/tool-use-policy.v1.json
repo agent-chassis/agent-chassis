@@ -10,13 +10,6 @@
     "refuses_tool_calls": false,
     "description": "This vocabulary classifies observed tool-use patterns for audit and telemetry only. Domain tools, dispatch/readiness tools, runtime refusal layers, and WK-1438 routing metadata remain the authority for behavior."
   },
-  "routing_intent_contract": {
-    "owned_by": "WK-1438",
-    "vocabulary": "tool-routing-intents.v1",
-    "references_available": false,
-    "guidance": "routing_guidance_unavailable",
-    "reason": "packages/wiki-core/data/tool-routing-intents.v1.json is empty in this slice; this policy uses only coarse replacement-family references and does not define routing-intent identifiers."
-  },
   "severity_levels": [
     {
       "id": "info",
@@ -89,8 +82,6 @@
       "severity": "medium",
       "recoverability": "recoverable",
       "replacement_family": "initiative_status_or_action_lens",
-      "routing_intent_ref": null,
-      "route_guidance": "routing_guidance_unavailable",
       "audit_only": true
     },
     {
@@ -100,8 +91,6 @@
       "severity": "medium",
       "recoverability": "recoverable",
       "replacement_family": "selected_resource_compact_read",
-      "routing_intent_ref": null,
-      "route_guidance": "routing_guidance_unavailable",
       "audit_only": true
     },
     {
@@ -111,8 +100,6 @@
       "severity": "medium",
       "recoverability": "recoverable",
       "replacement_family": "scoped_lens_or_filtered_summary",
-      "routing_intent_ref": null,
-      "route_guidance": "routing_guidance_unavailable",
       "audit_only": true
     },
     {
@@ -122,8 +109,6 @@
       "severity": "high",
       "recoverability": "operator_review_recommended",
       "replacement_family": "dispatch_readiness_validation",
-      "routing_intent_ref": null,
-      "route_guidance": "routing_guidance_unavailable",
       "audit_only": true
     },
     {
@@ -133,8 +118,6 @@
       "severity": "medium",
       "recoverability": "operator_review_recommended",
       "replacement_family": "required_next_action",
-      "routing_intent_ref": null,
-      "route_guidance": "routing_guidance_unavailable",
       "audit_only": true
     },
     {
@@ -144,8 +127,6 @@
       "severity": "low",
       "recoverability": "recoverable",
       "replacement_family": "compact_or_summarized_output_first",
-      "routing_intent_ref": null,
-      "route_guidance": "routing_guidance_unavailable",
       "audit_only": true
     }
   ]

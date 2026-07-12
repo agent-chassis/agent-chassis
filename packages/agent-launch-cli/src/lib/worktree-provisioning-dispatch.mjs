@@ -1,20 +1,42 @@
 
 
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  realpathSync,
+  rmdirSync,
+  rmSync,
+  unlinkSync
+} from "node:fs";
+import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 import {
   allocatePerWkWorktree as defaultAllocatePerWkWorktree,
   resolveWorktreeBinding as defaultResolveWorktreeBinding,
   perWkBranchRef as defaultPerWkBranchRef,
   integrationBranchRef as defaultIntegrationBranchRef,
-  defaultRunGit
+  defaultRunGit,
+  allocateExactUnitWorktree as defaultAllocateExactUnitWorktree,
+  allocateSparseExactUnitWorktree as defaultAllocateSparseExactUnitWorktree,
+  deriveExactUnitName,
+  WORKTREE_SUBSTRATE_SCHEMA_VERSION,
+  defaultWriteBindingFile,
+  resolveWorktreeBinding
 } from "./worktree-substrate.mjs";
 import {
   resetWorktreeToIntegrationTip as defaultResetWorktreeToIntegrationTip
 } from "./worktree-lease.mjs";
+import { bindingFilePath } from "./worktree-substrate-identity.mjs";
 
 export const WORKTREE_PROVISIONING_DISPATCH_SCHEMA_VERSION =
   "worktree-provisioning-dispatch.v1";
+
+if (typeof RUNTIME_BLOCKER_CODES.MANAGED_WORKTREE_PROVISIONING_UNAVAILABLE !== "string") {
+  throw new Error("WK-1471 managed_worktree_provisioning_unavailable capability interface is absent or incompatible");
+}
 
 export const DEFAULT_EXPECTED_ENVELOPE_FIELD = "expected";
 
@@ -39,7 +61,12 @@ export const WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES = Object.freeze({
 
   BASE_SHA_RACED:
     "agent_launch.worktree_provisioning_dispatch.base_sha_raced.v1",
-  GIT_FAILED: "agent_launch.worktree_provisioning_dispatch.git_failed.v1"
+  GIT_FAILED: "agent_launch.worktree_provisioning_dispatch.git_failed.v1",
+  ROOT_REFUSED: "agent_launch.worktree_provisioning_dispatch.root_refused.v1",
+  DEPENDENCY_REFUSED: "agent_launch.worktree_provisioning_dispatch.dependency_refused.v1",
+  BINDING_INCOMPLETE: RUNTIME_BLOCKER_CODES.MANAGED_WORKTREE_PROVISIONING_UNAVAILABLE,
+  REISSUE_REFUSED: "agent_launch.worktree_provisioning_dispatch.reissue_refused.v1",
+  ROLLBACK_FAILED: "agent_launch.worktree_provisioning_dispatch.rollback_failed.v1"
 });
 
 export const WORKTREE_PROVISIONING_ISOLATION_INVARIANT = Object.freeze({
@@ -530,4 +557,539 @@ function freezeProvisionResult({
     worktree_git_pointer_file: gitIdentity.worktree_git_pointer_file,
     ...extra
   });
+}
+
+export const MANAGED_WORKTREE_BINDING_SCHEMA_VERSION =
+  "managed-worktree-binding.v1";
+
+function pathEntryExists(candidate) {
+  try { lstatSync(candidate); return true; } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function canonicalizeOwnedPath(candidate, label, { mustExist = false } = {}) {
+  const absolute = path.resolve(assertAbsolutePath(candidate, label));
+  const parsed = path.parse(absolute);
+  let cursor = parsed.root;
+  for (const component of absolute.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
+    cursor = path.join(cursor, component);
+    if (!pathEntryExists(cursor)) break;
+    const stat = lstatSync(cursor);
+    if (stat.isSymbolicLink()) {
+      fail(
+        WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.ROOT_REFUSED,
+        `${label} contains a symlink component`,
+        { label, path: absolute, component: cursor }
+      );
+    }
+  }
+  if (mustExist && !pathEntryExists(absolute)) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.ROOT_REFUSED,
+      `${label} does not exist`,
+      { label, path: absolute }
+    );
+  }
+  if (existsSync(absolute)) return realpathSync(absolute);
+  let ancestor = path.dirname(absolute);
+  const suffix = [path.basename(absolute)];
+  while (!existsSync(ancestor)) {
+    suffix.unshift(path.basename(ancestor));
+    const parent = path.dirname(ancestor);
+    if (parent === ancestor) break;
+    ancestor = parent;
+  }
+  return path.join(realpathSync(ancestor), ...suffix);
+}
+
+function assertDistinctOwnedRoots(roots) {
+  const entries = Object.entries(roots);
+  for (let i = 0; i < entries.length; i += 1) {
+    for (let j = i + 1; j < entries.length; j += 1) {
+      const [leftName, left] = entries[i];
+      const [rightName, right] = entries[j];
+      if (left === right || left.startsWith(`${right}${path.sep}`) || right.startsWith(`${left}${path.sep}`)) {
+        fail(
+          WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.ROOT_REFUSED,
+          "launcher-owned roots alias, collide, or contain one another",
+          { left: { name: leftName, path: left }, right: { name: rightName, path: right } }
+        );
+      }
+    }
+  }
+}
+
+function bindingIdentity(runId, kind) {
+  return `${runId}.${kind}`;
+}
+
+function removeBindingFile(repo, launchRef, runId, retryId, failures) {
+  const filePath = bindingFilePath(repo, launchRef, runId, retryId);
+  if (!existsSync(filePath)) return;
+  try { unlinkSync(filePath); } catch (error) {
+    failures.push({ stage: "binding", path: filePath, message: error?.message ?? String(error) });
+  }
+}
+
+function compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, bindings, cachePath, cacheCreated, createdRoots = [], cause }) {
+  const failures = [];
+  if (cacheCreated && existsSync(cachePath)) {
+    try { rmSync(cachePath, { recursive: true, force: false }); } catch (error) {
+      failures.push({ stage: "cache", path: cachePath, message: error?.message ?? String(error) });
+    }
+  }
+  for (const [kind, binding] of [["slice", bindings.slice], ["wk", bindings.wk]]) {
+    if (!binding) continue;
+    removeBindingFile(repo, launchRef, bindingIdentity(runId, kind), retryId, failures);
+    const remove = runGit({ repo, args: ["worktree", "remove", "--force", binding.worktree_path] });
+    if (!remove || remove.ok !== true) failures.push({ stage: `${kind}_worktree`, detail: remove ?? null });
+    const branch = runGit({ repo, args: ["branch", "-D", binding.output_branch] });
+    if (!branch || branch.ok !== true) failures.push({ stage: `${kind}_ref`, detail: branch ?? null });
+  }
+  for (const root of createdRoots) {
+    if (!existsSync(root)) continue;
+    try { rmdirSync(root); } catch (error) {
+      failures.push({ stage: "root", path: root, message: error?.message ?? String(error) });
+    }
+  }
+  if (failures.length > 0) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.ROLLBACK_FAILED,
+      "managed allocation rollback did not fully compensate",
+      { failures, originalError: cause?.message ?? String(cause) },
+      cause
+    );
+  }
+}
+
+const COMPLETE_EXACT_BINDING_FIELDS = Object.freeze([
+  "schema_version", "launch_ref", "run_id", "retry_id", "unit_address",
+  "initiative", "record_id", "slice_id", "base_ref", "base_sha",
+  "output_branch", "worktree_path", "write_scope", "write_scope_source"
+]);
+const COMPLETE_SPARSE_BINDING_FIELDS = Object.freeze([
+  ...COMPLETE_EXACT_BINDING_FIELDS, "cone_dirs", "index_sparse"
+]);
+
+function isPathWithinRoot(candidate, root) {
+  return candidate !== root && candidate.startsWith(`${root}${path.sep}`);
+}
+
+function canonicalizeContainedPath(candidate, label, root, { mustExist = true } = {}) {
+  const canonical = canonicalizeOwnedPath(candidate, label, { mustExist });
+  if (!isPathWithinRoot(canonical, root)) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      `${label} escapes its launcher-owned canonical root`,
+      { label, path: canonical, root }
+    );
+  }
+  return canonical;
+}
+
+function assertCompleteManagedBinding({
+  binding,
+  repo,
+  unitAddress,
+  launchRef,
+  runId,
+  retryId,
+  worktreeRoot,
+  sparse,
+  runGit = defaultRunGit,
+  allowAdvancedTip = false
+}) {
+  const required = sparse ? COMPLETE_SPARSE_BINDING_FIELDS : COMPLETE_EXACT_BINDING_FIELDS;
+  for (const field of required) {
+    const nullableFullWkSliceId = !sparse && field === "slice_id";
+    if ((!nullableFullWkSliceId && binding?.[field] === null) || binding?.[field] === undefined ||
+        (typeof binding[field] === "string" && binding[field].length === 0) ||
+        ((field === "write_scope" || field === "cone_dirs") && !Array.isArray(binding[field]))) {
+      fail(
+        WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+        `exact-unit binding is incomplete at ${field}`,
+        { field, unitAddress }
+      );
+    }
+  }
+  const expectedName = deriveExactUnitName({ unitAddress, worktreeRoot });
+  const expectedSliceId = expectedName.kind === "slice" ? expectedName.slice_id : null;
+  const expectedBaseRef = expectedName.kind === "slice"
+    ? `wk/${expectedName.initiative}/${expectedName.wk_id}`
+    : "main";
+  const mismatches = {
+    schema_version: [binding.schema_version, WORKTREE_SUBSTRATE_SCHEMA_VERSION],
+    unit_address: [binding.unit_address, unitAddress],
+    launch_ref: [binding.launch_ref, launchRef],
+    run_id: [binding.run_id, runId],
+    retry_id: [binding.retry_id, retryId],
+    initiative: [binding.initiative, expectedName.initiative],
+    record_id: [binding.record_id, expectedName.wk_id],
+    slice_id: [binding.slice_id ?? null, expectedSliceId],
+    base_ref: [binding.base_ref, expectedBaseRef],
+    output_branch: [binding.output_branch, expectedName.output_branch],
+    worktree_path: [path.resolve(binding.worktree_path), path.resolve(expectedName.worktree_path)],
+    write_scope_source: [
+      binding.write_scope_source,
+      `wiki/work-records/${expectedName.wk_id}.json${expectedSliceId ? `#${expectedSliceId}` : ""}`
+    ]
+  };
+  const mismatch = Object.entries(mismatches).find(([, [actual, expected]]) => actual !== expected);
+  if (mismatch) {
+    const [field, [actual, expected]] = mismatch;
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      `exact-unit binding does not match the selected unit at ${field}`,
+      { field, expected, actual: actual ?? null }
+    );
+  }
+  if (sparse && binding.index_sparse !== false) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      "sparse binding must pin index_sparse=false",
+      { actual: binding.index_sparse ?? null }
+    );
+  }
+  if (!Number.isInteger(binding.retry_id) || binding.retry_id < 0 ||
+      binding.write_scope.some((entry) => typeof entry !== "string" || entry.length === 0) ||
+      (sparse && (binding.cone_dirs.length === 0 || binding.cone_dirs.some((entry) => typeof entry !== "string" || entry.length === 0)))) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "exact-unit binding carries invalid retry or scope fields");
+  }
+  const worktree = canonicalizeContainedPath(binding.worktree_path, "binding.worktree_path", worktreeRoot);
+  if (worktree === repo || worktree.startsWith(`${repo}${path.sep}`)) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      "managed binding points at the main checkout",
+      { repo, worktree }
+    );
+  }
+  const head = runGit({ repo: worktree, args: ["rev-parse", "--verify", "HEAD^{commit}"] });
+  const ref = runGit({ repo, args: ["rev-parse", "--verify", `${binding.output_branch}^{commit}`] });
+  const headSha = head?.ok === true ? String(head.stdout ?? "").trim() : "";
+  const refSha = ref?.ok === true ? String(ref.stdout ?? "").trim() : "";
+  if (!headSha || headSha !== refSha || (!allowAdvancedTip && headSha !== binding.base_sha)) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      "exact-unit worktree HEAD, bound ref, and commit base do not match",
+      { head: headSha || null, ref: refSha || null, base_sha: binding.base_sha ?? null }
+    );
+  }
+}
+
+function freezeManagedResult({ initiative, wkId, sliceId, wkBinding, sliceBinding, roots, cachePath, runAuthority, retryId }) {
+  const dependencySource = canonicalizeOwnedPath(roots.sharedDependencyRoot, "sharedDependencyRoot", { mustExist: true });
+  const dependencyTarget = canonicalizeContainedPath(
+    path.join(sliceBinding.worktree_path, "node_modules"),
+    "dependencyMountTarget",
+    roots.worktreeRoot,
+    { mustExist: false }
+  );
+  const canonicalCachePath = canonicalizeContainedPath(cachePath, "perWkCachePath", roots.cacheRoot);
+  const dependencyMount = Object.freeze({
+    source: dependencySource,
+    target: dependencyTarget,
+    mode: "read_only"
+  });
+  return Object.freeze({
+    schema_version: MANAGED_WORKTREE_BINDING_SCHEMA_VERSION,
+    complete: true,
+    initiative,
+    record_id: wkId,
+    slice_id: sliceId,
+    unit_address: `${initiative}/${wkId}/${sliceId}`,
+    retry_id: retryId,
+    run_authority: runAuthority,
+    wk_binding: Object.freeze({ ...wkBinding }),
+    slice_binding: Object.freeze({ ...sliceBinding }),
+    worktree_path: sliceBinding.worktree_path,
+    output_branch: sliceBinding.output_branch,
+    base_ref: sliceBinding.base_ref,
+    base_sha: sliceBinding.base_sha,
+    write_scope: Object.freeze([...(sliceBinding.write_scope ?? [])]),
+    cone_dirs: Object.freeze([...(sliceBinding.cone_dirs ?? [])]),
+    index_sparse: sliceBinding.index_sparse,
+    validation_worktree_path: wkBinding.worktree_path,
+    dependency_mount: dependencyMount,
+    cache: Object.freeze({ path: canonicalCachePath, mode: "per_wk_writable" }),
+    shared_git_exposed: false
+  });
+}
+
+export function assertCompleteManagedProvisioningResult({
+  provisioning,
+  mainRepo,
+  initiative,
+  subject,
+  launchRef,
+  runId,
+  retryId,
+  worktreeRoot,
+  sharedDependencyRoot,
+  cacheRoot
+} = {}) {
+  const repo = canonicalizeOwnedPath(mainRepo, "mainRepo", { mustExist: true });
+  const parsed = parseSubject(subject);
+  if (parsed.sliceId === null) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "complete managed result requires an exact slice subject");
+  }
+  const roots = Object.freeze({
+    worktreeRoot: canonicalizeOwnedPath(worktreeRoot, "worktreeRoot", { mustExist: true }),
+    sharedDependencyRoot: canonicalizeOwnedPath(sharedDependencyRoot, "sharedDependencyRoot", { mustExist: true }),
+    cacheRoot: canonicalizeOwnedPath(cacheRoot, "cacheRoot", { mustExist: true })
+  });
+  assertDistinctOwnedRoots({ mainRepo: repo, ...roots });
+  const unitAddress = `${initiative}/${parsed.wkId}/${parsed.sliceId}`;
+  const requiredTopLevel = [
+    "schema_version", "initiative", "record_id", "slice_id", "unit_address",
+    "retry_id", "run_authority", "wk_binding", "slice_binding", "worktree_path",
+    "output_branch", "base_ref", "base_sha", "write_scope", "cone_dirs",
+    "index_sparse", "validation_worktree_path", "dependency_mount", "cache",
+    "shared_git_exposed"
+  ];
+  const missing = requiredTopLevel.find((field) => provisioning?.[field] === null || provisioning?.[field] === undefined);
+  if (provisioning?.complete !== true || missing) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      `managed provisioning result is partial${missing ? ` at ${missing}` : ""}`,
+      { field: missing ?? "complete" }
+    );
+  }
+  if (provisioning.schema_version !== MANAGED_WORKTREE_BINDING_SCHEMA_VERSION ||
+      provisioning.initiative !== initiative || provisioning.record_id !== parsed.wkId ||
+      provisioning.slice_id !== parsed.sliceId || provisioning.unit_address !== unitAddress ||
+      provisioning.retry_id !== retryId || typeof provisioning.run_authority !== "string" ||
+      provisioning.run_authority.length === 0) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "managed provisioning result identity is mismatched");
+  }
+  assertCompleteManagedBinding({
+    binding: provisioning.wk_binding, repo, unitAddress: `${initiative}/${parsed.wkId}`,
+    launchRef, runId: bindingIdentity(runId, "wk"), retryId,
+    worktreeRoot: roots.worktreeRoot, sparse: false
+  });
+  assertCompleteManagedBinding({
+    binding: provisioning.slice_binding, repo, unitAddress, launchRef,
+    runId: bindingIdentity(runId, "slice"), retryId,
+    worktreeRoot: roots.worktreeRoot, sparse: true
+  });
+  const slice = provisioning.slice_binding;
+  const mirroredFields = ["worktree_path", "output_branch", "base_ref", "base_sha", "index_sparse"];
+  const mirroredMismatch = mirroredFields.find((field) => provisioning[field] !== slice[field]);
+  if (mirroredMismatch ||
+      JSON.stringify(provisioning.write_scope) !== JSON.stringify(slice.write_scope) ||
+      JSON.stringify(provisioning.cone_dirs) !== JSON.stringify(slice.cone_dirs) ||
+      provisioning.validation_worktree_path !== provisioning.wk_binding.worktree_path ||
+      provisioning.shared_git_exposed !== false) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "managed provisioning result aliases do not exactly mirror the selected sparse binding");
+  }
+  const dependencySource = canonicalizeOwnedPath(provisioning.dependency_mount?.source, "dependencyMountSource", { mustExist: true });
+  const dependencyTarget = canonicalizeContainedPath(
+    provisioning.dependency_mount?.target,
+    "dependencyMountTarget",
+    roots.worktreeRoot,
+    { mustExist: false }
+  );
+  const cachePath = canonicalizeContainedPath(provisioning.cache?.path, "cache.path", roots.cacheRoot);
+  if (dependencySource !== roots.sharedDependencyRoot ||
+      dependencyTarget !== path.join(slice.worktree_path, "node_modules") ||
+      provisioning.dependency_mount?.mode !== "read_only" ||
+      cachePath !== path.join(roots.cacheRoot, parsed.wkId) ||
+      provisioning.cache?.mode !== "per_wk_writable") {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "dependency or cache binding is aliased, escaped, or mismatched");
+  }
+  return provisioning;
+}
+
+function reissueManagedWorktrees({ repo, initiative, wkId, sliceId, launchRef, runId, retryId, priorIdentity, roots, deps }) {
+  const retainedLaunchRef = priorIdentity?.launchRef ?? priorIdentity?.launch_ref ?? priorIdentity?.monitorHandle ?? priorIdentity?.monitor_handle;
+  const retainedRunId = priorIdentity?.runId ?? priorIdentity?.run_id;
+  const retainedRetryId = priorIdentity?.retryId ?? priorIdentity?.retry_id ?? 0;
+  if (typeof retainedLaunchRef !== "string" || retainedLaunchRef.length === 0 ||
+      typeof retainedRunId !== "string" || retainedRunId.length === 0 ||
+      !Number.isInteger(retainedRetryId) || retainedRetryId < 0 || retainedRunId === runId) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.REISSUE_REFUSED,
+      "same-slice reissue requires a distinct fresh run identity and an exact retained binding identity"
+    );
+  }
+  if (typeof deps.confirmPriorWorkerTerminated !== "function" || deps.confirmPriorWorkerTerminated({
+    launchRef, runId, retryId, priorIdentity: {
+      launchRef: retainedLaunchRef,
+      runId: retainedRunId,
+      retryId: retainedRetryId
+    }, unitAddress: `${initiative}/${wkId}/${sliceId}`
+  }) !== true) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.REISSUE_REFUSED, "prior worker termination is not confirmed");
+  }
+  const runGit = deps.runGit ?? defaultRunGit;
+  const resolveBinding = deps.resolveWorktreeBinding ?? resolveWorktreeBinding;
+  const retainedWkRunId = bindingIdentity(retainedRunId, "wk");
+  const retainedSliceRunId = bindingIdentity(retainedRunId, "slice");
+  const wkBinding = resolveBinding({ mainRepo: repo, launchRef: retainedLaunchRef, runId: retainedWkRunId, retryId: retainedRetryId });
+  const sliceBinding = resolveBinding({ mainRepo: repo, launchRef: retainedLaunchRef, runId: retainedSliceRunId, retryId: retainedRetryId });
+  assertCompleteManagedBinding({
+    binding: wkBinding, repo, unitAddress: `${initiative}/${wkId}`, launchRef: retainedLaunchRef,
+    runId: retainedWkRunId, retryId: retainedRetryId, worktreeRoot: roots.worktreeRoot, sparse: false,
+    runGit, allowAdvancedTip: true
+  });
+  assertCompleteManagedBinding({
+    binding: sliceBinding, repo, unitAddress: `${initiative}/${wkId}/${sliceId}`, launchRef: retainedLaunchRef,
+    runId: retainedSliceRunId, retryId: retainedRetryId, worktreeRoot: roots.worktreeRoot, sparse: true,
+    runGit, allowAdvancedTip: true
+  });
+  const dirtyWk = runGit({ repo: wkBinding.worktree_path, args: ["status", "--porcelain"] });
+  const dirty = runGit({ repo: sliceBinding.worktree_path, args: ["status", "--porcelain"] });
+  const wkHead = runGit({ repo: wkBinding.worktree_path, args: ["rev-parse", "HEAD"] });
+  const wkRef = runGit({ repo, args: ["rev-parse", wkBinding.output_branch] });
+  const head = runGit({ repo: sliceBinding.worktree_path, args: ["rev-parse", "HEAD"] });
+  const ref = runGit({ repo, args: ["rev-parse", sliceBinding.output_branch] });
+  if (!dirtyWk?.ok || String(dirtyWk.stdout ?? "").trim() ||
+      !wkHead?.ok || !wkRef?.ok || String(wkHead.stdout ?? "").trim() !== String(wkRef.stdout ?? "").trim() ||
+      !dirty?.ok || String(dirty.stdout ?? "").trim() || !head?.ok || !ref?.ok ||
+      String(head.stdout ?? "").trim() !== String(ref.stdout ?? "").trim()) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.REISSUE_REFUSED, "retained slice binding is dirty, missing, live, or mismatched");
+  }
+  const cachePath = canonicalizeOwnedPath(path.join(roots.cacheRoot, wkId), "perWkCachePath", { mustExist: true });
+  const runAuthority = randomUUID();
+  const writer = deps.writeBindingFile ?? defaultWriteBindingFile;
+  const reboundBindings = {};
+  try {
+    for (const [kind, binding] of [["wk", wkBinding], ["slice", sliceBinding]]) {
+      const currentTip = kind === "slice"
+        ? String(head.stdout ?? "").trim()
+        : String(wkHead.stdout ?? "").trim();
+      const rebound = {
+        ...binding,
+        launch_ref: launchRef,
+        run_id: bindingIdentity(runId, kind),
+        base_sha: currentTip,
+        retry_id: retryId,
+        run_authority: runAuthority
+      };
+      writer({
+        filePath: bindingFilePath(repo, launchRef, bindingIdentity(runId, kind), retryId),
+        contents: `${JSON.stringify(rebound, null, 2)}\n`
+      });
+      reboundBindings[kind] = Object.freeze(rebound);
+    }
+  } catch (error) {
+    const failures = [];
+    for (const kind of ["slice", "wk"]) removeBindingFile(repo, launchRef, bindingIdentity(runId, kind), retryId, failures);
+    if (failures.length > 0) fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.ROLLBACK_FAILED, "reissue binding rollback failed", { failures }, error);
+    throw error;
+  }
+  return freezeManagedResult({
+    initiative,
+    wkId,
+    sliceId,
+    wkBinding: reboundBindings.wk,
+    sliceBinding: reboundBindings.slice,
+    roots,
+    cachePath,
+    runAuthority,
+    retryId
+  });
+}
+
+export function provisionManagedWorktreesAtDispatch({
+  mainRepo,
+  initiative,
+  subject,
+  launchRef,
+  runId,
+  retryId = 0,
+  worktreeRoot,
+  sharedDependencyRoot,
+  cacheRoot,
+  priorIdentity = null,
+  deps = {}
+} = {}) {
+  const repo = canonicalizeOwnedPath(mainRepo, "mainRepo", { mustExist: true });
+  assertInitiativeId(initiative);
+  const { wkId, sliceId } = parseSubject(subject);
+  if (sliceId === null || !/^SLICE-\d{3}$/.test(sliceId)) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.INVALID_SUBJECT, "managed implementation dispatch requires one exact SLICE-NNN subject");
+  }
+  if (!Number.isInteger(retryId) || retryId < 0) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.INVALID_ARG, "retryId must be a non-negative integer");
+  }
+  const roots = Object.freeze({
+    worktreeRoot: canonicalizeOwnedPath(worktreeRoot, "worktreeRoot"),
+    sharedDependencyRoot: canonicalizeOwnedPath(sharedDependencyRoot, "sharedDependencyRoot", { mustExist: true }),
+    cacheRoot: canonicalizeOwnedPath(cacheRoot, "cacheRoot")
+  });
+  assertDistinctOwnedRoots({ mainRepo: repo, ...roots });
+  if (retryId > 0) {
+    return reissueManagedWorktrees({ repo, initiative, wkId, sliceId, launchRef, runId, retryId, priorIdentity, roots, deps });
+  }
+
+  const runGit = deps.runGit ?? defaultRunGit;
+  const allocateWk = deps.allocateExactUnitWorktree ?? defaultAllocateExactUnitWorktree;
+  const allocateSlice = deps.allocateSparseExactUnitWorktree ?? defaultAllocateSparseExactUnitWorktree;
+  const bindings = { wk: null, slice: null };
+  const cachePath = path.join(roots.cacheRoot, wkId);
+  let cacheCreated = false;
+  const createdRoots = [];
+  try {
+    for (const root of [roots.worktreeRoot, roots.cacheRoot]) {
+      if (!existsSync(root)) {
+        mkdirSync(root, { recursive: true, mode: 0o700 });
+        createdRoots.unshift(root);
+      }
+    }
+    const canonicalCachePath = canonicalizeOwnedPath(cachePath, "perWkCachePath");
+    if (canonicalCachePath !== cachePath) {
+      fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.ROOT_REFUSED, "per-WK cache path aliases or escapes its launcher-owned root");
+    }
+    bindings.wk = allocateWk({
+      mainRepo: repo,
+      unitAddress: `${initiative}/${wkId}`,
+      launchRef,
+      runId: bindingIdentity(runId, "wk"),
+      retryId: 0,
+      worktreeRoot: roots.worktreeRoot,
+      deps: { ...deps, runGit }
+    });
+    assertCompleteManagedBinding({
+      binding: bindings.wk, repo, unitAddress: `${initiative}/${wkId}`, launchRef,
+      runId: bindingIdentity(runId, "wk"), retryId: 0, worktreeRoot: roots.worktreeRoot, sparse: false,
+      runGit
+    });
+    bindings.slice = allocateSlice({
+      mainRepo: repo,
+      unitAddress: `${initiative}/${wkId}/${sliceId}`,
+      launchRef,
+      runId: bindingIdentity(runId, "slice"),
+      retryId: 0,
+      worktreeRoot: roots.worktreeRoot,
+      deps: { ...deps, runGit }
+    });
+    assertCompleteManagedBinding({
+      binding: bindings.slice, repo, unitAddress: `${initiative}/${wkId}/${sliceId}`, launchRef,
+      runId: bindingIdentity(runId, "slice"), retryId: 0, worktreeRoot: roots.worktreeRoot, sparse: true,
+      runGit
+    });
+    if (bindings.wk.base_sha !== bindings.slice.base_sha ||
+        bindings.wk.output_branch === bindings.slice.output_branch ||
+        bindings.wk.worktree_path === bindings.slice.worktree_path) {
+      fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "WK and slice bindings do not share one immutable captured WK-tip identity or collide");
+    }
+    if (!existsSync(cachePath)) {
+      const prepareCache = deps.prepareCache ?? ((target) => mkdirSync(target, { recursive: false, mode: 0o700 }));
+      try {
+        prepareCache(cachePath);
+      } finally {
+        cacheCreated = existsSync(cachePath);
+      }
+      if (!cacheCreated || !lstatSync(cachePath).isDirectory()) {
+        fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "per-WK writable cache preparation returned without creating the cache");
+      }
+    }
+    const runAuthority = randomUUID();
+    return freezeManagedResult({ initiative, wkId, sliceId, wkBinding: bindings.wk, sliceBinding: bindings.slice, roots, cachePath, runAuthority, retryId });
+  } catch (error) {
+    compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, bindings, cachePath, cacheCreated, createdRoots, cause: error });
+    throw error;
+  }
 }

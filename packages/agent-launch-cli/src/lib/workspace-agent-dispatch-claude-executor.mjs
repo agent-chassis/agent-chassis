@@ -34,10 +34,6 @@ import {
 import {
   LAUNCHER_RUNTIME_HOME_FACT_RESOLUTION_REASON
 } from "./launcher-runtime-home-policy.mjs";
-import {
-  classifyClaudeOAuthCredentialPreflight,
-  DEFAULT_CLAUDE_OAUTH_REFRESH_SAFETY_WINDOW_MS
-} from "./claude-oauth-credential-preflight.mjs";
 import { planFamilyBrokerLaunch } from "./workspace-agent-broker-plan-policy.mjs";
 import {
   WORKSPACE_AGENT_SANDBOX_OUTCOMES,
@@ -58,7 +54,6 @@ import {
   CLAUDE_LAUNCH_EXECUTOR_UNAVAILABLE_REASON,
   CLAUDE_NATIVE_PERMISSION_PROBE_UNPROVEN_REASON,
   CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
-  CLAUDE_OAUTH_PREFLIGHT_REFUSAL_REASON,
   CLAUDE_RUNTIME_SETUP_REASONS,
   CLAUDE_WORKER_SCRATCH_UNAVAILABLE_REASON,
   buildUnavailableRefusal,
@@ -67,12 +62,9 @@ import {
   defaultBuildClaudeCommandLine,
   defaultCaptureClaudeFinalResult,
   defaultProbeClaudeRuntime,
-  defaultReadClaudeOAuthCredentialText,
-  defaultReadClaudeOAuthPreflightNowMs,
   defaultReadLauncherOwnedHostHome,
   isClaudeCredentialsReadOnlyFileRefusal,
   makeRefusal,
-  maybeBuildClaudeOAuthPreflightRefusal,
   mintClaudeWorkerScratchRoot,
   mintLauncherOwnedClaudeNativePermissionSettings,
   probeClaudeNativePermissionEnforcement,
@@ -170,7 +162,6 @@ export {
   CLAUDE_LAUNCH_EXECUTOR_UNAVAILABLE_REASON,
   CLAUDE_NATIVE_PERMISSION_PROBE_UNPROVEN_REASON,
   CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
-  CLAUDE_OAUTH_PREFLIGHT_REFUSAL_REASON,
   CLAUDE_RUNTIME_SETUP_REASONS,
   CLAUDE_WORKER_DENY_TOOLS,
   CLAUDE_WORKER_DISALLOWED_NATIVE_WRITE_TOOLS,
@@ -227,11 +218,8 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
     loadWorkRecord = loadWorkRecordById,
 
     hostWriteAuthority = null,
-    classifyOAuthCredentialPreflight = classifyClaudeOAuthCredentialPreflight,
+
     credentialsReadOnlyFile = null,
-    readOAuthCredentialText = defaultReadClaudeOAuthCredentialText,
-    oauthCredentialRefreshSafetyWindowMs = DEFAULT_CLAUDE_OAUTH_REFRESH_SAFETY_WINDOW_MS,
-    readOAuthPreflightNowMs = defaultReadClaudeOAuthPreflightNowMs,
 
     mintWorkerScratchRoot = mintClaudeWorkerScratchRoot,
 
@@ -336,22 +324,6 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
     const resolvedClaudePath = typeof probe.detail?.symlink_path === "string" && probe.detail.symlink_path.length > 0
       ? probe.detail.symlink_path
       : effectiveClaudePath;
-
-    const oauthRefusal = await maybeBuildClaudeOAuthPreflightRefusal({
-      classifyOAuthCredentialPreflight,
-      credentialsReadOnlyFile: effectiveCredentialsReadOnlyFile,
-      readOAuthCredentialText,
-      readOAuthPreflightNowMs,
-      oauthCredentialRefreshSafetyWindowMs,
-      buildRefusal: (reasonDetail) => makeRefusal(
-        BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-        CLAUDE_OAUTH_PREFLIGHT_REFUSAL_REASON,
-        { app: "claude", credentialsReadOnlyFile: effectiveCredentialsReadOnlyFile, ...reasonDetail }
-      )
-    });
-    if (oauthRefusal) {
-      return oauthRefusal;
-    }
 
     if (typeof hostWriteAuthority === "function") {
       return delegateToHostWriteAuthority({
@@ -693,11 +665,8 @@ export function createHostWriteAuthorityBrokerClaudePlanLaunch({
   env = process.env,
   captureFinalResult = defaultCaptureClaudeFinalResult,
   loadWorkRecord = loadWorkRecordById,
-    classifyOAuthCredentialPreflight = classifyClaudeOAuthCredentialPreflight,
+
   credentialsReadOnlyFile = null,
-  readOAuthCredentialText = defaultReadClaudeOAuthCredentialText,
-  oauthCredentialRefreshSafetyWindowMs = DEFAULT_CLAUDE_OAUTH_REFRESH_SAFETY_WINDOW_MS,
-  readOAuthPreflightNowMs = defaultReadClaudeOAuthPreflightNowMs,
 
   mintClaudeNativePermissionSettings = mintLauncherOwnedClaudeNativePermissionSettings,
   verifyNativePermissionEnforcement = probeClaudeNativePermissionEnforcement,
@@ -827,21 +796,6 @@ export function createHostWriteAuthorityBrokerClaudePlanLaunch({
           }
           return { resolvedClaudePath: probe.detail?.symlink_path ?? effectiveClaudePath };
         },
-
-        preflight: async () =>
-          maybeBuildClaudeOAuthPreflightRefusal({
-            classifyOAuthCredentialPreflight,
-            credentialsReadOnlyFile: effectiveCredentialsReadOnlyFile,
-            readOAuthCredentialText,
-            readOAuthPreflightNowMs,
-            oauthCredentialRefreshSafetyWindowMs,
-            buildRefusal: (reasonDetail) => ({
-              refusal: {
-                reason: CLAUDE_OAUTH_PREFLIGHT_REFUSAL_REASON,
-                detail: { app: "claude", credentialsReadOnlyFile: effectiveCredentialsReadOnlyFile, ...reasonDetail }
-              }
-            })
-          }),
 
         command: async (ctx) => {
 

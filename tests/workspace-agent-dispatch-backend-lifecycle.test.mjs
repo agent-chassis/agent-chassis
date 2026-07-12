@@ -7,7 +7,6 @@ import {
   BACKEND_ACCEPTED_ROLES,
   BACKEND_REFUSAL_CODES,
   BACKEND_RUN_STATUSES,
-  BACKEND_SUPPORTED_APPS,
   WORKSPACE_AGENT_DISPATCH_BACKEND_SCHEMA_VERSION,
   WORKSPACE_AGENT_DISPATCH_RUN_STATUS_SCHEMA_VERSION
 } from "../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
@@ -41,7 +40,7 @@ test("accepted roles and statuses are stable", () => {
   assert.equal(BACKEND_RUN_STATUSES.includes("pending_launch"), false);
 });
 
-test("missing app refuses before executor selection", async () => {
+test("missing role default refuses actionably before executor selection", async () => {
   let executorCalls = 0;
   const backend = createTestDispatchBackend({
     launchExecutor: async () => {
@@ -58,8 +57,9 @@ test("missing app refuses before executor selection", async () => {
   });
   assert.equal(result.accepted, false);
   assert.equal(result.refusal.code, BACKEND_REFUSAL_CODES.LAUNCH_REFUSED);
-  assert.equal(result.refusal.reason, "app_required");
-  assert.deepEqual(result.refusal.detail.supported_apps, [...BACKEND_SUPPORTED_APPS]);
+  assert.equal(result.refusal.reason, "worker_model_unset");
+  assert.equal(result.refusal.detail.role, "worker");
+  assert.match(result.refusal.detail.message, /agent-launch\.toml/);
   assert.equal(executorCalls, 0);
   assert.equal(result.schema_version, WORKSPACE_AGENT_DISPATCH_BACKEND_SCHEMA_VERSION);
 });

@@ -40,13 +40,12 @@
         "packages/wiki-core/data/tool-discovery/manifest.json",
         "packages/wiki-core/data/tool-discovery/tool-usage-audit-tools.json",
         "packages/wiki-core/data/tool-use-policy.v1.json",
-        "packages/wiki-core/data/tool-routing-intents.v1.json",
         "packages/wiki-mcp/src/lib/tool-usage-audit-mcp-tools.mjs",
         "wiki/work-records/WK-1437.json",
         "wiki/work-records/WK-1438.json"
       ],
-      "summary": "Read-only compact observability for bounded tool-use audit aggregates.",
-      "notes": "Operator/coordinator observability surface for compact, redacted tool-use audit aggregates from the workspace_tool_usage_audit MCP route. It observes policy-adherence evidence only: it does not dispatch agents, mutate records, run lint/generate, block or authorize calls, route agents, scrape broad logs, or reinterpret domain tool authority. Misuse-code vocabulary lives in packages/wiki-core/data/tool-use-policy.v1.json under WK-1437; routing-intent ids and replacement-call guidance remain owned by WK-1438 via packages/wiki-core/data/tool-routing-intents.v1.json and the router/discovery docs."
+      "summary": "Read-only compact observability for a bounded, neutral tool-use audit catalog.",
+      "notes": "Operator/coordinator observability surface for a compact, redacted, NEUTRAL tool-use catalog from the workspace_tool_usage_audit MCP route. It returns descriptive facts only -- counts by tool/source/confidence, provenance buckets, first-tool-per-bucket, and response-size indicators -- and renders NO misuse or adherence verdict. Misuse assessment is an OFFLINE, out-of-band activity performed by a human or throwaway script over the exported catalog facts; it is never performed by this runtime tool. It does not dispatch agents, mutate records, run lint/generate, block or authorize calls, route agents, scrape broad logs, or reinterpret domain tool authority. The offline vocabulary lives in packages/wiki-core/data/tool-use-policy.v1.json under WK-1437."
     }
   ]
 }

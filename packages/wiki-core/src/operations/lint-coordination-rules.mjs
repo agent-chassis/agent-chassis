@@ -209,7 +209,7 @@ export async function lintIssueLifecycle({
     }
 
     if (
-      ["done", "cancelled", "deprecated", "duplicate", "superseded", "wont_do"].includes(status) &&
+      ["done", "cancelled", "deprecated", "duplicate", "superseded", "expired", "wont_do"].includes(status) &&
       (!issue.frontmatter?.resolution || String(issue.frontmatter.resolution) === "unresolved")
     ) {
       addFinding(

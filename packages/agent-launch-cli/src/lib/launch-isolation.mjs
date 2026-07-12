@@ -269,6 +269,36 @@ function normalizeProvisionedWorktreeGitIsolation(identity, repoReal) {
   });
 }
 
+function assertHomeWritableDstOutsideRepo(dst, repoReal, label) {
+  if (isWithinRepo(dst, repoReal)) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
+      `${label} dst must resolve outside the repo (write_scope owns in-repo writable binds): ${dst}`,
+      { dst, repoReal }
+    );
+  }
+  let probe = dst;
+  for (;;) {
+    let real;
+    try {
+      real = realpathSync(probe);
+    } catch {
+      const parent = path.dirname(probe);
+      if (parent === probe) return;
+      probe = parent;
+      continue;
+    }
+    if (isWithinRepo(real, repoReal)) {
+      fail(
+        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
+        `${label} dst realpath must resolve outside the repo (write_scope owns in-repo writable binds): ${dst} -> ${real}`,
+        { dst, real, repoReal }
+      );
+    }
+    return;
+  }
+}
+
 export function buildBubblewrapLaunchPlan({
   repo,
   command,
@@ -544,6 +574,8 @@ export function buildBubblewrapLaunchPlan({
   }
 
   const homeReads = [];
+
+  const homeWritableFiles = [];
   if (homePolicy !== null && homePolicy !== undefined) {
     if (typeof homePolicy !== "object" || Array.isArray(homePolicy)) {
       fail(
@@ -552,10 +584,10 @@ export function buildBubblewrapLaunchPlan({
       );
     }
     for (const key of Object.keys(homePolicy)) {
-      if (key !== "reads") {
+      if (key !== "reads" && key !== "writableFiles") {
         fail(
           BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.HOME_POLICY_INVALID,
-          `homePolicy has unknown key: ${key} (only "reads" is supported; broad writable $HOME is not exposed)`
+          `homePolicy has unknown key: ${key} (only "reads" and "writableFiles" are supported; broad writable $HOME is not exposed)`
         );
       }
     }
@@ -574,6 +606,33 @@ export function buildBubblewrapLaunchPlan({
         if (seenHome.has(key)) continue;
         seenHome.add(key);
         homeReads.push(bind);
+      }
+    }
+    const writableFilesPolicy = Array.isArray(homePolicy.writableFiles)
+      ? homePolicy.writableFiles
+      : null;
+    if (homePolicy.writableFiles !== undefined && writableFilesPolicy === null) {
+      fail(
+        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.HOME_POLICY_INVALID,
+        "homePolicy.writableFiles must be an array of bind entries"
+      );
+    }
+    const seenHomeWritable = new Set();
+    if (writableFilesPolicy) {
+      for (let i = 0; i < writableFilesPolicy.length; i += 1) {
+        const bind = normalizeBindEntry(
+          writableFilesPolicy[i],
+          `homePolicy.writableFiles[${i}]`
+        );
+        assertHomeWritableDstOutsideRepo(
+          bind.dst,
+          repoReal,
+          `homePolicy.writableFiles[${i}]`
+        );
+        const key = `${bind.src}${BIND_DEDUP_SEPARATOR}${bind.dst}`;
+        if (seenHomeWritable.has(key)) continue;
+        seenHomeWritable.add(key);
+        homeWritableFiles.push(bind);
       }
     }
   }
@@ -706,6 +765,10 @@ export function buildBubblewrapLaunchPlan({
   for (const { src, dst } of homeReads) {
     bwrapArgs.push("--ro-bind-try", src, dst);
   }
+
+  for (const { src, dst } of homeWritableFiles) {
+    bwrapArgs.push("--bind", src, dst);
+  }
   for (const { src, dst } of familySystemReadOnly) {
     bwrapArgs.push("--ro-bind-try", src, dst);
   }
@@ -768,6 +831,9 @@ export function buildBubblewrapLaunchPlan({
     maskTmpfsDirs: Object.freeze([...maskTmpfsDirsResolved]),
     readOnlyRoots: Object.freeze(readOnly.map((b) => Object.freeze({ ...b }))),
     homePolicyReads: Object.freeze(homeReads.map((b) => Object.freeze({ ...b }))),
+    homePolicyWritableFiles: Object.freeze(
+      homeWritableFiles.map((b) => Object.freeze({ ...b }))
+    ),
     familySystemReadOnlyRoots: Object.freeze(
       familySystemReadOnly.map((b) => Object.freeze({ ...b }))
     ),

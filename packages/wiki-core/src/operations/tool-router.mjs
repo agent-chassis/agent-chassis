@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
 
+import { buildNextCall } from "../lib/next-calls-descriptor.mjs";
+
 const ROUTING_INTENTS_URL = new URL("../../data/tool-routing-intents.v1.json", import.meta.url);
 
 const DURABLE_UNIT_RE = /\bWK-\d{4}(?:#SLICE-\d{3})?\b/gi;
@@ -269,35 +271,51 @@ function renderFirstTool(intent, state) {
   return deriveMutationTool(intent, state) ?? intent.recommended_first_tool.name;
 }
 
+function buildMatchedNextCalls(intent, vocabulary, state, suggestedArguments) {
+  const recommendedEntry = Object.keys(suggestedArguments).length > 0
+    ? buildNextCall({ tool: renderFirstTool(intent, state), arguments: suggestedArguments, recommended: true })
+    : buildNextCall({ tool: renderFirstTool(intent, state), recommended: true });
+  const allowedEntries = renderAllowedNextCalls(intent, vocabulary).map((tool) => buildNextCall({ tool }));
+  const disallowedEntries = (intent.forbidden_first_tools ?? []).map((entry) =>
+    buildNextCall({ ...entry, disallowed: true }),
+  );
+  return [recommendedEntry, ...allowedEntries, ...disallowedEntries];
+}
+
+function buildAmbiguousNextCalls(topCandidates, byName, vocabulary) {
+  const allowedEntries = uniq(
+    topCandidates.flatMap((name) => renderAllowedNextCalls(byName.get(name), vocabulary)),
+  ).map((tool) => buildNextCall({ tool }));
+  const disallowedEntries = topCandidates.flatMap((name) =>
+    (byName.get(name)?.forbidden_first_tools ?? []).map((entry) => buildNextCall({ ...entry, disallowed: true })),
+  );
+  return [...allowedEntries, ...disallowedEntries];
+}
+
 function renderMatched(intent, vocabulary, state, reason) {
+  const suggestedArguments = renderSuggestedArguments(intent, state);
+  const nextCalls = buildMatchedNextCalls(intent, vocabulary, state, suggestedArguments);
   return {
     result_state: "matched",
     classified_intent: intent.intent,
-    recommended_first_tool: renderFirstTool(intent, state),
-    suggested_arguments: renderSuggestedArguments(intent, state),
-    do_not_start_with: intent.forbidden_first_tools ?? [],
-    allowed_next_calls: renderAllowedNextCalls(intent, vocabulary),
+    suggested_arguments: suggestedArguments,
+    next_calls: nextCalls,
     reason,
   };
 }
 
 function renderAmbiguous(candidateIntents, vocabulary, state, reason, missing = []) {
   const limit = vocabulary.router_result_states?.ambiguous?.bounded_guidance?.max_candidate_intents ?? 3;
+  const topCandidates = candidateIntents.slice(0, limit);
+  const nextCalls = buildAmbiguousNextCalls(topCandidates, intentByName(vocabulary), vocabulary);
   return {
     result_state: "ambiguous",
-    candidate_intents: candidateIntents.slice(0, limit),
+    candidate_intents: topCandidates,
     missing_disambiguating_state:
       missing[0]?.if_missing ??
       vocabulary.router_result_states?.ambiguous?.bounded_guidance?.ask_for ??
       "the smallest missing state needed to choose a route",
-    do_not_start_with: candidateIntents
-      .slice(0, limit)
-      .flatMap((name) => intentByName(vocabulary).get(name)?.forbidden_first_tools ?? []),
-    allowed_next_calls: uniq(
-      candidateIntents
-        .slice(0, limit)
-        .flatMap((name) => renderAllowedNextCalls(intentByName(vocabulary).get(name), vocabulary)),
-    ),
+    next_calls: nextCalls,
     reason,
   };
 }

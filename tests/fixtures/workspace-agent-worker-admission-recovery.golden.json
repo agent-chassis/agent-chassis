@@ -1,0 +1,352 @@
+{
+  "needs_review_threshold": {
+    "classification": "needs_review_unprojectable_control",
+    "recovery_source": "legacy_reason_fact_recovery_compatibility_fallback",
+    "is_deny_or_reject": false,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "review_threshold_controls": [],
+    "reason_facts": [
+      {
+        "reason_code": "review_threshold_exceeded",
+        "control": "write_scope_total_loc",
+        "observed": 812,
+        "threshold": 200
+      },
+      {
+        "reason_code": "review_threshold_exceeded",
+        "control": "acceptance_criteria_count",
+        "observed": 9,
+        "threshold": 6
+      }
+    ],
+    "pack_reason_count": 3,
+    "recognized_reason_count": 2,
+    "unrecognized_reason_count": 1,
+    "dropped_reason_count": 1,
+    "bounded_by_returned_reason_facts": true,
+    "controls_note": "This remediation packet lists only the review-threshold control(s) Chassis Control Engine returned in the pack reason facts above; it infers no hidden or additional controls. Remediate exactly the listed control(s); any further controls surface on a subsequent pack request.",
+    "authority_note": "needs_review is structurally dispatchable but requires review-threshold evidence; Chassis Control Engine remains the only authority that can return a ratified pack-backed admit after attestations are carried. Recording review-attestation evidence locally is not launch authority and does not convert needs_review to admit.",
+    "reduce_split_narrow_actions": [
+      "Chassis Control Engine returned a recognized needs_review reason, but no allowlisted review-threshold control was projectable; do not infer a control locally."
+    ],
+    "review_attestation_actions": [
+      "Ask the operator or Chassis Control Engine owner to inspect the bounded reason facts and provide a projectable control or corrected reason contract, then re-run dispatch."
+    ],
+    "next_actions": [
+      "Chassis Control Engine returned a recognized needs_review reason, but no allowlisted review-threshold control was projectable; do not infer a control locally.",
+      "Ask the operator or Chassis Control Engine owner to inspect the bounded reason facts and provide a projectable control or corrected reason contract, then re-run dispatch."
+    ]
+  },
+  "needs_review_no_reasons": {
+    "classification": "needs_review_no_pack_reasons",
+    "recovery_source": "legacy_reason_fact_recovery_compatibility_fallback",
+    "is_deny_or_reject": false,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "review_threshold_controls": [],
+    "reason_facts": [],
+    "pack_reason_count": 0,
+    "recognized_reason_count": 0,
+    "unrecognized_reason_count": 0,
+    "dropped_reason_count": 0,
+    "bounded_by_returned_reason_facts": true,
+    "controls_note": "This remediation packet lists only the review-threshold control(s) Chassis Control Engine returned in the pack reason facts above; it infers no hidden or additional controls. Remediate exactly the listed control(s); any further controls surface on a subsequent pack request.",
+    "authority_note": "needs_review is structurally dispatchable but requires review-threshold evidence; Chassis Control Engine remains the only authority that can return a ratified pack-backed admit after attestations are carried. Recording review-attestation evidence locally is not launch authority and does not convert needs_review to admit.",
+    "reduce_split_narrow_actions": [
+      "Chassis Control Engine returned needs_review without pack reason entries; do not infer a review-threshold control locally."
+    ],
+    "review_attestation_actions": [
+      "Ask the operator or Chassis Control Engine owner to inspect the upstream admission response and restore bounded reason emission, then re-run dispatch."
+    ],
+    "next_actions": [
+      "Chassis Control Engine returned needs_review without pack reason entries; do not infer a review-threshold control locally.",
+      "Ask the operator or Chassis Control Engine owner to inspect the upstream admission response and restore bounded reason emission, then re-run dispatch."
+    ]
+  },
+  "reject_threshold": {
+    "classification": "reject_threshold_exceeded",
+    "recovery_source": "legacy_reason_fact_recovery_compatibility_fallback",
+    "is_deny_or_reject": true,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "reason_facts": [
+      {
+        "reason_code": "reject_threshold_exceeded",
+        "control": "max_write_file_loc",
+        "observed": 1500,
+        "threshold": 1200
+      }
+    ],
+    "authority_note": "reject fails closed; Chassis Control Engine remains the only authority that can return a ratified pack-backed admit. No local action converts a reject to admit, and recording review-attestation evidence does not clear a reject-threshold deny.",
+    "taxonomy_code": "worker_admission_reject_threshold_exceeded",
+    "next_actions": [
+      "Primary remediation: refactor, split, or extract a smaller module from the large file(s) in write_scope, or narrow write_scope, so the selected unit clears the reject threshold, then re-run dispatch.",
+      "Only if refactoring, splitting, extracting, or narrowing is genuinely not viable, obtain an accepted, unexpired scoped large-file authority (or operator-approved escalation) for the exact unit and file(s) as a fallback.",
+      "Do not treat a scoped DEC or operator escalation as the first-line fix; it is the fallback after refactoring is shown to be impractical."
+    ],
+    "dec_esc_note": "For a Chassis Control Engine reject-threshold deny, bounded expected_changed_line_budget, target plan, graph-impact evidence, or local DEC/ESC/accepted_authorities are review context only and do not convert the reject/deny to admit. Chassis Control Engine/admissibility remains the authority; any fallback authority must be accepted, unexpired, operator-owned, and scoped to the exact unit and file(s)."
+  },
+  "reject_other": {
+    "classification": "reject_other",
+    "recovery_source": "legacy_reason_fact_recovery_compatibility_fallback",
+    "is_deny_or_reject": true,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "reason_facts": [
+      {
+        "reason_code": "review_threshold_exceeded",
+        "control": "write_scope_count",
+        "observed": 7
+      }
+    ],
+    "authority_note": "reject fails closed; Chassis Control Engine remains the only authority that can return a ratified pack-backed admit. No local action converts a reject to admit, and recording review-attestation evidence does not clear a reject-threshold deny.",
+    "next_actions": [
+      "Inspect the bounded reason facts to identify the control(s) Chassis Control Engine rejected.",
+      "Primary remediation: refactor, split, extract, or narrow write_scope so the selected unit clears the rejected control, then re-run dispatch.",
+      "Only if refactoring/splitting/extraction is genuinely not viable, obtain accepted scoped large-file authority or operator-approved escalation for the exact unit as a fallback."
+    ]
+  },
+  "cce_recovery_v1": {
+    "classification": "cce_recovery_v1",
+    "recovery_source": "cce_recovery_v1",
+    "is_deny_or_reject": false,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "cce_recovery": {
+      "schema_version": "worker_admission.recovery.v1",
+      "projection_mode": "bounded_current_decision_recovery",
+      "authority": "advisory_recovery_only",
+      "requires_resubmission": true,
+      "truncated": false,
+      "actions": [
+        {
+          "kind": "split_or_reduce_scope",
+          "controls": [
+            "write_scope_total_loc"
+          ],
+          "next_action": "Split it",
+          "remedy_guidance": {
+            "paths": [
+              {
+                "remedy": "self_attest_bounded_target_plan",
+                "applies_when": "small_edit_in_large_file"
+              }
+            ],
+            "expected_edit_targets_shape": {
+              "target_fields": [
+                "name",
+                "path"
+              ],
+              "kind_values": [
+                "function"
+              ],
+              "operation_values": [
+                "modify"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "recovery_actions": [
+      {
+        "kind": "split_or_reduce_scope",
+        "controls": [
+          "write_scope_total_loc"
+        ],
+        "next_action": "Split it",
+        "remedy_guidance": {
+          "paths": [
+            {
+              "remedy": "self_attest_bounded_target_plan",
+              "applies_when": "small_edit_in_large_file"
+            }
+          ],
+          "expected_edit_targets_shape": {
+            "target_fields": [
+              "name",
+              "path"
+            ],
+            "kind_values": [
+              "function"
+            ],
+            "operation_values": [
+              "modify"
+            ]
+          }
+        }
+      }
+    ],
+    "recovery_action_kinds": [
+      "split_or_reduce_scope"
+    ],
+    "reason_codes": [],
+    "problem_types": [],
+    "fields": [],
+    "controls": [
+      "write_scope_total_loc"
+    ],
+    "authority_note": "CCE recovery.v1 actions are advisory resubmission guidance only. They are not review evidence, accepted authority, admission, or launch authority; the worker must resubmit and obtain a fresh CCE worker-admission decision.",
+    "next_actions": [
+      "Split it",
+      "After completing the advisory recovery action(s), resubmit and obtain a fresh CCE worker-admission decision before any launch."
+    ]
+  },
+  "route_problem": {
+    "classification": "cce_recovery_v1",
+    "recovery_source": "cce_recovery_v1",
+    "is_deny_or_reject": true,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "cce_recovery": {
+      "schema_version": "worker_admission.recovery.v1",
+      "projection_mode": "route_problem_recovery",
+      "authority": "advisory_recovery_only",
+      "requires_resubmission": true,
+      "truncated": false,
+      "actions": [
+        {
+          "kind": "fix_policy_profile"
+        }
+      ]
+    },
+    "recovery_actions": [
+      {
+        "kind": "fix_policy_profile"
+      }
+    ],
+    "recovery_action_kinds": [
+      "fix_policy_profile"
+    ],
+    "reason_codes": [],
+    "problem_types": [],
+    "fields": [],
+    "controls": [],
+    "authority_note": "CCE recovery.v1 actions are advisory resubmission guidance only. They are not review evidence, accepted authority, admission, or launch authority; the worker must resubmit and obtain a fresh CCE worker-admission decision.",
+    "next_actions": [
+      "Apply only the bounded CCE recovery.v1 action kind(s) and projected tokens, then resubmit and obtain a fresh CCE worker-admission decision before any launch."
+    ]
+  },
+  "precondition_unsat": {
+    "classification": "unsatisfied_dependencies",
+    "is_deny_or_reject": true,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "reason_facts": [
+      {
+        "reason_code": "unsatisfied_dependencies",
+        "evidence": {
+          "unsatisfied_count": 2,
+          "incomplete_upstream_ids": [
+            "WK-1",
+            "WK-2"
+          ]
+        }
+      }
+    ],
+    "reason_evidence": {
+      "unsatisfied_count": 2,
+      "incomplete_upstream_ids": [
+        "WK-1",
+        "WK-2"
+      ]
+    },
+    "precondition_non_waivable": true,
+    "authority_note": "Precondition rejects are non-waivable structural dispatch preconditions. Do not use accepted_authorities, scoped authority, escalation, or review attestation to clear this result; satisfy the precondition and resubmit.",
+    "next_actions": [
+      "Complete the upstream dependency unit(s) named in reason.evidence.incomplete_upstream_ids, then re-run dispatch."
+    ]
+  },
+  "precondition_cycle": {
+    "classification": "dependency_cycle",
+    "is_deny_or_reject": true,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "reason_facts": [
+      {
+        "reason_code": "dependency_cycle",
+        "evidence": {
+          "cycles": [
+            [
+              "A",
+              "B",
+              "A"
+            ]
+          ],
+          "cycle_ids": [
+            "c1"
+          ]
+        }
+      }
+    ],
+    "reason_evidence": {
+      "cycles": [
+        [
+          "A",
+          "B",
+          "A"
+        ]
+      ],
+      "cycle_ids": [
+        "c1"
+      ]
+    },
+    "precondition_non_waivable": true,
+    "authority_note": "Precondition rejects are non-waivable structural dispatch preconditions. Do not use accepted_authorities, scoped authority, escalation, or review attestation to clear this result; satisfy the precondition and resubmit.",
+    "next_actions": [
+      "Fix the depends_on edges that form the dependency cycle named in reason.evidence.cycles, then re-run dispatch."
+    ]
+  },
+  "gate_unratified": {
+    "classification": "remote_admit_unratified",
+    "is_deny_or_reject": false,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "authority_note": "This is a fail-closed Chassis Control Engine worker-admission refusal; Chassis Control Engine remains the only authority that can return a ratified pack-backed admit. The next step is an operator/coordinator action to clear the fail-closed condition, after which dispatch must be re-run; performing it does not itself authorize a launch and does not convert the refusal to admit.",
+    "next_actions": [
+      "Ratify/enable the Chassis Control Engine worker-admission authority binding, then retry (non-launchable until ratified)"
+    ]
+  },
+  "reason_facts": [
+    {
+      "reason_code": "review_threshold_exceeded",
+      "control": "write_scope_total_loc",
+      "observed": 5,
+      "threshold": 3
+    }
+  ],
+  "top_projector": {
+    "classification": "reject_threshold_exceeded",
+    "recovery_source": "legacy_reason_fact_recovery_compatibility_fallback",
+    "is_deny_or_reject": true,
+    "selected_unit_address": "portfolio:WK-9#SLICE-3",
+    "selected_record_id": "WK-9",
+    "selected_slice_id": "SLICE-3",
+    "reason_facts": [
+      {
+        "reason_code": "reject_threshold_exceeded",
+        "control": "max_write_file_loc",
+        "observed": 1500,
+        "threshold": 1200
+      }
+    ],
+    "authority_note": "reject fails closed; Chassis Control Engine remains the only authority that can return a ratified pack-backed admit. No local action converts a reject to admit, and recording review-attestation evidence does not clear a reject-threshold deny.",
+    "taxonomy_code": "worker_admission_reject_threshold_exceeded",
+    "next_actions": [
+      "Primary remediation: refactor, split, or extract a smaller module from the large file(s) in write_scope, or narrow write_scope, so the selected unit clears the reject threshold, then re-run dispatch.",
+      "Only if refactoring, splitting, extracting, or narrowing is genuinely not viable, obtain an accepted, unexpired scoped large-file authority (or operator-approved escalation) for the exact unit and file(s) as a fallback.",
+      "Do not treat a scoped DEC or operator escalation as the first-line fix; it is the fallback after refactoring is shown to be impractical."
+    ],
+    "dec_esc_note": "For a Chassis Control Engine reject-threshold deny, bounded expected_changed_line_budget, target plan, graph-impact evidence, or local DEC/ESC/accepted_authorities are review context only and do not convert the reject/deny to admit. Chassis Control Engine/admissibility remains the authority; any fallback authority must be accepted, unexpired, operator-owned, and scoped to the exact unit and file(s)."
+  }
+}

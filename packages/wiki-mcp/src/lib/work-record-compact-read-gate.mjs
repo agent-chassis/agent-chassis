@@ -1,4 +1,10 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
+
+import { buildNextCall } from "./mcp-response.mjs";
+
+const COMPACT_READ_TOKEN_ACCEPTED = "compact_read_token_accepted";
+const COMPACT_READ_NOT_REQUIRED = "compact_read_not_required";
 
 const COMPACT_READ_SCHEMA_VERSION = "work-record-compact-read-gate.v1";
 const COMPACT_READ_TOKEN_SCHEMA_VERSION = "work-record-compact-read-token.v1";
@@ -218,65 +224,126 @@ function validateToken({
   now = Date.now()
 }) {
   if (!token) {
-    return { accepted: false, reason_code: "compact_read_token_missing" };
+    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MISSING };
   }
   const decoded = decodeSignedToken(token);
   if (!isObject(decoded)) {
-    return { accepted: false, reason_code: "compact_read_token_malformed" };
+    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MALFORMED };
   }
   if (decoded.schema_version !== COMPACT_READ_TOKEN_SCHEMA_VERSION) {
-    return { accepted: false, reason_code: "compact_read_token_wrong_schema" };
+    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_WRONG_SCHEMA };
   }
   if (decoded.tool_family !== toolFamily) {
-    return { accepted: false, reason_code: "compact_read_token_wrong_tool_family" };
+    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_WRONG_TOOL_FAMILY };
   }
   if (decoded.workspace_repo !== workspaceRepo || decoded.record_id !== recordId) {
-    return { accepted: false, reason_code: "compact_read_token_wrong_scope" };
+    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_WRONG_SCOPE };
   }
   if (decoded.selector !== selector) {
-    return { accepted: false, reason_code: "compact_read_token_wrong_selector" };
+    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_WRONG_SELECTOR };
   }
   if (decoded.source_digest !== sourceDigest) {
-    return { accepted: false, reason_code: "compact_read_token_stale_source_digest" };
+    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_STALE_SOURCE_DIGEST };
   }
   if (typeof decoded.expires_at_ms !== "number" || decoded.expires_at_ms < now) {
-    return { accepted: false, reason_code: "compact_read_token_expired" };
+    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_EXPIRED };
   }
-  return { accepted: true, reason_code: "compact_read_token_accepted" };
+  return { accepted: true, reason_code: COMPACT_READ_TOKEN_ACCEPTED };
 }
 
-function recommendedNextCalls({ recordId, compactToken, selectedSlices }) {
+function buildSummaryNextCalls({ recordId, compactToken, selectedSlices }) {
   const calls = [
-    `workspace_work_record_summary({id:"${recordId}"})`
+    buildNextCall({
+      tool: SUMMARY_TOOL_FAMILY,
+      arguments: { id: recordId },
+      recommended: true
+    })
   ];
   for (const slice of selectedSlices.slice(0, 3)) {
-    calls.push(`workspace_work_record_summary({unit:"${recordId}#${slice.id}"})`);
+    calls.push(buildNextCall({
+      tool: SUMMARY_TOOL_FAMILY,
+      arguments: { unit: `${recordId}#${slice.id}` },
+      recommended: true
+    }));
   }
   if (calls.length === 1 && compactToken) {
-    calls.push(`workspace_work_record_summary({id:"${recordId}", compact_read_token:"${compactToken}"})`);
+    calls.push(buildNextCall({
+      tool: SUMMARY_TOOL_FAMILY,
+      arguments: { id: recordId, compact_read_token: compactToken },
+      recommended: true
+    }));
   }
   return calls;
 }
 
-function readRecommendedNextCalls({ toolFamily, args, recordId, selectedSlices }) {
+function buildReadNextCalls({ toolFamily, args, recordId, selectedSlices }) {
   const calls = [];
   if (toolFamily === GET_RECORD_TOOL_FAMILY) {
-    calls.push(`workspace_get_record({id:"${recordId}"})`);
+    calls.push(buildNextCall({
+      tool: GET_RECORD_TOOL_FAMILY,
+      arguments: { id: recordId },
+      recommended: true
+    }));
     for (const slice of selectedSlices.slice(0, 3)) {
-      calls.push(`workspace_get_record({id:"${recordId}", selected_slice:"${slice.id}"})`);
+      calls.push(buildNextCall({
+        tool: GET_RECORD_TOOL_FAMILY,
+        arguments: { id: recordId, selected_slice: slice.id },
+        recommended: true
+      }));
     }
     return calls;
   }
 
   const path = normalizeString(args.path) ?? `wiki/work-records/${recordId}.json`;
-  calls.push(`workspace_read_page({path:"${path}"})`);
+  calls.push(buildNextCall({
+    tool: READ_PAGE_TOOL_FAMILY,
+    arguments: { path },
+    recommended: true
+  }));
   for (const slice of selectedSlices.slice(0, 3)) {
-    calls.push(`workspace_read_page({path:"${path}", selected_slice:"${slice.id}"})`);
+    calls.push(buildNextCall({
+      tool: READ_PAGE_TOOL_FAMILY,
+      arguments: { path, selected_slice: slice.id },
+      recommended: true
+    }));
   }
   return calls;
 }
 
-function buildContinuationMetadata({ compactResult, compactToken }) {
+function summarySelectedResources({ selector, recordId }) {
+  const isSlice = Boolean(selector?.selected_slice);
+  return {
+    type: isSlice ? "slice" : "work_record",
+    id: isSlice ? (selector?.selected ?? recordId) : recordId,
+    selection_reason: isSlice
+      ? "compact_read_selected_slice_scope"
+      : "compact_read_compact_first_scope"
+  };
+}
+
+function readSelectedResources({ selector, recordId }) {
+  if (selector?.selected_slice) {
+    return {
+      type: "slice",
+      id: selector.selected_slice,
+      selection_reason: "compact_read_selected_slice_scope"
+    };
+  }
+  if (selector?.selected_record) {
+    return {
+      type: "work_record",
+      id: recordId,
+      selection_reason: "compact_read_selected_record_scope"
+    };
+  }
+  return {
+    type: "work_record",
+    id: recordId,
+    selection_reason: "compact_read_compact_first_scope"
+  };
+}
+
+function buildContinuationMetadata({ compactResult, compactToken, selector }) {
   const summary = compactResult.summary || {};
   const selectedSlices = Array.isArray(summary.slices) ? summary.slices.filter((slice) => slice?.id) : [];
   const detailAvailableVia = new Set(["selected_slice"]);
@@ -284,6 +351,11 @@ function buildContinuationMetadata({ compactResult, compactToken }) {
   if (Array.isArray(omissionRoutes)) {
     for (const route of omissionRoutes) detailAvailableVia.add(route);
   }
+  const nextCalls = buildSummaryNextCalls({
+    recordId: compactResult.record_id,
+    compactToken,
+    selectedSlices
+  });
   return {
     schema_version: COMPACT_READ_SCHEMA_VERSION,
     source_digest: compactResult.source_digest ?? null,
@@ -291,11 +363,8 @@ function buildContinuationMetadata({ compactResult, compactToken }) {
     response_size: responseSizeMetadata(compactResult),
     omitted_detail_counts: omittedDetailCounts(summary),
     detail_available_via: [...detailAvailableVia],
-    recommended_next_calls: recommendedNextCalls({
-      recordId: compactResult.record_id,
-      compactToken,
-      selectedSlices
-    })
+    selected_resources: summarySelectedResources({ selector, recordId: compactResult.record_id }),
+    next_calls: nextCalls
   };
 }
 
@@ -307,6 +376,12 @@ function buildReadContinuationMetadata({ compactResult, compactToken, toolFamily
   if (toolFamily === READ_PAGE_TOOL_FAMILY) {
     detailAvailableVia.add("selected_record");
   }
+  const nextCalls = buildReadNextCalls({
+    toolFamily,
+    args,
+    recordId: compactResult.record_id,
+    selectedSlices
+  });
   return {
     schema_version: COMPACT_READ_SCHEMA_VERSION,
     source_digest: compactResult.source_digest ?? null,
@@ -314,29 +389,29 @@ function buildReadContinuationMetadata({ compactResult, compactToken, toolFamily
     response_size: responseSizeMetadata(compactResult),
     omitted_detail_counts: omittedReadDetailCounts(compactResult),
     detail_available_via: [...detailAvailableVia],
-    recommended_next_calls: readRecommendedNextCalls({
-      toolFamily,
-      args,
-      recordId: compactResult.record_id,
-      selectedSlices
-    })
+    selected_resources: readSelectedResources({
+      selector: normalizeReadSelector(args, toolFamily),
+      recordId: compactResult.record_id
+    }),
+    next_calls: nextCalls
   };
 }
 
-function buildRefusal({ compactResult, blockedOptions, tokenDecision, toolFamily = SUMMARY_TOOL_FAMILY }) {
-  const continuation = buildContinuationMetadata({ compactResult, compactToken: null });
+function buildRefusal({ compactResult, blockedOptions, tokenDecision, selector, toolFamily = SUMMARY_TOOL_FAMILY }) {
+  const continuation = buildContinuationMetadata({ compactResult, compactToken: null, selector });
   return {
     schema_version: "work-record-compact-read-refusal.v1",
     tool: toolFamily,
     accepted: false,
     blocked_expensive_options: blockedOptions,
-    reason_code: tokenDecision.reason_code === "compact_read_token_missing"
-      ? "compact_first_required"
+    reason_code: tokenDecision.reason_code === RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MISSING
+      ? RUNTIME_BLOCKER_CODES.COMPACT_FIRST_REQUIRED
       : tokenDecision.reason_code,
     response_size_risk: continuation.response_size,
     source_digest: compactResult.source_digest ?? null,
     detail_available_via: continuation.detail_available_via,
-    recommended_next_calls: continuation.recommended_next_calls
+    selected_resources: continuation.selected_resources,
+    next_calls: continuation.next_calls
   };
 }
 
@@ -352,13 +427,14 @@ function buildReadRefusal({ compactResult, blockedOptions, tokenDecision, toolFa
     tool: toolFamily,
     accepted: false,
     blocked_expensive_options: blockedOptions,
-    reason_code: tokenDecision.reason_code === "compact_read_token_missing"
-      ? "compact_first_required"
+    reason_code: tokenDecision.reason_code === RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MISSING
+      ? RUNTIME_BLOCKER_CODES.COMPACT_FIRST_REQUIRED
       : tokenDecision.reason_code,
     response_size_risk: continuation.response_size,
     source_digest: compactResult.source_digest ?? null,
     detail_available_via: continuation.detail_available_via,
-    recommended_next_calls: continuation.recommended_next_calls
+    selected_resources: continuation.selected_resources,
+    next_calls: continuation.next_calls
   };
 }
 
@@ -369,27 +445,34 @@ function boundedSelectedSliceResult({ compactResult, selector, blockedOptions, c
       slices: []
     };
   }
-  const selectedCall = `workspace_work_record_summary({unit:"${selector.selected}"})`;
+  const selectedNextCalls = [
+    buildNextCall({
+      tool: SUMMARY_TOOL_FAMILY,
+      arguments: { unit: selector.selected },
+      recommended: true
+    })
+  ];
   compactResult.compact_read = {
-    ...buildContinuationMetadata({ compactResult, compactToken }),
+    ...buildContinuationMetadata({ compactResult, compactToken, selector }),
     downgraded_expensive_options: blockedOptions,
-    reason_code: "selected_slice_compact_detail_required",
-    recommended_next_calls: [selectedCall]
+    reason_code: RUNTIME_BLOCKER_CODES.SELECTED_SLICE_COMPACT_DETAIL_REQUIRED,
+    next_calls: selectedNextCalls
   };
   return compactResult;
 }
 
 function boundedSelectedReadResult({ compactResult, blockedOptions, compactToken, toolFamily, args }) {
+  const selectedNextCalls = buildReadNextCalls({
+    toolFamily,
+    args,
+    recordId: compactResult.record_id,
+    selectedSlices: compactResult.selected_slice?.id ? [compactResult.selected_slice] : []
+  });
   compactResult.compact_read = {
     ...buildReadContinuationMetadata({ compactResult, compactToken, toolFamily, args }),
     downgraded_expensive_options: blockedOptions,
-    reason_code: "selected_slice_compact_detail_required",
-    recommended_next_calls: readRecommendedNextCalls({
-      toolFamily,
-      args,
-      recordId: compactResult.record_id,
-      selectedSlices: compactResult.selected_slice?.id ? [compactResult.selected_slice] : []
-    })
+    reason_code: RUNTIME_BLOCKER_CODES.SELECTED_SLICE_COMPACT_DETAIL_REQUIRED,
+    next_calls: selectedNextCalls
   };
   return compactResult;
 }
@@ -439,20 +522,20 @@ export async function runWorkRecordSummaryWithCompactGate({
         sourceDigest,
         toolFamily: SUMMARY_TOOL_FAMILY
       })
-    : { accepted: true, reason_code: "compact_read_not_required" };
+    : { accepted: true, reason_code: COMPACT_READ_NOT_REQUIRED };
 
   if (largeUnscopedExpensiveRequest) {
     const refusalDecision = tokenDecision.accepted
       ? {
           accepted: false,
-          reason_code: "compact_read_selected_detail_required"
+          reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_SELECTED_DETAIL_REQUIRED
         }
       : tokenDecision;
-    return buildRefusal({ compactResult, blockedOptions, tokenDecision: refusalDecision });
+    return buildRefusal({ compactResult, blockedOptions, tokenDecision: refusalDecision, selector });
   }
 
   if (blockedOptions.length > 0 && !tokenDecision.accepted) {
-    return buildRefusal({ compactResult, blockedOptions, tokenDecision });
+    return buildRefusal({ compactResult, blockedOptions, tokenDecision, selector });
   }
 
   if (blockedOptions.length > 0 && selector.selected_slice) {
@@ -470,7 +553,7 @@ export async function runWorkRecordSummaryWithCompactGate({
     });
   }
 
-  compactResult.compact_read = buildContinuationMetadata({ compactResult, compactToken });
+  compactResult.compact_read = buildContinuationMetadata({ compactResult, compactToken, selector });
   return compactResult;
 }
 
@@ -527,13 +610,13 @@ export async function runWorkRecordReadWithCompactGate({
         sourceDigest,
         toolFamily
       })
-    : { accepted: true, reason_code: "compact_read_not_required" };
+    : { accepted: true, reason_code: COMPACT_READ_NOT_REQUIRED };
 
   if (largeUnscopedExpensiveRequest) {
     const refusalDecision = tokenDecision.accepted
       ? {
           accepted: false,
-          reason_code: "compact_read_selected_detail_required"
+          reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_SELECTED_DETAIL_REQUIRED
         }
       : tokenDecision;
     return buildReadRefusal({

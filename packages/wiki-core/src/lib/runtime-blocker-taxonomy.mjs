@@ -49,6 +49,26 @@ export const RUNTIME_BLOCKER_CATEGORY_VALUES = Object.freeze(
   RUNTIME_BLOCKER_DESCRIPTOR.code_categories.slice()
 );
 
+export const RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES = Object.freeze([
+  "role_policy",
+  "caller_identity",
+  "work_record_readiness",
+  "transport",
+  "backend",
+  "filesystem",
+  "sandbox",
+  "validation",
+  "route",
+  "discovery",
+  "review_transport",
+  "monitor_handle",
+  "bootstrap",
+  "graph_impact",
+  "graph_impact_persistence",
+  "taxonomy",
+  "operator_recovery"
+]);
+
 export const WK_0532_BOOTSTRAP_SUBSET = Object.freeze(
   RUNTIME_BLOCKER_DESCRIPTOR.wk_0532_bootstrap_subset.slice()
 );

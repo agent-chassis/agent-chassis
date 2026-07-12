@@ -3,6 +3,7 @@ import {
   classifyNonNegativeInteger,
   isNonEmptyString,
   isObject,
+  isTestWriteScopePath,
   normalizeControlledVocabularyEntries,
   normalizeStringEntry,
   sortStrings,
@@ -273,6 +274,9 @@ export function collectFileStatMetrics(fileStats) {
     (entry) => classifyFileStatThresholdRole(entry) !== "coordination_record"
   );
   const count = thresholdCountedEntries.length;
+
+  const testCount = thresholdCountedEntries.filter((entry) => isTestWriteScopePath(entry.path)).length;
+  const codeCount = count - testCount;
   const existingFileEvidence = validEntries.some((entry) => entry.evidence?.existing_file === "valid");
   const directoryEvidence = validEntries.some((entry) => entry.evidence?.is_directory === "valid");
   const missingOrInvalidLocEntries = validEntries.filter((entry) => entry.evidence?.loc !== "valid");
@@ -359,7 +363,8 @@ export function collectFileStatMetrics(fileStats) {
   ).length;
 
   return {
-    write_scope_count: validEntries.length > 0 ? count : null,
+    write_scope_count: validEntries.length > 0 ? codeCount : null,
+    write_scope_test_count: validEntries.length > 0 ? testCount : null,
     write_scope_existing_file_count: existingFileEvidence ? existingFileCount : null,
     write_scope_directory_count: directoryEvidence ? directoryCount : null,
     write_scope_total_loc: locValues.length > 0 ? locValues.reduce((sum, value) => sum + value, 0) : null,
@@ -436,6 +441,14 @@ export function collectWorkUnitAtomicityContradictions({
       source: "file_stats",
       suppliedField: "work_unit_metrics.write_scope_count",
       derivedField: "file_stats.write_scope_count"
+    }),
+    compareMetricEvidence({
+      metric: "write_scope_test_count",
+      suppliedValue: workUnitMetrics.write_scope_test_count,
+      derivedValue: derivedFileStats.write_scope_test_count,
+      source: "file_stats",
+      suppliedField: "work_unit_metrics.write_scope_test_count",
+      derivedField: "file_stats.write_scope_test_count"
     }),
     compareMetricEvidence({
       metric: "write_scope_existing_file_count",

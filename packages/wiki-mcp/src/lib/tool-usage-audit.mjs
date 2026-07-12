@@ -364,7 +364,6 @@ function reviewContextCategory(sourcePath) {
   if (/^packages\//.test(value)) return "package_source";
   if (/^tests\//.test(value)) return "tests";
   if (/^internal\//.test(value)) return "internal";
-  if (/^[A-Za-z0-9 _-]+$/.test(value)) return "internal";
   return "other";
 }
 

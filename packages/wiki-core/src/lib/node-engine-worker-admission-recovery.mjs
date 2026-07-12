@@ -52,6 +52,64 @@ const WORKER_ADMISSION_RECOVERY_ACTION_FIELDS = new Set([
   "fields",
   "controls",
   "next_action",
+  "remedy_guidance",
+]);
+
+const WORKER_ADMISSION_REMEDY_GUIDANCE_FIELDS = new Set([
+  "paths",
+  "expected_edit_targets_shape",
+]);
+const WORKER_ADMISSION_REMEDY_GUIDANCE_PATH_FIELDS = new Set([
+  "remedy",
+  "applies_when",
+]);
+const WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_SHAPE_FIELDS = new Set([
+  "target_fields",
+  "kind_values",
+  "operation_values",
+]);
+const WORKER_ADMISSION_REMEDY_GUIDANCE_PATHS_MAX = 8;
+const WORKER_ADMISSION_REMEDY_GUIDANCE_REMEDIES = new Set([
+  "self_attest_bounded_target_plan",
+  "obtain_review_attestation",
+  "refactor_split_over_hard_reject",
+  "narrow_to_one_write_path",
+  "reduce_or_consolidate_validation",
+  "reduce_count_control",
+]);
+const WORKER_ADMISSION_REMEDY_GUIDANCE_APPLIES_WHEN = new Set([
+  "small_edit_in_large_file",
+  "large_edit_in_large_file",
+  "file_at_or_above_hard_reject",
+  "write_scope_count_over_threshold",
+  "validation_command_count_over_threshold",
+  "other_count_control_over_threshold",
+  "collapsed_file_loc_bands",
+]);
+
+const WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_FIELDS = new Set([
+  "name",
+  "path",
+  "kind",
+  "operation",
+]);
+const WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_KINDS = new Set([
+  "function",
+  "method",
+  "class",
+  "module",
+  "export",
+  "test_case",
+  "schema_field",
+  "docs_section",
+  "config_key",
+  "other",
+]);
+const WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_OPERATIONS = new Set([
+  "create",
+  "modify",
+  "delete",
+  "inspect",
 ]);
 
 function isPlainObject(value) {
@@ -79,6 +137,86 @@ function summarizeRecoveryTokenList(value) {
   return tokens;
 }
 
+function summarizeRemedyGuidanceEnumList(value, allowedValues, maxLength) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > maxLength) {
+    return null;
+  }
+  const members = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !allowedValues.has(item)) return null;
+    members.push(item);
+  }
+  return members;
+}
+
+function summarizeRemedyGuidanceTargetShape(shape) {
+  if (!isPlainObject(shape) || !hasOnlyAllowedFields(shape, WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_SHAPE_FIELDS)) {
+    return null;
+  }
+  const targetFields = summarizeRemedyGuidanceEnumList(
+    shape.target_fields,
+    WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_FIELDS,
+    WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_FIELDS.size
+  );
+  const kindValues = summarizeRemedyGuidanceEnumList(
+    shape.kind_values,
+    WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_KINDS,
+    WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_KINDS.size
+  );
+  const operationValues = summarizeRemedyGuidanceEnumList(
+    shape.operation_values,
+    WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_OPERATIONS,
+    WORKER_ADMISSION_REMEDY_GUIDANCE_TARGET_OPERATIONS.size
+  );
+  if (targetFields === null || kindValues === null || operationValues === null) {
+    return null;
+  }
+  return {
+    target_fields: targetFields,
+    kind_values: kindValues,
+    operation_values: operationValues,
+  };
+}
+
+function summarizeRemedyGuidance(value) {
+  if (
+    !isPlainObject(value) ||
+    !hasOnlyAllowedFields(value, WORKER_ADMISSION_REMEDY_GUIDANCE_FIELDS)
+  ) {
+    return null;
+  }
+  if (
+    !Array.isArray(value.paths) ||
+    value.paths.length === 0 ||
+    value.paths.length > WORKER_ADMISSION_REMEDY_GUIDANCE_PATHS_MAX
+  ) {
+    return null;
+  }
+  const paths = [];
+  for (const path of value.paths) {
+    if (!isPlainObject(path) || !hasOnlyAllowedFields(path, WORKER_ADMISSION_REMEDY_GUIDANCE_PATH_FIELDS)) {
+      return null;
+    }
+    if (typeof path.remedy !== "string" || !WORKER_ADMISSION_REMEDY_GUIDANCE_REMEDIES.has(path.remedy)) {
+      return null;
+    }
+    if (
+      typeof path.applies_when !== "string" ||
+      !WORKER_ADMISSION_REMEDY_GUIDANCE_APPLIES_WHEN.has(path.applies_when)
+    ) {
+      return null;
+    }
+    paths.push({ remedy: path.remedy, applies_when: path.applies_when });
+  }
+  const summary = { paths };
+  if (value.expected_edit_targets_shape !== undefined) {
+    const shape = summarizeRemedyGuidanceTargetShape(value.expected_edit_targets_shape);
+    if (shape === null) return null;
+    summary.expected_edit_targets_shape = shape;
+  }
+  return summary;
+}
+
 function summarizeRecoveryAction(action) {
   if (!isPlainObject(action) || !hasOnlyAllowedFields(action, WORKER_ADMISSION_RECOVERY_ACTION_FIELDS)) {
     return null;
@@ -102,6 +240,11 @@ function summarizeRecoveryAction(action) {
       return null;
     }
     summary.next_action = action.next_action;
+  }
+  if (action.remedy_guidance !== undefined) {
+    const remedyGuidance = summarizeRemedyGuidance(action.remedy_guidance);
+    if (remedyGuidance === null) return null;
+    summary.remedy_guidance = remedyGuidance;
   }
   return summary;
 }

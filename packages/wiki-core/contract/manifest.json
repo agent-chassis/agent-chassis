@@ -256,7 +256,8 @@
           "accepted",
           "rejected",
           "superseded",
-          "deprecated"
+          "deprecated",
+          "expired"
         ]
       }
     },

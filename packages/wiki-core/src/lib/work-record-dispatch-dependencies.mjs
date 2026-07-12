@@ -470,7 +470,7 @@ export async function loadAdditionalDependencyRecords({ record, selectedUnit, di
   return additional;
 }
 
-function isSatisfiedLocalDependencyStatus(status) {
+export function isSatisfiedLocalDependencyStatus(status) {
   return typeof status === "string" && SATISFIED_LOCAL_DEPENDENCY_STATUSES.has(status);
 }
 

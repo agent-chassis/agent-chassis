@@ -14,7 +14,6 @@ export function createToolUsageAuditBoundaryRecorder({
   recorder = createLiveMcpToolUsageRecorder(),
   origin = null,
   selected = null,
-  classifyMisuse = null,
   onRecorderError = null
 } = {}) {
   async function observeToolCall({ toolName, args, response, handler }) {
@@ -28,8 +27,7 @@ export function createToolUsageAuditBoundaryRecorder({
       args,
       response,
       origin: safeResolveBoundaryValue(origin, { toolName, args }, onRecorderError),
-      selected: safeResolveBoundaryValue(selected, { toolName, args }, onRecorderError),
-      misuse: safeResolveMisuseClassifications(classifyMisuse, { toolName, args }, onRecorderError)
+      selected: safeResolveBoundaryValue(selected, { toolName, args }, onRecorderError)
     };
 
     try {
@@ -89,7 +87,7 @@ export function registerToolUsageAuditTools({
     WORKSPACE_TOOL_USAGE_AUDIT_TOOL_NAME,
     {
       description:
-        "Read-only compact aggregate telemetry for observed agent MCP tool-use policy evidence. Returns bounded counts, provenance buckets, high-cost call indicators, unsupported-gap labels, and coarse guidance from redacted live audit facts. It does not dispatch, mutate work records, run lint/generate, block calls, or authorize routing.",
+        "Read-only compact aggregate of a NEUTRAL agent MCP tool-use catalog. Returns bounded, redacted descriptive telemetry only: counts by tool/source/confidence, provenance buckets, first-tool-per-bucket, and high-response-size call indicators ranked by size alone. It renders no misuse or adherence verdict: misuse assessment is an OFFLINE, out-of-band activity performed by a human or throwaway script over the exported catalog facts, never by this runtime tool. It does not dispatch, mutate work records, run lint/generate, block calls, or authorize routing.",
       inputSchema: z
         .object({
           max_facts: z.number().int().positive().max(5000).optional(),
@@ -165,27 +163,12 @@ function resolveBoundaryValue(value, context) {
   return typeof value === "function" ? value(context) : value;
 }
 
-function resolveMisuseClassifications(classifyMisuse, context) {
-  if (typeof classifyMisuse !== "function") return [];
-  const result = classifyMisuse(context);
-  return Array.isArray(result) ? result : [];
-}
-
 function safeResolveBoundaryValue(value, context, onRecorderError) {
   try {
     return resolveBoundaryValue(value, context);
   } catch (error) {
     reportRecorderError(onRecorderError, error);
     return null;
-  }
-}
-
-function safeResolveMisuseClassifications(classifyMisuse, context, onRecorderError) {
-  try {
-    return resolveMisuseClassifications(classifyMisuse, context);
-  } catch (error) {
-    reportRecorderError(onRecorderError, error);
-    return [];
   }
 }
 

@@ -1,6 +1,9 @@
 
 
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 export const COMMIT_OBJECT_PRIMITIVE_SCHEMA_VERSION = "commit-object-primitive.v1";
 
@@ -9,6 +12,9 @@ export const COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES = Object.freeze({
   INVALID_REF: "agent_launch.commit_object_primitive.invalid_ref.v1",
   INVALID_SHA: "agent_launch.commit_object_primitive.invalid_sha.v1",
   MATERIALIZE_FAILED: "agent_launch.commit_object_primitive.materialize_failed.v1",
+  SPARSE_BINDING_REQUIRED: "agent_launch.commit_object_primitive.sparse_binding_required.v1",
+  SPARSE_BINDING_INCOMPATIBLE: "agent_launch.commit_object_primitive.sparse_binding_incompatible.v1",
+  CROSS_CONE_RENAME: "agent_launch.commit_object_primitive.cross_cone_rename.v1",
   REF_TIP_UNRESOLVABLE: "agent_launch.commit_object_primitive.ref_tip_unresolvable.v1",
   REF_ADVANCE_FAILED: "agent_launch.commit_object_primitive.ref_advance_failed.v1",
 
@@ -97,17 +103,277 @@ function assertCommitter(committer) {
   return committer;
 }
 
-export function defaultRunGit({ gitDir, workTree, args, stdin = null }) {
+function normalizeSparseBinding(sparseBinding, baseSha) {
+  if (!sparseBinding || typeof sparseBinding !== "object" || Array.isArray(sparseBinding)) {
+    fail(
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.SPARSE_BINDING_REQUIRED,
+      "a sparse worktree requires the server-resolved WK-1518 binding"
+    );
+  }
+  if (sparseBinding.base_sha !== baseSha) {
+    fail(
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.SPARSE_BINDING_INCOMPATIBLE,
+      "sparse binding base_sha does not match the materialization base_sha",
+      { expected: baseSha, actual: sparseBinding.base_sha ?? null }
+    );
+  }
+  if (!Array.isArray(sparseBinding.cone_dirs) || sparseBinding.cone_dirs.length === 0 ||
+      typeof sparseBinding.index_sparse !== "boolean") {
+    fail(
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.SPARSE_BINDING_INCOMPATIBLE,
+      "sparse binding must contain non-empty cone_dirs and boolean index_sparse"
+    );
+  }
+  const cones = [];
+  for (const cone of sparseBinding.cone_dirs) {
+    if (typeof cone !== "string" || cone.length === 0 || cone.startsWith("/") || cone.startsWith("-") ||
+        /[\\\x00-\x1f\x7f]/u.test(cone) || cone.split("/").some((part) => part === "" || part === "." || part === "..")) {
+      fail(
+        COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.SPARSE_BINDING_INCOMPATIBLE,
+        `sparse binding contains an invalid cone directory: ${JSON.stringify(cone)}`
+      );
+    }
+    cones.push(cone);
+  }
+  if (new Set(cones).size !== cones.length ||
+      cones.some((cone, index) => cones.some((other, otherIndex) => otherIndex !== index && cone.startsWith(`${other}/`)))) {
+    fail(
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.SPARSE_BINDING_INCOMPATIBLE,
+      "sparse binding cone_dirs must be unique and ancestor-minimal"
+    );
+  }
+  return Object.freeze({ cone_dirs: Object.freeze(cones), index_sparse: sparseBinding.index_sparse });
+}
+
+function querySparseCheckout(runGit, ctx) {
+  const res = runGit({
+    gitDir: ctx.gitDir,
+    workTree: ctx.workTree,
+    args: [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "config", "--bool", "core.sparseCheckout"],
+    indexFile: ctx.indexFile
+  });
+  if (res?.ok === true) return res.stdout.trim() === "true";
+  if (res?.status === 1) return false;
+  fail(
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    "failed to determine whether the worktree is sparse",
+    { status: res?.status ?? null, stderr: res?.stderr ?? null, error: res?.error ?? null }
+  );
+}
+
+function verifySparseBindingAgainstWorktree(runGit, ctx, binding) {
+  const list = runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "sparse-checkout", "list"],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.SPARSE_BINDING_INCOMPATIBLE,
+    "failed to read the configured sparse cone"
+  ).stdout.split("\n").filter(Boolean);
+  const sparseIndex = runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "config", "--bool", "index.sparse"],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.SPARSE_BINDING_INCOMPATIBLE,
+    "failed to read index.sparse"
+  ).stdout.trim() === "true";
+  if (list.length !== binding.cone_dirs.length || list.some((cone, index) => cone !== binding.cone_dirs[index]) ||
+      sparseIndex !== binding.index_sparse) {
+    fail(
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.SPARSE_BINDING_INCOMPATIBLE,
+      "live sparse configuration does not match the server-resolved binding",
+      { expected_cone_dirs: binding.cone_dirs, actual_cone_dirs: list, expected_index_sparse: binding.index_sparse, actual_index_sparse: sparseIndex }
+    );
+  }
+}
+
+function pathIsInCone(repoPath, coneDirs) {
+  const pathParts = repoPath.split("/");
+  return coneDirs.some((cone) => {
+    if (repoPath === cone || repoPath.startsWith(`${cone}/`)) return true;
+    const coneParts = cone.split("/");
+    return pathParts.length <= coneParts.length &&
+      pathParts.slice(0, -1).every((part, index) => part === coneParts[index]);
+  });
+}
+
+function nulPaths(stdout) {
+  return stdout.split("\0").filter(Boolean);
+}
+
+function treeEntries(runGit, ctx, treeish) {
+  const records = nulPaths(runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "ls-tree", "-r", "-z", treeish],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    `failed to enumerate tree entries for ${treeish}`
+  ).stdout);
+  return records.map((record) => {
+    const tab = record.indexOf("\t");
+    const [mode, type, oid] = record.slice(0, tab).split(" ");
+    return Object.freeze({ mode, type, oid, path: record.slice(tab + 1) });
+  });
+}
+
+function deterministicTreeChanges(runGit, ctx, baseSha, candidateTree) {
+  const fields = nulPaths(runGitOrThrow(
+    runGit,
+    ctx,
+    [
+      ...COMMIT_OBJECT_MATERIALIZE_CONFIG,
+      "diff-tree", "-r", "--no-renames", "--name-status", "-z", baseSha, candidateTree
+    ],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    "failed to inspect sparse boundary changes"
+  ).stdout);
+  const changes = [];
+  for (let index = 0; index < fields.length;) {
+    const status = fields[index++];
+    const path = fields[index++];
+    if (!/^[ADMTUXB]$/u.test(status ?? "") || path === undefined) {
+      fail(
+        COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+        "sparse boundary change output was malformed"
+      );
+    }
+    changes.push(Object.freeze({ status, path }));
+  }
+  return changes;
+}
+
+function blobsShareCopyEvidence(runGit, ctx, leftOid, rightOid) {
+  if (leftOid === rightOid) return true;
+  const left = runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "cat-file", "blob", leftOid],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    `failed to read sparse boundary blob ${leftOid}`
+  ).stdout;
+  const right = runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "cat-file", "blob", rightOid],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    `failed to read sparse boundary blob ${rightOid}`
+  ).stdout;
+  const [shorter, longer] = left.length <= right.length ? [left, right] : [right, left];
+  if (shorter.length < 16) return false;
+  for (let index = 0; index <= shorter.length - 16; index += 1) {
+    if (longer.includes(shorter.slice(index, index + 16))) return true;
+  }
+  return false;
+}
+
+function sparseCandidatePaths(runGit, ctx, baseSha, coneDirs) {
+  const tracked = nulPaths(runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "ls-tree", "-r", "--name-only", "-z", baseSha],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    "failed to enumerate base_sha paths"
+  ).stdout);
+  const untracked = nulPaths(runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "ls-files", "--others", "--exclude-standard", "-z"],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    "failed to enumerate untracked worktree paths"
+  ).stdout);
+  return [...new Set([...tracked, ...untracked].filter((repoPath) => pathIsInCone(repoPath, coneDirs)))].sort();
+}
+
+function assertNoCrossConeRename(runGit, ctx, baseSha, candidateTree, coneDirs) {
+  const probePaths = [
+    ...treeEntries(runGit, ctx, baseSha),
+    ...treeEntries(runGit, ctx, candidateTree)
+  ].map(({ path }) => path).filter((repoPath) => pathIsInCone(repoPath, coneDirs));
+  const outsideUntracked = nulPaths(runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "ls-files", "--others", "--exclude-standard", "-z"],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    "failed to enumerate sparse boundary additions"
+  ).stdout).filter((repoPath) => !pathIsInCone(repoPath, coneDirs));
+  const boundaryProbePaths = [...new Set([...probePaths, ...outsideUntracked])].sort();
+  runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "read-tree", baseSha],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    "failed to seed cross-cone probe index"
+  );
+  if (boundaryProbePaths.length > 0) {
+    runGitOrThrow(
+      runGit,
+      { ...ctx, stdin: `${boundaryProbePaths.join("\0")}\0` },
+      [
+        ...COMMIT_OBJECT_MATERIALIZE_CONFIG,
+        "--literal-pathspecs",
+        "add", "-A", "--sparse", "--pathspec-from-file=-", "--pathspec-file-nul"
+      ],
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+      "failed to build cross-cone probe"
+    );
+  }
+  const probeTree = runGitOrThrow(
+    runGit,
+    ctx,
+    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "write-tree"],
+    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+    "failed to write cross-cone probe tree"
+  ).stdout.trim();
+  assertOid(probeTree, "cross-cone probe tree", COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED);
+  const changes = deterministicTreeChanges(runGit, ctx, baseSha, probeTree);
+  const baseEntries = treeEntries(runGit, ctx, baseSha);
+  const probeEntries = treeEntries(runGit, ctx, probeTree);
+  const probeByPath = new Map(probeEntries.map((entry) => [entry.path, entry]));
+  const deletions = changes.filter(({ status }) => status === "D");
+  const additions = changes.filter(({ status }) => status === "A");
+  const crossings = [];
+  for (const source of deletions) {
+    for (const destination of additions) {
+      if (pathIsInCone(source.path, coneDirs) !== pathIsInCone(destination.path, coneDirs)) {
+        crossings.push(Object.freeze({ status: "R?", source: source.path, destination: destination.path }));
+      }
+    }
+  }
+  for (const destination of additions) {
+    const destinationEntry = probeByPath.get(destination.path);
+    if (destinationEntry?.type !== "blob") continue;
+    for (const sourceEntry of baseEntries) {
+      if (sourceEntry.type !== "blob" ||
+          pathIsInCone(sourceEntry.path, coneDirs) === pathIsInCone(destination.path, coneDirs)) continue;
+      if (blobsShareCopyEvidence(runGit, ctx, sourceEntry.oid, destinationEntry.oid)) {
+        crossings.push(Object.freeze({ status: "C?", source: sourceEntry.path, destination: destination.path }));
+      }
+    }
+  }
+  if (crossings.length > 0) {
+    fail(
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.CROSS_CONE_RENAME,
+      "rename/copy crosses the server-resolved sparse cone boundary",
+      { crossings: Object.freeze(crossings) }
+    );
+  }
+}
+
+export function defaultRunGit({ gitDir, workTree, args, stdin = null, indexFile = null }) {
   const fullArgs = [];
   if (typeof gitDir === "string" && gitDir.length > 0) fullArgs.push(`--git-dir=${gitDir}`);
   if (typeof workTree === "string" && workTree.length > 0) fullArgs.push(`--work-tree=${workTree}`);
 
   fullArgs.push("-c", "core.quotePath=false", ...args);
+  const env =
+    typeof indexFile === "string" && indexFile.length > 0
+      ? { ...process.env, GIT_INDEX_FILE: indexFile }
+      : undefined;
   let res;
   try {
     res = spawnSync("git", fullArgs, {
       cwd: typeof workTree === "string" && workTree.length > 0 ? workTree : undefined,
       input: typeof stdin === "string" ? stdin : undefined,
+      env,
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024
     });
@@ -130,7 +396,13 @@ export function defaultRunGit({ gitDir, workTree, args, stdin = null }) {
 }
 
 function runGitOrThrow(runGit, ctx, args, code, whatFailed) {
-  const res = runGit({ gitDir: ctx.gitDir, workTree: ctx.workTree, args, stdin: ctx.stdin ?? null });
+  const res = runGit({
+    gitDir: ctx.gitDir,
+    workTree: ctx.workTree,
+    args,
+    stdin: ctx.stdin ?? null,
+    indexFile: ctx.indexFile ?? null
+  });
   if (!res || res.ok !== true) {
     fail(code, `${whatFailed} (git ${args.join(" ")})`, {
       status: res?.status ?? null,
@@ -147,6 +419,7 @@ export function materializeCommitObject({
   workTree,
   baseSha,
   message,
+  sparseBinding = null,
   committer = {
     name: "agent-launch commit primitive",
     email: "commit-primitive@agent-launch.local"
@@ -160,56 +433,95 @@ export function materializeCommitObject({
   assertNonEmptyString(message, "message");
   assertCommitter(committer);
 
-  const ctx = { gitDir, workTree };
+  const indexDir = mkdtempSync(join(tmpdir(), "commit-object-index-"));
+  const ctx = { gitDir, workTree, indexFile: join(indexDir, "index") };
 
-  runGitOrThrow(
-    runGit,
-    ctx,
-    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "read-tree", baseSha],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    "failed to seed the index from base_sha"
-  );
+  try {
+    const sparseCheckout = querySparseCheckout(runGit, ctx);
+    const binding = sparseCheckout ? normalizeSparseBinding(sparseBinding, baseSha) : null;
+    if (!sparseCheckout && sparseBinding !== null) {
+      fail(
+        COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.SPARSE_BINDING_INCOMPATIBLE,
+        "a sparse binding was supplied for a non-sparse worktree"
+      );
+    }
+    if (binding) verifySparseBindingAgainstWorktree(runGit, ctx, binding);
 
-  runGitOrThrow(
-    runGit,
-    ctx,
-    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "add", "-A"],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    "failed to stage the complete worktree delta"
-  );
-  const treeRes = runGitOrThrow(
-    runGit,
-    ctx,
-    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "write-tree"],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    "failed to write the tree object"
-  );
-  const tree = treeRes.stdout.trim();
-  assertOid(tree, "materialized tree", COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED);
+    runGitOrThrow(
+      runGit,
+      ctx,
+      [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "read-tree", baseSha],
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+      "failed to seed the index from base_sha"
+    );
 
-  const commitRes = runGitOrThrow(
-    runGit,
-    ctx,
-    [
-      ...COMMIT_OBJECT_MATERIALIZE_CONFIG,
-      "-c", `user.name=${committer.name}`,
-      "-c", `user.email=${committer.email}`,
-      "commit-tree", tree,
-      "-p", baseSha,
-      "-m", message
-    ],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    "failed to write the commit object"
-  );
-  const commit = commitRes.stdout.trim();
-  assertOid(commit, "materialized commit", COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED);
+    if (binding) {
+      const candidatePaths = sparseCandidatePaths(runGit, ctx, baseSha, binding.cone_dirs);
+      if (candidatePaths.length > 0) {
+        runGitOrThrow(
+          runGit,
+          { ...ctx, stdin: `${candidatePaths.join("\0")}\0` },
+          [
+            ...COMMIT_OBJECT_MATERIALIZE_CONFIG,
+            "--literal-pathspecs",
+            "add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul"
+          ],
+          COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+          "failed to stage the complete sparse-cone delta"
+        );
+      }
+    } else {
+      runGitOrThrow(
+        runGit,
+        ctx,
+        [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "add", "-A"],
+        COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+        "failed to stage the complete worktree delta"
+      );
+    }
+    const treeRes = runGitOrThrow(
+      runGit,
+      ctx,
+      [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "write-tree"],
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+      "failed to write the tree object"
+    );
+    const tree = treeRes.stdout.trim();
+    assertOid(tree, "materialized tree", COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED);
 
-  return Object.freeze({
-    schema_version: COMMIT_OBJECT_PRIMITIVE_SCHEMA_VERSION,
-    tree,
-    commit,
-    base_sha: baseSha
-  });
+    if (binding) assertNoCrossConeRename(runGit, ctx, baseSha, tree, binding.cone_dirs);
+
+    const commitRes = runGitOrThrow(
+      runGit,
+      ctx,
+      [
+        ...COMMIT_OBJECT_MATERIALIZE_CONFIG,
+        "-c", `user.name=${committer.name}`,
+        "-c", `user.email=${committer.email}`,
+        "commit-tree", tree,
+        "-p", baseSha,
+        "-m", message
+      ],
+      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
+      "failed to write the commit object"
+    );
+    const commit = commitRes.stdout.trim();
+    assertOid(commit, "materialized commit", COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED);
+
+    return Object.freeze({
+      schema_version: COMMIT_OBJECT_PRIMITIVE_SCHEMA_VERSION,
+      tree,
+      commit,
+      base_sha: baseSha
+    });
+  } finally {
+
+    try {
+      rmSync(indexDir, { recursive: true, force: true });
+    } catch {
+
+    }
+  }
 }
 
 function resolveCommitMeta(runGit, ctx, sha) {

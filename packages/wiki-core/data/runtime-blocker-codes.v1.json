@@ -1,7 +1,7 @@
 {
   "schema_version": "runtime-blocker-codes.v1",
   "owner": "IN-0016",
-  "description": "Stable, schema-backed runtime blocker codes consumed by coordinator preflight (workspace_coordination_preflight), MCP dispatch (workspace_agent_dispatch), and launcher diagnostics. This file is the sole canonical source of truth for the taxonomy: dispatch-specific consumers and launcher diagnostics MUST select codes from this descriptor rather than inventing ad hoc strings. BOOTSTRAP_STATE_CODES values are string-equal to the bootstrap entries below.",
+  "description": "Stable, schema-backed registry of ALL agent-facing reason labels: the hard runtime blocker codes consumed by coordinator preflight (workspace_coordination_preflight), MCP dispatch (workspace_agent_dispatch), and launcher diagnostics, AND self-recoverable agent-facing nudge labels (e.g. the read_disclosure compact-read gate refusals) whose recovery is the caller re-calling with corrected arguments. This file is the sole canonical source of truth for the taxonomy: dispatch-specific consumers, launcher diagnostics, and the compact-read gate MUST select codes from this descriptor rather than inventing ad hoc strings. Codes are dimensioned by category and actor_recovery so a self-fixable nudge and a hard block can coexist in one enumerable list without a consumer mistaking one for the other; dispatch-facing projections filter to the dispatch/launch categories so nudge labels do not leak into the dispatch blocker catalog. BOOTSTRAP_STATE_CODES values are string-equal to the bootstrap entries below.",
   "code_categories": [
     "role_policy",
     "caller_identity",
@@ -19,14 +19,16 @@
     "graph_impact",
     "graph_impact_persistence",
     "taxonomy",
-    "operator_recovery"
+    "operator_recovery",
+    "read_disclosure"
   ],
   "actor_recovery_values": [
     "operator",
     "coordinator",
     "worker_split",
     "automatic_proceed",
-    "none"
+    "none",
+    "caller_retry"
   ],
   "codes": [
     {
@@ -125,6 +127,42 @@
       "blocking": true,
       "summary": "A required backend (filesystem MCP backend, registry, launcher daemon) is not reachable.",
       "consumer_notes": "Distinct from missing transport: the structured transport exists, but its backing service or registry is not usable."
+    },
+    {
+      "code": "managed_lifecycle_required",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Implementation dispatch requires the managed lifecycle; unmanaged direct execution is not an implementation route.",
+      "detail": "Use when an implementation request is outside the server-owned managed lifecycle. This code does not imply that structured dispatch, native editing, repository reads, or commit are unavailable; each capability is reported independently by coordination preflight.",
+      "consumer_notes": "Recovery is a structured preflight followed by structured dispatch only. Consumers must not turn this blocker into caller-selected lifecycle configuration.",
+      "recovery": {
+        "kind": "structured_route",
+        "route": "workspace_coordination_preflight",
+        "arguments": {
+          "role": "coordinator",
+          "target_dispatch_role": "worker"
+        },
+        "success_condition": "managed lifecycle capability facts are fresh and the required planes report available"
+      }
+    },
+    {
+      "code": "managed_worktree_provisioning_unavailable",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "Managed implementation worktree provisioning is not currently available from the launcher-owned capability source.",
+      "detail": "Use when managed implementation dispatch cannot obtain a fresh, available provisioning fact. Provisioning absence, unknown authority, and stale authority all fail closed before worker spawn.",
+      "consumer_notes": "The operator restores the server-owned capability source; the coordinator rechecks it through the structured preflight route. No caller-provided provisioning values are accepted.",
+      "recovery": {
+        "kind": "structured_route",
+        "route": "workspace_coordination_preflight",
+        "arguments": {
+          "role": "coordinator",
+          "target_dispatch_role": "worker"
+        },
+        "success_condition": "managed_worktree_provisioning reports available from a fresh authoritative source"
+      }
     },
     {
       "code": "read_only_mount",
@@ -336,6 +374,105 @@
       "blocking": true,
       "summary": "Recovery is human/operator-only: the agent must stop and surface the recovery condition, not retry or escalate inline.",
       "consumer_notes": "Use when the blocker requires operator action (registry reset, secret rotation, sandbox profile change, mount remount, drift fix) that no agent role is authorized to perform."
+    },
+    {
+      "code": "compact_first_required",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "An expensive/verbose work-record read was attempted on a large unscoped record without a compact-first pass; do a compact read first (or supply a valid compact_read_token), then re-call.",
+      "detail": "actor_recovery=caller_retry means the caller itself recovers by RE-CALLING with CORRECTED arguments (run the compact read first, or attach the compact_read_token it returns) -- this is NOT an identical retry, so WK-1502's identical-call loop cap must not miscount a corrected re-call. Emitted by the compact-read gate (work-record-compact-read-gate.mjs buildRefusal/buildReadRefusal) when validateToken reports a missing token on a large unscoped expensive request.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking and self-recoverable. Filtered OUT of the dispatch-facing blocker catalog (compactRuntimeBlockerTaxonomy) via RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES."
+    },
+    {
+      "code": "compact_read_token_missing",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "No compact_read_token was supplied on a large unscoped expensive work-record read; obtain one from a prior compact read and re-call with it.",
+      "detail": "actor_recovery=caller_retry: re-call with CORRECTED arguments (attach the compact_read_token minted by the compact read), not an identical retry. Emitted by validateToken in the compact-read gate; buildRefusal maps this to compact_first_required on the refusal envelope.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
+    },
+    {
+      "code": "compact_read_token_malformed",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The supplied compact_read_token could not be decoded or its signature did not verify; re-run the compact read to mint a fresh token and re-call with it.",
+      "detail": "actor_recovery=caller_retry: re-call with the CORRECTED (freshly minted) token, not an identical retry. Emitted by validateToken in the compact-read gate.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
+    },
+    {
+      "code": "compact_read_token_wrong_schema",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The compact_read_token schema_version does not match the expected compact-read token schema; mint a fresh token from a current compact read and re-call.",
+      "detail": "actor_recovery=caller_retry: re-call with a CORRECTED current-schema token, not an identical retry. Emitted by validateToken in the compact-read gate.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
+    },
+    {
+      "code": "compact_read_token_wrong_tool_family",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The compact_read_token was issued for a different tool family than the one being called; re-run the compact read for THIS tool to mint a matching token and re-call.",
+      "detail": "actor_recovery=caller_retry: re-call with a CORRECTED token minted for this tool family, not an identical retry. Emitted by validateToken in the compact-read gate.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
+    },
+    {
+      "code": "compact_read_token_wrong_scope",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The compact_read_token was issued for a different workspace repo or record id; re-run the compact read for the correct record and re-call with the corrected token.",
+      "detail": "actor_recovery=caller_retry: re-call with a CORRECTED in-scope token, not an identical retry. Emitted by validateToken in the compact-read gate.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
+    },
+    {
+      "code": "compact_read_token_wrong_selector",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The compact_read_token selector does not match the requested selector; re-run the compact read with the intended selector and re-call with the corrected token.",
+      "detail": "actor_recovery=caller_retry: re-call with a CORRECTED selector-matched token, not an identical retry. Emitted by validateToken in the compact-read gate.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
+    },
+    {
+      "code": "compact_read_token_stale_source_digest",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The record changed since the compact_read_token was minted (source_digest mismatch); re-run the compact read to refresh the token against the current record and re-call.",
+      "detail": "actor_recovery=caller_retry: re-call with a CORRECTED token minted against the current source_digest, not an identical retry. Emitted by validateToken in the compact-read gate.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
+    },
+    {
+      "code": "compact_read_token_expired",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The compact_read_token TTL has elapsed; re-run the compact read to mint a fresh token and re-call with it.",
+      "detail": "actor_recovery=caller_retry: re-call with a CORRECTED (unexpired) token, not an identical retry. Emitted by validateToken in the compact-read gate.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
+    },
+    {
+      "code": "selected_slice_compact_detail_required",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "Slice/record detail was omitted from the compact projection; re-call scoped to the specific selected_slice/selected_record to retrieve its detail.",
+      "detail": "actor_recovery=caller_retry: re-call with CORRECTED (narrowed) arguments naming the selected_slice or selected_record, not an identical retry. Emitted by the compact-read gate's bounded selected-slice/selected-read results (boundedSelectedSliceResult/boundedSelectedReadResult).",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog. Distinct from compact_read_selected_detail_required (which fires after a valid token is presented)."
+    },
+    {
+      "code": "compact_read_selected_detail_required",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "A valid compact_read_token was presented but the large unscoped expensive read stays bounded; re-call scoped to a specific selected_slice/selected_record instead of requesting the whole record.",
+      "detail": "actor_recovery=caller_retry: re-call with CORRECTED (narrowed) arguments naming the selected_slice or selected_record, not an identical retry. Emitted by the compact-read gate when validateToken accepts the token but the request is still large and unscoped (the refusalDecision branch). Distinct from selected_slice_compact_detail_required (the pre-token bounded-detail nudge).",
+      "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
     }
   ],
   "graph_impact_state_map": {

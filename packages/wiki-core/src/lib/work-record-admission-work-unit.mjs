@@ -220,6 +220,10 @@ function deriveWorkUnitAtomicityMetrics({
   const metrics = {
     write_scope_count:
       workUnitMetrics.write_scope_count ?? (Array.isArray(fileStats) && fileStats.length > 0 ? derivedFileStats.write_scope_count : null),
+
+    write_scope_test_count:
+      workUnitMetrics.write_scope_test_count ??
+      (Array.isArray(fileStats) && fileStats.length > 0 ? derivedFileStats.write_scope_test_count : null),
     write_scope_existing_file_count:
       workUnitMetrics.write_scope_existing_file_count ??
       (Array.isArray(fileStats) && fileStats.length > 0 ? derivedFileStats.write_scope_existing_file_count : null),

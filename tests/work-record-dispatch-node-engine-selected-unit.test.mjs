@@ -249,6 +249,7 @@ test("a selected dashboard slice sends two-fact metrics and bounded policy profi
     assert.equal(Object.prototype.hasOwnProperty.call(outboundBody.data, "structural_target_metrics"), false);
     assert.equal(Object.prototype.hasOwnProperty.call(outboundBody.data, "policy_profile"), false);
     const workUnitMetrics = outboundBody.data.work_unit_metrics;
+
     assert.deepEqual(Object.keys(workUnitMetrics).sort(), [
       "acceptance_criteria_count",
       "blast_radius_severity",
@@ -256,6 +257,7 @@ test("a selected dashboard slice sends two-fact metrics and bounded policy profi
       "max_write_file_loc",
       "validation_command_count",
       "write_scope_count",
+      "write_scope_test_count",
       "write_scope_total_loc"
     ]);
     assert.equal(Number.isInteger(workUnitMetrics.cluster_count), true);

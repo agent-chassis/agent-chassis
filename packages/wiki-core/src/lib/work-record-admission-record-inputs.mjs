@@ -9,6 +9,7 @@ import {
   countUtf8Lines,
   isObject,
   isNonEmptyString,
+  isTestWriteScopePath,
   normalizeDeclaredPathEntries,
   normalizeStringEntry,
   sortStrings,
@@ -773,6 +774,12 @@ export async function createWorkRecordAdmissionRecordLocalInputs({
     ? targetResolutionEvidence.metric_source_provenance
       : createRecordLocalTargetMetricSourceProvenance(record, selectedUnit, sourceRecordDigest);
   const thresholdCountedFileStats = collectThresholdCountedFileStats(fileStats);
+
+  const thresholdCountedTestFileStats = thresholdCountedFileStats.filter((entry) =>
+    isTestWriteScopePath(entry.path)
+  );
+  const thresholdCountedCodeFileCount =
+    thresholdCountedFileStats.length - thresholdCountedTestFileStats.length;
   const thresholdCountedLocValues = collectThresholdCountedLocValues(fileStats);
   const expectedChangedLineBudget = normalizeAuthoredExpectedChangedLineBudget(record);
   const graphImpactSummary = normalizeGraphImpactSummary({
@@ -812,7 +819,8 @@ export async function createWorkRecordAdmissionRecordLocalInputs({
     source_record_digest: sourceRecordDigest,
     selected_unit: selectedUnit,
     work_unit_metrics: {
-      write_scope_count: thresholdCountedFileStats.length,
+      write_scope_count: thresholdCountedCodeFileCount,
+      write_scope_test_count: thresholdCountedTestFileStats.length,
       write_scope_existing_file_count: thresholdCountedFileStats.filter((entry) => entry.existing_file === true).length,
       write_scope_directory_count: thresholdCountedFileStats.filter((entry) => entry.is_directory === true).length,
       write_scope_total_loc:

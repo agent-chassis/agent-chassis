@@ -15,31 +15,6 @@ import {
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const POLICY_PATH = path.join(REPO_ROOT, "packages/wiki-core/data/tool-use-policy.v1.json");
 
-const REQUIRED_MISUSE_CODES = new Set([
-  "search_used_for_status_aggregation",
-  "full_read_without_selected_resource",
-  "bulk_sampling_without_lens",
-  "dispatch_without_readiness_validation",
-  "ignored_required_next_action",
-  "high_output_option_without_compact_first"
-]);
-
-const REQUIRED_REPLACEMENT_FAMILIES = new Map([
-  ["search_used_for_status_aggregation", "initiative_status_or_action_lens"],
-  ["full_read_without_selected_resource", "selected_resource_compact_read"],
-  ["bulk_sampling_without_lens", "scoped_lens_or_filtered_summary"],
-  ["dispatch_without_readiness_validation", "dispatch_readiness_validation"],
-  ["ignored_required_next_action", "required_next_action"],
-  ["high_output_option_without_compact_first", "compact_or_summarized_output_first"]
-]);
-
-const VALID_SEVERITIES = new Set(["info", "low", "medium", "high"]);
-const VALID_RECOVERABILITY = new Set([
-  "recoverable",
-  "operator_review_recommended",
-  "non_recoverable_from_audit"
-]);
-
 async function loadToolUsePolicy() {
   return JSON.parse(await readFile(POLICY_PATH, "utf8"));
 }
@@ -205,68 +180,6 @@ test("tool-use policy vocabulary is schema-backed and audit-only", async () => {
     description: policy.policy_posture.description
   });
   assert.match(policy.policy_posture.description, /audit and telemetry only/i);
-
-  assert.equal(policy.routing_intent_contract.owned_by, "WK-1438");
-  assert.equal(policy.routing_intent_contract.vocabulary, "tool-routing-intents.v1");
-  assert.equal(policy.routing_intent_contract.references_available, false);
-  assert.equal(policy.routing_intent_contract.guidance, "routing_guidance_unavailable");
-  assert.match(policy.routing_intent_contract.reason, /does not define routing-intent identifiers/);
-
-  assert.deepEqual(
-    new Set(policy.severity_levels.map((level) => level.id)),
-    VALID_SEVERITIES
-  );
-  assert.deepEqual(
-    new Set(policy.recoverability_levels.map((level) => level.id)),
-    VALID_RECOVERABILITY
-  );
-  assert.ok(policy.replacement_families.length >= REQUIRED_MISUSE_CODES.size);
-  assert.ok(policy.misuse_codes.length >= REQUIRED_MISUSE_CODES.size);
-});
-
-test("misuse vocabulary carries required codes and replacement-call family metadata", async () => {
-  const policy = await loadToolUsePolicy();
-  const replacementFamilyIds = new Set(policy.replacement_families.map((family) => family.id));
-  const misuseByCode = new Map(policy.misuse_codes.map((misuse) => [misuse.code, misuse]));
-  const seenCodes = new Set();
-
-  for (const family of policy.replacement_families) {
-    assert.equal(typeof family.id, "string");
-    assert.ok(family.id.length > 0);
-    assert.equal(typeof family.description, "string");
-    assert.ok(family.description.length > 0);
-    assert.equal(typeof family.exact_call_authority, "string");
-    assert.match(family.exact_call_authority, /WK-1438|previous tool response|dispatch readiness tooling/);
-  }
-
-  for (const misuse of policy.misuse_codes) {
-    assert.equal(seenCodes.has(misuse.code), false, `duplicate misuse code ${misuse.code}`);
-    seenCodes.add(misuse.code);
-    assert.equal(typeof misuse.title, "string");
-    assert.equal(typeof misuse.summary, "string");
-    assert.ok(VALID_SEVERITIES.has(misuse.severity), `unexpected severity for ${misuse.code}`);
-    assert.ok(
-      VALID_RECOVERABILITY.has(misuse.recoverability),
-      `unexpected recoverability for ${misuse.code}`
-    );
-    assert.ok(
-      replacementFamilyIds.has(misuse.replacement_family),
-      `replacement_family must exist for ${misuse.code}`
-    );
-    assert.equal(misuse.routing_intent_ref, null);
-    assert.equal(misuse.route_guidance, "routing_guidance_unavailable");
-    assert.equal(misuse.audit_only, true);
-  }
-
-  assert.deepEqual(new Set([...seenCodes].filter((code) => REQUIRED_MISUSE_CODES.has(code))), REQUIRED_MISUSE_CODES);
-
-  for (const [code, replacementFamily] of REQUIRED_REPLACEMENT_FAMILIES) {
-    assert.equal(
-      misuseByCode.get(code)?.replacement_family,
-      replacementFamily,
-      `unexpected replacement family for ${code}`
-    );
-  }
 });
 
 test("historical agent-runs baseline extracts source_kind, confidence, unsupported_gap, review_context, path redaction, and structured tool facts", async () => {

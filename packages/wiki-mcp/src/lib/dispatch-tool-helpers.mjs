@@ -1,7 +1,8 @@
 
 
 import { readWorkRecordById } from "@agent-chassis/wiki-core";
-import { redactAbsolutePaths } from "./mcp-response.mjs";
+
+import { redactAbsolutePaths, projectNextActionScalar } from "./mcp-response.mjs";
 
 import {
   classifyDispatchSubject
@@ -19,6 +20,10 @@ import {
   DISPATCH_EXCEPTION_DIAGNOSTIC_MAX_CHARS,
   DISPATCH_SUBJECT_KIND_TO_ROUTE_KIND
 } from "./dispatch-tool-constants.mjs";
+
+import {
+  RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES
+} from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 export function mapBackendRefusalToDispatchCode(code) {
   if (typeof code !== "string") {
@@ -97,9 +102,12 @@ export function omitNullFields(obj) {
 
 export function compactRuntimeBlockerTaxonomy(taxonomy) {
 
-  const codes = Array.isArray(taxonomy.codes) ? taxonomy.codes : [];
+  const dispatchFacing = new Set(RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES);
+  const allCodes = Array.isArray(taxonomy.codes) ? taxonomy.codes : [];
+  const codes = allCodes.filter((entry) => dispatchFacing.has(entry.category));
   const blockingCount = codes.filter((entry) => Boolean(entry.blocking)).length;
-  const categories = Array.isArray(taxonomy.code_categories) ? taxonomy.code_categories : [];
+  const allCategories = Array.isArray(taxonomy.code_categories) ? taxonomy.code_categories : [];
+  const categories = allCategories.filter((category) => dispatchFacing.has(category));
   return {
     schema_version: taxonomy.schema_version,
     verbose: false,
@@ -209,12 +217,20 @@ export function compactRunStatusReviewResult(reviewResult) {
   return Object.keys(compact).length > 0 ? compact : null;
 }
 
+function resolveRefusalNextAction({ nextAction = null, nextCalls = null } = {}) {
+
+  if (Array.isArray(nextCalls)) {
+    return projectNextActionScalar(nextCalls);
+  }
+  return nextAction ?? null;
+}
+
 function refusalNextActionSlot(nextAction) {
 
   return nextAction === null || nextAction === undefined ? {} : { next_action: nextAction };
 }
 
-export function buildBlockedDispatchResult({ blockerCode, reason, detail = null, nextAction = null }) {
+export function buildBlockedDispatchResult({ blockerCode, reason, detail = null, nextAction = null, nextCalls = null }) {
   return {
     schema_version: AGENT_DISPATCH_SCHEMA_VERSION,
     accepted: false,
@@ -227,11 +243,11 @@ export function buildBlockedDispatchResult({ blockerCode, reason, detail = null,
     run_id: null,
     monitor_handle: null,
     readiness: null,
-    ...refusalNextActionSlot(nextAction)
+    ...refusalNextActionSlot(resolveRefusalNextAction({ nextAction, nextCalls }))
   };
 }
 
-export function buildBlockedRunStatusResult({ blockerCode, reason, detail = null, nextAction = null }) {
+export function buildBlockedRunStatusResult({ blockerCode, reason, detail = null, nextAction = null, nextCalls = null }) {
   return {
     schema_version: AGENT_RUN_STATUS_SCHEMA_VERSION,
     accepted: false,
@@ -242,11 +258,11 @@ export function buildBlockedRunStatusResult({ blockerCode, reason, detail = null
     },
     run_id: null,
     status: null,
-    ...refusalNextActionSlot(nextAction)
+    ...refusalNextActionSlot(resolveRefusalNextAction({ nextAction, nextCalls }))
   };
 }
 
-export function buildBlockedRunWaitResult({ blockerCode, reason, detail = null, nextAction = null }) {
+export function buildBlockedRunWaitResult({ blockerCode, reason, detail = null, nextAction = null, nextCalls = null }) {
   return {
     schema_version: AGENT_RUN_WAIT_SCHEMA_VERSION,
     accepted: false,
@@ -258,7 +274,7 @@ export function buildBlockedRunWaitResult({ blockerCode, reason, detail = null, 
     run_id: null,
     status: null,
     timed_out: null,
-    ...refusalNextActionSlot(nextAction)
+    ...refusalNextActionSlot(resolveRefusalNextAction({ nextAction, nextCalls }))
   };
 }
 

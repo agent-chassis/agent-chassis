@@ -1,10 +1,10 @@
 # agent-launch.toml (your active config — replace the current one):
 [roles.worker]
-model = "gpt-5.5"
+model = "gpt-5.6-luna"
 effort = "medium"
 
 [roles.reviewer]
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 effort = "high"
 
 [roles.orchestrator]
@@ -12,5 +12,5 @@ model = "opus"
 effort = "high"
 
 [roles.redteam]
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 effort = "high"

@@ -7,9 +7,6 @@ import {
   createWorkspaceAgentDispatchBackend
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
 import {
-  DEFAULT_EXPECTED_ENVELOPE_FIELD
-} from "@agent-chassis/agent-launch-cli/src/lib/worktree-provisioning-dispatch.mjs";
-import {
   WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR,
   WIKI_MCP_WORKSPACE_DIR_ENV_VAR
 } from "@agent-chassis/agent-launch-cli/src/lib/codex-role-mcp-env.mjs";
@@ -218,22 +215,11 @@ function mintDispatchSessionIdentity() {
   return `${SESSION_IDENTITY_SCHEMA_VERSION}.${randomBytes(12).toString("hex")}`;
 }
 
-function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
-  const worktreeRoot = String(env[WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR] ?? "").trim();
-  if (!worktreeRoot) {
-    return null;
-  }
-  if (!path.isAbsolute(worktreeRoot)) {
-    throw new Error(
-      `${WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR} must be an absolute launcher-owned worktree root`
-    );
-  }
+export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
 
   const mainRepo = String(env[WIKI_MCP_WORKSPACE_DIR_ENV_VAR] ?? "").trim();
   if (!mainRepo) {
-    throw new Error(
-      `${WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR} requires ${WIKI_MCP_WORKSPACE_DIR_ENV_VAR} so dispatch provisioning has a trusted mainRepo`
-    );
+    return null;
   }
   if (!path.isAbsolute(mainRepo)) {
     throw new Error(
@@ -241,10 +227,24 @@ function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
     );
   }
 
+  const canonicalMainRepo = path.resolve(mainRepo);
+  const launcherBase = path.dirname(canonicalMainRepo);
+  const repoName = path.basename(canonicalMainRepo);
+  const canonicalWorktreeRoot = path.join(launcherBase, ".agent-worktrees", repoName);
+  const propagatedRoot = String(env[WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR] ?? "").trim();
+  if (propagatedRoot && path.resolve(propagatedRoot) !== canonicalWorktreeRoot) {
+    throw new Error(
+      `${WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR} does not match the launcher-derived canonical root`
+    );
+  }
+
   return Object.freeze({
-    mainRepo: path.resolve(mainRepo),
-    worktreeRoot: path.resolve(worktreeRoot),
-    expectedEnvelopeField: DEFAULT_EXPECTED_ENVELOPE_FIELD,
+    mainRepo: canonicalMainRepo,
+    worktreeRoot: canonicalWorktreeRoot,
+    sharedDependencyRoot: path.join(launcherBase, ".agent-dependencies", repoName, "node_modules"),
+    cacheRoot: path.join(launcherBase, ".agent-caches", repoName),
+
+    confinementAvailable: false,
     resolveAttemptState: failMissingLauncherOwnedProvisioningAttemptState
   });
 }
@@ -262,6 +262,7 @@ export function buildDispatchRuntime(env = process.env) {
     launchExecutors && launchExecutors.codex
       ? createWorkspaceAgentDispatchBackend({
           launchExecutors,
+          requireManagedProvisioning: true,
           worktreeProvisioning: resolveDispatchWorktreeProvisioningConfig(env),
           evaluateWorkerAdmission: evaluateWorkerAdmissionForBackend,
           prepareSourceToolSurface: createLauncherOwnedSourceToolSurfacePreparer({ env })

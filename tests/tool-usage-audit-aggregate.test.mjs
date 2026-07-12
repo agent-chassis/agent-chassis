@@ -193,10 +193,6 @@ test("compact aggregate counts historical/live evidence and bounded telemetry di
   assert.equal(aggregate.counts.by_tool.workspace_search, 1);
   assert.equal(aggregate.counts.by_tool.workspace_dispatch_worker, 1);
   assert.equal(aggregate.counts.by_tool.workspace_read_page, 3);
-  assert.equal(aggregate.counts.by_misuse_code.search_used_for_status_aggregation, 1);
-  assert.equal(aggregate.counts.by_misuse_code.ignored_required_next_action, 1);
-  assert.equal(aggregate.counts.by_misuse_code.dispatch_without_readiness_validation, 1);
-  assert.equal(aggregate.counts.by_misuse_code.high_output_option_without_compact_first, 2);
   assert.equal(aggregate.counts.by_source_kind.historical_deepswe_session_jsonl, 1);
   assert.equal(aggregate.counts.by_source_kind.historical_launcher_metadata, 1);
   assert.equal(aggregate.counts.by_source_kind.live_mcp_tool_event, 3);
@@ -206,20 +202,12 @@ test("compact aggregate counts historical/live evidence and bounded telemetry di
     aggregate.historical_unsupported_gap_counts.historical_gap_mcp_specific_misuse_without_structured_mcp_transcript,
     1
   );
-  assert.equal(aggregate.next_action.derivable_event_count, 1);
-  assert.equal(aggregate.next_action.ignored_count, 1);
-  assert.equal(aggregate.next_action.ignored_required_next_action_misuse_count, 1);
   assert.equal(aggregate.first_tool.derivable_bucket_count, 3);
   assert.equal(Object.keys(aggregate.provenance.buckets).length, 3);
   assert.equal(Object.values(aggregate.provenance.buckets).some((bucket) => bucket.caller_kind === "coordinator"), true);
   assert.equal(Object.values(aggregate.provenance.buckets).some((bucket) => bucket.tool_profile === "full_profile"), true);
   assert.equal(aggregate.top_calls[0].tool_name, "workspace_dispatch_worker");
-  assert.equal(aggregate.top_calls[0].misuse_codes.includes("dispatch_without_readiness_validation"), true);
   assert.equal(aggregate.top_calls.some((call) => call.response_size_class === "large"), true);
-  assert.equal(aggregate.guidance.search_used_for_status_aggregation.guidance_kind, "coarse_replacement_family");
-  assert.equal(aggregate.guidance.search_used_for_status_aggregation.replacement_family, "initiative_status_or_action_lens");
-  assert.equal(aggregate.guidance.high_output_option_without_compact_first.guidance_kind, "wk1438_router_exact");
-  assert.equal(aggregate.guidance.high_output_option_without_compact_first.exact_recommended_call.category, "object");
 });
 
 test("aggregate redacts labels and never exposes raw prompts, args, results, roots, or final prose", () => {
@@ -282,49 +270,5 @@ test("aggregate redacts labels and never exposes raw prompts, args, results, roo
   }
 
   assert.equal(Object.keys(aggregate.counts.by_tool)[0].startsWith("other_tool:"), true);
-  assert.equal(Object.keys(aggregate.counts.by_misuse_code)[0].startsWith("unknown_misuse_code:"), true);
   assert.equal(Object.values(aggregate.provenance.buckets).some((bucket) => bucket.caller_kind === "other"), true);
-});
-
-test("exact guidance requires explicit WK-1438 router-output provenance", () => {
-  const facts = [
-    createLiveMcpToolEvent({
-      toolName: "workspace_read_page",
-      origin: { caller_kind: "agent", session_kind: "worker", tool_profile: "agent_safe" },
-      misuse: [{ code: "full_read_without_selected_resource", replacement_family: "selected_resource_compact_read" }]
-    }),
-    liveAggregateFact({
-      event_type: "mcp_tool_call",
-      tool_name: "workspace_read_page",
-      origin: { caller_kind: "agent", session_kind: "worker", tool_profile: "agent_safe" },
-      misuse_classifications: [
-        {
-          code: "full_read_without_selected_resource",
-          replacement_family: "selected_resource_compact_read",
-          exact_recommended_call: { tool_name: "workspace_read_page", arguments: { mode: "compact" } },
-          exact_recommended_call_provenance: "router_output"
-        }
-      ]
-    }),
-    liveAggregateFact({
-      event_type: "mcp_tool_call",
-      tool_name: "workspace_read_page",
-      origin: { caller_kind: "agent", session_kind: "worker", tool_profile: "agent_safe" },
-      misuse_classifications: [
-        {
-          code: "bulk_sampling_without_lens",
-          replacement_family: "scoped_lens_or_filtered_summary",
-          exact_recommended_call: { tool_name: "workspace_initiative_status", arguments: { initiative: "IN-0016" } },
-          exact_recommended_call_source: "wk1438_router_output"
-        }
-      ]
-    })
-  ];
-
-  const aggregate = compactToolUsageAuditAggregate({ facts, policy: POLICY });
-
-  assert.equal(aggregate.guidance.full_read_without_selected_resource.guidance_kind, "coarse_replacement_family");
-  assert.equal(aggregate.guidance.full_read_without_selected_resource.exact_recommended_call, null);
-  assert.equal(aggregate.guidance.bulk_sampling_without_lens.guidance_kind, "wk1438_router_exact");
-  assert.equal(aggregate.guidance.bulk_sampling_without_lens.exact_recommended_call.category, "object");
 });

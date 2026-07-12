@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "mcp-tools.json",
   "summary": "MCP discovery, router, read, search, wiki hygiene, docs-policy, and contract-manifest tools.",
-  "tool_count": 15,
+  "tool_count": 17,
   "tools": [
     {
       "tool_name": "workspace_tools_list",
@@ -745,6 +745,69 @@
         "packages/wiki-mcp/src/lib/agent-faq-tools.mjs"
       ],
       "notes": "Read-only agent FAQ served from the agent-faq.v1 known-issues corpus; each entry pairs a recurring symptom and cause with the exact structured workspace_* route(s) to resolve it and the responsible actor (agent vs operator). Returns all entries by default; pass id for one entry or related_code to filter by a runtime-blocker code. Output is tier-projected: free/local responses show only source-available coordination routes and omit paid/CCE remediation routes and next actions, which appear only under a valid paid/CCE key posture. Accepts no caller-supplied filesystem root. CLI fallback is operator-only."
+    },
+    {
+      "tool_name": "commit",
+      "display_name": "Worker commit delivery",
+      "kind": "mcp_tool",
+      "entrypoint": "commit",
+      "task_ids": [
+        "worker-delivery"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "priority": 70,
+      "side_effects": [
+        "record_write"
+      ],
+      "authority": [
+        "launcher_backend",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/workspace-commit-tool.mjs",
+        "packages/agent-launch-cli/src/lib/commit-tool-exposure-guard.mjs"
+      ],
+      "notes": "Closed-input worker delivery primitive. Accepts no caller-supplied fields; the full commit binding (write_scope, subject, base_sha, output branch) is resolved from the launcher-minted server credential. Access is the central session-role-tool-access policy (worker), not this descriptor row."
+    },
+    {
+      "tool_name": "workspace_submit_for_review",
+      "display_name": "Submit assigned unit for review",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_submit_for_review",
+      "task_ids": [
+        "worker-delivery"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "priority": 70,
+      "side_effects": [
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Worker/reviewer/redteam affordance: move the launcher-assigned WIKI_MCP_ASSIGNED_UNIT to review status. Accepts no caller-supplied unit, status, or other fields. Access is the central session-role-tool-access policy, not this descriptor row."
     }
   ]
 }

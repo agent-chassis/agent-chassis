@@ -73,6 +73,7 @@ const NODE_ENGINE_WORKER_ADMISSION_WIRE_METRIC_KEYS = Object.freeze([
   "cluster_count",
   "blast_radius_severity",
   "write_scope_count",
+  "write_scope_test_count",
   "max_write_file_loc",
   "write_scope_total_loc",
   "expected_changed_line_budget",

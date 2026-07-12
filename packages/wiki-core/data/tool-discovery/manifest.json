@@ -6,12 +6,12 @@
   "fragments": [
     {
       "file": "mcp-tools.json",
-      "tool_count": 15,
-      "summary": "MCP discovery, router, read, search, wiki hygiene, docs-policy, and contract-manifest tools."
+      "tool_count": 17,
+      "summary": "MCP discovery, router, read, search, wiki hygiene, docs-policy, contract-manifest, and worker-delivery (commit, submit-for-review) tools."
     },
     {
       "file": "mcp-work-record-tools.json",
-      "tool_count": 3,
+      "tool_count": 12,
       "summary": "MCP work-record evidence and review-result recording tools."
     },
     {
@@ -60,7 +60,7 @@
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 87,
+  "expected_tool_count": 98,
   "uniqueness": {
     "key": "tool_name",
     "scope": "assembled_corpus",

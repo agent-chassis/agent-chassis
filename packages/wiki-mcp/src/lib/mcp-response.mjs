@@ -14,6 +14,15 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
+export {
+  NEXT_CALLS_DESCRIPTOR_VERSION,
+  buildNextCall,
+  renderNextCall,
+  validateNextCalls,
+  pickDoThisNext,
+  projectNextActionScalar
+} from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+
 const PROCESS_ERROR_GUARDS_INSTALLED = Symbol.for(
   "agent-chassis.wiki-mcp.process-error-guards-installed"
 );

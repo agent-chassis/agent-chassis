@@ -1,5 +1,4 @@
 
-
 # Tool Discovery Dispatch Runtime Contract
 
 Backlink: [Tool Discovery v1](tool-discovery.md).

@@ -1,7 +1,12 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getSidecarGraphImpactPaths } from "../lib/sidecar-graph-impact.mjs";
 import { loadCanonicalState, resolveContractContext } from "../lib/wiki.mjs";
-import { filterToolDiscoveryTools, loadToolDiscoveryDescriptor } from "../lib/tool-discovery.mjs";
+import {
+  filterToolDiscoveryTools,
+  loadToolDiscoveryDescriptor,
+  TOOL_DISCOVERY_FRAGMENT_DIR
+} from "../lib/tool-discovery.mjs";
 import {
   asStringList,
   buildLintNextAction,
@@ -29,6 +34,152 @@ import {
 } from "./lint-coordination-rules.mjs";
 
 const LINT_COMPACT_FINDINGS_LIMIT = 20;
+
+export const KNOWN_SESSION_ROLE_VALUES = Object.freeze([
+  "orchestrator",
+  "reviewer",
+  "worker",
+  "redteam",
+  "operator"
+]);
+
+export const SESSION_ROLE_TOOL_ACCESS_POLICY_FILENAME = "session-role-tool-access.json";
+export const SESSION_ROLE_TOOL_ACCESS_POLICY_PATH = path.join(
+  TOOL_DISCOVERY_FRAGMENT_DIR,
+  SESSION_ROLE_TOOL_ACCESS_POLICY_FILENAME
+);
+export const SESSION_ROLE_TOOL_ACCESS_POLICY_RELATIVE_PATH =
+  "packages/wiki-core/data/tool-discovery/session-role-tool-access.json";
+
+export function collectRegisteredAgentReachableToolNames(descriptor) {
+  const names = new Set();
+  const tools = Array.isArray(descriptor?.tools) ? descriptor.tools : [];
+  for (const entry of tools) {
+    if (
+      entry &&
+      entry.kind === "mcp_tool" &&
+      entry.install_state === "installed" &&
+      entry.runtime_posture === "supported" &&
+      typeof entry.tool_name === "string" &&
+      entry.tool_name.trim() !== ""
+    ) {
+      names.add(entry.tool_name);
+    }
+  }
+  return names;
+}
+
+export async function loadSessionRoleToolAccessPolicy() {
+  let raw;
+  try {
+    raw = await readFile(SESSION_ROLE_TOOL_ACCESS_POLICY_PATH, "utf8");
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      return { present: false, policy: null, parseError: null };
+    }
+    throw error;
+  }
+  try {
+    return { present: true, policy: JSON.parse(raw), parseError: null };
+  } catch (error) {
+    return { present: true, policy: null, parseError: error };
+  }
+}
+
+export function lintSessionRoleToolAccessPolicy({ descriptor, policy, addFinding }) {
+  const relativePath = SESSION_ROLE_TOOL_ACCESS_POLICY_RELATIVE_PATH;
+
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    addFinding(
+      "error",
+      `${relativePath}: central role->tool access policy must be a JSON object`,
+      { code: "session_role_policy_invalid_shape", path: relativePath }
+    );
+    return;
+  }
+
+  const access = policy.access;
+  if (!access || typeof access !== "object" || Array.isArray(access)) {
+    addFinding(
+      "error",
+      `${relativePath}: policy must declare an 'access' object mapping each tool name to the session roles allowed to call it`,
+      { code: "session_role_policy_missing_access", path: relativePath }
+    );
+    return;
+  }
+
+  const knownRoles = new Set(KNOWN_SESSION_ROLE_VALUES);
+  const knownRolesLabel = KNOWN_SESSION_ROLE_VALUES.join(", ");
+  const registeredToolNames = collectRegisteredAgentReachableToolNames(descriptor);
+  const grantedToolNames = new Set();
+
+  for (const [toolName, grantedRoles] of Object.entries(access)) {
+    if (!Array.isArray(grantedRoles)) {
+      addFinding(
+        "error",
+        `${relativePath}: tool '${toolName}' must map to an array of session roles`,
+        { code: "session_role_policy_invalid_grant_list", path: relativePath }
+      );
+      continue;
+    }
+
+    let hasKnownRole = false;
+    for (const role of grantedRoles) {
+      if (typeof role !== "string" || role.trim() === "") {
+        addFinding(
+          "error",
+          `${relativePath}: tool '${toolName}' contains a non-string/empty role grant`,
+          { code: "session_role_policy_invalid_grant_entry", path: relativePath }
+        );
+        continue;
+      }
+
+      if (!knownRoles.has(role)) {
+        addFinding(
+          "error",
+          `${relativePath}: tool '${toolName}' grants unknown role '${role}'; valid roles: ${knownRolesLabel}`,
+          { code: "session_role_policy_unknown_role", path: relativePath }
+        );
+        continue;
+      }
+      hasKnownRole = true;
+    }
+
+    if (!registeredToolNames.has(toolName)) {
+      addFinding(
+        "error",
+        `${relativePath}: policy grants access to '${toolName}', which resolves to no registered agent-reachable tool (dangling policy entry)`,
+        { code: "session_role_policy_dangling_tool", path: relativePath }
+      );
+    }
+
+    if (hasKnownRole) {
+      grantedToolNames.add(toolName);
+    }
+  }
+
+  if (Array.isArray(policy.roles)) {
+    for (const role of policy.roles) {
+      if (!knownRoles.has(role)) {
+        addFinding(
+          "error",
+          `${relativePath}: declared role '${role}' is not a known session role; valid roles: ${knownRolesLabel}`,
+          { code: "session_role_policy_unknown_role", path: relativePath }
+        );
+      }
+    }
+  }
+
+  for (const toolName of registeredToolNames) {
+    if (!grantedToolNames.has(toolName)) {
+      addFinding(
+        "error",
+        `${relativePath}: registered agent-reachable tool '${toolName}' is granted to no session role; the fail-closed role gate would strand it (grant it to at least one role)`,
+        { code: "session_role_policy_tool_unassigned", path: relativePath }
+      );
+    }
+  }
+}
 
 export async function lintRepo({
   dir = ".",
@@ -129,6 +280,26 @@ export async function lintRepo({
       filterToolDiscoveryTools(toolDiscoveryDescriptor, {
         tool_name: "workspace_work_record_refresh_admission_metrics"
       }).length > 0;
+
+    const sessionRolePolicyLoad = await loadSessionRoleToolAccessPolicy();
+    if (sessionRolePolicyLoad.present) {
+      if (sessionRolePolicyLoad.parseError) {
+        addFinding(
+          "error",
+          `${SESSION_ROLE_TOOL_ACCESS_POLICY_RELATIVE_PATH}: central role->tool access policy is not valid JSON: ${sessionRolePolicyLoad.parseError.message}`,
+          {
+            code: "session_role_policy_invalid_json",
+            path: SESSION_ROLE_TOOL_ACCESS_POLICY_RELATIVE_PATH
+          }
+        );
+      } else {
+        lintSessionRoleToolAccessPolicy({
+          descriptor: toolDiscoveryDescriptor,
+          policy: sessionRolePolicyLoad.policy,
+          addFinding
+        });
+      }
+    }
   } catch {
     structuredRefreshRouteAvailable = false;
   }

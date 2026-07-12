@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { recommendToolRouteFromVocabulary } from "../packages/wiki-core/src/operations/tool-router.mjs";
+import { pickDoThisNext } from "../packages/wiki-core/src/lib/next-calls-descriptor.mjs";
 
 const vocabulary = JSON.parse(
   await readFile(new URL("../packages/wiki-core/data/tool-routing-intents.v1.json", import.meta.url), "utf8"),
@@ -41,16 +42,45 @@ function route(input) {
   );
 }
 
+function recommendedTool(result) {
+  return pickDoThisNext(result.next_calls)?.tool;
+}
+
+function allowedNextCallTools(result) {
+  return result.next_calls
+    .filter((entry) => entry.recommended !== true && entry.disallowed !== true)
+    .map((entry) => entry.tool);
+}
+
+function disallowedEntry(result, tool) {
+  return result.next_calls.find((entry) => entry.disallowed === true && entry.tool === tool);
+}
+
+function disallowedTools(result) {
+  return result.next_calls.filter((entry) => entry.disallowed === true).map((entry) => entry.tool);
+}
+
+function assertRouteNextCallsShape(result) {
+  assert.ok(Array.isArray(result.next_calls), "result must carry the canonical next_calls list");
+  const doThisNext = pickDoThisNext(result.next_calls);
+  if (result.result_state === "matched") {
+    assert.ok(doThisNext, "a matched route must carry a recommended entry");
+  } else {
+    assert.equal(doThisNext, null, "an ambiguous route recommends nothing");
+  }
+}
+
 function assertMatchedRoute(input, expected) {
   const result = route(input);
   assert.equal(result.result_state, "matched");
   assert.equal(result.classified_intent, expected.intent);
-  assert.equal(result.recommended_first_tool, expected.tool);
+  assert.equal(recommendedTool(result), expected.tool);
   assert.deepEqual(result.suggested_arguments, expected.args ?? {});
-  assert.ok(result.do_not_start_with.length > 0);
-  assert.ok(result.allowed_next_calls.length > 0);
+  assert.ok(disallowedTools(result).length > 0);
+  assert.ok(allowedNextCallTools(result).length > 0);
   assert.equal("candidate_intents" in result, false);
   assert.match(result.reason, expected.reason ?? /./);
+  assertRouteNextCallsShape(result);
   return result;
 }
 
@@ -153,7 +183,7 @@ test("core router recommends initiative status and next-action first tools", () 
     },
   });
   assert.equal(
-    statusResult.do_not_start_with.find((entry) => entry.tool === "workspace_search_repo")?.use_instead,
+    disallowedEntry(statusResult, "workspace_search_repo")?.use_instead,
     "workspace_initiative_status",
   );
 
@@ -179,10 +209,10 @@ test("core router recommends dispatch readiness before launch-capable tools", ()
   });
 
   assert.equal(
-    result.do_not_start_with.find((entry) => entry.tool === "workspace_agent_dispatch")?.use_instead,
+    disallowedEntry(result, "workspace_agent_dispatch")?.use_instead,
     "workspace_validate_dispatch",
   );
-  assert.ok(result.allowed_next_calls.includes("workspace_agent_dispatch"));
+  assert.ok(allowedNextCallTools(result).includes("workspace_agent_dispatch"));
 });
 
 test("core router treats role launch requests as dispatch role calls", () => {
@@ -196,10 +226,10 @@ test("core router treats role launch requests as dispatch role calls", () => {
   });
 
   assert.equal(
-    result.do_not_start_with.find((entry) => entry.tool === "workspace_agent_dispatch")?.use_instead,
+    disallowedEntry(result, "workspace_agent_dispatch")?.use_instead,
     "workspace_validate_dispatch",
   );
-  assert.ok(result.allowed_next_calls.includes("workspace_agent_dispatch"));
+  assert.ok(allowedNextCallTools(result).includes("workspace_agent_dispatch"));
 });
 
 test("core router recommends docs lookup through search with bounded docs filters", () => {
@@ -215,7 +245,7 @@ test("core router recommends docs lookup through search with bounded docs filter
   });
 
   assert.equal(
-    result.do_not_start_with.find((entry) => entry.tool === "workspace_get_record")?.use_instead,
+    disallowedEntry(result, "workspace_get_record")?.use_instead,
     "workspace_search_repo",
   );
 });
@@ -237,7 +267,7 @@ test("core router distinguishes selected record context from selected slice deta
     },
   });
   assert.equal(
-    sliceResult.do_not_start_with.find((entry) => entry.tool === "workspace_get_record")?.use_instead,
+    disallowedEntry(sliceResult, "workspace_get_record")?.use_instead,
     "workspace_work_record_summary",
   );
 });
@@ -250,16 +280,15 @@ test("core router returns bounded ambiguous and unsupported prompt guidance", ()
     ambiguousResult.missing_disambiguating_state,
     "the smallest missing identifier, state marker, or user choice needed to distinguish the candidate intents",
   );
-  assert.ok(ambiguousResult.do_not_start_with.length > 0);
-  assert.ok(ambiguousResult.allowed_next_calls.includes("workspace_search_repo"));
+  assert.ok(disallowedTools(ambiguousResult).length > 0);
+  assert.ok(allowedNextCallTools(ambiguousResult).includes("workspace_search_repo"));
   assert.equal("classified_intent" in ambiguousResult, false);
-  assert.equal("recommended_first_tool" in ambiguousResult, false);
+  assert.equal(pickDoThisNext(ambiguousResult.next_calls), null);
   assert.equal("suggested_arguments" in ambiguousResult, false);
 
   const unknownResult = route("Summarize this spreadsheet and send it to finance");
   assert.equal(unknownResult.result_state, "unknown");
   assert.equal("classified_intent" in unknownResult, false);
-  assert.equal("recommended_first_tool" in unknownResult, false);
   assert.equal("candidate_intents" in unknownResult, false);
   assert.ok(unknownResult.unsupported_intent_guidance.length <= 3);
   assert.ok(unknownResult.unsupported_intent_guidance.some((item) => item.includes("Ask the user")));
@@ -276,14 +305,38 @@ test("core router derives validated work-record mutation routes", () => {
   });
 
   assert.equal(
-    result.do_not_start_with.find((entry) => entry.tool === "manual JSON edit")?.use_instead,
+    disallowedEntry(result, "manual JSON edit")?.use_instead,
     "workspace_work_record_set_status",
   );
-  assert.ok(result.allowed_next_calls.includes("workspace_work_record_set_closure"));
+  assert.ok(allowedNextCallTools(result).includes("workspace_work_record_set_closure"));
 
   const missingOperation = route("Update WK-1438");
   assert.equal(missingOperation.result_state, "ambiguous");
   assert.deepEqual(missingOperation.candidate_intents, ["work_record_mutation"]);
   assert.equal(missingOperation.missing_disambiguating_state, "ask which work-record operation is intended");
   assert.equal("suggested_arguments" in missingOperation, false);
+});
+
+test("matched route carries a recommended entry over the canonical next_calls list", () => {
+  const matched = route("Is WK-1438#SLICE-012 dispatchable for a worker?");
+  assert.equal(matched.result_state, "matched");
+
+  assertRouteNextCallsShape(matched);
+
+  const recommendedEntry = matched.next_calls.find((entry) => entry.recommended === true);
+  assert.ok(recommendedEntry, "matched list carries a recommended entry");
+  assert.equal(pickDoThisNext(matched.next_calls), recommendedEntry);
+  assert.ok(allowedNextCallTools(matched).length > 0, "matched list carries merely-allowed entries");
+  assert.ok(disallowedTools(matched).length > 0, "matched list carries disallowed entries");
+});
+
+test("ambiguous route recommends nothing over the canonical next_calls list", () => {
+  const ambiguous = route("Read WK-1438 and find docs for tool discovery");
+  assert.equal(ambiguous.result_state, "ambiguous");
+
+  assertRouteNextCallsShape(ambiguous);
+  assert.equal(pickDoThisNext(ambiguous.next_calls), null);
+  assert.equal(ambiguous.next_calls.some((entry) => entry.recommended === true), false);
+  assert.ok(allowedNextCallTools(ambiguous).length > 0);
+  assert.ok(disallowedTools(ambiguous).length > 0);
 });

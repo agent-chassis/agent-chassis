@@ -26,8 +26,7 @@ import {
 import {
   parseToolProfile,
   shouldExposeTool,
-  resolveRegisteredTier,
-  loadAgentSafeToolNamesFromDescriptor
+  resolveRegisteredTier
 } from "./lib/tool-profile.mjs";
 import {
   loadToolDiscoveryDescriptor,
@@ -76,10 +75,8 @@ import { registerToolDiscoveryTools } from "./lib/tool-discovery-tools.mjs";
 import { registerWikiCoreTools } from "./lib/wiki-core-tools.mjs";
 
 import { registerWorkRecordWriteTools } from "./lib/work-record-write-tools.mjs";
-import {
-  registerWorkspaceCommitTool,
-  WORKER_COMMIT_TOOL_NAME
-} from "./lib/workspace-commit-tool.mjs";
+import { registerKindRecordWriteTools } from "./lib/kind-record-write-tools.mjs";
+import { registerWorkspaceCommitTool } from "./lib/workspace-commit-tool.mjs";
 
 import { registerDispatchTools } from "./lib/dispatch-tools.mjs";
 
@@ -93,10 +90,6 @@ const WORKSPACE_WORK_RECORD_SET_TASK_TOOL_NAME = "workspace_work_record_set_task
 const WORKSPACE_INITIATIVE_STATUS_TOOL_NAME = "workspace_initiative_status";
 const WORKSPACE_TOOL_ROUTER_RECOMMEND_TOOL_NAME = "workspace_tool_router_recommend";
 const WORKSPACE_SUBMIT_FOR_REVIEW_TOOL_NAME = "workspace_submit_for_review";
-
-const TOOL_USAGE_AUDIT_CLASSIFIER_AVAILABLE = false;
-
-const SERVER_LOCAL_DESCRIPTOR_EXEMPT_TOOL_NAMES = new Set([WORKER_COMMIT_TOOL_NAME]);
 
 function structuredLog(data) {
   process.stderr.write(
@@ -148,7 +141,10 @@ const DESCRIPTOR_LOAD_FAILURE_FREE_LOCAL_MCP_TOOL_NAMES = new Set([
   "workspace_agent_run_status",
   "workspace_agent_run_wait",
   "workspace_runtime_blocker_taxonomy",
-  "workspace_coordination_preflight"
+  "workspace_coordination_preflight",
+
+  "commit",
+  "workspace_submit_for_review"
 ]);
 
 async function loadMcpToolTierRegistrationPolicy() {
@@ -223,11 +219,6 @@ function createProductionToolUsageAuditSelectedContext({ workspaceRepos, assigne
   return selected;
 }
 
-function classifyProductionToolUsageMisuse() {
-
-  return [];
-}
-
 function createSubmitForReviewRefusal(decisionCode, reasons, extra = {}) {
   return {
     tool: WORKSPACE_SUBMIT_FOR_REVIEW_TOOL_NAME,
@@ -256,29 +247,15 @@ async function registerTools(server) {
 
   const registeredTier = resolveRegisteredTier(process.env);
   const mcpToolTierRegistrationPolicy = await loadMcpToolTierRegistrationPolicy();
-
-  const agentSafeToolNames =
-    toolProfile === "agent-safe"
-      ? await loadAgentSafeToolNamesFromDescriptor()
-      : null;
   const registeredToolNames = new Set();
 
   const { dispatchBackend, dispatchSessionIdentity } = buildDispatchRuntime();
-  if (!TOOL_USAGE_AUDIT_CLASSIFIER_AVAILABLE) {
-    structuredLog({
-      level: "info",
-      event: "tool_usage_audit_classifier_unavailable",
-      message:
-        "No production tool-use misuse classifier hook is available; live audit events record origin/profile separation without production misuse classifications."
-    });
-  }
   const toolUsageAuditBoundary = createToolUsageAuditBoundaryRecorder({
     origin: () => createProductionToolUsageAuditOrigin({ toolProfile, dispatchSessionIdentity }),
     selected: () => createProductionToolUsageAuditSelectedContext({
       workspaceRepos,
       assignedUnit: trimmed(process.env.WIKI_MCP_ASSIGNED_UNIT)
     }),
-    classifyMisuse: classifyProductionToolUsageMisuse,
     onRecorderError: (error) => {
       structuredLog({
         level: "warning",
@@ -289,23 +266,22 @@ async function registerTools(server) {
   });
 
   function registerTool(name, config, handler) {
-    if (!shouldExposeTool(toolProfile, name, { agentSafeToolNames })) {
+
+    if (!shouldExposeTool(toolProfile, name)) {
       return;
     }
 
     if (
       registeredTier !== "paid_cce" &&
       mcpToolTierRegistrationPolicy.descriptorLoaded === true &&
-      !mcpToolTierRegistrationPolicy.freeLocalToolNames?.has(name) &&
-      !SERVER_LOCAL_DESCRIPTOR_EXEMPT_TOOL_NAMES.has(name)
+      !mcpToolTierRegistrationPolicy.freeLocalToolNames?.has(name)
     ) {
       return;
     }
     if (
       registeredTier !== "paid_cce" &&
       mcpToolTierRegistrationPolicy.freeLocalFallbackToolNames instanceof Set &&
-      !mcpToolTierRegistrationPolicy.freeLocalFallbackToolNames.has(name) &&
-      !SERVER_LOCAL_DESCRIPTOR_EXEMPT_TOOL_NAMES.has(name)
+      !mcpToolTierRegistrationPolicy.freeLocalFallbackToolNames.has(name)
     ) {
       return;
     }
@@ -573,6 +549,15 @@ async function registerTools(server) {
       WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME,
       WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME
     }
+  });
+
+  registerKindRecordWriteTools({
+    registerTool,
+    workspaceRepos,
+    z,
+    jsonContent,
+    errorContent,
+    resolveWorkspaceRepo
   });
 
   registerGraphImpactPersistenceTools({

@@ -193,6 +193,50 @@ test("gate: a symlink AND an out-of-scope path present — the mode-laundering c
   assert.deepEqual(result.refusal.out_of_scope, ["src/evil.mjs"]);
 });
 
+test("gate: canonical generated and runtime-state paths are refused even when write_scope matches", () => {
+  for (const path of ["wiki/catalog.md", "wiki/generated/summary.md", ".agent-runs/RUN-1/result.json", ".cache/code-index/state.json"]) {
+    const { result } = callVerify(
+      { raw: [{ path, status: "A" }] },
+      { writeScope: [path] }
+    );
+    assert.equal(result.contained, false, path);
+    assert.equal(result.refusal.code, CODES.FORBIDDEN_REPOSITORY_PATH, path);
+    assert.deepEqual(result.refusal.reasons, [REASONS.FORBIDDEN_REPOSITORY_PATH]);
+    assert.deepEqual(result.refusal.forbidden_repository_paths.map((entry) => entry.path), [path]);
+    assert.equal(typeof result.refusal.forbidden_repository_paths[0].pattern, "string");
+    assert.equal(typeof result.refusal.forbidden_repository_paths[0].reason, "string");
+  }
+});
+
+test("gate: rename-shaped delete/add attempts cannot launder a forbidden generated path", () => {
+  for (const raw of [
+    [
+      { path: "wiki/catalog.md", status: "D" },
+      { path: "docs/catalog-copy.md", status: "A" }
+    ],
+    [
+      { path: "docs/source.md", status: "D" },
+      { path: ".agent-runs/RUN-1/source.md", status: "A" }
+    ]
+  ]) {
+    const writeScope = raw.map((entry) => entry.path);
+    const { result } = callVerify({ raw }, { writeScope });
+    assert.equal(result.contained, false);
+    assert.equal(result.refusal.code, CODES.FORBIDDEN_REPOSITORY_PATH);
+    assert.equal(result.refusal.forbidden_repository_paths.length, 1);
+  }
+});
+
+test("gate: ordinary canonical docs, wiki records, and source paths retain existing behavior", () => {
+  const paths = ["docs/design.md", "wiki/work-records/WK-1520.json", "packages/app/src/index.mjs"];
+  const { result } = callVerify(
+    { raw: paths.map((path) => ({ path, status: "M" })) },
+    { writeScope: paths }
+  );
+  assert.equal(result.contained, true);
+  assert.equal(result.refusal, null);
+});
+
 test("gate: GATE_DIFF_FAILED (fail-closed) when the pinned gate diff cannot run", () => {
   const { runGit } = makeGit({ fail: new Set(["gate"]) });
   expectCode(

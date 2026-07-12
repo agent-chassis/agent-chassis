@@ -1,11 +1,7 @@
 
 
 import {
-  API_KEY_HEADER,
-  CLIENT_DISPOSITIONS,
   PACK_CLIENT_DISPOSITIONS,
-  VALIDATE_PATH,
-  REQUEST_CONTRACT_DIGEST_ENV_KEYS,
   classifyConfigReadiness,
   classifyTransportError,
   classifyValidation,
@@ -24,6 +20,14 @@ import { createWorkRecordAdmissionRecordLocalInputs } from "@agent-chassis/wiki-
 import { loadWorkRecordById } from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
 import { parseArgs } from "../lib/cli.mjs";
 import { runNodeEngineWorkerAdmissionControlMatrix } from "../lib/node-engine-control-matrix.mjs";
+import {
+  buildPackSmokeDiagnostic,
+  buildSmokeDiagnostic,
+  renderPackText,
+  renderText,
+} from "./node-engine-smoke-diagnostics.mjs";
+
+export { buildSmokeDiagnostic, buildPackSmokeDiagnostic };
 
 export {
   CONTROL_MATRIX_ENFORCEMENT_SPECS,
@@ -89,15 +93,50 @@ export function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
 }
 
+export class TimeoutMsUsageError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "TimeoutMsUsageError";
+  }
+}
+
+export const TIMEOUT_MS_USAGE_REASON_CODE = "node_engine_cli.timeout_ms.invalid_usage.v1";
+
 export function parseTimeoutMs(options) {
-  if (!("timeout-ms" in options) || options["timeout-ms"] === true) {
+  if (!("timeout-ms" in options)) {
     return 5000;
+  }
+  if (options["timeout-ms"] === true) {
+    throw new TimeoutMsUsageError("--timeout-ms requires a value, e.g. --timeout-ms=5000");
   }
   const parsed = Number.parseInt(String(options["timeout-ms"]), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error("--timeout-ms requires a positive integer");
+    throw new TimeoutMsUsageError("--timeout-ms requires a positive integer");
   }
   return parsed;
+}
+
+export function buildTimeoutUsageDiagnostic(tool, error) {
+  return {
+    tool,
+    posture: "structural_only_non_authority",
+    outcome: "usage_error",
+    reason_code: TIMEOUT_MS_USAGE_REASON_CODE,
+    message: error.message,
+  };
+}
+
+export function emitTimeoutUsageError(tool, error, { json } = {}) {
+  const diagnostic = buildTimeoutUsageDiagnostic(tool, error);
+  if (json) {
+    printJson(diagnostic);
+  } else {
+    console.log(`${tool}: usage error`);
+    console.log(`  reason_code: ${diagnostic.reason_code}`);
+    console.log(`  message: ${diagnostic.message}`);
+  }
+  process.exitCode = 1;
+  return { diagnostic, exitCode: 1 };
 }
 
 export function timedFetch(timeoutMs, fetchImpl) {
@@ -110,63 +149,6 @@ export function timedFetch(timeoutMs, fetchImpl) {
       clearTimeout(timer);
     }
   };
-}
-
-export function buildSmokeDiagnostic(outcome, { strict = false } = {}) {
-  const diagnostic = {
-    tool: "node-engine validate-smoke",
-    posture: "structural_only_non_authority",
-    disposition: outcome.disposition ?? null,
-    outcome: outcome.outcome ?? null,
-    reason_code: outcome.reason_code ?? null,
-    authenticated_request_sent: outcome.authenticated_request_sent === true,
-    node_engine_backed_success: outcome.node_engine_backed_success === true,
-    request_header: API_KEY_HEADER,
-    target_route: VALIDATE_PATH,
-    auth_mode: "x_api_key_only",
-    sources: {
-      service_url_source: outcome.service_url_source ?? null,
-      service_url_preferred: outcome.service_url_preferred ?? null,
-      key_source: outcome.key_source ?? null,
-      key_preferred: outcome.key_preferred ?? null,
-    },
-  };
-
-  if ("status_class" in outcome) diagnostic.status_class = outcome.status_class;
-  if ("content_type" in outcome) diagnostic.content_type = outcome.content_type;
-  if ("json_parsed" in outcome) diagnostic.json_parsed = outcome.json_parsed;
-  if ("body_summary" in outcome) diagnostic.body_summary = outcome.body_summary;
-  if ("redacted_key" in outcome) diagnostic.redacted_key = outcome.redacted_key;
-  if ("error_name" in outcome) diagnostic.error_name = outcome.error_name;
-
-  let exitCode;
-  if (outcome.disposition === CLIENT_DISPOSITIONS.LOCAL_ONLY_FAIL_OPEN) {
-    exitCode = strict ? 1 : 0;
-  } else if (outcome.node_engine_backed_success === true) {
-    exitCode = 0;
-  } else {
-    exitCode = 1;
-  }
-
-  return { diagnostic, exitCode };
-}
-
-function renderText(diagnostic) {
-  console.log(`Chassis Control Engine validate-smoke (${diagnostic.posture})`);
-  console.log(`  disposition: ${diagnostic.disposition}`);
-  console.log(`  outcome: ${diagnostic.outcome}`);
-  console.log(`  reason_code: ${diagnostic.reason_code}`);
-  console.log(`  authenticated_request_sent: ${diagnostic.authenticated_request_sent}`);
-  console.log(`  node_engine_backed_success: ${diagnostic.node_engine_backed_success}`);
-  console.log(`  auth_mode: ${diagnostic.auth_mode} (header ${diagnostic.request_header}, route ${diagnostic.target_route})`);
-  console.log(`  service_url_source: ${diagnostic.sources.service_url_source ?? "(none)"} (preferred: ${diagnostic.sources.service_url_preferred})`);
-  console.log(`  key_source: ${diagnostic.sources.key_source ?? "(none)"} (preferred: ${diagnostic.sources.key_preferred})`);
-  if ("status_class" in diagnostic) {
-    console.log(`  status_class: ${diagnostic.status_class}`);
-  }
-  if ("error_name" in diagnostic) {
-    console.log(`  error_name: ${diagnostic.error_name}`);
-  }
 }
 
 const PACK_HELP_TEXT = `Usage: wiki node-engine worker-admission-pack-smoke [--json] [--strict] [--route <path>] [--id <WK-ID>] [--unit <slice-id>] [--timeout-ms <n>]
@@ -229,77 +211,6 @@ Options:
 
 export const PACK_INPUT_MISSING_REASON_CODE =
   "node_engine_cli.worker_admission_pack.pack_input_missing.v1";
-
-export function buildPackSmokeDiagnostic(outcome, { strict = false } = {}) {
-  const diagnostic = {
-    tool: "node-engine worker-admission-pack-smoke",
-    posture: "structural_only_non_authority",
-    disposition: outcome.disposition ?? null,
-    outcome: outcome.outcome ?? null,
-    reason_code: outcome.reason_code ?? null,
-    authenticated_request_sent: outcome.authenticated_request_sent === true,
-    pack_backed: outcome.pack_backed === true,
-    effect: outcome.effect ?? null,
-    node_engine_backed_success: outcome.node_engine_backed_success === true,
-    node_engine_binding_status: outcome.node_engine_binding_status ?? null,
-    request_header: API_KEY_HEADER,
-    auth_mode: "x_api_key_only",
-    sources: {
-      service_url_source: outcome.service_url_source ?? null,
-      service_url_preferred: outcome.service_url_preferred ?? null,
-      key_source: outcome.key_source ?? null,
-      key_preferred: outcome.key_preferred ?? null,
-
-      request_contract_digest_source: outcome.request_contract_digest_source ?? null,
-      request_contract_digest_preferred:
-        outcome.request_contract_digest_source
-          ? outcome.request_contract_digest_source === REQUEST_CONTRACT_DIGEST_ENV_KEYS[0]
-          : null,
-      request_contract_digest_present: outcome.request_contract_digest_present === true,
-    },
-  };
-
-  if ("status_class" in outcome) diagnostic.status_class = outcome.status_class;
-  if ("content_type" in outcome) diagnostic.content_type = outcome.content_type;
-  if ("json_parsed" in outcome) diagnostic.json_parsed = outcome.json_parsed;
-  if ("body_summary" in outcome) diagnostic.body_summary = outcome.body_summary;
-  if ("redacted_key" in outcome) diagnostic.redacted_key = outcome.redacted_key;
-  if ("error_name" in outcome) diagnostic.error_name = outcome.error_name;
-
-  let exitCode;
-  if (outcome.disposition === CLIENT_DISPOSITIONS.LOCAL_ONLY_FAIL_OPEN) {
-    exitCode = strict ? 1 : 0;
-  } else if (outcome.node_engine_backed_success === true) {
-    exitCode = 0;
-  } else {
-
-    exitCode = 1;
-  }
-
-  return { diagnostic, exitCode };
-}
-
-function renderPackText(diagnostic) {
-  console.log(`Chassis Control Engine worker-admission-pack-smoke (${diagnostic.posture})`);
-  console.log(`  disposition: ${diagnostic.disposition}`);
-  console.log(`  outcome: ${diagnostic.outcome}`);
-  console.log(`  reason_code: ${diagnostic.reason_code}`);
-  console.log(`  authenticated_request_sent: ${diagnostic.authenticated_request_sent}`);
-  console.log(`  pack_backed: ${diagnostic.pack_backed}`);
-  console.log(`  effect: ${diagnostic.effect ?? "(none)"}`);
-  console.log(`  node_engine_backed_success: ${diagnostic.node_engine_backed_success}`);
-  console.log(`  node_engine_binding_status: ${diagnostic.node_engine_binding_status}`);
-  console.log(`  auth_mode: ${diagnostic.auth_mode} (header ${diagnostic.request_header})`);
-  console.log(`  service_url_source: ${diagnostic.sources.service_url_source ?? "(none)"} (preferred: ${diagnostic.sources.service_url_preferred})`);
-  console.log(`  key_source: ${diagnostic.sources.key_source ?? "(none)"} (preferred: ${diagnostic.sources.key_preferred})`);
-  console.log(`  request_contract_digest_source: ${diagnostic.sources.request_contract_digest_source ?? "(none)"} (present: ${diagnostic.sources.request_contract_digest_present})`);
-  if ("status_class" in diagnostic) {
-    console.log(`  status_class: ${diagnostic.status_class}`);
-  }
-  if ("error_name" in diagnostic) {
-    console.log(`  error_name: ${diagnostic.error_name}`);
-  }
-}
 
 export async function assembleWorkerAdmissionPackInputForUnit({ dir = ".", id, unit = null } = {}) {
   const recordId = typeof id === "string" ? id.trim() : "";
@@ -389,7 +300,15 @@ export async function runNodeEngineWorkerAdmissionPackSmoke(argv, deps = {}) {
   const env = deps.env ?? process.env;
   const baseFetch = deps.fetchImpl ?? globalThis.fetch;
   const strict = options.strict === true;
-  const timeoutMs = parseTimeoutMs(options);
+  let timeoutMs;
+  try {
+    timeoutMs = parseTimeoutMs(options);
+  } catch (err) {
+    if (err instanceof TimeoutMsUsageError) {
+      return emitTimeoutUsageError("node-engine worker-admission-pack-smoke", err, { json: options.json });
+    }
+    throw err;
+  }
 
   const dir =
     deps.dir ?? (typeof options.dir === "string" && options.dir.trim() !== "" ? options.dir.trim() : process.cwd());
@@ -417,11 +336,19 @@ export async function runNodeEngineWorkerAdmissionPackSmoke(argv, deps = {}) {
   let packInput = deps.packInput ?? null;
   let outcome = null;
 
+  let packInputMissingReason = null;
+
   if (readiness.ready && routeRatified && digest.present) {
-    if (!packInput && id) {
-      const assembled = await assembleWorkerAdmissionPackInputForUnit({ dir, id, unit });
-      if (assembled.ok) {
-        packInput = assembled.packInput;
+    if (!packInput) {
+      if (!id) {
+        packInputMissingReason = "unit_unspecified";
+      } else {
+        const assembled = await assembleWorkerAdmissionPackInputForUnit({ dir, id, unit });
+        if (assembled.ok) {
+          packInput = assembled.packInput;
+        } else {
+          packInputMissingReason = assembled.reason;
+        }
       }
     }
     if (!packInput) {
@@ -439,6 +366,15 @@ export async function runNodeEngineWorkerAdmissionPackSmoke(argv, deps = {}) {
   }
 
   const { diagnostic, exitCode } = buildPackSmokeDiagnostic(outcome, { strict });
+
+  if (diagnostic.outcome === "pack_input_missing") {
+
+    diagnostic.pack_input_missing_reason = ["unit_unspecified", "record_not_found", "slice_not_found"].includes(
+      packInputMissingReason,
+    )
+      ? packInputMissingReason
+      : "pack_input_missing_reason_unknown";
+  }
 
   if (options.json) {
     printJson(diagnostic);
@@ -463,7 +399,15 @@ export async function runValidateSmoke(argv, deps = {}) {
   const env = deps.env ?? process.env;
   const baseFetch = deps.fetchImpl ?? globalThis.fetch;
   const strict = options.strict === true;
-  const timeoutMs = parseTimeoutMs(options);
+  let timeoutMs;
+  try {
+    timeoutMs = parseTimeoutMs(options);
+  } catch (err) {
+    if (err instanceof TimeoutMsUsageError) {
+      return emitTimeoutUsageError("node-engine validate-smoke", err, { json: options.json });
+    }
+    throw err;
+  }
 
   const config = resolveClientConfig(env);
 

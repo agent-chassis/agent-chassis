@@ -4,8 +4,10 @@ import path from "node:path";
 import {
   closeSync,
   constants as fsConstants,
+  existsSync,
   mkdirSync,
   openSync,
+  readFileSync,
   realpathSync,
   writeSync
 } from "node:fs";
@@ -22,16 +24,27 @@ export const WORKTREE_REAPER_DIAGNOSTIC_CODES = Object.freeze({
   PROTECTED_REF: "agent_launch.worktree_reaper.protected_ref.v1",
   PROTECTED_WORKTREE: "agent_launch.worktree_reaper.protected_worktree.v1",
   ALIVE_OR_INDETERMINATE: "agent_launch.worktree_reaper.alive_or_indeterminate.v1",
+  WORKER_NOT_TERMINATED: "agent_launch.worktree_reaper.worker_not_terminated.v1",
+  REVIEW_UNRESOLVED: "agent_launch.worktree_reaper.review_unresolved.v1",
+  DIRTY_WORKTREE: "agent_launch.worktree_reaper.dirty_worktree.v1",
+  MISSING_OR_MISMATCHED_BINDING: "agent_launch.worktree_reaper.missing_or_mismatched_binding.v1",
   AUDIT_CAPTURE_FAILED: "agent_launch.worktree_reaper.audit_capture_failed.v1",
   AUDIT_WRITE_FAILED: "agent_launch.worktree_reaper.audit_write_failed.v1",
   REAP_FAILED: "agent_launch.worktree_reaper.reap_failed.v1"
 });
 
 export const WORKTREE_REAPER_REASONS = Object.freeze(["unit-done", "cancelled", "operator-directed"]);
+export const RETAINED_SLICE_CLEANUP_DISPOSITIONS = Object.freeze([
+  "accepted-review",
+  "orchestrator-cancelled",
+  "orchestrator-revert"
+]);
 
 const PER_WK_BRANCH_RE = /^wk\/IN-\d{4}\/WK-\d{4}$/;
 const PER_WK_WORKTREE_DIR_RE = /^wk-IN-\d{4}-WK-\d{4}$/;
 const OID_RE = /^[0-9a-f]{40}$/;
+const SLICE_BRANCH_RE = /^slice\/IN-\d{4}\/WK-\d{4}\/SLICE-\d{3}$/;
+const SLICE_WORKTREE_DIR_RE = /^slice-IN-\d{4}-WK-\d{4}-SLICE-\d{3}$/;
 
 export class WorktreeReaperError extends Error {
   constructor(message, { code, detail = null, cause = null } = {}) {
@@ -275,4 +288,192 @@ export function releaseWorktree({
     ...auditRecord,
     audit_dir: auditDir
   });
+}
+
+function parseWorktreePorcelain(text) {
+  const entries = [];
+  let current = null;
+  for (const line of String(text ?? "").split("\n")) {
+    if (line.startsWith("worktree ")) {
+      if (current) entries.push(current);
+      current = { path: line.slice("worktree ".length), branch: null, head: null };
+    } else if (current && line.startsWith("branch refs/heads/")) {
+      current.branch = line.slice("branch refs/heads/".length);
+    } else if (current && line.startsWith("HEAD ")) {
+      current.head = line.slice("HEAD ".length);
+    }
+  }
+  if (current) entries.push(current);
+  return entries;
+}
+
+function priorExactSliceAudit(mainRepo, binding, disposition) {
+  const file = path.join(worktreeReaperAuditDir(mainRepo), "reaper-audit.jsonl");
+  let lines;
+  try { lines = readFileSync(file, "utf8").trim().split("\n"); } catch { return null; }
+  for (const line of lines.reverse()) {
+    try {
+      const record = JSON.parse(line);
+      if (record.schema_version === WORKTREE_REAPER_SCHEMA_VERSION &&
+          record.completed === true &&
+          record.unit_address === binding.unit_address &&
+          record.output_branch === binding.output_branch &&
+          record.worktree_path === binding.worktree_path &&
+          record.disposition === disposition) return record;
+    } catch {   }
+  }
+  return null;
+}
+
+function priorExactSliceAttempt(mainRepo, binding, disposition, launchRef, runId, retryId) {
+  const file = path.join(worktreeReaperAuditDir(mainRepo), "reaper-audit.jsonl");
+  let lines;
+  try { lines = readFileSync(file, "utf8").trim().split("\n"); } catch { return null; }
+  for (const line of lines.reverse()) {
+    try {
+      const record = JSON.parse(line);
+      if (record.schema_version === WORKTREE_REAPER_SCHEMA_VERSION &&
+          record.completed === false &&
+          record.unit_address === binding.unit_address &&
+          record.output_branch === binding.output_branch &&
+          record.worktree_path === binding.worktree_path &&
+          record.disposition === disposition &&
+          record.launch_ref === launchRef &&
+          record.run_id === runId &&
+          record.retry_id === retryId &&
+          OID_RE.test(record.tip_sha)) return record;
+    } catch {   }
+  }
+  return null;
+}
+
+export function releaseRetainedSlice({
+  mainRepo,
+  launchRef,
+  runId,
+  retryId = 0,
+  disposition,
+  workerTerminated,
+  reviewResolved,
+  identity = null,
+  deps = {}
+} = {}) {
+  const runGit = deps.runGit ?? defaultRunGit;
+  const resolveBinding = deps.resolveBinding ?? resolveWorktreeBinding;
+  const writeAudit = deps.writeAudit ?? defaultWriteAudit;
+  const isConfirmedDead = deps.confirmedDead ?? confirmedDead;
+  const clock = deps.clock ?? (() => new Date().toISOString());
+  const repo = assertAbsolutePath(mainRepo, "mainRepo");
+
+  if (!RETAINED_SLICE_CLEANUP_DISPOSITIONS.includes(disposition)) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.INVALID_REASON, "invalid exact-slice cleanup disposition");
+  }
+  if (workerTerminated !== true || (identity !== null && !isConfirmedDead(identity, deps.livenessDeps))) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.WORKER_NOT_TERMINATED, "exact-slice cleanup requires confirmed worker termination");
+  }
+  if (reviewResolved !== true) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.REVIEW_UNRESOLVED, "retain the exact slice while WK review is unresolved");
+  }
+
+  const binding = resolveBinding({ mainRepo: repo, launchRef, runId, retryId });
+  if (!binding || typeof binding !== "object" ||
+      typeof binding.unit_address !== "string" ||
+      !/^IN-\d{4}\/WK-\d{4}\/SLICE-\d{3}$/u.test(binding.unit_address) ||
+      !SLICE_BRANCH_RE.test(binding.output_branch) ||
+      !path.isAbsolute(binding.worktree_path) ||
+      !SLICE_WORKTREE_DIR_RE.test(path.basename(binding.worktree_path))) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.MISSING_OR_MISMATCHED_BINDING, "resolved binding is not an exact sparse slice binding");
+  }
+  const repoReal = realpathOrLexical(repo);
+  const worktreeReal = realpathOrLexical(binding.worktree_path);
+  if (pathWithin(worktreeReal, repoReal) || pathWithin(repoReal, worktreeReal)) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.PROTECTED_WORKTREE, "slice worktree overlaps the main checkout");
+  }
+
+  const listed = gitResultOrRefusal(runGit, repo, ["worktree", "list", "--porcelain"]);
+  const entry = parseWorktreePorcelain(listed.stdout).find((candidate) => realpathOrLexical(candidate.path) === worktreeReal);
+  const branchResult = runGit({ repo, args: ["rev-parse", "--verify", `refs/heads/${binding.output_branch}^{commit}`] });
+  const pathPresent = existsSync(binding.worktree_path);
+  const branchPresent = Boolean(branchResult && branchResult.ok === true);
+  const priorAttempt = priorExactSliceAttempt(repo, binding, disposition, launchRef, runId, retryId);
+  if (!pathPresent && !branchPresent && !entry) {
+    const prior = priorExactSliceAudit(repo, binding, disposition);
+    if (prior) return Object.freeze({ reaped: true, idempotent: true, ...prior, audit_dir: worktreeReaperAuditDir(repo) });
+    if (priorAttempt) {
+      const auditDir = worktreeReaperAuditDir(repo);
+      const completed = Object.freeze({ ...priorAttempt, completed: true, reaped_at: clock() });
+      writeAudit({ auditDir, record: completed, line: `${JSON.stringify(completed)}\n` });
+      return Object.freeze({ reaped: true, idempotent: false, recovered_after_mutation: true, ...completed, audit_dir: auditDir });
+    }
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.MISSING_OR_MISMATCHED_BINDING, "slice worktree/ref are missing without an exact prior cleanup audit");
+  }
+  const branchTip = branchPresent ? branchResult.stdout.trim() : null;
+  const expectedTip = priorAttempt?.tip_sha ?? branchTip;
+  if (typeof expectedTip !== "string" || !OID_RE.test(expectedTip)) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.MISSING_OR_MISMATCHED_BINDING, "verified slice ref does not resolve to an expected cleanup tip");
+  }
+  if (branchPresent && branchTip !== expectedTip) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.MISSING_OR_MISMATCHED_BINDING, "slice ref changed after the retained-tip binding was minted", {
+      expected_tip: expectedTip,
+      actual_tip: branchTip
+    });
+  }
+
+  const retryAfterWorktreeRemoval = !pathPresent && !entry && branchPresent;
+  if ((!retryAfterWorktreeRemoval && (!pathPresent || !entry)) ||
+      !branchPresent ||
+      (entry && (entry.branch !== binding.output_branch || entry.head !== expectedTip))) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.MISSING_OR_MISMATCHED_BINDING, "slice worktree/ref/binding association is missing or mismatched");
+  }
+  if (!retryAfterWorktreeRemoval) {
+    const dirty = gitResultOrRefusal(runGit, binding.worktree_path, ["status", "--porcelain=v1", "--untracked-files=all"]);
+    if (dirty.stdout.length > 0) {
+      fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.DIRTY_WORKTREE, "refusing to remove a dirty retained slice", { status: dirty.stdout });
+    }
+  }
+
+  const auditBase = Object.freeze({
+    schema_version: WORKTREE_REAPER_SCHEMA_VERSION,
+    unit_address: binding.unit_address,
+    disposition,
+    output_branch: binding.output_branch,
+    worktree_path: binding.worktree_path,
+    tip_sha: expectedTip,
+    launch_ref: launchRef,
+    run_id: runId,
+    retry_id: retryId
+  });
+  const auditDir = worktreeReaperAuditDir(repo);
+
+  const attemptRecord = Object.freeze({ ...auditBase, completed: false, started_at: clock() });
+  writeAudit({ auditDir, record: attemptRecord, line: `${JSON.stringify(attemptRecord)}\n` });
+  const remove = retryAfterWorktreeRemoval
+    ? { ok: true, skipped: true }
+    : runGit({ repo, args: ["worktree", "remove", binding.worktree_path] });
+
+  const del = remove?.ok === true
+    ? runGit({ repo, args: ["update-ref", "-d", `refs/heads/${binding.output_branch}`, expectedTip] })
+    : null;
+  if (!remove || remove.ok !== true || !del || del.ok !== true) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.REAP_FAILED, "exact-slice cleanup failed", {
+      worktree_remove: remove?.stderr ?? remove?.error ?? remove?.status ?? null,
+      branch_delete: del?.stderr ?? del?.error ?? del?.status ?? null,
+      audit: attemptRecord
+    });
+  }
+
+  const auditRecord = Object.freeze({ ...auditBase, completed: true, reaped_at: clock() });
+  writeAudit({ auditDir, record: auditRecord, line: `${JSON.stringify(auditRecord)}\n` });
+  return Object.freeze({ reaped: true, idempotent: false, ...auditRecord, audit_dir: auditDir });
+}
+
+function gitResultOrRefusal(runGit, repo, args) {
+  const result = runGit({ repo, args });
+  if (!result || result.ok !== true) {
+    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.MISSING_OR_MISMATCHED_BINDING, "could not verify exact slice binding", {
+      args,
+      stderr: result?.stderr ?? result?.error ?? result?.status ?? null
+    });
+  }
+  return result;
 }

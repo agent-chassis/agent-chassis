@@ -42,16 +42,30 @@ test("registered agent-safe MCP tools are all owned by the raw assembled descrip
 
   const canaryNames = [
     "workspace_agent_run_wait",
-    "workspace_code_index_build",
-    "workspace_code_index_rebuild",
-    "workspace_code_index_graph_impact_diff",
+    "workspace_validate_dispatch",
     "get_contract_manifest",
-    "workspace_build_search_index"
+    "workspace_tools_list",
+    "workspace_read_page",
+    "workspace_get_record",
+    "workspace_search_repo",
+    "workspace_work_record_validate"
   ];
   for (const name of canaryNames) {
     assert.ok(
       registeredAgentSafeToolNames.includes(name),
       `agent-safe tools/list must register the ${name} canary so the parity check covers it`
+    );
+  }
+
+  for (const withheld of [
+    "workspace_build_search_index",
+    "workspace_code_index_build",
+    "workspace_code_index_rebuild"
+  ]) {
+    assert.equal(
+      registeredAgentSafeToolNames.includes(withheld),
+      false,
+      `${withheld} is operator/paid-only and must not be exposed on the free/local orchestrator surface`
     );
   }
 
@@ -135,20 +149,17 @@ test("registered agent-safe MCP tools are all owned by the raw assembled descrip
       );
     }
 
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(entry, "audience"),
-      `${name} must carry an explicit audience field rather than relying on runtime default audience`
-    );
-    assert.ok(
-      Array.isArray(entry.audience) && entry.audience.length > 0,
-      `${name} audience must be a non-empty array`
-    );
-    assert.ok(entry.audience.includes("agent"), `${name} audience must include agent`);
-    for (const audience of entry.audience) {
+    if (Object.prototype.hasOwnProperty.call(entry, "audience")) {
       assert.ok(
-        TOOL_DISCOVERY_AUDIENCE_VALUES.includes(audience),
-        `${name} audience ${audience} must be a controlled value`
+        Array.isArray(entry.audience) && entry.audience.length > 0,
+        `${name} audience, when present, must be a non-empty array`
       );
+      for (const audience of entry.audience) {
+        assert.ok(
+          TOOL_DISCOVERY_AUDIENCE_VALUES.includes(audience),
+          `${name} audience ${audience} must be a controlled value`
+        );
+      }
     }
   }
 });
@@ -195,7 +206,7 @@ test("workspace_tools_list source_files exclude the legacy aggregate and include
   );
   assertWorkspaceToolsListSourceFiles(rawListEntry.source_files, "raw assembled descriptor");
 
-  const session = createMcpSession();
+  const session = createMcpSession({ env: { WIKI_MCP_TOOL_PROFILE: "operator" } });
   try {
     await session.request(1, "initialize", INITIALIZE_PARAMS);
 

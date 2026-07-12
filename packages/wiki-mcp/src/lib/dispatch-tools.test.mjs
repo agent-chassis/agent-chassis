@@ -8,6 +8,10 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 import { registerDispatchTools } from "./dispatch-tools.mjs";
+import {
+  runPostWorkerSliceLifecycle,
+  runRetainedSliceCleanupDisposition
+} from "./dispatch-run-monitor-routes.mjs";
 import { errorContent, jsonContent } from "./mcp-response.mjs";
 
 function createDispatchToolRegistry({
@@ -211,4 +215,201 @@ test("short thrown dispatch diagnostics are not marked truncated", async () => {
     structured.blocker.detail.error_message.length <= DISPATCH_EXCEPTION_DIAGNOSTIC_MAX_CHARS
   );
   assert.equal(structured.blocker.detail.error_message_truncated, false);
+});
+
+test("terminal worker monitoring invokes the trusted post-worker slice lifecycle and exposes the frozen WK target", async () => {
+  const calls = [];
+  const frozen = {
+    ref: "refs/heads/wk/IN-0021/WK-1537",
+    sha: "b".repeat(40),
+    diff_base_sha: "a".repeat(40),
+    diff_head_sha: "b".repeat(40),
+    complete_parent_wk_contract: true,
+    accumulated_wk_diff: true
+  };
+  const tools = createDispatchToolRegistry({
+    backend: {
+      getRunStatus: async () => ({
+        accepted: true,
+        run_id: "run-worker",
+        monitor_handle: "wkmh_worker",
+        role: "worker",
+        subject: "WK-1537#SLICE-001",
+        status: "succeeded",
+        terminal: true,
+        started_at: "2026-07-12T00:00:00.000Z",
+        updated_at: "2026-07-12T00:01:00.000Z"
+      }),
+      runPostWorkerSliceLifecycle: async ({ workspace, status }) => {
+        calls.push({ workspace, status });
+        return {
+          invoked: true,
+          integrated: true,
+          integration: { review_target: frozen },
+          reviewer_dispatch: {
+            tool: "workspace_agent_dispatch",
+            args: { role: "reviewer", subject: "WK-1537" },
+            context: { frozen_review_target: frozen, complete_parent_wk_contract: true }
+          }
+        };
+      }
+    }
+  });
+
+  const first = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+    monitor_handle: "wkmh_worker",
+    subject: "WK-1537#SLICE-001"
+  }));
+  const second = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+    monitor_handle: "wkmh_worker",
+    subject: "WK-1537#SLICE-001"
+  }));
+
+  assert.equal(calls.length, 1, "one terminal worker run is integrated once per monitor lifecycle");
+  assert.equal(calls[0].workspace.dir, "/home/user/agent-chassis");
+  assert.deepEqual(first.slice_lifecycle.reviewer_dispatch.context.frozen_review_target, frozen);
+  assert.equal(first.slice_lifecycle.reviewer_dispatch.args.subject, "WK-1537");
+  assert.deepEqual(second.slice_lifecycle, first.slice_lifecycle);
+});
+
+test("run monitoring never invokes slice integration before confirmed worker termination", async () => {
+  let lifecycleCalls = 0;
+  const tools = createDispatchToolRegistry({
+    backend: {
+      getRunStatus: async () => ({
+        accepted: true,
+        run_id: "run-worker-live",
+        monitor_handle: "wkmh_worker_live",
+        role: "worker",
+        subject: "WK-1537#SLICE-001",
+        status: "running",
+        terminal: false,
+        started_at: "2026-07-12T00:00:00.000Z",
+        updated_at: "2026-07-12T00:00:30.000Z"
+      }),
+      runPostWorkerSliceLifecycle: async () => { lifecycleCalls += 1; }
+    }
+  });
+
+  const result = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+    monitor_handle: "wkmh_worker_live",
+    subject: "WK-1537#SLICE-001"
+  }));
+  assert.equal(result.terminal, false);
+  assert.equal("slice_lifecycle" in result, false);
+  assert.equal(lifecycleCalls, 0);
+});
+
+test("the production post-worker helper integrates the committed binding only after terminal success and freezes canonical WK review state", async () => {
+  const calls = { integration: [], transition: [] };
+  const commit = "b".repeat(40);
+  const reviewTarget = { ref: "refs/heads/wk/IN-0021/WK-1537", sha: commit };
+  const result = await runPostWorkerSliceLifecycle({
+    workspace: { repo: "agent-chassis", dir: "/home/user/agent-chassis" },
+    status: {
+      run_id: "run-worker",
+      monitor_handle: "wkmh_worker",
+      role: "worker",
+      subject: "WK-1537#SLICE-001",
+      status: "succeeded",
+      terminal: true
+    },
+    deps: {
+      resolveWorktreeBinding: () => ({
+        unit_address: "IN-0021/WK-1537/SLICE-001",
+        output_branch: "slice/IN-0021/WK-1537/SLICE-001",
+        worktree_path: "/tmp/slice-IN-0021-WK-1537-SLICE-001",
+        base_sha: "a".repeat(40)
+      }),
+      runGit: () => ({ ok: true, stdout: `${commit}\n` }),
+      setWorkRecordStatusByUnit: async (input) => {
+        calls.transition.push(input);
+        return { valid: true, written: true };
+      },
+      integrateCommittedSlice: async (input) => {
+        calls.integration.push(input);
+        await input.transitionToReview({ unitAddress: "WK-1537", status: "review", reviewTarget });
+        return { review_target: reviewTarget };
+      }
+    }
+  });
+  assert.equal(calls.integration.length, 1);
+  assert.equal(calls.integration[0].workerTerminated, true);
+  assert.equal(calls.integration[0].wkRef, "refs/heads/wk/IN-0021/WK-1537");
+  assert.deepEqual(calls.transition, [{
+    dir: "/home/user/agent-chassis",
+    unitAddress: "WK-1537",
+    status: "review"
+  }]);
+  assert.deepEqual(result.reviewer_dispatch.args, { role: "reviewer", subject: "WK-1537" });
+  assert.deepEqual(result.reviewer_dispatch.context.frozen_review_target, reviewTarget);
+});
+
+test("review findings remain evidence only and cause no automatic slice lifecycle mutation", async () => {
+  let lifecycleCalls = 0;
+  const tools = createDispatchToolRegistry({
+    backend: {
+      getRunStatus: async () => ({
+        accepted: true,
+        run_id: "run-reviewer",
+        monitor_handle: "wkmh_reviewer",
+        role: "reviewer",
+        subject: "WK-1537",
+        status: "succeeded",
+        terminal: true,
+        started_at: "2026-07-12T00:02:00.000Z",
+        updated_at: "2026-07-12T00:03:00.000Z",
+        review_result: {
+          review_outcome: "changes_requested",
+          blocking_finding_count: 1,
+          medium_finding_count: 0,
+          clean_review: false
+        }
+      }),
+      runPostWorkerSliceLifecycle: async () => { lifecycleCalls += 1; }
+    }
+  });
+
+  const result = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+    monitor_handle: "wkmh_reviewer",
+    subject: "WK-1537"
+  }));
+  assert.equal(result.review_result.review_outcome, "changes_requested");
+  assert.equal("slice_lifecycle" in result, false);
+  assert.equal(lifecycleCalls, 0, "findings do not trigger integration, cleanup, revert, or reissue");
+});
+
+test("the trusted monitor lifecycle exposes cleanup only through an explicit orchestrator disposition", () => {
+  const calls = [];
+  const result = runRetainedSliceCleanupDisposition({
+    workspace: { dir: "/home/user/agent-chassis" },
+    run: { run_id: "run-worker", monitor_handle: "wkmh_worker", terminal: true },
+    disposition: "orchestrator-cancelled",
+    deps: {
+      releaseRetainedSlice: (input) => {
+        calls.push(input);
+        return { reaped: true, disposition: input.disposition };
+      }
+    }
+  });
+  assert.equal(result.reaped, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].runId, "run-worker.slice");
+  assert.equal(calls[0].workerTerminated, true);
+  assert.equal(calls[0].disposition, "orchestrator-cancelled");
+  assert.equal(calls[0].reviewResolved, true);
+
+  runRetainedSliceCleanupDisposition({
+    workspace: { dir: "/home/user/agent-chassis" },
+    run: { run_id: "run-worker", monitor_handle: "wkmh_worker", terminal: true },
+    disposition: "accepted-review",
+    reviewStatus: {
+      accepted: true,
+      terminal: true,
+      role: "reviewer",
+      review_result: { clean_review: true }
+    },
+    deps: { releaseRetainedSlice: (input) => { calls.push(input); return { reaped: true }; } }
+  });
+  assert.equal(calls[1].reviewResolved, true, "accepted cleanup consumes trusted structured clean-review evidence");
 });

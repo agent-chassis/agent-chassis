@@ -159,17 +159,36 @@ function resolveCommitGitIdentity(binding, workspaceDir) {
   return Object.freeze({ gitDir, workTree });
 }
 
-function normalizeWkRef(outputBranch) {
+function normalizeCommitRef(outputBranch) {
   const branch = trimmed(outputBranch);
   if (!branch) {
     throw new Error("commit binding lacks output_branch");
   }
-  return branch.startsWith("refs/heads/") ? branch : `refs/heads/${branch}`;
+  const ref = branch.startsWith("refs/heads/") ? branch : `refs/heads/${branch}`;
+  if (/^refs\/heads\/wk\/IN-\d{4}\/WK-\d{4}$/u.test(ref)) {
+    return Object.freeze({ kind: "wk", ref });
+  }
+  if (/^refs\/heads\/slice\/IN-\d{4}\/WK-\d{4}\/SLICE-\d{3}$/u.test(ref)) {
+    return Object.freeze({ kind: "slice", ref });
+  }
+  throw new Error("commit binding output_branch is outside the WK/slice exact-unit namespaces");
 }
 
 function resolveExpectedEnvelope(binding) {
   const value = binding.expected_envelope ?? binding.expectedEnvelope ?? binding.expected ?? null;
   return isPlainObject(value) ? value : null;
+}
+
+function resolveSparseBinding(binding) {
+  const hasSparseAuthority =
+    Object.prototype.hasOwnProperty.call(binding, "cone_dirs") ||
+    Object.prototype.hasOwnProperty.call(binding, "index_sparse");
+  if (!hasSparseAuthority) return null;
+  return Object.freeze({
+    base_sha: binding.base_sha,
+    cone_dirs: binding.cone_dirs,
+    index_sparse: binding.index_sparse
+  });
 }
 
 function resolveWriteScopeMatcher(workspaceDir, writeScope) {
@@ -244,14 +263,16 @@ export function registerWorkspaceCommitTool({
           }
         });
         const binding = admitted.binding;
-        const gitIdentity = resolveCommitGitIdentity(rawBinding ?? binding, workspace.dir);
-        const ref = normalizeWkRef(binding.output_branch);
+        const serverResolvedBinding = rawBinding ?? binding;
+        const gitIdentity = resolveCommitGitIdentity(serverResolvedBinding, workspace.dir);
+        const commitTarget = normalizeCommitRef(binding.output_branch);
 
         const materialized = materializeCommitObject({
           gitDir: gitIdentity.gitDir,
           workTree: gitIdentity.workTree,
           baseSha: binding.base_sha,
-          message: admitted.server_generated_message
+          message: admitted.server_generated_message,
+          sparseBinding: resolveSparseBinding(serverResolvedBinding)
         });
 
         const scope = verifyAndMeasureCommitScope({
@@ -260,7 +281,7 @@ export function registerWorkspaceCommitTool({
           commit: materialized.commit,
           tree: materialized.tree,
           writeScope: binding.write_scope,
-          expectedEnvelope: resolveExpectedEnvelope(rawBinding ?? binding),
+          expectedEnvelope: resolveExpectedEnvelope(serverResolvedBinding),
           deps: {
             resolveWriteScope(writeScope) {
               return resolveWriteScopeMatcher(workspace.dir, writeScope);
@@ -278,25 +299,42 @@ export function registerWorkspaceCommitTool({
           );
         }
 
-        const advanced = advanceWkRef({
-          gitDir: gitIdentity.gitDir,
-          ref,
-          baseSha: materialized.base_sha,
-          tree: materialized.tree,
-          commit: materialized.commit
-        });
+        let advanced;
+        if (commitTarget.kind === "slice") {
 
-        const transitionResult = await setWorkRecordStatusByUnit({
-          dir: workspace.dir,
-          unitAddress: assignedUnit,
-          status: "review"
-        });
-        const transition = createSubmitForReviewResponse(
-          workspace.repo,
-          assignedUnit,
-          transitionResult,
-          createCompactWorkRecordEditResponse
-        );
+          const { commitSliceRef } = await import("../../../agent-launch-cli/src/lib/slice-integration.mjs");
+          advanced = commitSliceRef({
+            repo: workspace.dir,
+            sliceRef: commitTarget.ref,
+            baseSha: materialized.base_sha,
+            tree: materialized.tree,
+            commit: materialized.commit
+          });
+        } else {
+          advanced = advanceWkRef({
+            gitDir: gitIdentity.gitDir,
+            ref: commitTarget.ref,
+            baseSha: materialized.base_sha,
+            tree: materialized.tree,
+            commit: materialized.commit
+          });
+        }
+
+        const transition = commitTarget.kind === "slice"
+          ? Object.freeze({
+              submitted: false,
+              status: "awaiting_worker_termination_and_wk_integration"
+            })
+          : createSubmitForReviewResponse(
+              workspace.repo,
+              assignedUnit,
+              await setWorkRecordStatusByUnit({
+                dir: workspace.dir,
+                unitAddress: assignedUnit,
+                status: "review"
+              }),
+              createCompactWorkRecordEditResponse
+            );
         return jsonContent(
           createCommitResponse(workspace.repo, assignedUnit, {
             commit: advanced.commit,

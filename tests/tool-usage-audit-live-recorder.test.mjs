@@ -4,7 +4,6 @@ import {
   createLiveMcpToolEvent,
   createLiveMcpToolUsageRecorder
 } from "../packages/wiki-mcp/src/lib/tool-usage-audit/live-recorder.mjs";
-import { compactToolUsageAuditAggregate } from "../packages/wiki-mcp/src/lib/tool-usage-audit/aggregate.mjs";
 
 test("live MCP event facts use the closed live source and redact args/results", () => {
   const fact = createLiveMcpToolEvent({
@@ -36,13 +35,7 @@ test("live MCP event facts use the closed live source and redact args/results", 
         final: "CHILD_AGENT_FINAL_PROSE_SHOULD_NOT_LEAK",
         file: "/home/user/private/output.txt"
       }
-    },
-    misuse: [
-      {
-        code: "high_output_option_without_compact_first",
-        replacement_family: "compact_or_summarized_output_first"
-      }
-    ]
+    }
   });
 
   assert.equal(fact.schema_version, "tool-usage-audit.v1");
@@ -65,15 +58,9 @@ test("live MCP event facts use the closed live source and redact args/results", 
   assert.equal(fact.event.response.result.byte_count > 0, true);
   assert.equal(fact.event.response.result.final, undefined);
   assert.deepEqual(fact.event.selected.selected_unit.canonical_ids, ["WK-1437#SLICE-016"]);
-  assert.deepEqual(fact.event.misuse_classifications, [
-    {
-      code: "high_output_option_without_compact_first",
-      replacement_family: "compact_or_summarized_output_first"
-    }
-  ]);
 });
 
-test("unknown live MCP origin is low confidence and not classified as misuse by default", () => {
+test("unknown live MCP origin is low confidence with unavailable response status", () => {
   const fact = createLiveMcpToolEvent({
     observedAt: "2026-07-08T00:00:00.000Z",
     toolName: "workspace_search",
@@ -90,7 +77,6 @@ test("unknown live MCP origin is low confidence and not classified as misuse by 
   assert.equal(fact.unsupported_gap_code, undefined);
   assert.equal(fact.event.origin.caller_kind, "unknown");
   assert.equal(fact.event.origin.session_kind, "unknown");
-  assert.deepEqual(fact.event.misuse_classifications, []);
   assert.equal(fact.event.response.truncated, "unavailable");
   assert.equal(fact.event.response.spilled, "unavailable");
   assert.equal(fact.event.response.refused, "unavailable");
@@ -125,7 +111,7 @@ test("live recorder keeps bounded in-memory events and exposes drop diagnostics"
   assert.equal(recorder.getEvents()[0].event.tool_name, "tool_two");
 });
 
-test("live recorder preserves WK-1438 exact guidance into compact aggregate guidance", () => {
+test("recordEvent returns the stored neutral fact and getEvents yields an isolated clone", () => {
   const recorder = createLiveMcpToolUsageRecorder({
     now: () => "2026-07-08T00:00:00.000Z"
   });
@@ -140,46 +126,16 @@ test("live recorder preserves WK-1438 exact guidance into compact aggregate guid
     response: {
       byte_count: 4096,
       result: { ok: true }
-    },
-    misuse: [
-      {
-        code: "high_output_option_without_compact_first",
-        replacement_family: "compact_or_summarized_output_first",
-        routing_intent_ref: "selected_work_record_context",
-        exact_recommended_call: {
-          tool_name: "workspace_read_page",
-          arguments: {
-            path: "wiki/work-records/WK-1437.json",
-            mode: "compact"
-          }
-        },
-        exact_recommended_call_provenance: {
-          source_kind: "wk1438_router_output",
-          tool_name: "workspace_tool_router_recommend",
-          router_output: true
-        }
-      }
-    ]
+    }
   });
 
   const [recordedFact] = recorder.getEvents();
   assert.deepEqual(recordedFact, fact);
-  assert.equal(
-    recordedFact.event.misuse_classifications[0].exact_recommended_call_provenance.source_kind,
-    "wk1438_router_output"
-  );
-  assert.equal(
-    recordedFact.event.misuse_classifications[0].exact_recommended_call_provenance.router_output,
-    true
-  );
-  assert.equal(recordedFact.event.misuse_classifications[0].exact_recommended_call.category, "object");
-
-  const aggregate = compactToolUsageAuditAggregate({ facts: recorder.getEvents() });
-  const guidance = aggregate.guidance.high_output_option_without_compact_first;
-  assert.equal(guidance.guidance_kind, "wk1438_router_exact");
-  assert.equal(guidance.replacement_family, "compact_or_summarized_output_first");
-  assert.equal(guidance.routing_intent_ref, "selected_work_record_context");
-  assert.equal(guidance.exact_recommended_call.category, "object");
+  assert.equal(recordedFact.event.tool_name, "workspace_read_page");
+  assert.equal(recordedFact.event.origin.caller_kind, "agent");
+  assert.equal(recordedFact.event.response.byte_count, 4096);
+  assert.equal(recordedFact.event.response.size_class, "small");
+  assert.equal(recordedFact.event.response.outcome, "returned");
 });
 
 test("observeToolCall preserves handler return values while recording bounded facts", async () => {

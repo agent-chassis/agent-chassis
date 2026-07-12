@@ -8,6 +8,7 @@ import {
   RUNTIME_BLOCKER_CATEGORY_VALUES,
   RUNTIME_BLOCKER_CODE_VALUES,
   RUNTIME_BLOCKER_DESCRIPTOR,
+  RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES,
   RUNTIME_BLOCKER_TAXONOMY_OWNER,
   RUNTIME_BLOCKER_TAXONOMY_SCHEMA_VERSION,
   WK_0532_BOOTSTRAP_SUBSET,
@@ -81,11 +82,43 @@ test("taxonomy descriptor declares every required stable code", () => {
     "graph_impact_unknown_state",
     "graph_impact_persistence_unavailable",
     "taxonomy_corpus_unavailable",
-    "operator_recovery_needed"
+    "operator_recovery_needed",
+    "managed_lifecycle_required",
+    "managed_worktree_provisioning_unavailable"
   ];
   for (const code of required) {
     assert.ok(isRuntimeBlockerCode(code), `taxonomy must declare code ${code}`);
     assert.ok(RUNTIME_BLOCKER_CODE_VALUES.includes(code));
+  }
+});
+
+test("managed lifecycle blockers have distinct stable categories and structured recovery", () => {
+  const lifecycle = getRuntimeBlockerEntry("managed_lifecycle_required");
+  const provisioning = getRuntimeBlockerEntry("managed_worktree_provisioning_unavailable");
+
+  assert.equal(lifecycle.category, "work_record_readiness");
+  assert.equal(provisioning.category, "backend");
+  assert.notEqual(lifecycle.category, provisioning.category);
+  assert.equal(lifecycle.blocking, true);
+  assert.equal(provisioning.blocking, true);
+  assert.equal(lifecycle.actor_recovery, "coordinator");
+  assert.equal(provisioning.actor_recovery, "operator");
+
+  for (const entry of [lifecycle, provisioning]) {
+    assert.deepEqual(entry.recovery?.kind, "structured_route");
+    assert.equal(entry.recovery?.route, "workspace_coordination_preflight");
+    const recovery = JSON.stringify(entry.recovery);
+    assert.doesNotMatch(recovery, /\b(?:shell|env|environment|wrapper|root)\b/i);
+  }
+});
+
+test("deferred managed runtime codes are not published", () => {
+  for (const code of [
+    "managed_attempt_state_unavailable",
+    "managed_controller_unavailable",
+    "managed_bootstrap_executor_unavailable"
+  ]) {
+    assert.equal(isRuntimeBlockerCode(code), false, `${code} remains deferred`);
   }
 });
 
@@ -103,6 +136,102 @@ test("every taxonomy entry has category and actor_recovery fields", () => {
       allowedActorRecovery.has(entry.actor_recovery),
       `${entry.code} actor_recovery ${entry.actor_recovery} must be in the controlled vocabulary`
     );
+  }
+});
+
+const WK_1509_REGISTERED_COMPACT_READ_LABELS = Object.freeze([
+  "compact_first_required",
+  "compact_read_token_missing",
+  "compact_read_token_malformed",
+  "compact_read_token_wrong_schema",
+  "compact_read_token_wrong_tool_family",
+  "compact_read_token_wrong_scope",
+  "compact_read_token_wrong_selector",
+  "compact_read_token_stale_source_digest",
+  "compact_read_token_expired",
+  "selected_slice_compact_detail_required",
+  "compact_read_selected_detail_required"
+]);
+
+const WK_1509_UNREGISTERED_COMPACT_READ_STATES = Object.freeze([
+  "compact_read_token_accepted",
+  "compact_read_not_required"
+]);
+
+test("RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES is the dispatch/launch allowlist and excludes read_disclosure nudge categories (WK-1509 B1)", () => {
+
+  assert.ok(
+    Array.isArray(RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES),
+    "RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES must be exported as an array"
+  );
+  assert.ok(
+    Object.isFrozen(RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES),
+    "the dispatch-facing allowlist must be frozen"
+  );
+  assert.ok(
+    !RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES.includes("read_disclosure"),
+    "read_disclosure is a self-recoverable nudge category and must be excluded from the dispatch-facing allowlist"
+  );
+
+  const expectedDispatchFacing = RUNTIME_BLOCKER_CATEGORY_VALUES.filter(
+    (category) => category !== "read_disclosure"
+  );
+  assert.deepEqual(
+    RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES.slice(),
+    expectedDispatchFacing,
+    "the dispatch-facing allowlist must equal the existing dispatch/launch category set"
+  );
+});
+
+test("caller_retry is a member of the actor_recovery controlled vocabulary (WK-1509 B3)", () => {
+  const actorRecovery = RUNTIME_BLOCKER_DESCRIPTOR.actor_recovery_values ?? [];
+  assert.ok(
+    actorRecovery.includes("caller_retry"),
+    "actor_recovery_values must include caller_retry"
+  );
+});
+
+test("refusal-facing compact-read labels are registered as read_disclosure / caller_retry / non-blocking nudge codes (WK-1509 B3)", () => {
+  for (const code of WK_1509_REGISTERED_COMPACT_READ_LABELS) {
+    const entry = getRuntimeBlockerEntry(code);
+    assert.ok(entry, `compact-read label ${code} must be registered in the taxonomy`);
+    assert.equal(entry.code, code);
+    assert.equal(
+      entry.category,
+      "read_disclosure",
+      `${code} must be categorized as read_disclosure`
+    );
+    assert.equal(
+      entry.actor_recovery,
+      "caller_retry",
+      `${code} must declare actor_recovery caller_retry`
+    );
+    assert.equal(entry.blocking, false, `${code} must be non-blocking`);
+
+    assert.ok(
+      typeof entry.detail === "string" && /corrected/i.test(entry.detail),
+      `${code} must carry the corrected-args semantics in its detail`
+    );
+  }
+
+  const readDisclosureCodes = RUNTIME_BLOCKER_DESCRIPTOR.codes
+    .filter((entry) => entry.category === "read_disclosure")
+    .map((entry) => entry.code);
+  assert.deepEqual(
+    readDisclosureCodes.slice().sort(),
+    WK_1509_REGISTERED_COMPACT_READ_LABELS.slice().sort(),
+    "read_disclosure category must contain exactly the WK-1509 compact-read label set"
+  );
+});
+
+test("transient/accepted compact-read states are NOT registered as reason labels (WK-1509 B3)", () => {
+  for (const code of WK_1509_UNREGISTERED_COMPACT_READ_STATES) {
+    assert.equal(
+      isRuntimeBlockerCode(code),
+      false,
+      `transient/accepted state ${code} must not be registered as a taxonomy code`
+    );
+    assert.equal(getRuntimeBlockerEntry(code), null);
   }
 });
 

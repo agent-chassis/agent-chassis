@@ -2,6 +2,7 @@ import { runAdoption } from "./commands/adoption.mjs";
 import { runAllocateId } from "./commands/allocate-id.mjs";
 import { runBootstrap } from "./commands/bootstrap.mjs";
 import { runCreate } from "./commands/create.mjs";
+import { runDecision } from "./commands/decision.mjs";
 import { runDocsPolicy } from "./commands/docs-policy.mjs";
 import { runGenerate } from "./commands/generate.mjs";
 import { runLint } from "./commands/lint.mjs";
@@ -28,6 +29,7 @@ Commands:
   sync-contract      Sync shared templates and contract metadata into a repo
   allocate-id        Reserve the next identifier for a core wiki type
   create             Create a new wiki record
+  decision           Human-only DEC ratification (ratify/unratify a proposed<->accepted; operator shell only)
   lint               Validate a repository against the shared contract
   generate           Generate standard non-canonical wiki views
   build-search-index Build the shared lexical wiki/docs search index
@@ -56,6 +58,8 @@ Examples:
   wiki create decision "Standardize cross-repo links" --dir /path/to/repo
   wiki create issue "Honor reserved IDs during record creation" --id WK-0005 --dir /path/to/repo
   wiki create issue "Emit canonical JSON work records" --dir /path/to/repo
+  wiki decision ratify --id DEC-0001 --dir /path/to/repo
+  wiki decision unratify --id DEC-0001 --dir /path/to/repo
   wiki lint --dir /path/to/repo
   wiki generate --dir /path/to/repo --profile research --extensions organizations,people,themes
   wiki build-search-index --dir /path/to/repo
@@ -109,6 +113,9 @@ export async function run(argv) {
       return;
     case "create":
       await runCreate(rest);
+      return;
+    case "decision":
+      await runDecision(rest);
       return;
     case "lint":
       await runLint(rest);

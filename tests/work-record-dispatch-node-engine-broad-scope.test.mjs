@@ -235,6 +235,7 @@ test("a too-broad dashboard slice sends selected-unit broad-scope facts and is d
         "max_write_file_loc",
         "validation_command_count",
         "write_scope_count",
+        "write_scope_test_count",
         "write_scope_total_loc"
       ]
     );

@@ -181,6 +181,15 @@ WK is independently executable. A request to "start", "run", or "get a worker
 started" is a dispatch request, not a request to draft a prompt or use a shell
 wrapper.
 
+For normal `workspace_agent_dispatch` calls, pass only `{ role, subject }`.
+The launcher reads the selected role's model from repo-root `agent-launch.toml`
+on every dispatch and derives app/backend through the neutral model registry.
+Typed `app` and `model` are explicit per-dispatch overrides only; use them only
+when the user explicitly requests an override. If role config is missing,
+malformed, or unknown, report the actionable configuration refusal and fix the
+operator-owned config rather than selecting a family, adding a fallback, or
+supplying inline environment policy.
+
 Dispatch is not fire-and-forget: monitor the role session until completion, then
 read the result, handle blockers or nonzero exits, and record durable conclusions
 in the relevant WK, IN, docs, or decisions. Distinguish runtime/environment

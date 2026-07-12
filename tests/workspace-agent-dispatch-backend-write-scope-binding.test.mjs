@@ -287,7 +287,7 @@ test("WK-1176 SLICE-007 codex worker: setup-invalid inputs refuse with launch_re
         workspace_dir: "/tmp/repo",
         readiness: { dispatchable: true, decision_code: "dispatchable_ready" }
       },
-      reason: "app_required"
+      reason: "worker_model_unset"
     },
     {
       label: "unsupported app",

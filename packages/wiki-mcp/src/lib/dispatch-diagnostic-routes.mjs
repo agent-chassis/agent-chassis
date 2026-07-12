@@ -23,6 +23,92 @@ import {
   compactRuntimeBlockerTaxonomy
 } from "./dispatch-tool-helpers.mjs";
 
+const CAPABILITY_FRESHNESS_FRESH = "fresh";
+
+export const MANAGED_LIFECYCLE_CAPABILITY_NAMES = Object.freeze([
+  "structured_dispatch",
+  "native_edit",
+  "repository_read_boundary",
+  "commit",
+  "managed_worktree_provisioning",
+  "slice_to_wk_integration",
+  "wk_context_review",
+  "validation_ownership",
+  "automatic_main_promotion"
+]);
+
+const CAPABILITY_RECOVERY = Object.freeze({
+  kind: "structured_route",
+  route: "workspace_coordination_preflight",
+  arguments: Object.freeze({ role: "coordinator", target_dispatch_role: "worker" })
+});
+
+const CAPABILITY_BLOCKER = Object.freeze({
+  structured_dispatch: "missing_structured_transport",
+  native_edit: "managed_lifecycle_required",
+  repository_read_boundary: "managed_lifecycle_required",
+  commit: "managed_lifecycle_required",
+  managed_worktree_provisioning: "managed_worktree_provisioning_unavailable",
+  slice_to_wk_integration: "managed_lifecycle_required",
+  wk_context_review: "managed_lifecycle_required",
+  validation_ownership: "missing_structured_transport",
+  automatic_main_promotion: "managed_lifecycle_required"
+});
+
+function runtimeRouteFact(registeredToolNames, route) {
+  return {
+    available: registeredToolNames instanceof Set && registeredToolNames.has(route),
+    source: `mcp.runtime_registration.${route}`,
+    freshness: { state: CAPABILITY_FRESHNESS_FRESH, basis: "live_server_registration" }
+  };
+}
+
+function normalizeCapabilityFact(name, fact) {
+  const freshnessState = fact?.freshness?.state ?? "unknown";
+  const authoritative = typeof fact?.source === "string" && fact.source.length > 0;
+  const fresh = freshnessState === CAPABILITY_FRESHNESS_FRESH;
+  const available = authoritative && fresh && fact?.available === true;
+  return {
+    name,
+    available,
+    status: available ? "available" : fresh && authoritative && fact?.available === false
+      ? "unavailable"
+      : freshnessState === "stale"
+        ? "stale"
+        : "unknown",
+    authority: {
+      source: authoritative ? fact.source : null,
+      freshness: {
+        state: freshnessState,
+        basis: fact?.freshness?.basis ?? null
+      }
+    },
+    blockers: available ? [] : [CAPABILITY_BLOCKER[name]],
+    recovery: available ? null : CAPABILITY_RECOVERY
+  };
+}
+
+export function projectManagedLifecycleCapabilities({
+  registeredToolNames,
+  isPaidTier = false,
+  authorityFacts = {}
+} = {}) {
+  const facts = {
+    structured_dispatch: runtimeRouteFact(registeredToolNames, AGENT_DISPATCH_TOOL_NAME),
+    validation_ownership: runtimeRouteFact(registeredToolNames, "workspace_run_validation"),
+    ...authorityFacts
+  };
+  return {
+    schema_version: "managed-lifecycle-capabilities.v1",
+    enforcement: isPaidTier
+      ? { tier: "paid_cce", mode: "cce_enforced", audit_grade: true }
+      : { tier: "free_local", mode: "free_substrate", audit_grade: false },
+    planes: MANAGED_LIFECYCLE_CAPABILITY_NAMES.map((name) =>
+      normalizeCapabilityFact(name, facts[name])
+    )
+  };
+}
+
 function resolveCoordinationPreflightWorkspace(resolveWorkspaceRepo, workspaceRepos, repo) {
   if (repo || workspaceRepos?.currentAlias) {
     return resolveWorkspaceRepo(workspaceRepos, repo);
@@ -46,7 +132,9 @@ export function registerDiagnosticRoutes(ctx) {
     errorContent,
     resolveWorkspaceRepo,
     graphImpactPersistenceAvailable,
-    dispatchReviewerAvailable
+    dispatchReviewerAvailable,
+    dispatchBackend,
+    isPaidTier
   } = ctx;
 
   registerTool(
@@ -93,7 +181,7 @@ export function registerDiagnosticRoutes(ctx) {
     "workspace_coordination_preflight",
     {
       description:
-        "Report the coordinator/orchestrator preflight envelope: role/caller/target roles, subject, repo mount + docs/ + wiki/ writability, dispatch/reviewer/redteam/validate-dispatch availability, surface counts, the active blocker list (codes + diagnostics), writeback classification, and next_action. Default output is compact (booleans and counts); pass verbose:true for the full route list, write-surface arrays, write_policy roots, and filesystem_diagnostics — actionable blocker diagnostics are never hidden. The optional target_dispatch_role lets a coordinator preflight a worker dispatch (role=coordinator, target_dispatch_role=worker) without claiming a worker caller role, so a read-only orchestrator repo root is not misread as a direct-write blocker. Read-only, with write-probes only inside docs/ and wiki/ (probe dirs removed before returning); caller-supplied identity carriers are refused and the dispatch-identity bootstrap state is returned.",
+        "Report the coordinator/orchestrator preflight envelope: role/caller/target roles, subject, repo mount + docs/ + wiki/ writability, dispatch/reviewer/redteam/validate-dispatch availability, the independently sourced managed-lifecycle capability planes with freshness and stable blockers, surface counts, the active blocker list (codes + diagnostics), writeback classification, and next_action. Default output is compact (booleans and counts); pass verbose:true for the full route list, write-surface arrays, write_policy roots, and filesystem_diagnostics — actionable blocker diagnostics are never hidden. The optional target_dispatch_role lets a coordinator preflight a worker dispatch (role=coordinator, target_dispatch_role=worker) without claiming a worker caller role, so a read-only orchestrator repo root is not misread as a direct-write blocker. Read-only, with write-probes only inside docs/ and wiki/ (probe dirs removed before returning); caller-supplied identity carriers are refused and the dispatch-identity bootstrap state is returned.",
       inputSchema: {
         verbose: z.boolean().optional(),
         repo: z.string().optional(),
@@ -187,8 +275,17 @@ export function registerDiagnosticRoutes(ctx) {
           mcp_dispatch_reviewer_available: reviewerAvailable,
           graph_impact_persistence_available: graphImpactPersistence
         };
+        const authorityFacts =
+          typeof dispatchBackend?.getManagedLifecycleCapabilityAuthorityFacts === "function"
+            ? await dispatchBackend.getManagedLifecycleCapabilityAuthorityFacts()
+            : {};
+        const capabilities = projectManagedLifecycleCapabilities({
+          registeredToolNames,
+          isPaidTier,
+          authorityFacts
+        });
         if (args?.verbose === true) {
-          return jsonContent({ ...fullEnvelope, verbose: true });
+          return jsonContent({ ...fullEnvelope, capabilities, verbose: true });
         }
 
         const routes = Array.isArray(preflight.available_structured_routes)
@@ -229,7 +326,8 @@ export function registerDiagnosticRoutes(ctx) {
           next_action: preflight.next_action,
           bootstrap_review: bootstrap,
           mcp_dispatch_reviewer_available: reviewerAvailable,
-          graph_impact_persistence_available: graphImpactPersistence
+          graph_impact_persistence_available: graphImpactPersistence,
+          capabilities
         });
       } catch (error) {
         return errorContent(error);

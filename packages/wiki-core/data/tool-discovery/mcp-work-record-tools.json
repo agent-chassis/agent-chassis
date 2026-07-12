@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "mcp-work-record-tools.json",
   "summary": "MCP work-record evidence and review-result recording tools.",
-  "tool_count": 3,
+  "tool_count": 12,
   "tools": [
     {
       "tool_name": "workspace_record_graph_impact_evidence",
@@ -143,6 +143,384 @@
         "packages/wiki-core/src/operations/work-record-review-results.mjs"
       ],
       "notes": "Agent-safe MCP route for recording coordination-only review-result evidence onto a WK or slice when a trusted reviewer or redteam run yields `changes_requested` role-result evidence or structured missing-result/runtime-failure evidence. Keeps this surface distinct from accepted/no-findings review attestation and from completion-satisfying review evidence. Binds the selected unit to the canonical record and source_digest and derives facts from launcher/backend-minted run status, not caller prose, shell output, or raw final_result bodies. Records evidence only: it does not write accepted_authorities[], does not locally convert needs_review to admit, and does not replace Chassis Control Engine admission-time review validation."
+    },
+    {
+      "tool_name": "workspace_decision_create",
+      "display_name": "Workspace create decision",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_decision_create",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 120,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "wiki/decisions/DEC-0134.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
+        "packages/wiki-core/src/operations/create.mjs"
+      ],
+      "notes": "Free-tier agent-callable MCP route that creates (births) a new decision (`DEC-*`) record through the shared allocator/birth path (no caller-supplied filesystem root). The new DEC is born status='proposed', seeded to its decision.v1 required fields, and written as canonical `.json` with the `.md` projection in lockstep; returns the compact born-record envelope. Identity/provenance is server-resolved (there is no actor input). DEC-0152 posture: agents DRAFT decisions but cannot ratify - `create` mints a `proposed` DEC and `amend` edits a `proposed` DEC, neither can set `status`; making a decision binding (`proposed`->`accepted`) is a HUMAN-ONLY operator action (the `wiki decision ratify` CLI once it ships; operator-only in the interim), not an agent tool. To get a decision ratified, finish the `proposed` draft and ask the operator to ratify it."
+    },
+    {
+      "tool_name": "workspace_decision_amend_section",
+      "display_name": "Workspace amend decision section",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_decision_amend_section",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 121,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "wiki/decisions/DEC-0134.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
+        "packages/wiki-core/src/operations/kind-record-edit.mjs"
+      ],
+      "notes": "Free-tier agent-callable MCP route that amends one declared body section (`section`/`value`) of a decision (`DEC-*`) record by id through the validated kind-record persistence path, honoring an optional expected_source_digest for stale-write protection. Identity is server-resolved (there is no actor input). DEC-0152 posture: agents DRAFT decisions but cannot ratify - `amend` edits a `proposed` DEC and cannot set `status`; making a decision binding (`proposed`->`accepted`) is a HUMAN-ONLY operator action (the `wiki decision ratify` CLI once it ships; operator-only in the interim), not an agent tool. To get a decision ratified, finish the `proposed` draft and ask the operator to ratify it."
+    },
+    {
+      "tool_name": "workspace_decision_amend_scalar",
+      "display_name": "Workspace amend decision scalar",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_decision_amend_scalar",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 122,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "wiki/decisions/DEC-0134.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
+        "packages/wiki-core/src/operations/kind-record-edit.mjs"
+      ],
+      "notes": "Free-tier agent-callable MCP route that amends one controlled top-level scalar field (`field`/`value`) of a decision (`DEC-*`) record by id through the validated kind-record persistence path, honoring an optional expected_source_digest for stale-write protection. Lifecycle/provenance-managed fields (status/ratified/updated) are refused; identity is server-resolved (there is no actor input). DEC-0152 posture: agents DRAFT decisions but cannot ratify - `amend` edits a `proposed` DEC and cannot set `status` (the `status`/`ratified` fields are refused); making a decision binding (`proposed`->`accepted`) is a HUMAN-ONLY operator action (the `wiki decision ratify` CLI once it ships; operator-only in the interim), not an agent tool. To get a decision ratified, finish the `proposed` draft and ask the operator to ratify it."
+    },
+    {
+      "tool_name": "workspace_decision_ratify",
+      "display_name": "Workspace ratify decision",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_decision_ratify",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 123,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "wiki/decisions/DEC-0134.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
+        "packages/wiki-core/src/operations/kind-record-edit.mjs"
+      ],
+      "notes": "Operator-only human ratification action that flips a decision (`DEC-*`) record `proposed`->`accepted` by id, stamping who/when provenance through the validated kind-record persistence path and honoring an optional expected_source_digest. DEC-0152 posture: this is a HUMAN-ONLY action - agents are denied by the session-role access policy (operator-only), and there is no agent ratify tool. It is being superseded by the `wiki decision ratify` CLI (WK-1512), which becomes the only path to `accepted`; an agent gets a decision ratified by finishing the `proposed` draft and asking the operator to ratify it."
+    },
+    {
+      "tool_name": "workspace_decision_unratify",
+      "display_name": "Workspace unratify decision",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_decision_unratify",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 124,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "wiki/decisions/DEC-0134.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
+        "packages/wiki-core/src/operations/kind-record-edit.mjs"
+      ],
+      "notes": "Operator-only human action that unratifies a decision (`DEC-*`) record `accepted`->`proposed` by id, clearing the ratification provenance and stamping who/when through the validated kind-record persistence path, honoring an optional expected_source_digest. DEC-0152 posture: this is a HUMAN-ONLY action - agents are denied by the session-role access policy (operator-only), and there is no agent unratify tool. It is being superseded by the `wiki decision unratify` CLI (WK-1512); an agent that needs to revise an accepted decision asks the operator to unratify it back to `proposed`, then edits the draft via the agent create/amend tools."
+    },
+    {
+      "tool_name": "workspace_decision_reject",
+      "display_name": "Workspace reject decision",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_decision_reject",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 128,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "wiki/decisions/DEC-0155.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
+        "packages/wiki-core/src/operations/kind-record-edit.mjs"
+      ],
+      "notes": "Free-tier agent-callable MCP route that performs the single agent-legitimate decision (`DEC-*`) status transition `proposed`->`rejected` by id - an agent declining (rejecting) its own never-accepted draft - through the validated kind-record persistence path, honoring an optional expected_source_digest. It refuses any source status other than `proposed` (an agent cannot `reject` an `accepted` DEC as a backdoor unlock). DEC-0155 posture: DEC lifecycle authority is symmetric - agents own the `proposed` lane (create, edit every field/section, and this one `proposed`->`rejected` transition), while every transition conferring or removing `accepted` authority (ratify, unratify, and the retirement transitions superseded/expired/deprecated) stays human-only CLI. This is the ONLY agent-callable DEC status transition."
+    },
+    {
+      "tool_name": "workspace_initiative_create",
+      "display_name": "Workspace create initiative",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_initiative_create",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 125,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "wiki/decisions/DEC-0134.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
+        "packages/wiki-core/src/operations/create.mjs"
+      ],
+      "notes": "Free-tier agent-callable MCP route that creates (births) a new initiative (`IN-*`) record through the shared allocator/birth path (no caller-supplied filesystem root). The new IN is born as a draft, seeded to its initiative.v1 required fields, and written as canonical `.json` with the `.md` projection in lockstep; returns the compact born-record envelope. Identity/provenance is server-resolved (there is no actor input). DEC-0152 posture: initiatives are out of scope for the DEC lockdown - agents keep drafting initiatives freely (initiatives stay agent-writable), and the DEC ratify/unratify human-only ratification does not apply to initiatives."
+    },
+    {
+      "tool_name": "workspace_initiative_amend_section",
+      "display_name": "Workspace amend initiative section",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_initiative_amend_section",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 126,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "wiki/decisions/DEC-0134.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
+        "packages/wiki-core/src/operations/kind-record-edit.mjs"
+      ],
+      "notes": "Free-tier agent-callable MCP route that amends one declared body section (`section`/`value`) of an initiative (`IN-*`) record by id through the validated kind-record persistence path, honoring an optional expected_source_digest for stale-write protection. Identity is server-resolved (there is no actor input). DEC-0152 posture: initiatives are out of scope for the DEC lockdown - agents keep amending initiatives freely (initiatives stay agent-writable), and the DEC ratify/unratify human-only ratification does not apply to initiatives."
+    },
+    {
+      "tool_name": "workspace_initiative_amend_scalar",
+      "display_name": "Workspace amend initiative scalar",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_initiative_amend_scalar",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 127,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "wiki/decisions/DEC-0134.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
+        "packages/wiki-core/src/operations/kind-record-edit.mjs"
+      ],
+      "notes": "Free-tier agent-callable MCP route that amends one controlled top-level scalar field (`field`/`value`) of an initiative (`IN-*`) record by id through the validated kind-record persistence path, honoring an optional expected_source_digest for stale-write protection. Lifecycle/provenance-managed fields (status/updated) are refused; identity is server-resolved (there is no actor input). DEC-0152 posture: initiatives are out of scope for the DEC lockdown - agents keep amending initiatives freely (initiatives stay agent-writable), and the DEC ratify/unratify human-only ratification does not apply to initiatives."
     }
   ]
 }

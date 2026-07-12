@@ -9,8 +9,8 @@ specific mechanism count, disposition vocabulary, or file changes, this page's
 principles should still hold — if they don't, the principle was wrong, not the
 enumeration.
 
-Ratification surface: `decision` (sandbox fail-open) and `decision` (separate
-authorization from controlled execution) are the accepted/proposed boundaries
+Ratification surface: `decision` / `decision` (enforcement posture + recording) and `decision` (separate
+authorization from controlled execution) are the accepted boundaries
 this model underlies.
 
 ## Threat-model baseline: better than full privileges, not perfect

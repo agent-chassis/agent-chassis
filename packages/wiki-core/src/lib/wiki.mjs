@@ -1,8 +1,13 @@
 
 
 import { mkdtemp, readdir, rename, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { loadManifest } from "./contract.mjs";
+import {
+  getKindRecordPath,
+  writeValidatedKindRecord
+} from "./kind-record-store.mjs";
 import {
   WORK_RECORD_SCHEMA_VERSION,
   canonicalizeWorkRecordReadScope,
@@ -154,6 +159,72 @@ function buildCreatedIssueWorkRecord({ id, title, date, repo }) {
   };
 }
 
+function buildCreatedDecisionRecord({ id, title, date, actor }) {
+  return {
+    id,
+    record_kind: "decision",
+    title,
+    status: "proposed",
+    date,
+    owners: [],
+    updated: date,
+    updated_by: actor,
+    sections: {
+      context: "",
+      decision: "",
+      consequences: ""
+    }
+  };
+}
+
+function buildCreatedInitiativeRecord({ id, title, date, actor }) {
+  return {
+    id,
+    record_kind: "initiative",
+    title,
+    status: "todo",
+    priority: "medium",
+    owner: "unassigned",
+    created: date,
+    updated: date,
+    updated_by: actor,
+    sections: {
+      summary: "",
+      goals: "",
+      milestones: ""
+    }
+  };
+}
+
+async function writeCreatedKindRecord({ targetDir, recordId, kind, record }) {
+  const jsonRelativeFile = await getKindRecordPath(kind, recordId);
+  if (!jsonRelativeFile) {
+    throw new Error(`Cannot resolve canonical path for ${kind} ${recordId}`);
+  }
+  const markdownRelativeFile = jsonRelativeFile.replace(/\.json$/, ".md");
+  const jsonAbsoluteFile = path.join(targetDir, jsonRelativeFile);
+  const markdownAbsoluteFile = path.join(targetDir, markdownRelativeFile);
+
+  if (await pathExists(jsonAbsoluteFile)) {
+    throw new Error(`Canonical record already exists: ${jsonRelativeFile}`);
+  }
+
+  const result = await writeValidatedKindRecord({ repoRoot: targetDir, record });
+  if (!result.ok || !result.written) {
+    const message = (result.diagnostics ?? [])
+      .map((diagnostic) => diagnostic.message)
+      .join("; ");
+    throw new Error(`Invalid created ${kind} record: ${message}`);
+  }
+
+  return {
+    markdownRelativeFile,
+    markdownAbsoluteFile,
+    jsonRelativeFile,
+    jsonAbsoluteFile
+  };
+}
+
 function validateCreatedWorkRecord(record, sourcePath) {
   const diagnostics = validateWorkRecord(record, { sourcePath });
   if (diagnostics.length > 0) {
@@ -229,15 +300,24 @@ export async function createRecord({ targetDir, type, title, id = null, repo = n
 
       const idValue = requestedId ? parseAllocatedIdValue(requestedId, definition) : nextValue;
       const recordId = formatAllocatedId(definition, idValue);
-      const issueRecord = normalizedType === "issue"
-        ? buildCreatedIssueWorkRecord({ id: recordId, title, date, repo })
-        : null;
 
-      const createdPaths = issueRecord
+      const actor = os.userInfo().username;
+
+      const createdPaths = normalizedType === "issue"
         ? await writeAllocatedIssueRecord({
             targetDir,
             recordId,
-            record: issueRecord
+            record: buildCreatedIssueWorkRecord({ id: recordId, title, date, repo })
+          })
+        : normalizedType === "decision" || normalizedType === "initiative"
+        ? await writeCreatedKindRecord({
+            targetDir,
+            recordId,
+            kind: normalizedType,
+            record:
+              normalizedType === "decision"
+                ? buildCreatedDecisionRecord({ id: recordId, title, date, actor })
+                : buildCreatedInitiativeRecord({ id: recordId, title, date, actor })
           })
         : await (async () => {
             const rendered = await renderTemplate({
