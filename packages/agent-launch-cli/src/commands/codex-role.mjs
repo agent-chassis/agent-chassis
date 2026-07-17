@@ -294,11 +294,18 @@ export async function buildCodexRolePlan({
   provisionedWorktreeGitIdentity = null,
   provisioned_worktree_git_binding = null,
   provisioned_worktree_git_identity = null,
+  worker_scope_authority = null,
+  worktree_provisioning = null,
+
+  hostWriteAuthorityEndpoint = null,
   sourceToolSurface = null,
   headless = false,
   logFile = null,
 
-  terminalStructuredRoleResultMode = undefined
+  terminalStructuredRoleResultMode = undefined,
+
+  config_root_dir = null,
+  trusted_frozen_review_contract = null
 } = {}) {
   const normalizedRole = normalizeRole(role);
   if (normalizedRole === "orch" || normalizedRole === "orch-resume") {
@@ -334,12 +341,16 @@ export async function buildCodexRolePlan({
       provisionedWorktreeGitBinding,
       provisionedWorktreeGitIdentity,
       provisioned_worktree_git_binding,
-      provisioned_worktree_git_identity
+      provisioned_worktree_git_identity,
+      worker_scope_authority,
+      worktree_provisioning,
+      hostWriteAuthorityEndpoint
     });
     if (workerPlan && typeof workerPlan === "object" && workerPlan.mode !== "refusal") {
+      const managedMainRepo = workerPlan.worktree_provisioning?.main_repo ?? null;
       const workspaceMcpEnvOverrides = buildCodexWorkspaceMcpEnvOverrides({
         workspaceAlias,
-        workspaceDir,
+        workspaceDir: managedMainRepo ?? workspaceDir,
         dispatchWorktreeRoot
       }).filter((override) =>
         !override.startsWith(`mcp_servers.${CODEX_WIKI_MCP_SERVER_NAME}.env.${WIKI_MCP_TOOL_PROFILE_ENV_VAR}=`)
@@ -364,7 +375,9 @@ export async function buildCodexRolePlan({
       role: normalizedRole,
       subject,
       cwd,
-      workspaceDir
+      workspaceDir,
+
+      frozenReviewContract: trusted_frozen_review_contract
     });
     const reviewPlan = await buildReadOnlyPlan({
       role: normalizedRole,
@@ -377,6 +390,8 @@ export async function buildCodexRolePlan({
       workspaceDir,
       dispatchWorktreeRoot,
       terminalStructuredRoleResultMode,
+
+      canonicalRepo: config_root_dir,
       ...acceptance
     });
     if (typeof dispatchWorktreeRoot === "string" && dispatchWorktreeRoot.length > 0) {
@@ -412,7 +427,7 @@ export async function buildCodexRolePlan({
   throw new Error(`Unknown codex role: ${role}\n\n${HELP_TEXT}`);
 }
 
-async function resolveCodexReadOnlyAcceptance({ role, subject, cwd, workspaceDir }) {
+async function resolveCodexReadOnlyAcceptance({ role, subject, cwd, workspaceDir, frozenReviewContract = null }) {
   if (typeof subject !== "string" || !subject.startsWith("WK-")) {
     return {};
   }
@@ -421,7 +436,9 @@ async function resolveCodexReadOnlyAcceptance({ role, subject, cwd, workspaceDir
     role,
     subject,
     workspaceDir: repo,
-    loadWorkRecord: loadWorkRecordById
+    loadWorkRecord: loadWorkRecordById,
+
+    frozenReviewContract
   });
 }
 

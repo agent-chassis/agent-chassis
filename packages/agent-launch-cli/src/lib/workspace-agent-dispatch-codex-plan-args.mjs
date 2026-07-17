@@ -31,7 +31,14 @@ export function buildCodexDispatchWorkerPlanArgs({
   terminalStructuredRoleResultMode,
   dispatchWorktreeRoot = null,
   provisionedWorktreeGitBinding = null,
-  provisioned_worktree_git_binding = null
+  provisioned_worktree_git_binding = null,
+  worker_scope_authority = null,
+  worktree_provisioning = null,
+
+  hostWriteAuthorityEndpoint = null,
+
+  configRootDir = null,
+  trustedFrozenReviewContract = null
 }) {
   const planArgs = {
     role,
@@ -47,6 +54,21 @@ export function buildCodexDispatchWorkerPlanArgs({
     sourceToolSurface,
     terminalStructuredRoleResultMode
   };
+  if (worker_scope_authority !== null) {
+    planArgs.worker_scope_authority = worker_scope_authority;
+  }
+  if (worktree_provisioning !== null) {
+    planArgs.worktree_provisioning = worktree_provisioning;
+  }
+  if (typeof hostWriteAuthorityEndpoint === "string" && hostWriteAuthorityEndpoint.length > 0) {
+    planArgs.hostWriteAuthorityEndpoint = hostWriteAuthorityEndpoint;
+  }
+  if (typeof configRootDir === "string" && configRootDir.length > 0) {
+    planArgs.config_root_dir = configRootDir;
+  }
+  if (trustedFrozenReviewContract !== null && trustedFrozenReviewContract !== undefined) {
+    planArgs.trusted_frozen_review_contract = trustedFrozenReviewContract;
+  }
   const serverProvisionedWorktreeGitBinding = resolveProvisionedWorktreeGitBinding({
     provisionedWorktreeGitBinding,
     provisioned_worktree_git_binding

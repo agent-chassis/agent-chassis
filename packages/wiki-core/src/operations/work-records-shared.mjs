@@ -4,8 +4,14 @@ import { normalizeStructuralTargetMetrics } from "../lib/work-record-target-metr
 import { resolveStructuralTargetResolverEvidenceFromExpectedEditTarget } from "../lib/work-record-target-resolver.mjs";
 import { SLICE_ID_PATTERN } from "../lib/work-record-schema-constants.mjs";
 
-const WORK_RECORD_LOCAL_TARGET_RESOLVER_PROVIDER = Object.freeze({
+const WORK_RECORD_LOCAL_TARGET_FUNCTION_RESOLVER_PROVIDER = Object.freeze({
   id: "portfolio-local.target-function-resolver",
+  version: "0.1.0",
+  mode: "local"
+});
+
+const WORK_RECORD_LOCAL_AGGREGATE_TARGET_RESOLVER_PRODUCER = Object.freeze({
+  id: "portfolio-local.target-resolver",
   version: "0.1.0",
   mode: "local"
 });
@@ -37,26 +43,22 @@ function buildLocalTargetResolutionEvidence({
         source_text: sourceText,
         source_record_digest: sourceRecordDigest,
         selected_unit: selectedUnit,
-        provider: WORK_RECORD_LOCAL_TARGET_RESOLVER_PROVIDER
+        provider: WORK_RECORD_LOCAL_TARGET_FUNCTION_RESOLVER_PROVIDER
       },
       { hasExpectedEditTargets: true }
     );
   });
 
-  const allTargetsBound =
+  const allTargetsEvaluated =
     entries.length > 0 &&
-    entries.every(
-      (entry) =>
-        entry.target_resolution_status === "resolved" ||
-        entry.target_resolution_status === "not_applicable"
-    );
+    entries.every((entry) => entry.target_resolution_status !== "provider_unavailable");
 
   return {
-    status: allTargetsBound ? "present" : "degraded",
+    status: allTargetsEvaluated ? "present" : "degraded",
     source_record_digest: sourceRecordDigest,
     selected_unit: selectedUnit,
 
-    ...(allTargetsBound ? { producer: WORK_RECORD_LOCAL_TARGET_RESOLVER_PROVIDER } : {}),
+    ...(allTargetsEvaluated ? { producer: WORK_RECORD_LOCAL_AGGREGATE_TARGET_RESOLVER_PRODUCER } : {}),
     targets: entries
   };
 }

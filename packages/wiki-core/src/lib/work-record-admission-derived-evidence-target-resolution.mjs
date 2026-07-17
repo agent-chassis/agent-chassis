@@ -22,6 +22,15 @@ export function createBoundTargetResolutionEvidence(structuralTargetMetrics, { s
   const selectedUnitValue = cloneJson(selectedUnit ?? metricSourceProvenance.selected_unit ?? null);
   const sourceRecordDigestValue =
     normalizeStringEntry(sourceRecordDigest) ?? normalizeStringEntry(metricSourceProvenance.source_record_digest) ?? null;
+
+  const perTargetProvider = (entry) =>
+    entry.provider || entry.provider_version || entry.provider_mode
+      ? {
+          id: entry.provider ?? null,
+          version: entry.provider_version ?? null,
+          mode: entry.provider_mode ?? null
+        }
+      : null;
   const expectedEditTargets = Array.isArray(structuralTargetMetrics.targets)
     ? structuralTargetMetrics.targets.map((entry) => ({
         path: entry.path ?? null,
@@ -32,7 +41,11 @@ export function createBoundTargetResolutionEvidence(structuralTargetMetrics, { s
         resolution_status: entry.resolution_status ?? null,
         resolution_reason: entry.resolution_reason ?? null,
         provider: entry.provider ?? null,
-        span: cloneJson(entry.span ?? null)
+        provider_version: entry.provider_version ?? null,
+        provider_mode: entry.provider_mode ?? null,
+        span: cloneJson(entry.span ?? null),
+        fanout: cloneJson(entry.fanout ?? null),
+        candidates: Array.isArray(entry.candidates) ? cloneJson(entry.candidates) : []
       }))
     : [];
   const resolverTargets = Array.isArray(structuralTargetMetrics.targets)
@@ -43,9 +56,10 @@ export function createBoundTargetResolutionEvidence(structuralTargetMetrics, { s
           name: entry.name ?? null,
           operation: entry.operation ?? null
         },
-        provider: cloneJson(metricSourceProvenance.producer ?? null),
+        provider: perTargetProvider(entry),
         resolution_status: entry.resolution_status ?? null,
         target_resolution_status: entry.resolution_status ?? null,
+        target_resolution_provider: perTargetProvider(entry),
         target_resolution_evidence_status: entry.evidence?.status ?? structuralTargetMetrics.target_resolution_evidence_status ?? "degraded",
         target_resolution_status_reason: entry.resolution_reason ?? structuralTargetMetrics.target_resolution_status_reason ?? null,
         span: cloneJson(entry.span ?? null),

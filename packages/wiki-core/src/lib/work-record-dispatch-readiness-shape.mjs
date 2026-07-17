@@ -6,6 +6,25 @@ import { collectDerivedEvidence } from "./work-record-dispatch-evidence.mjs";
 
 export const WORK_RECORD_DISPATCH_SCHEMA_VERSION = "dispatch-readiness.v1";
 
+export const WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES = Object.freeze([
+  "not_required",
+  "fresh",
+  "recoverable_missing",
+  "recoverable_stale",
+  "recoverable_outdated",
+  "nonrecoverable_integrity_failure",
+  "nonrecoverable_ambiguous",
+  "nonrecoverable_missing_paths",
+  "nonrecoverable_provider_unavailable",
+  "nonrecoverable_malformed"
+]);
+
+const DEFAULT_RECOVERY = Object.freeze({
+  graph_impact: "not_required",
+  admission_metrics: "nonrecoverable_malformed",
+  target_resolution: "nonrecoverable_malformed"
+});
+
 export function createDefaultReadinessState(graphState) {
   return {
     dirty_state: graphState.dirty_state,
@@ -36,6 +55,7 @@ export function createReadinessEnvelope({
   derivedEvidence,
   canonicalRefs,
   dispatchRole = "implementation",
+  recovery = DEFAULT_RECOVERY,
 
   graphAutoRecoverable = false
 }) {
@@ -59,6 +79,17 @@ export function createReadinessEnvelope({
     canonical_refs: clone(canonicalRefs || []),
     derived_evidence: clone(derivedEvidence || []),
     validation_hints: clone(validationHints || []),
+    recovery: {
+      graph_impact: WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES.includes(recovery?.graph_impact)
+        ? recovery.graph_impact
+        : DEFAULT_RECOVERY.graph_impact,
+      admission_metrics: WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES.includes(recovery?.admission_metrics)
+        ? recovery.admission_metrics
+        : DEFAULT_RECOVERY.admission_metrics,
+      target_resolution: WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES.includes(recovery?.target_resolution)
+        ? recovery.target_resolution
+        : DEFAULT_RECOVERY.target_resolution
+    },
     state: {
       ...createDefaultReadinessState(state),
       graph_auto_recoverable: graphAutoRecoverable === true

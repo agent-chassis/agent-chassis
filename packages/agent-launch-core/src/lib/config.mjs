@@ -1,9 +1,12 @@
 import os from "node:os";
 import path from "node:path";
-import { statSync } from "node:fs";
+import { statSync, openSync, fstatSync, readFileSync, closeSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createHash, randomBytes } from "node:crypto";
-import { readNonSecretWorkspaceEnvValue } from "@agent-chassis/wiki-core/src/lib/node-engine-env-bootstrap.mjs";
+import {
+  readNonSecretWorkspaceEnvValue,
+  parseDotEnvText
+} from "@agent-chassis/wiki-core/src/lib/node-engine-env-bootstrap.mjs";
 import {
   API_KEY_ENV_KEYS,
   CLIENT_REASON_CODES
@@ -228,18 +231,86 @@ export function resolveLauncherPaidNodeEngineEnforcementPosture({
   };
 }
 
-export function resolveLauncherSchemaConstrainedTierIsPaid({
-  workspaceDir,
-  readWorkspaceEnvValue = readNonSecretWorkspaceEnvValue,
-  resolvePosture = resolveLauncherPaidNodeEngineEnforcementPosture
-} = {}) {
-  let posture;
+export const LAUNCHER_SCHEMA_CONSTRAINED_TIER_STATES = Object.freeze({
+  ABSENT: "absent",
+  FREE: "free",
+  PAID: "paid",
+  READ_FAILURE: "read_failure"
+});
+
+export const LAUNCHER_SCHEMA_CONSTRAINED_TIER_CAUSE_CODES = Object.freeze({
+  ABSENT: "agent_launch.schema_constrained_tier_env_absent.v1",
+  FREE: "agent_launch.schema_constrained_tier_free.v1",
+  PAID: "agent_launch.schema_constrained_tier_paid.v1",
+  READ_FAILURE: "agent_launch.schema_constrained_tier_read_failure.v1"
+});
+
+const LAUNCHER_ENV_NON_REGULAR_ERROR_CODE =
+  "launcher_canonical_env_not_regular_file";
+
+function defaultReadCanonicalEnvFileText(envFilePath) {
+  const fd = openSync(envFilePath, "r");
   try {
-    posture = resolvePosture({ workspaceDir, readWorkspaceEnvValue });
-  } catch {
-    return false;
+    if (!fstatSync(fd).isFile()) {
+      const error = new Error("canonical .env is not a regular file");
+      error.code = LAUNCHER_ENV_NON_REGULAR_ERROR_CODE;
+      throw error;
+    }
+    return readFileSync(fd, "utf8");
+  } finally {
+    closeSync(fd);
   }
-  return posture?.ok === true && posture.paid_node_engine_key_present === true;
+}
+
+function parsedEnvCarriesPaidNodeEngineKey(values) {
+  for (const envKey of LAUNCHER_PAID_NODE_ENGINE_KEY_ENV_KEYS) {
+    const rawValue = values.get(envKey);
+    if (typeof rawValue === "string" && rawValue.trim().length > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function resolveLauncherSchemaConstrainedTierResolution({
+  workspaceDir,
+  readEnvFileText = defaultReadCanonicalEnvFileText
+} = {}) {
+  const envFilePath = path.join(resolveWorkspaceDir(workspaceDir), ".env");
+  let text;
+  try {
+    text = readEnvFileText(envFilePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return Object.freeze({
+        state: LAUNCHER_SCHEMA_CONSTRAINED_TIER_STATES.ABSENT,
+        is_paid: false,
+        cause_code: LAUNCHER_SCHEMA_CONSTRAINED_TIER_CAUSE_CODES.ABSENT
+      });
+    }
+    return Object.freeze({
+      state: LAUNCHER_SCHEMA_CONSTRAINED_TIER_STATES.READ_FAILURE,
+      is_paid: false,
+      cause_code: LAUNCHER_SCHEMA_CONSTRAINED_TIER_CAUSE_CODES.READ_FAILURE
+    });
+  }
+  const { values } = parseDotEnvText(text);
+  if (parsedEnvCarriesPaidNodeEngineKey(values)) {
+    return Object.freeze({
+      state: LAUNCHER_SCHEMA_CONSTRAINED_TIER_STATES.PAID,
+      is_paid: true,
+      cause_code: LAUNCHER_SCHEMA_CONSTRAINED_TIER_CAUSE_CODES.PAID
+    });
+  }
+  return Object.freeze({
+    state: LAUNCHER_SCHEMA_CONSTRAINED_TIER_STATES.FREE,
+    is_paid: false,
+    cause_code: LAUNCHER_SCHEMA_CONSTRAINED_TIER_CAUSE_CODES.FREE
+  });
+}
+
+export function resolveLauncherSchemaConstrainedTierIsPaid(options = {}) {
+  return resolveLauncherSchemaConstrainedTierResolution(options).is_paid === true;
 }
 
 export function resolveLauncherCanonicalBwrapPath() {

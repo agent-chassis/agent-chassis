@@ -99,6 +99,37 @@
       "consumer_notes": "Coordinator must revise the WK; implementation must NOT proceed against an unready record."
     },
     {
+      "code": "worker_admission_carrier_invalid",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "The restored managed-admission carrier does not match the current attempt, so managed dispatch fails closed before the worker spawns.",
+      "detail": "Use when the launcher-restored managed-admission carrier cannot be resolved or validated against the current attempt. The coordinator must re-derive and re-attest against the final carrier.",
+      "consumer_notes": "The emitted detail.issue is worker_admission_carrier_invalid; the nested detail.reason identifies the specific carrier failure.",
+      "reasons": [
+        {
+          "reason": "canonical_source_digest_changed",
+          "summary": "The canonical work-record digest changed after the attestation was recorded."
+        },
+        {
+          "reason": "canonical_work_record_unavailable",
+          "summary": "The canonical work record could not be resolved."
+        },
+        {
+          "reason": "provisioned_worktree_binding_mismatch",
+          "summary": "The provisioned worktree or binding does not match the carrier; orphan-state recovery is operator-side and tracked by WK-1568."
+        },
+        {
+          "reason": "canonical_carrier_resolution_failed",
+          "summary": "The launcher-frozen carrier could not be resolved."
+        },
+        {
+          "reason": "canonical_carrier_revalidation_failed",
+          "summary": "The carrier failed revalidation before side effects."
+        }
+      ]
+    },
+    {
       "code": "worker_admission_review_threshold_exceeded",
       "category": "work_record_readiness",
       "actor_recovery": "coordinator",

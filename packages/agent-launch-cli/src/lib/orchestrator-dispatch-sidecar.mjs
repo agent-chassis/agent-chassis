@@ -1,11 +1,16 @@
 
 
+import path from "node:path";
 import {
   HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR,
   HostWriteAuthorityBrokerError,
   createHostWriteAuthorityBroker,
-  createHostWriteAuthorityBrokerServer
+  createHostWriteAuthorityBrokerServer,
+  defaultCommitManagedWorkerSlice,
+  defaultIntegrateManagedWorkerSlice
 } from "./host-write-authority-substrate.mjs";
+
+import { provisionManagedWorktreesAtDispatch } from "./worktree-provisioning-dispatch.mjs";
 
 import { evaluateWorkerAdmissionForBackend } from "./codex-worker-plan.mjs";
 
@@ -29,11 +34,30 @@ export function buildHostWriteAuthorityBrokerPlanningEnv({
   return next;
 }
 
+export function resolveOrchestratorSidecarProvisioningRoots(repo) {
+  if (typeof repo !== "string" || repo.length === 0 || !path.isAbsolute(repo)) {
+    return null;
+  }
+  const mainRepo = path.resolve(repo);
+  const launcherBase = path.dirname(mainRepo);
+  const repoName = path.basename(mainRepo);
+  return Object.freeze({
+    mainRepo,
+    worktreeRoot: path.join(launcherBase, ".agent-worktrees", repoName)
+  });
+}
+
 export async function startOrchestratorDispatchSidecar({
   plan,
   io = {},
   adapter,
-  evaluateWorkerAdmission = evaluateWorkerAdmissionForBackend
+  evaluateWorkerAdmission = evaluateWorkerAdmissionForBackend,
+
+  provisionManagedWorktrees = provisionManagedWorktreesAtDispatch,
+
+  commitManagedWorkerSlice = defaultCommitManagedWorkerSlice,
+
+  integrateManagedWorkerSlice = defaultIntegrateManagedWorkerSlice
 } = {}) {
   if (!plan || typeof plan !== "object") return null;
   const descriptor = plan.dispatchSidecar;
@@ -96,12 +120,30 @@ export async function startOrchestratorDispatchSidecar({
     !Array.isArray(rawMap)
   ) ? rawMap : null;
 
+  const provisioningRoots = resolveOrchestratorSidecarProvisioningRoots(plan.repo);
+
+  let boundWorkerMcpEndpointValue = null;
+
   const broker = createHostWriteAuthorityBroker({
     planLaunch,
     appPlanLaunchMap,
     spawnLaunch: adapter.spawnLaunch,
     captureFinalResult,
-    evaluateWorkerAdmission
+    evaluateWorkerAdmission,
+    ...(provisioningRoots !== null
+      ? {
+          provisionManagedWorktrees,
+          provisioningMainRepo: provisioningRoots.mainRepo,
+          provisioningWorktreeRoot: provisioningRoots.worktreeRoot,
+
+          commitManagedWorkerSlice,
+          commitMainRepo: provisioningRoots.mainRepo,
+          resolveWorkerMcpHostWriteEndpoint: () => boundWorkerMcpEndpointValue,
+
+          integrateManagedWorkerSlice,
+          integrationMainRepo: provisioningRoots.mainRepo
+        }
+      : {})
   });
 
   const logger = createBrokerLogger(io);
@@ -127,6 +169,8 @@ export async function startOrchestratorDispatchSidecar({
   const endpointValue = `${endpoint.host}:${endpoint.port}`;
   plan.env[envVar] = endpointValue;
 
+  boundWorkerMcpEndpointValue = endpointValue;
+
   let applyContext = null;
   if (typeof adapter.applyEndpointToPlan === "function") {
     applyContext = adapter.applyEndpointToPlan({
@@ -147,6 +191,8 @@ export async function startOrchestratorDispatchSidecar({
       try {
         await server.stop();
       } finally {
+
+        boundWorkerMcpEndpointValue = null;
         if (plan.env[envVar] === endpointValue) {
           delete plan.env[envVar];
         }

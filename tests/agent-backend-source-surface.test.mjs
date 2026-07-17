@@ -6,6 +6,7 @@ import {
 } from "../packages/agent-launch-cli/src/lib/agent-backend.mjs";
 import {
   assertCodexCallableSourceToolSurface,
+  AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES,
   isScopedChildToolSurfaceRefusal
 } from "../packages/agent-launch-cli/src/lib/agent-child-tool-surface.mjs";
 import {
@@ -14,6 +15,35 @@ import {
   REGISTRY_BACKEND_KEY,
   REGISTRY_PROFILE_NAME
 } from "./agent-backend-test-helpers.mjs";
+
+test("WK-1455 managed worker refuses configured filesystem-MCP profile before backend handshake", async () => {
+  let proofCalls = 0;
+  let recordLoads = 0;
+  const preparer = createLauncherOwnedSourceToolSurfacePreparer({
+    registry: baseRegistry(),
+    backendProfile: REGISTRY_PROFILE_NAME,
+    loadWorkRecord: async () => {
+      recordLoads += 1;
+      throw new Error("managed profile drift must refuse before record loading");
+    },
+    proveSourceToolSurfaceWithBackend: async () => {
+      proofCalls += 1;
+      throw new Error("managed profile drift must refuse before backend handshake");
+    }
+  });
+  const result = await preparer({
+    subject: "WK-1455#SLICE-004",
+    workspace_dir: "/tmp/fake-repo",
+    workspace_alias: "agent-chassis",
+    run_id: "wkdb_slice004",
+    worker_scope_authority: Object.freeze({ schema_version: "workspace-agent-frozen-scope-authority.v1" })
+  });
+  assert.ok(isScopedChildToolSurfaceRefusal(result));
+  assert.equal(result.refusal_code, AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.SOURCE_SURFACE_NOT_PROVEN);
+  assert.equal(result.detail.issue, "managed_worker_tool_profile_drift");
+  assert.equal(proofCalls, 0);
+  assert.equal(recordLoads, 0);
+});
 
 test("WK-0862 source surface preparer bounds slice authority to the selected slice scope only", async () => {
   const fixture = await loadVerifierFixture();
@@ -261,4 +291,109 @@ test("WK-0862 source surface preparer refuses before signing when backend surfac
   } finally {
     await fixture.cleanup();
   }
+});
+
+const CANONICAL_MAIN_REPO = "/home/user/agent-chassis";
+const POISON_WORKTREE = "/home/user/.agent-worktrees/agent-chassis/slice-IN-0021-WK-1551-SLICE-001";
+
+test("WK-1555 the trusted launcher-authority root governs registry resolution, not the per-launch worker worktree", async () => {
+  let registryDir = null;
+  const preparer = createLauncherOwnedSourceToolSurfacePreparer({
+    launcherAuthorityWorkspaceDir: CANONICAL_MAIN_REPO,
+    env: {},
+    loadRegistryForSourceSurface: async (dir) => {
+      registryDir = dir;
+
+      return { schema_version: "agent-launch-registry.v1", data: {} };
+    },
+    loadWorkRecord: async () => { throw new Error("record load must not be reached on the not-configured fall-through"); }
+  });
+  const result = await preparer({
+    subject: "WK-1551#SLICE-001",
+
+    workspace_dir: POISON_WORKTREE,
+    workspace_alias: "agent-chassis",
+    run_id: "wkdb_wk1551"
+  });
+  assert.equal(registryDir, CANONICAL_MAIN_REPO, "the launcher registry must resolve from the trusted canonical mainRepo");
+  assert.notEqual(registryDir, POISON_WORKTREE, "the disposable worker worktree must never be the launcher registry root");
+
+  assert.equal(result.schema_version, "workspace-agent-dispatch-source-tool-surface-not-configured.v1");
+  assert.equal(result.configured, false);
+  assert.equal(result.codex_child_runtime, undefined, "no child runtime is projected on the fall-through");
+});
+
+test("WK-1555 without the trusted root, registry resolution preserves per-launch workspace_dir behavior (compatibility)", async () => {
+  let registryDir = null;
+  const preparer = createLauncherOwnedSourceToolSurfacePreparer({
+    env: {},
+    loadRegistryForSourceSurface: async (dir) => {
+      registryDir = dir;
+      return { schema_version: "agent-launch-registry.v1", data: {} };
+    }
+  });
+  const result = await preparer({
+    subject: "WK-1551#SLICE-001",
+    workspace_dir: "/tmp/unmanaged-workspace",
+    workspace_alias: "agent-chassis",
+    run_id: "wkdb_wk1551"
+  });
+  assert.equal(registryDir, "/tmp/unmanaged-workspace", "absent trusted root -> per-launch workspace_dir governs");
+  assert.equal(result.schema_version, "workspace-agent-dispatch-source-tool-surface-not-configured.v1");
+});
+
+test("WK-1555 a missing canonical registry still fails closed (from the trusted root, never a worktree fallback)", async () => {
+  let registryDir = null;
+  const preparer = createLauncherOwnedSourceToolSurfacePreparer({
+    launcherAuthorityWorkspaceDir: CANONICAL_MAIN_REPO,
+    env: {},
+    loadRegistryForSourceSurface: async (dir) => {
+      registryDir = dir;
+
+      throw new Error("worker family launcher registry not found");
+    }
+  });
+  await assert.rejects(
+    () => preparer({
+      subject: "WK-1551#SLICE-001",
+      workspace_dir: POISON_WORKTREE,
+      workspace_alias: "agent-chassis",
+      run_id: "wkdb_wk1551"
+    }),
+    /launcher registry not found/
+  );
+  assert.equal(registryDir, CANONICAL_MAIN_REPO, "the missing-registry failure must be probed against the canonical root, not the worktree");
+});
+
+test("WK-1555 canonical work-record loading also resolves from the trusted launcher-authority root", async () => {
+  let recordDir = null;
+  const preparer = createLauncherOwnedSourceToolSurfacePreparer({
+
+    registry: baseRegistry(),
+    backendProfile: REGISTRY_PROFILE_NAME,
+    launcherAuthorityWorkspaceDir: CANONICAL_MAIN_REPO,
+    env: {},
+    loadWorkRecord: async ({ dir }) => {
+      recordDir = dir;
+
+      return { valid: false, diagnostics: ["fixture: intentionally invalid"], record: null };
+    }
+  });
+  const result = await preparer({
+    subject: "WK-1551#SLICE-001",
+    workspace_dir: POISON_WORKTREE,
+    workspace_alias: "agent-chassis",
+    run_id: "wkdb_wk1551"
+  });
+  assert.equal(recordDir, CANONICAL_MAIN_REPO, "the canonical work record must load from the trusted mainRepo, never the worker worktree");
+  assert.notEqual(recordDir, POISON_WORKTREE);
+  assert.ok(isScopedChildToolSurfaceRefusal(result));
+  assert.equal(result.refusal_code, AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.INVALID_INPUT);
+});
+
+test("WK-1555 the trusted launcher-authority root must be an absolute path", () => {
+  assert.throws(
+    () => createLauncherOwnedSourceToolSurfacePreparer({ launcherAuthorityWorkspaceDir: "relative/repo" }),
+    /must be an absolute path/
+  );
 });

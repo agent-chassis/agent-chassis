@@ -17,6 +17,8 @@ import {
   systemUtcClock,
 } from "@agent-chassis/wiki-core/src/lib/work-record-admission-derived-evidence.mjs";
 import { createWorkRecordAdmissionRecordLocalInputs } from "@agent-chassis/wiki-core/src/lib/work-record-admission-record-inputs.mjs";
+import { cloneJson } from "@agent-chassis/wiki-core/src/lib/work-record-admission-shared.mjs";
+import { computeReviewedUnitSourceDigest } from "@agent-chassis/wiki-core/src/lib/work-record-review-attestation.mjs";
 import { loadWorkRecordById } from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
 import { parseArgs } from "../lib/cli.mjs";
 import { runNodeEngineWorkerAdmissionControlMatrix } from "../lib/node-engine-control-matrix.mjs";
@@ -245,7 +247,19 @@ export async function assembleWorkerAdmissionPackInputForUnit({ dir = ".", id, u
     };
   }
 
-  const recordLocalInputs = await createWorkRecordAdmissionRecordLocalInputs({ dir, record: subject });
+  const digestRecord = cloneJson(record);
+  const reviewedUnitSourceDigest = computeReviewedUnitSourceDigest(
+    sliceId ? { record: digestRecord, selected_slice_id: sliceId } : digestRecord,
+  );
+  if (!reviewedUnitSourceDigest) {
+    const unitAddress = sliceId ? `${record.id}#${sliceId}` : record.id;
+    throw new Error(`selected-unit reviewed digest cannot be resolved for ${unitAddress}`);
+  }
+  const recordLocalInputs = await createWorkRecordAdmissionRecordLocalInputs({
+    dir,
+    record: subject,
+    sourceRecordDigestOverride: reviewedUnitSourceDigest,
+  });
   const derivedEvidence = createWorkRecordAdmissionDerivedEvidence({
     record,
     repo: record.repo,

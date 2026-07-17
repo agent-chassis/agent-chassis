@@ -12,7 +12,6 @@ import {
 import {
   deriveTerminalStatus,
   normalizeExitEnvelope,
-  LAUNCHER_TERMINAL_STATES,
   LAUNCHER_DEFAULT_TERMINATION_SIGNAL
 } from "./workspace-agent-launch-adapter-contract.mjs";
 
@@ -71,15 +70,104 @@ export {
 export const WORKSPACE_AGENT_LAUNCH_CORE_SCHEMA_VERSION =
   "workspace-agent-launch-core.v1";
 
+export const WORKSPACE_AGENT_FROZEN_SCOPE_AUTHORITY_SCHEMA_VERSION =
+  "workspace-agent-frozen-scope-authority.v1";
+
+function scopeAuthorityError(message) {
+  const error = new Error(message);
+  error.code = "worker_scope_authority_invalid";
+  return error;
+}
+
+function sameFrozenStringArray(value, expected = null) {
+  if (!Array.isArray(value) || !Object.isFrozen(value) ||
+      value.some((entry) => typeof entry !== "string" || entry.length === 0)) return false;
+  return expected === null || (value.length === expected.length &&
+    value.every((entry, index) => entry === expected[index]));
+}
+
+export function assertFrozenWorkerScopeAuthority(authority, {
+  role = "worker",
+  subject = null,
+  worktreeProvisioning = null,
+  provisionedWorktreeGitBinding = null,
+  required = role === "worker"
+} = {}) {
+  if (authority === null || authority === undefined) {
+    if (required) throw scopeAuthorityError("managed worker scope authority is missing");
+    return null;
+  }
+  if (role !== "worker") {
+    throw scopeAuthorityError("worker scope authority cannot bind a non-worker role");
+  }
+  if (typeof authority !== "object" || Array.isArray(authority) || !Object.isFrozen(authority) ||
+      authority.schema_version !== WORKSPACE_AGENT_FROZEN_SCOPE_AUTHORITY_SCHEMA_VERSION) {
+    throw scopeAuthorityError("worker scope authority is malformed or mutable");
+  }
+  const selected = authority.selected_unit;
+  if (!selected || typeof selected !== "object" || Array.isArray(selected) || !Object.isFrozen(selected) ||
+      selected.kind !== "slice" || typeof selected.address !== "string" ||
+      typeof selected.record_id !== "string" || typeof selected.slice_id !== "string" ||
+      (selected.repo !== null && typeof selected.repo !== "string")) {
+    throw scopeAuthorityError("worker scope authority selected-unit binding is malformed or mutable");
+  }
+  if (subject !== null && selected.address !== subject) {
+    throw scopeAuthorityError("worker scope authority selected-unit binding mismatches the launch subject");
+  }
+  if (authority.source !== `wiki/work-records/${selected.record_id}.json#${selected.slice_id}` ||
+      typeof authority.unit_address !== "string" ||
+      !authority.unit_address.endsWith(`/${selected.record_id}/${selected.slice_id}`) ||
+      typeof authority.source_digest !== "string" || authority.source_digest.length === 0 ||
+      (authority.source_version !== null &&
+        (typeof authority.source_version !== "string" || authority.source_version.length === 0))) {
+    throw scopeAuthorityError("worker scope authority source or selected-unit identity is mismatched");
+  }
+  if (!sameFrozenStringArray(authority.read_scope) ||
+      !sameFrozenStringArray(authority.repo_paths) ||
+      !sameFrozenStringArray(authority.write_scope)) {
+    throw scopeAuthorityError("worker scope authority R/W sets are malformed or mutable");
+  }
+  const readable = [...new Set([...authority.read_scope, ...authority.repo_paths])].sort();
+  if (!sameFrozenStringArray(authority.readable_scope, readable)) {
+    throw scopeAuthorityError("worker scope authority readable_scope mismatches frozen R");
+  }
+  const sliceBinding = worktreeProvisioning?.slice_binding ?? null;
+  if (sliceBinding !== null) {
+    for (const [field, expected] of [
+      ["unit_address", authority.unit_address],
+      ["write_scope_source", authority.source],
+      ["source_digest", authority.source_digest],
+      ["source_version", authority.source_version]
+    ]) {
+      if (sliceBinding[field] !== expected) {
+        throw scopeAuthorityError(`worker scope authority provisioning mismatch at ${field}`);
+      }
+    }
+    for (const field of ["read_scope", "repo_paths", "write_scope"]) {
+      if (!sameFrozenStringArray(authority[field], sliceBinding[field])) {
+        throw scopeAuthorityError(`worker scope authority provisioning mismatch at ${field}`);
+      }
+    }
+  }
+  const bindingPath = provisionedWorktreeGitBinding?.worktreePath
+    ?? provisionedWorktreeGitBinding?.worktree_path
+    ?? null;
+  if (bindingPath !== null && typeof worktreeProvisioning?.worktree_path === "string" &&
+      bindingPath !== worktreeProvisioning.worktree_path) {
+    throw scopeAuthorityError("worker scope authority provisioning worktree identity mismatches credential binding");
+  }
+  return authority;
+}
+
 export const DEFAULT_MAX_CAPTURE_BYTES = 1024 * 1024;
 
 export const DEFAULT_MAX_STDERR_DETAIL_BYTES = 4096;
 
 export const DEFAULT_STREAM_DRAIN_TIMEOUT_MS = 2000;
 
-export const DEFAULT_LAUNCH_KILL_SIGNAL = LAUNCHER_DEFAULT_TERMINATION_SIGNAL;
-
-const TERMINAL_STATUSES = new Set(LAUNCHER_TERMINAL_STATES);
+export {
+  LAUNCHER_DEFAULT_TERMINATION_SIGNAL as DEFAULT_LAUNCH_KILL_SIGNAL
+} from "./workspace-agent-launch-adapter-contract.mjs";
 
 export const SHARED_FAMILY_BWRAP_ENV_ALLOWLIST = Object.freeze([
   "PATH",
@@ -113,7 +201,8 @@ export function assembleRoleIsolationInputs({
   runtimeDir = null,
   schemaVersion,
   failClosedMode,
-  shareNet = true
+  shareNet = true,
+  workerScopeAuthority = null
 } = {}) {
   const baseReadOnlyRoots = Array.isArray(readOnlyRoots) ? readOnlyRoots : [];
   const extras = Array.isArray(extraRuntimeRoots) ? extraRuntimeRoots : [];
@@ -146,6 +235,10 @@ export function assembleRoleIsolationInputs({
     });
   }
   if (role === "worker") {
+    const frozenWorkerScopeAuthority = assertFrozenWorkerScopeAuthority(workerScopeAuthority, {
+      role,
+      required: workerScopeAuthority !== null
+    });
     const absWritable = [];
     const seen = new Set();
     for (const root of Array.isArray(writableProjectRoots) ? writableProjectRoots : []) {
@@ -181,7 +274,8 @@ export function assembleRoleIsolationInputs({
       runtime_roots: Object.freeze(workerRuntime),
       read_only_roots: Object.freeze([...baseReadOnlyRoots]),
 
-      home_policy_reads: Object.freeze(hasSourceHome ? [sourceHome] : [])
+      home_policy_reads: Object.freeze(hasSourceHome ? [sourceHome] : []),
+      worker_scope_authority: frozenWorkerScopeAuthority
     });
   }
   if (role === "review" || role === "redteam") {
@@ -336,7 +430,7 @@ export function superviseChildLaunch({
   maxCaptureBytes = DEFAULT_MAX_CAPTURE_BYTES,
   maxStderrDetailBytes = DEFAULT_MAX_STDERR_DETAIL_BYTES,
   killTimeoutMs = null,
-  killSignal = DEFAULT_LAUNCH_KILL_SIGNAL,
+  killSignal = LAUNCHER_DEFAULT_TERMINATION_SIGNAL,
   streamDrainTimeoutMs = DEFAULT_STREAM_DRAIN_TIMEOUT_MS,
   logger = console
 } = {}) {
@@ -689,9 +783,9 @@ export function superviseChildLaunch({
   };
 }
 
-export const __LAUNCH_CORE_TERMINAL_STATUSES_FOR_TESTS = Object.freeze([
-  ...TERMINAL_STATUSES
-]);
+export {
+  LAUNCHER_TERMINAL_STATES as __LAUNCH_CORE_TERMINAL_STATUSES_FOR_TESTS
+} from "./workspace-agent-launch-adapter-contract.mjs";
 export const __LAUNCH_CORE_FINAL_RESULT_SCHEMA_VERSION_FOR_TESTS =
   WORKSPACE_AGENT_DISPATCH_FINAL_RESULT_SCHEMA_VERSION;
 export * from './workspace-agent-launch-adapter-contract.mjs';

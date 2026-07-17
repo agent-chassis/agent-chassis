@@ -7,6 +7,7 @@ import {
   unratifyDecisionRecord,
   rejectDecisionRecord
 } from "@agent-chassis/wiki-core/src/operations/kind-record-edit.mjs";
+import { assignWorkRecordToInitiativeByUnit as defaultAssignWorkRecordToInitiative } from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
 
 import { createWikiRecord } from "@agent-chassis/wiki-core/src/operations/create.mjs";
 
@@ -29,13 +30,37 @@ function createCompactKindRecordEditResponse(workspaceRepo, id, result) {
   return response;
 }
 
+function createCompactInitiativeAssignmentResponse(workspaceRepo, result) {
+  const response = {
+    workspaceRepo,
+    operation: result?.operation ?? "assign_work_record_to_initiative",
+    unit: result?.selected_unit?.address ?? null,
+    initiative: result?.record?.initiative ?? null,
+    ok: Boolean(result?.valid && (result?.written || result?.no_op)),
+    valid: Boolean(result?.valid),
+    written: Boolean(result?.written),
+    no_op: Boolean(result?.no_op),
+    source_digest: result?.source_digest ?? null,
+    changed_fields: Array.isArray(result?.changed_fields) ? result.changed_fields : [],
+    diagnostics: Array.isArray(result?.diagnostics) ? result.diagnostics : []
+  };
+  if (result?.current_source_digest !== undefined) {
+    response.current_source_digest = result.current_source_digest;
+  }
+  if (result?.expected_source_digest !== undefined) {
+    response.expected_source_digest = result.expected_source_digest;
+  }
+  return response;
+}
+
 export function registerKindRecordWriteTools({
   registerTool,
   workspaceRepos,
   z,
   jsonContent,
   errorContent,
-  resolveWorkspaceRepo
+  resolveWorkspaceRepo,
+  assignWorkRecordToInitiative = defaultAssignWorkRecordToInitiative
 }) {
 
   const sectionInputSchema = () =>
@@ -78,6 +103,16 @@ export function registerKindRecordWriteTools({
       })
       .strict();
 
+  const initiativeAssignmentInputSchema = () =>
+    z
+      .object({
+        repo: z.string().optional(),
+        unit: z.string(),
+        initiative: z.string(),
+        expected_source_digest: z.string().optional()
+      })
+      .strict();
+
   const DEC_DRAFT_NOTE =
     "DEC-0152: agents DRAFT decisions but cannot ratify. `create` mints a `proposed` DEC and `amend` edits a " +
     "`proposed` DEC; neither can set `status`. Making a decision binding (`proposed`->`accepted`) is a HUMAN-ONLY " +
@@ -88,6 +123,38 @@ export function registerKindRecordWriteTools({
   const IN_DRAFT_NOTE =
     "DEC-0152: agents draft initiatives (`IN-*`) freely - `create` mints a draft and `amend` edits it; neither " +
     "can set lifecycle/provenance-managed fields (status/updated). Initiatives have no ratification gate.";
+
+  registerTool(
+    "assign_work_record_to_initiative",
+    {
+      description:
+        "Write-capable: assign one record-level work record (`WK-####`) to an existing initiative (`IN-####`). " +
+        "Slice selectors are refused before mutation. `WK.initiative` is the sole canonical assignment authority; " +
+        "initiative membership is derived by querying WK records with that scalar. The target initiative is " +
+        "validated before at most one CAS-protected WK write. This tool never writes an initiative record or " +
+        "`included_issues`. Repeating the current assignment is a true no-op without digest churn; reassignment " +
+        "atomically overwrites only the WK initiative scalar. Missing targets, invalid WK records, unsupported " +
+        "selectors, and stale expected_source_digest values return stable typed diagnostics without mutation. " +
+        "When supplied, expected_source_digest must be `sha256:<64 lowercase hex>`; malformed values return " +
+        "invalid_expected_source_digest rather than stale_source_digest.",
+      inputSchema: initiativeAssignmentInputSchema()
+    },
+    async (args) => {
+      try {
+        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
+        const result = await assignWorkRecordToInitiative({
+          dir: workspace.dir,
+          unit: args.unit,
+          initiative: args.initiative,
+          expectedSourceDigest: args.expected_source_digest ?? null,
+          verbose: true
+        });
+        return jsonContent(createCompactInitiativeAssignmentResponse(workspace.repo, result));
+      } catch (error) {
+        return errorContent(error);
+      }
+    }
+  );
 
   const registerAmendSection = (toolName, subjectDescription, note) =>
     registerTool(

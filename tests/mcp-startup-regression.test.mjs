@@ -13,125 +13,124 @@ const INITIALIZE_PARAMS = {
   }
 };
 
-async function listAgentSafeServerToolNames() {
-  const child = spawn("node", ["packages/wiki-mcp/src/server.mjs"], {
-    cwd: REPO_ROOT,
-    stdio: ["pipe", "pipe", "pipe"],
+function freeLocalServerEnv(profile) {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("NODE_TEST")) {
+      delete env[key];
+    }
+  }
+  for (const key of [
+    "NODE_ENGINE_API_KEY",
+    "NODE_ENGINE_LICENSE_KEY",
+    "WIKI_MCP_WORKSPACE_ALIAS",
+    "WIKI_MCP_WORKSPACE_DIR",
+    "WIKI_MCP_REPOS",
+    "WIKI_MCP_DEFAULT_REPO"
+  ]) {
+    delete env[key];
+  }
+  env.WIKI_MCP_TOOL_PROFILE = profile;
+  return env;
+}
 
-    env: { ...process.env, WIKI_MCP_TOOL_PROFILE: "agent-safe" }
+async function listFreeLocalServerToolNames(profile) {
+  const child = spawn(process.execPath, ["packages/wiki-mcp/src/server.mjs"], {
+    cwd: REPO_ROOT,
+    env: freeLocalServerEnv(profile),
+    stdio: ["pipe", "pipe", "pipe"]
   });
   const exitPromise = once(child, "exit");
   let stderr = "";
   child.stderr.on("data", (chunk) => {
     stderr += chunk.toString("utf8");
   });
-
-  const responses = new Map();
-  const waiters = new Map();
-  function deliver(id, message) {
-    responses.set(id, message);
-    const waiter = waiters.get(id);
-    if (waiter) {
-      waiters.delete(id);
-      waiter(message);
-    }
-  }
-  function waitForId(id) {
-    if (responses.has(id)) {
-      return Promise.resolve(responses.get(id));
-    }
-    return new Promise((resolve) => waiters.set(id, resolve));
-  }
-
   let buffer = "";
-  child.stdout.on("data", (chunk) => {
-    buffer += chunk.toString("utf8");
-    let newlineIndex;
-    while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
-      const line = buffer.slice(0, newlineIndex).trim();
-      buffer = buffer.slice(newlineIndex + 1);
-      if (!line) {
-        continue;
-      }
-      let message;
-      try {
-        message = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      if (message && message.id !== undefined && message.id !== null) {
-        deliver(message.id, message);
-      }
-    }
-  });
-
-  let settled = false;
-  child.on("exit", (code) => {
-    if (settled) {
-      return;
-    }
-    for (const waiter of waiters.values()) {
-      waiter({
-        error: {
-          message: `Server exited before response (code ${code}); stderr=${stderr || "none"}`
-        }
-      });
-    }
-    waiters.clear();
-  });
-
-  const send = (obj) => child.stdin.write(`${JSON.stringify(obj)}\n`);
-  const timeoutError = () =>
-    new Error(`Timeout waiting for agent-safe server tools/list; stderr=${stderr || "none"}`);
-  const withDeadline = (promise, ms) => {
-    let timer;
-    const deadline = new Promise((_, reject) => {
-      timer = setTimeout(() => reject(timeoutError()), ms);
-    });
-    return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
-  };
 
   try {
-    send({ jsonrpc: "2.0", id: 1, method: "initialize", params: INITIALIZE_PARAMS });
-    const initResponse = await withDeadline(waitForId(1), 6000);
-    assert.ok(initResponse.result, `initialize failed: ${JSON.stringify(initResponse.error ?? initResponse)}`);
-
-    send({ jsonrpc: "2.0", method: "notifications/initialized" });
-    send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
-    const listResponse = await withDeadline(waitForId(2), 6000);
-
-    assert.ok(listResponse.result, "tools/list must return a result");
-    const tools = Array.isArray(listResponse.result.tools) ? listResponse.result.tools : [];
-    return tools.map((tool) => tool.name);
+    const toolNames = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`production stdio tools/list timed out for ${profile}; stderr=${stderr || "none"}`));
+      }, 6000);
+      child.stdout.on("data", (chunk) => {
+        buffer += chunk.toString("utf8");
+        while (buffer.includes("\n")) {
+          const newline = buffer.indexOf("\n");
+          const line = buffer.slice(0, newline);
+          buffer = buffer.slice(newline + 1);
+          if (!line.trim()) continue;
+          const message = JSON.parse(line);
+          if (message.id === 1 && message.result) {
+            child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
+            child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);
+          } else if (message.id === 2) {
+            clearTimeout(timeout);
+            if (message.error) {
+              reject(new Error(`production tools/list refused: ${JSON.stringify(message.error)}`));
+            } else {
+              resolve(message.result.tools.map((tool) => tool.name).sort());
+            }
+          }
+        }
+      });
+      child.on("exit", (code) => {
+        clearTimeout(timeout);
+        reject(new Error(`production stdio exited with ${code} for ${profile}; stderr=${stderr || "none"}`));
+      });
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: INITIALIZE_PARAMS })}\n`);
+    });
+    return toolNames;
   } finally {
-    settled = true;
     child.stdin.end();
     child.kill("SIGKILL");
     await exitPromise;
   }
 }
 
-test("agent-safe server startup derives free/local exposure from descriptor audience (WK-1446)", async () => {
-  const toolNames = await listAgentSafeServerToolNames();
-  const exposed = new Set(toolNames);
-
+test("production stdio tools/list applies role and descriptor-backed free/local gates to initiative assignment", async () => {
+  const readySliceToolName = "workspace_work_record_ready_slice";
+  const orchestratorToolNames = await listFreeLocalServerToolNames("orchestrator");
   assert.ok(
-    exposed.has("workspace_integration_status"),
-    `expected agent-safe startup to expose workspace_integration_status; exposed=${[...exposed]
-      .sort()
-      .join(", ")}`
+    orchestratorToolNames.includes("assign_work_record_to_initiative"),
+    "free/local orchestrator must list assign_work_record_to_initiative"
+  );
+  assert.ok(
+    orchestratorToolNames.includes(readySliceToolName),
+    `free/local orchestrator must list ${readySliceToolName}`
   );
 
-  assert.ok(
-    !exposed.has("workspace_integration_promote_check"),
-    "operator-only workspace_integration_promote_check must not be exposed under agent-safe"
+  const agentSafeToolNames = await listFreeLocalServerToolNames("agent-safe");
+  assert.deepEqual(agentSafeToolNames, orchestratorToolNames);
+
+  const reviewerToolNames = await listFreeLocalServerToolNames("reviewer");
+  assert.equal(
+    reviewerToolNames.includes("assign_work_record_to_initiative"),
+    false,
+    "reviewer must not list orchestrator-only assignment authority"
   );
+  assert.equal(reviewerToolNames.includes(readySliceToolName), false);
+
+  const operatorToolNames = await listFreeLocalServerToolNames("operator");
+  assert.ok(
+    operatorToolNames.includes(readySliceToolName),
+    `operator must list ${readySliceToolName}`
+  );
+  for (const role of ["redteam", "worker"]) {
+    const toolNames = await listFreeLocalServerToolNames(role);
+    assert.equal(
+      toolNames.includes(readySliceToolName),
+      false,
+      `${role} must not list write-capable ${readySliceToolName}`
+    );
+  }
+  await assertFastInitializationFrame();
 });
 
-test("MCP server handles fast initialization frame sent immediately upon startup without dropping it (IN-0017)", async () => {
+async function assertFastInitializationFrame() {
   const child = spawn("node", ["packages/wiki-mcp/src/server.mjs"], {
     cwd: REPO_ROOT,
-    stdio: ["pipe", "pipe", "pipe"]
+    stdio: ["pipe", "pipe", "pipe"],
+    env: freeLocalServerEnv("orchestrator")
   });
   const exitPromise = once(child, "exit");
   let stderr = "";
@@ -173,7 +172,7 @@ test("MCP server handles fast initialization frame sent immediately upon startup
 
     child.on("exit", (code) => {
       clearTimeout(timeout);
-      reject(new Error(`Server exited unexpectedly with code ${code}`));
+      reject(new Error(`Server exited unexpectedly with code ${code}; stderr=${stderr || "none"}`));
     });
   });
 
@@ -186,4 +185,4 @@ test("MCP server handles fast initialization frame sent immediately upon startup
     child.kill("SIGKILL");
     await exitPromise;
   }
-});
+}

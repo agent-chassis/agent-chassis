@@ -1,15 +1,18 @@
 
 
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import {
   accessSync,
   closeSync,
   constants as fsConstants,
   fchmodSync,
+  fstatSync,
   lstatSync,
   openSync,
   realpathSync,
-  statSync
+  statSync,
+  unlinkSync
 } from "node:fs";
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
@@ -86,7 +89,127 @@ export function assertExistingDirectoryOrSafeParent(p, label) {
   }
 }
 
-function resolveWritableFileEntry(lexical, label, repoReal) {
+function assertExactFilePathHasNoSymlinkComponent(lexical, label, repoReal, {
+  allowMissingLeaf = false
+} = {}) {
+  if (!isWithinRepo(lexical, repoReal) || lexical === repoReal) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_OUTSIDE_REPO,
+      `${label} must be an exact file below the canonical repo root: ${lexical}`
+    );
+  }
+  const relative = path.relative(repoReal, lexical);
+  const components = relative.split(path.sep);
+  let current = repoReal;
+  for (let i = 0; i < components.length; i += 1) {
+    current = path.join(current, components[i]);
+    let st;
+    try {
+      st = lstatSync(current);
+    } catch (err) {
+      if (allowMissingLeaf && i === components.length - 1 && err?.code === "ENOENT") {
+        return;
+      }
+      fail(
+        i === components.length - 1 && err?.code !== "ENOTDIR"
+          ? BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_FILE
+          : BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_MISSING_PARENT,
+        `${label} component could not be inspected: ${current}`,
+        { errno: err?.code ?? null }
+      );
+    }
+    if (st.isSymbolicLink()) {
+      fail(
+        i === components.length - 1
+          ? BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_FILE
+          : BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_OUTSIDE_REPO,
+        `${label} refuses symlink component: ${current}`,
+        { component: current }
+      );
+    }
+  }
+}
+
+function identityFromStat(st) {
+  return Object.freeze({
+    dev: st.dev.toString(),
+    ino: st.ino.toString(),
+    size: st.size.toString(),
+    mode: st.mode.toString(),
+    mtimeNs: st.mtimeNs.toString(),
+    ctimeNs: st.ctimeNs.toString()
+  });
+}
+
+function fileIdentity(real) {
+  return identityFromStat(statSync(real, { bigint: true }));
+}
+
+function sameFileIdentity(real, expected) {
+  let lst;
+  try {
+    lst = lstatSync(real);
+  } catch (err) {
+    if (err?.code === "ENOENT") return false;
+    throw err;
+  }
+  if (!lst.isFile() || lst.isSymbolicLink()) return false;
+  const actual = fileIdentity(real);
+  return Object.keys(expected).every((key) => actual[key] === expected[key]);
+}
+
+function buildWritableFilePrecreationCleanup(createdEntries, attemptBinding = null) {
+  const attemptId = randomUUID();
+  const owned = Object.freeze(createdEntries.map((entry) => Object.freeze({
+    real: entry.real,
+    identity: entry.identity
+  })));
+  let completed = false;
+  let result = null;
+  const cleanup = () => {
+    if (completed) return result;
+    const removed = [];
+    const preserved = [];
+    for (let i = owned.length - 1; i >= 0; i -= 1) {
+      const entry = owned[i];
+      if (!sameFileIdentity(entry.real, entry.identity)) {
+        preserved.push(entry.real);
+        continue;
+      }
+      try {
+        unlinkSync(entry.real);
+        removed.push(entry.real);
+      } catch (err) {
+        if (err?.code === "ENOENT") {
+          preserved.push(entry.real);
+          continue;
+        }
+        throw err;
+      }
+    }
+    completed = true;
+    result = Object.freeze({
+      attempt_id: attemptId,
+      removed: Object.freeze(removed),
+      preserved: Object.freeze(preserved)
+    });
+    return result;
+  };
+  return Object.freeze({
+    schema_version: "writable-file-precreation-cleanup.v1",
+    attempt_id: attemptId,
+    attempt_binding: attemptBinding,
+    entries: owned,
+    cleanup: Object.freeze(cleanup)
+  });
+}
+
+function resolveWritableFileEntry(lexical, label, repoReal, { refuseSymlinks = false } = {}) {
+  if (refuseSymlinks) {
+    assertExactFilePathHasNoSymlinkComponent(lexical, label, repoReal, {
+      allowMissingLeaf: true
+    });
+  }
   let lst = null;
   try {
     lst = lstatSync(lexical);
@@ -176,6 +299,12 @@ function resolveWritableFileEntry(lexical, label, repoReal) {
       { errno: err?.code ?? null }
     );
   }
+  if (parentReal !== parent) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_OUTSIDE_REPO,
+      `${label} parent aliases the canonical repository path: ${parent} -> ${parentReal}`
+    );
+  }
   let parentSt;
   try {
     parentSt = statSync(parentReal);
@@ -222,15 +351,38 @@ function resolveWritableFileEntry(lexical, label, repoReal) {
       { errno: err?.code ?? null }
     );
   }
+  let identity;
   try {
     fchmodSync(fd, 0o644);
-  } catch {
-
+    identity = identityFromStat(fstatSync(fd, { bigint: true }));
+    closeSync(fd);
+    fd = undefined;
+  } catch (err) {
+    try { if (fd !== undefined) closeSync(fd); } catch {   }
+    try {
+      if (identity === undefined || sameFileIdentity(real, identity)) unlinkSync(real);
+    } catch {   }
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_FILE,
+      `${label} precreation finalization failed: ${real}`,
+      { errno: err?.code ?? null }
+    );
   }
-  try { closeSync(fd); } catch {   }
   try {
     accessSync(real, fsConstants.W_OK);
+    if (!sameFileIdentity(real, identity)) {
+      fail(
+        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_FILE,
+        `${label} precreated file identity changed during planning: ${real}`
+      );
+    }
   } catch (err) {
+    try {
+      if (sameFileIdentity(real, identity)) unlinkSync(real);
+    } catch {   }
+    if (err instanceof Error && err.code === BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_FILE) {
+      throw err;
+    }
     if (err && err.code === "EROFS") {
       fail(
         BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.WRITABLE_FILE_NAMESPACE_READ_ONLY,
@@ -244,10 +396,13 @@ function resolveWritableFileEntry(lexical, label, repoReal) {
       { errno: err?.code ?? null }
     );
   }
-  return { real, precreated: true };
+  return { real, precreated: true, identity };
 }
 
-export function prepareWritableFiles(writableFiles, repoReal) {
+export function prepareWritableFiles(writableFiles, repoReal, {
+  refuseSymlinks = false,
+  attemptBinding = null
+} = {}) {
   if (!Array.isArray(writableFiles)) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
@@ -256,14 +411,31 @@ export function prepareWritableFiles(writableFiles, repoReal) {
   }
   const out = [];
   const seen = new Set();
-  for (let i = 0; i < writableFiles.length; i += 1) {
-    const lexical = assertAbsoluteSafePath(writableFiles[i], `writableFiles[${i}]`);
-    const entry = resolveWritableFileEntry(lexical, `writableFiles[${i}]`, repoReal);
-    if (seen.has(entry.real)) continue;
-    seen.add(entry.real);
-    out.push(entry);
+  const created = [];
+  try {
+    for (let i = 0; i < writableFiles.length; i += 1) {
+      const lexical = assertAbsoluteSafePath(writableFiles[i], `writableFiles[${i}]`);
+      const entry = resolveWritableFileEntry(lexical, `writableFiles[${i}]`, repoReal, {
+        refuseSymlinks
+      });
+      if (seen.has(entry.real)) {
+        if (entry.precreated) {
+          created.push(entry);
+        }
+        continue;
+      }
+      seen.add(entry.real);
+      out.push(entry);
+      if (entry.precreated) created.push(entry);
+    }
+  } catch (error) {
+    buildWritableFilePrecreationCleanup(created, attemptBinding).cleanup();
+    throw error;
   }
-  return out;
+  return Object.freeze({
+    entries: Object.freeze(out),
+    cleanup: buildWritableFilePrecreationCleanup(created, attemptBinding)
+  });
 }
 
 export function realpathExisting(p, label, code) {

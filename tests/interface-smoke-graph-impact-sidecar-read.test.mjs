@@ -32,6 +32,12 @@ test("WK-0754 MCP workspace_read_page reads per-WK graph-evidence sidecars: comp
       record: {
         unit: { kind: "work_item", address: recordId, record_id: recordId, slice_id: null },
         replay_detail_available: true,
+        query_kind: "graph_impact_paths",
+        source_record_digest: `sha256:${"b".repeat(64)}`,
+        input_paths: ["packages/wiki-core/src/x.mjs"],
+        validated_paths: ["packages/wiki-core/src/x.mjs"],
+        invalid_path_count: 0,
+        counts: { graph_nodes: 2, graph_edges: 1, private_label: "omit" },
         graph_entry_digest: `sha256:${"d".repeat(64)}`,
         graph_impact: {
           query_kind: "graph_impact_paths",
@@ -41,7 +47,12 @@ test("WK-0754 MCP workspace_read_page reads per-WK graph-evidence sidecars: comp
           graph_edges: ["edge-1"],
           canonical_refs: ["ref-1"]
         },
-        graph_impact_summary: { kind: "graph_impact_agent_summary", query_kind: "graph_impact_paths" }
+        graph_impact_summary: { kind: "graph_impact_agent_summary", query_kind: "graph_impact_paths" },
+        binding_token: "FORBIDDEN_BINDING_TOKEN",
+        raw: "FORBIDDEN_RAW",
+        body: "FORBIDDEN_BODY",
+        diagnostics: [{ message: "FORBIDDEN_DIAGNOSTIC" }],
+        continuation: { token: "FORBIDDEN_CONTINUATION" }
       },
       slices: {
         "slice-one": {
@@ -52,6 +63,18 @@ test("WK-0754 MCP workspace_read_page reads per-WK graph-evidence sidecars: comp
             slice_id: "slice-one"
           },
           replay_detail_available: true,
+          query_kind: "graph_impact_paths",
+          source_record_digest: `sha256:${"b".repeat(64)}`,
+          input_paths: ["packages/wiki-core/src/one.mjs"],
+          validated_paths: ["packages/wiki-core/src/one.mjs"],
+          invalid_path_count: 0,
+          counts: { graph_nodes: 1, graph_edges: 1, private_label: "omit" },
+          graph_state: {
+            graph_available: true,
+            staleness: "fresh",
+            private_state: "omit"
+          },
+          raw_evidence_digest: `sha256:${"a".repeat(64)}`,
           graph_entry_digest: `sha256:${"e".repeat(64)}`,
           graph_impact: {
             query_kind: "graph_impact_paths",
@@ -60,7 +83,13 @@ test("WK-0754 MCP workspace_read_page reads per-WK graph-evidence sidecars: comp
             graph_nodes: ["node-3"],
             graph_edges: ["edge-2"],
             canonical_refs: ["ref-2"]
-          }
+          },
+          graph_impact_summary: { raw: "FORBIDDEN_SUMMARY" },
+          binding_token: "FORBIDDEN_BINDING_TOKEN",
+          raw: "FORBIDDEN_RAW",
+          body: "FORBIDDEN_BODY",
+          diagnostics: [{ message: "FORBIDDEN_DIAGNOSTIC" }],
+          continuation: { token: "FORBIDDEN_CONTINUATION" }
         },
         "slice-two": {
           unit: {
@@ -88,7 +117,8 @@ test("WK-0754 MCP workspace_read_page reads per-WK graph-evidence sidecars: comp
     const session = createMcpSession({
       env: {
         WIKI_MCP_REPOS: JSON.stringify({ demo: tempDir }),
-        WIKI_MCP_DEFAULT_REPO: "demo"
+        WIKI_MCP_DEFAULT_REPO: "demo",
+        WIKI_MCP_TOOL_PROFILE: "agent-safe"
       }
     });
     try {
@@ -97,10 +127,6 @@ test("WK-0754 MCP workspace_read_page reads per-WK graph-evidence sidecars: comp
       const tools = (await session.request(2, "tools/list")).tools;
       const readPageTool = tools.find((t) => t.name === "workspace_read_page");
       assert.ok(readPageTool, "workspace_read_page must be registered");
-      assert.ok(
-        JSON.stringify(readPageTool.inputSchema).includes("selected_record"),
-        "workspace_read_page inputSchema must expose selected_record"
-      );
 
       const compact = (
         await session.request(3, "tools/call", {
@@ -129,12 +155,30 @@ test("WK-0754 MCP workspace_read_page reads per-WK graph-evidence sidecars: comp
       ).structuredContent;
       assert.equal(slice.selected_slice_found, true);
       assert.equal(slice.selected_slice.unit.address, `${recordId}#slice-one`);
-      assert.ok(slice.selected_slice.graph_impact);
+      assert.equal(slice.selected_slice.query_kind, "graph_impact_paths");
+      assert.deepEqual(slice.selected_slice.counts, { graph_nodes: 1, graph_edges: 1 });
+      assert.deepEqual(slice.selected_slice.graph_state, {
+        graph_available: true,
+        staleness: "fresh"
+      });
       assert.equal(
         JSON.stringify(slice).includes("slice-two"),
         false,
         "selected_slice must not leak sibling entries"
       );
+      for (const forbidden of [
+        '"graph_impact"',
+        '"graph_impact_summary"',
+        "FORBIDDEN_BINDING_TOKEN",
+        "FORBIDDEN_RAW",
+        "FORBIDDEN_BODY",
+        "FORBIDDEN_DIAGNOSTIC",
+        "FORBIDDEN_CONTINUATION",
+        "private_state",
+        "private_label"
+      ]) {
+        assert.equal(JSON.stringify(slice).includes(forbidden), false);
+      }
 
       const record = (
         await session.request(5, "tools/call", {
@@ -145,11 +189,25 @@ test("WK-0754 MCP workspace_read_page reads per-WK graph-evidence sidecars: comp
       assert.equal(record.selected_record, true);
       assert.equal(record.record_entry_found, true);
       assert.equal(record.record_entry.unit.address, recordId);
+      assert.equal(record.record_entry.query_kind, "graph_impact_paths");
+      assert.deepEqual(record.record_entry.counts, { graph_nodes: 2, graph_edges: 1 });
       assert.equal(
         JSON.stringify(record).includes("slice-one"),
         false,
         "selected_record must not leak slice entries"
       );
+      for (const forbidden of [
+        '"graph_impact"',
+        '"graph_impact_summary"',
+        "FORBIDDEN_BINDING_TOKEN",
+        "FORBIDDEN_RAW",
+        "FORBIDDEN_BODY",
+        "FORBIDDEN_DIAGNOSTIC",
+        "FORBIDDEN_CONTINUATION",
+        "private_label"
+      ]) {
+        assert.equal(JSON.stringify(record).includes(forbidden), false);
+      }
 
       const verbose = (
         await session.request(6, "tools/call", {

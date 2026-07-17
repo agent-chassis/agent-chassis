@@ -18,14 +18,14 @@ import {
   computeGraphEvidenceSidecarDigest,
   graphEvidenceSidecarPathForRecord
 } from "./work-record-graph-evidence-sidecar.mjs";
-import { createHash } from "node:crypto";
+import {
+  prepareWorkRecordAdmissionDerivedEvidenceSidecar
+} from "./work-record-admission-derived-evidence-persist.mjs";
 
 export const WORK_RECORD_DERIVED_EVIDENCE_CLEANUP_SCHEMA_VERSION =
   "work-record-derived-evidence-cleanup.v1";
 export const WORK_RECORD_DERIVED_EVIDENCE_CLEANUP_KIND =
   "work_record_derived_evidence_cleanup";
-const WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDEcar_DIRECTORY =
-  "wiki/work-records/evidence";
 
 const WORKER_ADMISSION_STRING_FIELDS = [
   "schema_version",
@@ -49,31 +49,6 @@ function approxJsonBytes(value) {
   } catch {
     return 0;
   }
-}
-
-function computeSidecarDigest(value) {
-  const text = `${JSON.stringify(value, null, 2)}\n`;
-  return `sha256:${createHash("sha256").update(text, "utf8").digest("hex")}`;
-}
-
-function sanitizeWorkRecordAdmissionDerivedEvidenceSidecarSegment(segment) {
-  const normalized = normalizeStringEntry(segment);
-  if (!normalized) {
-    return "slice";
-  }
-  return encodeURIComponent(normalized);
-}
-
-function buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(entry) {
-  const recordId = normalizeStringEntry(entry?.record_id) ?? normalizeStringEntry(entry?.unit?.record_id) ?? "WK-unknown";
-  const unit = isObject(entry?.unit) ? entry.unit : null;
-  const sliceId = normalizeStringEntry(unit?.slice_id);
-  if (unit?.kind === "slice" || sliceId) {
-    const resolvedSliceId =
-      sliceId ?? normalizeStringEntry(String(unit?.address ?? "").split("#")[1]) ?? "slice";
-    return `${WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDEcar_DIRECTORY}/${recordId}.${sanitizeWorkRecordAdmissionDerivedEvidenceSidecarSegment(resolvedSliceId)}.admission.json`;
-  }
-  return `${WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDEcar_DIRECTORY}/${recordId}.admission.json`;
 }
 
 function normalizePersistedWorkerAdmissionMetricSummary(entry) {
@@ -227,8 +202,9 @@ function buildCompactWorkerAdmissionCleanupCandidate(entry) {
   delete sidecarPayload.sidecar_digest;
   delete sidecarPayload.admission_summary;
 
-  const sidecarPath = buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(sidecarPayload);
-  const sidecarDigest = computeSidecarDigest(sidecarPayload);
+  const preparedSidecar = prepareWorkRecordAdmissionDerivedEvidenceSidecar(sidecarPayload);
+  const sidecarPath = preparedSidecar.relativePath;
+  const sidecarDigest = preparedSidecar.digest;
   const compactEntry = createCompactWorkRecordAdmissionDerivedEvidence(sidecarPayload, {
     sidecarPath,
     sidecarDigest

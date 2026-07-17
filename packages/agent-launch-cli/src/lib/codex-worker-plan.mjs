@@ -1,4 +1,5 @@
 import path from "node:path";
+import { realpathSync } from "node:fs";
 
 import {
   evaluateWorkRecordWrapperGate,
@@ -36,7 +37,11 @@ import {
 const WORKER_IDENTITY_CARRIER_ENV_KEYS = Object.freeze([
   "AGENT_ROLE",
   "AGENT_WK",
-  "AGENT_OPERATOR_WRITE_SCOPE"
+  "AGENT_OPERATOR_WRITE_SCOPE",
+  "WIKI_MCP_COMMIT_BINDING",
+  "WIKI_MCP_COMMIT_LAUNCH_REF",
+  "WIKI_MCP_COMMIT_RUN_ID",
+  "WIKI_MCP_COMMIT_RETRY_ID"
 ]);
 
 function snapshotWorkerCallerSuppliedIdentityProbe({ env }) {
@@ -55,6 +60,53 @@ function snapshotWorkerCallerSuppliedIdentityProbe({ env }) {
   return probe;
 }
 
+function callerSuppliedCommitCredentialRefusal(env) {
+  if (!env || typeof env !== "object") return null;
+  const carrier = WORKER_IDENTITY_CARRIER_ENV_KEYS
+    .filter((key) => key.startsWith("WIKI_MCP_COMMIT_"))
+    .find((key) => Object.prototype.hasOwnProperty.call(env, key) && env[key] !== undefined);
+  if (!carrier) return null;
+  return Object.freeze({
+    schema_version: "agent-dispatch-identity.v1",
+    accepted: false,
+    refusal_code: "agent_dispatch_identity.caller_supplied_role.v1",
+    refusal_message: `caller-supplied commit credential is not authority: env.${carrier}`,
+    detail: Object.freeze({ carrier: `env.${carrier}` })
+  });
+}
+
+function assertManagedProvisioningMainRepo(worktreeProvisioning, sliceBinding) {
+  if (worktreeProvisioning === null) return null;
+  if (!worktreeProvisioning || typeof worktreeProvisioning !== "object" ||
+      Array.isArray(worktreeProvisioning) || !Object.isFrozen(worktreeProvisioning)) {
+    throw new Error("managed worker provisioning must be the exact frozen launcher-owned object");
+  }
+  const mainRepo = worktreeProvisioning.main_repo;
+  if (typeof mainRepo !== "string" || mainRepo.length === 0 || mainRepo.trim() !== mainRepo ||
+      !path.isAbsolute(mainRepo) || path.resolve(mainRepo) !== mainRepo) {
+    throw new Error("managed worker provisioning main_repo must be an absolute canonical path");
+  }
+  let canonicalMainRepo;
+  try {
+    canonicalMainRepo = realpathSync(mainRepo);
+  } catch {
+    throw new Error("managed worker provisioning main_repo must resolve to the canonical main checkout");
+  }
+  if (canonicalMainRepo !== mainRepo) {
+    throw new Error("managed worker provisioning main_repo must be an absolute canonical path");
+  }
+  const sliceWorktree = sliceBinding?.worktree_path;
+  if (typeof sliceWorktree !== "string" || !path.isAbsolute(sliceWorktree) ||
+      path.resolve(sliceWorktree) !== sliceWorktree || realpathSync(sliceWorktree) !== sliceWorktree ||
+      worktreeProvisioning.worktree_path !== sliceWorktree) {
+    throw new Error("managed worker provisioning sparse worktree must be an absolute canonical path");
+  }
+  if (mainRepo === sliceWorktree) {
+    throw new Error("managed worker provisioning main_repo must be distinct from the sparse slice worktree");
+  }
+  return mainRepo;
+}
+
 import {
   buildCodexWritableSandboxArgs,
   buildFastDecommissionedRefusalPlan,
@@ -63,28 +115,13 @@ import {
   ROLE_CONFIG
 } from "../commands/codex-role.mjs";
 import {
-  AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES,
-  assertCodexCallableSourceToolSurface,
-  isScopedChildToolSurfaceRefusal,
-  isSourceToolSurfaceNotConfigured
-} from "./agent-child-tool-surface.mjs";
-import {
-  collectSliceDeclaredWritableFiles,
-  isolationWritableDirectoriesForLaunch,
-  planWorkerWriteScopeNewDirectories,
-  projectPermissionWritesForWorkerLaunch
-} from "./codex-worker-write-scope-plan.mjs";
-import {
-  buildCodexWorkerWikiMcpEnvOverrides,
-  injectCodexConfigOverridesBeforeFinalPositional,
-  quoteTomlString,
-  resolveWikiMcpServerPath
+  assertCodexWorkerCommitCredentialBinding,
+  assertNoConfiguredCodexWorkerCommitCredential
 } from "./codex-role-mcp-env.mjs";
 import {
-  buildCodexWikiMcpServerOverrides
-} from "./codex-role-wiki-mcp-override.mjs";
-
-import { resolveDispatchedRoleModel } from "./agent-launch-profiles.mjs";
+  buildAdmittedCodexWorkerPlan
+} from "./codex-worker-plan-admitted.mjs";
+import { assertFrozenWorkerScopeAuthority } from "./workspace-agent-launch-core.mjs";
 
 export {
   ensureNewWorkerWriteRoots,
@@ -98,72 +135,24 @@ export {
   attachWorkerAdmissionRemediation
 } from "./codex-worker-plan-refusals.mjs";
 
-function buildCodexCallableSourceSurfaceRefusalPlan({ role, wk, env, callableSourceToolSurface }) {
-  const recordIdHint = typeof wk === "string" && wk.startsWith("WK-")
-    ? wk.split("#")[0]
-    : null;
-  return {
-    mode: "refusal",
-    role,
-    subject: typeof wk === "string" ? wk : null,
-    repo: null,
-    command: "codex",
-    args: [],
-    env: {
-      ...env,
-      AGENT_ROLE: "worker",
-      ...(recordIdHint ? { AGENT_WK: recordIdHint } : {}),
-      AGENT_SUBJECT: typeof wk === "string" ? wk : ""
-    },
-    refusal: {
-      schema_version: WORK_RECORD_WRAPPER_GATE_SCHEMA_VERSION,
-      allowed: false,
-      wrapper_gate_code: RUNTIME_BLOCKER_CODES.BACKEND_UNAVAILABLE,
-      role,
-      unit_address: typeof wk === "string" ? wk : null,
-      expected_unit_address: typeof wk === "string" ? wk : null,
-      diagnostics: [
-        {
-          code: RUNTIME_BLOCKER_CODES.BACKEND_UNAVAILABLE,
-          message: "codex-worker source-edit launch requires callable launcher-owned scoped source tools",
-          path: "source_tool_surface.codex_child_runtime",
-          reason: "single_launcher_source_tool_surface_not_callable_for_codex_worker",
-          detail: {
-            required_backend_kind: "filesystem_mcp",
-            required_surface: "launcher_owned_scoped_source_read_write",
-            reason_code: callableSourceToolSurface.refusal_code
-              ?? AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.CODEX_CALLABLE_SURFACE_UNAVAILABLE,
-            refusal: callableSourceToolSurface
-          }
-        }
-      ],
-      readiness: null,
-      worker_admission: null,
-      dependency_evidence: null
-    }
-  };
-}
+export {
+  buildCodexFilesystemMcpChildMountConfigOverrides
+} from "./codex-worker-plan-admitted.mjs";
 
-export function buildCodexFilesystemMcpChildMountConfigOverrides(callableSourceToolSurface) {
-  const mount = callableSourceToolSurface?.codex_child_runtime?.child_mount ?? null;
-  if (!mount || typeof mount !== "object") {
-    return [];
+export async function resolveWorkerPlanRepoRoots({
+  managedCanonicalMainRepo,
+  worktreeProvisioning,
+  cwd,
+  findRepoRoot: findRepoRootImpl = findRepoRoot
+}) {
+  if (managedCanonicalMainRepo !== null && managedCanonicalMainRepo !== undefined) {
+    return {
+      repo: worktreeProvisioning.worktree_path,
+      canonicalReadRepo: managedCanonicalMainRepo
+    };
   }
-  const serverName = typeof mount.mcp_server_name === "string" && mount.mcp_server_name.length > 0
-    ? mount.mcp_server_name
-    : "filesystem_mcp";
-  if (typeof mount.command !== "string" || mount.command.length === 0 || !Array.isArray(mount.args)) {
-    return [];
-  }
-  const overrides = [
-    `mcp_servers.${serverName}.command=${quoteTomlString(mount.command)}`,
-    `mcp_servers.${serverName}.args=${JSON.stringify(mount.args)}`
-  ];
-  const env = mount.env && typeof mount.env === "object" ? mount.env : {};
-  for (const key of Object.keys(env).sort()) {
-    overrides.push(`mcp_servers.${serverName}.env.${key}=${quoteTomlString(env[key])}`);
-  }
-  return overrides;
+  const repo = await findRepoRootImpl(cwd);
+  return { repo, canonicalReadRepo: repo };
 }
 
 export async function buildWorkerPlan({
@@ -177,15 +166,18 @@ export async function buildWorkerPlan({
   provisionedWorktreeGitBinding = null,
   provisionedWorktreeGitIdentity = null,
   provisioned_worktree_git_binding = null,
-  provisioned_worktree_git_identity = null
+  provisioned_worktree_git_identity = null,
+  worker_scope_authority = null,
+  worktree_provisioning = null,
+
+  hostWriteAuthorityEndpoint = null
 }) {
   if (role === "worker-fast" || role === "worker_fast") {
     return buildFastDecommissionedRefusalPlan({ role, subject: wk, env });
   }
 
-  const workerIdentityRefusal = refuseCallerSuppliedWorkerIdentity(
-    snapshotWorkerCallerSuppliedIdentityProbe({ env })
-  );
+  const workerIdentityRefusal = callerSuppliedCommitCredentialRefusal(env) ??
+    refuseCallerSuppliedWorkerIdentity(snapshotWorkerCallerSuppliedIdentityProbe({ env }));
   if (workerIdentityRefusal) {
     const recordIdHint = typeof wk === "string" && wk.startsWith("WK-")
       ? wk.split("#")[0]
@@ -232,29 +224,56 @@ export async function buildWorkerPlan({
     ?? provisionedWorktreeGitIdentity
     ?? provisioned_worktree_git_identity
     ?? null;
+  const frozenWorkerScopeAuthority = assertFrozenWorkerScopeAuthority(worker_scope_authority, {
+    role,
+    subject: wk,
+    worktreeProvisioning: worktree_provisioning,
+    provisionedWorktreeGitBinding: serverProvisionedWorktreeGitBinding,
+    required: serverProvisionedWorktreeGitBinding !== null || worktree_provisioning !== null || worker_scope_authority !== null
+  });
+  const serverOwnedSliceBinding = worktree_provisioning?.slice_binding ?? null;
+  const managedWorkerCommitRequired = frozenWorkerScopeAuthority !== null ||
+    serverProvisionedWorktreeGitBinding !== null || worktree_provisioning !== null;
+
+  const managedCanonicalMainRepo =
+    assertManagedProvisioningMainRepo(worktree_provisioning, serverOwnedSliceBinding);
+  if (managedWorkerCommitRequired) {
+    assertNoConfiguredCodexWorkerCommitCredential({ env });
+  }
+  assertCodexWorkerCommitCredentialBinding({
+    assignedUnit: wk,
+    managedWorker: managedWorkerCommitRequired,
+    worktreeProvisioning: worktree_provisioning,
+    sliceBinding: serverOwnedSliceBinding
+  });
 
   const unit = parseWorkRecordUnitAddress(wk);
   if (!unit.ok) {
     throw new Error(`codex-${role}: expected unit address like WK-0348 or WK-0348#slice-id, got: ${wk}`);
   }
-  const repo = await findRepoRoot(cwd);
+
+  const { repo, canonicalReadRepo } = await resolveWorkerPlanRepoRoots({
+    managedCanonicalMainRepo,
+    worktreeProvisioning: worktree_provisioning,
+    cwd
+  });
   const unitAddress = unit.value.address;
   const recordId = unit.value.record_id;
   const sliceId = unit.value.slice_id;
   const now = env.AGENT_LAUNCH_TIMESTAMP || new Date().toISOString();
   const initialReadiness = await validateWorkRecordDispatch({
-    dir: repo,
+    dir: canonicalReadRepo,
     unitAddress,
     now
   });
   const bridgeResult = await applyGraphImpactBridge({
     readiness: initialReadiness,
     env,
-    repo,
+    repo: canonicalReadRepo,
     envVar: CODEX_WORKER_GRAPH_IMPACT_BRIDGE_ENV_VAR,
     validate: (evidence) =>
       validateWorkRecordDispatch({
-        dir: repo,
+        dir: canonicalReadRepo,
         unitAddress,
         graph_impact: evidence,
         now
@@ -300,7 +319,7 @@ export async function buildWorkerPlan({
     };
   }
 
-  const loaded = await loadWorkRecordById({ dir: repo, id: recordId });
+  const loaded = await loadWorkRecordById({ dir: canonicalReadRepo, id: recordId });
   if (!loaded.record) {
     return buildVectorConstructionRefusal({
       role,
@@ -356,14 +375,14 @@ export async function buildWorkerPlan({
   }
 
   const remoteAdmissionProvenance = await resolveRemoteWorkerAdmissionProvenance({
-    dir: repo,
+    dir: canonicalReadRepo,
     record: loaded.record,
     unit: unit.value,
     env
   });
   const canonicalSummary = buildCanonicalSummary(loaded.record, readiness, unit.value);
   const agentBriefResult = await renderWorkRecordAgentBriefById({
-    dir: repo,
+    dir: canonicalReadRepo,
     id: recordId,
     sliceId
   });
@@ -432,121 +451,27 @@ export async function buildWorkerPlan({
       ...(remoteAdmissionProvenance ? { workerAdmissionRemote: remoteAdmissionProvenance } : {})
     };
   }
-
-  let callableSourceToolSurface = null;
-  let preparedNewWriteRoots = [];
-  let isolationWritableProjectRoots = [];
-  let isolationWritableFiles = [];
-  let sandboxArgs = [];
-  if (isSourceToolSurfaceNotConfigured(sourceToolSurface)) {
-
-    const writeScope = gate.launch_packet.canonical_summary.write_scope;
-    const projectPermissionWrites = await projectPermissionWritesForWorkerLaunch(repo, writeScope);
-    preparedNewWriteRoots = await planWorkerWriteScopeNewDirectories(repo, writeScope);
-    const selectedSliceForWritables = sliceId && Array.isArray(loaded.record.slices)
-      ? loaded.record.slices.find((slice) => slice && slice.id === sliceId) || null
-      : null;
-    const declaredWritableFiles = await collectSliceDeclaredWritableFiles({
-      repo,
-      record: loaded.record,
-      selectedSlice: selectedSliceForWritables,
-      writeScope
-    });
-    isolationWritableProjectRoots = await isolationWritableDirectoriesForLaunch(repo, writeScope);
-    isolationWritableFiles = declaredWritableFiles.map((relPath) => path.resolve(repo, relPath));
-    sandboxArgs = buildCodexWritableSandboxArgs(repo, {
-      writableProjectRoots: projectPermissionWrites
-    });
-  } else {
-    callableSourceToolSurface = assertCodexCallableSourceToolSurface(sourceToolSurface);
-    if (isScopedChildToolSurfaceRefusal(callableSourceToolSurface)) {
-      return buildCodexCallableSourceSurfaceRefusalPlan({
-        role,
-        wk,
-        env,
-        callableSourceToolSurface
-      });
-    }
-  }
-
-  const roleModel = resolveDispatchedRoleModel({ role, resolvedProfile, dir: repo });
-  if (!roleModel.ok) {
-    return buildModelUnsetRefusal({
-      role,
-      env,
-      repo,
-      recordId,
-      unitAddress,
-      reason: roleModel.reason,
-      detail: roleModel.detail
-    });
-  }
-  const model = roleModel.model;
-  const config = ROLE_CONFIG[role];
-
-  const profile = typeof resolvedProfile?.backend_profile_key === "string"
-    && resolvedProfile.backend_profile_key.length > 0
-    ? resolvedProfile.backend_profile_key
-    : config.defaultProfile;
-  const prompt = gate.launch_packet.prompt;
-  const baseArgs = [
-    "--disable", "shell_snapshot",
-    "-C", repo,
-    ...sandboxArgs,
-    "-a", "never",
-    "-p", profile,
-    "exec",
-    "--ignore-rules"
-  ];
-  const headlessPlan = await buildHeadlessPlan({
+  return buildAdmittedCodexWorkerPlan({
     role,
-    subject: unitAddress,
+    wk,
+    env,
     repo,
-    env: {
-      ...env,
-      AGENT_ROLE: config.envRole,
-      AGENT_WK: recordId,
-      AGENT_SUBJECT: unitAddress,
-      ...(callableSourceToolSurface?.descriptor?.descriptor_digest
-        ? { AGENT_LAUNCH_SOURCE_TOOL_SURFACE_DIGEST: callableSourceToolSurface.descriptor.descriptor_digest }
-        : {}),
-      ...(callableSourceToolSurface?.decision?.accepted_handshake_digest
-        ? { AGENT_LAUNCH_SOURCE_TOOL_SURFACE_HANDSHAKE_DIGEST: callableSourceToolSurface.decision.accepted_handshake_digest }
-        : {})
-    },
-    logPrefix: config.logPrefix,
-    verbose: env[config.verboseEnv] === "1",
-    model,
-    argsPrefix: baseArgs,
-    prompt,
-    writableProjectRoots: isolationWritableProjectRoots,
-    writableFiles: isolationWritableFiles
+    resolvedProfile,
+    sourceToolSurface,
+    frozenWorkerScopeAuthority,
+    gate,
+    loaded,
+    sliceId,
+    recordId,
+    unitAddress,
+    managedWorkerCommitRequired,
+    worktree_provisioning,
+    serverOwnedSliceBinding,
+    hostWriteAuthorityEndpoint,
+    serverProvisionedWorktreeGitBinding,
+    remoteAdmissionProvenance,
+    buildCodexWritableSandboxArgs,
+    buildHeadlessPlan,
+    ROLE_CONFIG
   });
-  headlessPlan.preparedNewWriteRoots = preparedNewWriteRoots;
-
-  headlessPlan.sourceToolSurface = callableSourceToolSurface ?? sourceToolSurface;
-  if (serverProvisionedWorktreeGitBinding !== null) {
-    headlessPlan.provisionedWorktreeGitBinding = serverProvisionedWorktreeGitBinding;
-    headlessPlan.provisioned_worktree_git_binding = serverProvisionedWorktreeGitBinding;
-  }
-
-  const filesystemMcpOverrides = buildCodexFilesystemMcpChildMountConfigOverrides(callableSourceToolSurface);
-  if (filesystemMcpOverrides.length > 0 && Array.isArray(headlessPlan.args)) {
-    injectCodexConfigOverridesBeforeFinalPositional(headlessPlan.args, filesystemMcpOverrides);
-  }
-  const wikiMcpServerPath = resolveWikiMcpServerPath();
-  if (!wikiMcpServerPath) {
-    throw new Error("codex-worker: failed to resolve @agent-chassis/wiki-mcp server entrypoint");
-  }
-  const workerWikiMcpOverrides = [
-    ...buildCodexWikiMcpServerOverrides({ serverPath: wikiMcpServerPath, repo }),
-    ...buildCodexWorkerWikiMcpEnvOverrides({ assignedUnit: unitAddress })
-  ];
-  if (Array.isArray(headlessPlan.args)) {
-    injectCodexConfigOverridesBeforeFinalPositional(headlessPlan.args, workerWikiMcpOverrides);
-  }
-  if (remoteAdmissionProvenance) {
-    headlessPlan.workerAdmissionRemote = remoteAdmissionProvenance;
-  }
-  return headlessPlan;
 }

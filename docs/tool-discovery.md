@@ -11,6 +11,45 @@ agent-chassis command or MCP function should handle a job. It exists so
 agents can choose a tool from structured data instead of guessing from wrapper
 filenames, package metadata, executable bits, or historical WK pages.
 
+## Phase 1 managed implementation-worker discovery contract (staged)
+
+work record defines a Phase 1 managed implementation-worker contract that remains
+staged until `work record` activates production confinement. Before that
+activation, discovery, router, FAQ, and runtime output must not describe the
+confinement or its worker tool profile as active merely because this guidance
+or predecessor implementation is present.
+
+For that contract, let `R` be the normalized union of the canonical unit's
+`read_scope` and `repo_paths`, and let `W` be the normalized canonical
+`write_scope`. The launcher freezes both sets before launch. Once activated,
+the worker's repository visibility is exactly `R union W`, and repository
+mutation is permitted exactly within `W`; a target in `W` is visible without
+also appearing in `R`.
+
+The worker's prompt-governed Codex inspection shell is only a non-mutating way
+to inspect the visible `R union W` namespace. It is not policy authority and
+cannot widen the frozen binding. The Phase 1 implementation-worker profile
+exposes no worker validation or general MCP tools, including the discovery
+routes documented here. Its sole delivery authority is the closed-input commit
+capability in the trusted host/runtime boundary, using the server-resolved
+binding without giving the worker repository git metadata or a general commit
+shell.
+
+This worker-specific profile does not change the existing reviewer or redteam
+launcher-owned validation contracts. In particular, the reviewer/redteam
+`node_check` and confined `node_test` operations documented below remain
+available when authorized by their own declared validation. Discovery must not
+project those findings-only role capabilities into the Phase 1 implementation
+worker profile.
+
+Every supported family/backend path must preserve the same frozen namespace and
+worker tool surface. Unsupported families, backends, scope shapes, or
+confinement capabilities fail closed rather than falling back to broader
+visibility or mutation. The bootstrap posture retains readable
+launcher-provided Codex auth/sourceHome and `shareNet=true` model-API egress as
+operator-accepted residual risks under prompt governance; it is not a
+digest-bound or per-dispatch mechanical risk-acceptance mechanism.
+
 This document is the durable operator contract for the discovery schema. The
 canonical checked-in registry is the set of JSON fragments under
 `packages/wiki-core/data/tool-discovery/`, assembled at load time into one

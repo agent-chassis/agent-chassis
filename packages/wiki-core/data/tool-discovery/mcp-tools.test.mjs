@@ -35,6 +35,16 @@ const FRAGMENT_EXPECTATIONS = {
     'workspace_tool_router_recommend',
   ],
   'mcp-work-record-tools.json': [
+    'assign_work_record_to_initiative',
+    'workspace_decision_amend_scalar',
+    'workspace_decision_amend_section',
+    'workspace_decision_create',
+    'workspace_decision_ratify',
+    'workspace_decision_reject',
+    'workspace_decision_unratify',
+    'workspace_initiative_amend_scalar',
+    'workspace_initiative_amend_section',
+    'workspace_initiative_create',
     'workspace_record_graph_impact_evidence',
     'workspace_record_review_attestation',
     'workspace_record_review_result_evidence',
@@ -448,4 +458,43 @@ test('WK-1438 hot MCP tools carry compact routing guidance metadata', async () =
       );
     }
   }
+});
+
+test('ready-slice descriptor is installed supported free-local and role policy is orchestrator/operator only', async () => {
+  const fragment = await readFragment('work-record-tools.json');
+  const tool = findTool(fragment, 'workspace_work_record_ready_slice');
+  assert.equal(fragment.tool_count, fragment.tools.length);
+  assert.equal(fragment.tool_count, 29);
+  assertRichToolEntry(tool);
+  assert.equal(tool.install_state, 'installed');
+  assert.equal(tool.runtime_posture, 'supported');
+  assert.equal(tool.recommended_route, 'mcp');
+  assert.deepEqual(tool.tier_visibility, ['free_local']);
+  assert.deepEqual(tool.side_effects, ['workspace_write', 'record_write']);
+  assert.ok(tool.docs_refs.includes('docs/mcp-operation-reference.md'));
+  assert.ok(
+    tool.source_files.includes(
+      'packages/wiki-mcp/src/lib/work-record-write-route-helpers.mjs',
+    ),
+  );
+
+  const policy = await readJson(new URL('./session-role-tool-access.json', import.meta.url));
+  assert.deepEqual(policy.access.workspace_work_record_ready_slice, [
+    'orchestrator',
+    'operator',
+  ]);
+  for (const denied of ['reviewer', 'redteam', 'worker']) {
+    assert.equal(policy.access.workspace_work_record_ready_slice.includes(denied), false);
+  }
+
+  const manifest = await readJson(new URL('./manifest.json', import.meta.url));
+  const workRecordRow = manifest.fragments.find(
+    (entry) => entry.file === 'work-record-tools.json',
+  );
+  assert.equal(workRecordRow.tool_count, 29);
+  assert.equal(
+    manifest.expected_tool_count,
+    manifest.fragments.reduce((total, entry) => total + entry.tool_count, 0),
+  );
+  assert.equal(manifest.expected_tool_count, 100);
 });

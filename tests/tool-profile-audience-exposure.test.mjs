@@ -77,10 +77,10 @@ test("reviewer and redteam get broad CONTENT reads + submit-for-review, but no p
   }
 });
 
-test("worker gets exactly commit + submit-for-review", () => {
+test("worker gets exactly the closed-input commit primitive", () => {
   const role = "worker";
   assert.equal(shouldExposeTool(role, WORKER_COMMIT_TOOL_NAME), true);
-  assert.equal(shouldExposeTool(role, SUBMIT_FOR_REVIEW), true);
+  assert.equal(shouldExposeTool(role, SUBMIT_FOR_REVIEW), false);
   for (const name of [
     "workspace_search_repo",
     "workspace_read_page",

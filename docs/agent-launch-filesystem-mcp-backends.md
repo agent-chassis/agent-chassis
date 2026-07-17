@@ -5,6 +5,106 @@
 
 This page documents the filesystem-MCP worker backend request/decision/handshake contract, the launcher-owned Codex worker source substrate (host-write-authority / outer bwrap), and the roadmap/WIP Agy filesystem-MCP environment policy.
 
+## Phase 1 managed implementation-worker namespace contract
+
+The bounded Phase 1 managed implementation-worker contract is native filesystem
+confinement. Let `R` be the normalized union of the selected canonical unit's
+`read_scope` and `repo_paths`, and let `W` be its normalized canonical
+`write_scope`. The launcher freezes the binding before launch. Repository
+visibility is exactly `R union W`; repository mutation is allowed exactly in
+`W`. A writable target is visible by virtue of being in `W` and need not also be
+duplicated in `R`.
+
+Phase 1 requires no external dependency mirror or per-WK cache. AgentChassis
+execution authority remains launcher-owned outside worker-controlled repository
+state.
+
+Within that namespace, the worker may use the Codex inspection shell only as a
+prompt-governed, non-mutating inspection mechanism. It is neither a scope source
+nor permission to inspect outside `R union W`. Phase 1 does not expose worker
+validation or general MCP tools. The sole delivery surface is closed-input
+commit: the trusted host/runtime boundary commits from the server-resolved
+binding without exposing git metadata or a general commit shell to the worker.
+
+All supported family/backend paths must preserve this contract. Unsupported
+families, backends, scope shapes, and confinement capabilities fail closed; they
+must not route to a broader plain-spawn, source surface, or repository mount. The
+initial bootstrap deliberately retains readable launcher-provided Codex
+auth/sourceHome, `shareNet=true` model-API egress, and (decision) a read-only,
+launcher-derived wiki-MCP runtime closure under prompt governance. Those are
+explicitly operator-accepted residual risks, not a digest-bound or per-dispatch
+mechanical risk-acceptance mechanism.
+
+### decision wiki-MCP runtime closure
+
+A managed Git-less worker delivers its slice through the closed-input `commit`
+tool served by a stdio wiki-MCP child. That server cannot start unless its
+runtime is present in the sparse `R union W` namespace, which otherwise mounts
+none of it — the work record live canary (run `wkdb_345a805426cd0a64`) proved the
+server never started and the sole delivery surface was unreachable. decision
+authorizes exactly one additional, read-only, launcher-derived closure in a
+managed worker's namespace:
+
+- the node interpreter directory;
+- the repository-root `node_modules` directory, wholesale (vendored third-party
+  code; enumerating its transitive import graph is brittle against dependency
+  changes with no security gain);
+- for each workspace package in the wiki-MCP server's real import graph
+  (`@agent-chassis/wiki-mcp`, `wiki-core`, `agent-launch-cli`,
+  `agent-launch-core`), ONLY its git-tracked source/data/contract/package files.
+
+Whole-workspace-package-directory binds are forbidden: a package directory can
+contain ignored runtime state (for example
+`packages/agent-launch-cli/bin/.agent-runs`) carrying live credential aliases,
+so the launcher enumerates tracked files (`git ls-files`) instead, and the
+implementation negatively asserts that ignored state, credentials, and
+credential aliases are absent. The closure is derived exclusively from
+launcher-owned paths (the resolved server module plus Node module resolution);
+no caller input, prompt, environment, or argv can add, remove, or retarget a
+member, and an unresolved member fails closed with a structured pre-spawn
+refusal. Every closure root resolves under the launcher-authority root, which
+managed provisioning holds distinct from the worker-execution worktree, so no
+mounted content can ever appear as the worker's commit content. The closure is
+read-only delivery infrastructure only: the worker's repository write surface
+stays exactly `W`, and the worker-facing wiki-MCP tool profile stays
+commit-only. A staged self-contained runtime (the closure copied to a
+launcher-owned directory outside the repository) is the tracked hardening
+successor; adopting it supersedes this in-repo closure permission.
+
+## Launcher-authority root versus worker-execution root
+
+Managed dispatch works with two distinct roots that must never be conflated:
+
+- **Launcher-authority root.** The launcher-minted canonical `mainRepo` — the same
+  root managed worktree provisioning is derived from. It is the trusted source for
+  launcher-owned state: the worker-family launcher registry
+  (`.agent-launch/launchers.v1.json`), the verifier capability, the launcher
+  runtime-state nonce store, canonical work-record loading, and dispatch-readiness
+  validation.
+- **Worker-execution root.** The provisioned sparse worktree. It is the worker's
+  `cwd` and the exact `R union W` confinement boundary. It deliberately contains no
+  launcher configuration or state, and it is never launcher authority.
+
+Normal managed dispatch provisions the sparse worker worktree and then prepares the
+Codex worker source tool surface. Source preparation must resolve launcher authority
+from the launcher-authority root, not from the disposable worker worktree. Resolving
+the launcher registry from the sparse worktree finds an intentionally-absent
+`<worker-worktree>/.agent-launch/launchers.v1.json` and refuses every managed Codex
+worker before spawn. The launcher must not recover by mounting, copying, or
+initializing `.agent-launch` inside the worker; doing so would duplicate launcher
+authority into an untrusted, disposable lifecycle boundary.
+
+The source-tool-surface preparer therefore takes an explicit trusted constructor
+option naming the launcher-authority root. When present, that option governs every
+launcher-authority operation and takes precedence over the per-launch
+`workspace_dir` (which remains the worker-execution root). When absent — direct,
+unmanaged, or test composition — the preparer preserves its existing behavior and
+`workspace_dir` governs. The direct in-process composition binds that option to the
+provisioning configuration's `mainRepo`; the host-write broker binds it to the
+validated provisioning carrier's `main_repo` (see the MCP dispatch runtime
+contract). This is only authority-root resolution; it changes no
+lexical/realpath/symlink path policy.
+
 ## Operator Filesystem-MCP worker backends
 
 The `filesystem_mcp.apply_from_scratch` surface here is the SLICE-003 advertised child-surface contract for file-level worker writes. It names the boundary the launcher exposes and keeps generated-view validation aligned; it does not mean scratch minting, binding, or in-place apply runtime behavior is already fully implemented before SLICE-004 and SLICE-005 land.

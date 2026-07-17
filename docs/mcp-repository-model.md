@@ -1,3 +1,4 @@
+
 # MCP Agent-Facing Repository Model
 
 This page is the agent retrieval model for `agent-chassis` MCP: how workspace-scoped read/search/edit tools resolve the repository, how ranked search and oversized-response references behave, the MCP sandbox write-carveout profile, and the graph-impact checkpoint recipe. It is reference material split out of [docs/mcp-integration.md](mcp-integration.md); start there for setup and the workflow narrative.

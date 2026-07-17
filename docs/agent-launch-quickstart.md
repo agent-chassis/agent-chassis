@@ -304,15 +304,22 @@ source, freshness, blockers, and a structured recovery route. A missing,
 unknown, or stale fact is unavailable; a plane never inherits availability
 from another plane.
 
-In the current release, structured dispatch, native edit, commit, and
-coordinator-owned validation are available. The repository read boundary,
-managed worktree provisioning, slice-to-WK integration, WK-context review, and
-automatic main promotion are unavailable. Managed lifecycle refusals use
-`managed_lifecycle_required`; provisioning refusals use
+In the current release, structured dispatch, native edit, coordinator-owned
+validation, and the Phase 1 local single-repository lifecycle are available
+when their production composition is installed. That installed composition
+provides the repository read boundary, managed worktree provisioning,
+closed-input commit, slice-to-WK integration, and frozen whole-WK context
+review. Automatic main promotion remains unavailable. Managed lifecycle
+refusals use `managed_lifecycle_required`; provisioning refusals use
 `managed_worktree_provisioning_unavailable`. Recovery rechecks the server-owned
 facts through `workspace_coordination_preflight`. Free/local and paid/CCE
 responses keep the same plane meanings and differ only in their enforcement
 metadata.
+
+The current Phase 1 flow is: commit the slice, integrate it into the WK, run a
+findings-only review of the frozen whole-WK context, then return the result to
+the orchestrator for disposition. Findings do not trigger an automatic Git
+mutation or promotion to main.
 
 ### Agent Dispatch Boundary
 

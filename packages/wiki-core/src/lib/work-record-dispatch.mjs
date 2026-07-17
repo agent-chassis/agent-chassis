@@ -71,9 +71,26 @@ import {
   compactAcceptedEscalation,
   createReadinessEnvelope
 } from "./work-record-dispatch-readiness-shape.mjs";
+import {
+  classifyWorkRecordAdmissionCompactRecovery,
+  classifyWorkRecordAdmissionRecovery
+} from "../operations/work-records-admission-evidence.mjs";
+import {
+  computeWorkRecordPersistenceSnapshotDigest
+} from "../operations/work-records-store-io.mjs";
+import {
+  computeReviewedUnitSourceDigest,
+  validateReviewAttestation
+} from "./work-record-review-attestation.mjs";
+import { evaluateGraphImpactBlocker } from "./runtime-blocker-taxonomy.mjs";
+import { evaluateWorkRecordAdmissionDerivedEvidence } from "./work-record-admission.mjs";
+import {
+  readPersistedWorkerAdmissionEvidenceSidecarEntry
+} from "./work-record-admission-evidence-sidecar.mjs";
 
 export {
-  WORK_RECORD_DISPATCH_SCHEMA_VERSION
+  WORK_RECORD_DISPATCH_SCHEMA_VERSION,
+  WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES
 } from "./work-record-dispatch-readiness-shape.mjs";
 export { isBashWrapperPath } from "./work-record-dispatch-shared.mjs";
 export {
@@ -98,6 +115,41 @@ export const WORK_RECORD_DISPATCH_UNIT_KIND_VALUES = Object.freeze([
 ]);
 
 const GRAPH_BEARING_CODE_EXTENSION_PATTERN = /\.(?:cjs|cts|js|jsx|mjs|mts|py|ts|tsx)$/;
+
+const GRAPH_IMPACT_TAXONOMY_STATE_VALUES = new Set([
+  "available",
+  "unavailable",
+  "error",
+  "query_error"
+]);
+
+function normalizeDispatchGraphState(graphState = null) {
+  const normalized = normalizeGraphState(graphState);
+  const source = isObject(graphState) ? graphState : {};
+  const explicitGraphState = GRAPH_IMPACT_TAXONOMY_STATE_VALUES.has(source.graph_state)
+    ? source.graph_state
+    : source.status_reason === "query_error"
+      ? "query_error"
+      : source.status_reason === "artifact_unreadable"
+        ? "error"
+        : source.status_reason === "graph_unavailable" || source.status_reason === "graph_absent"
+          ? "unavailable"
+          : normalized.graph_state;
+  const explicitOverlayState = source.overlay_state === "active" || source.overlay_state === "included"
+    ? "active"
+    : source.overlay_state === "absent" || source.overlay_state === "not_included"
+      ? "absent"
+      : normalized.overlay_state
+        ? normalized.overlay_state
+        : isDirtyOverlayCompatibleGraphState(normalized)
+          ? "active"
+          : null;
+  return {
+    ...normalized,
+    graph_state: explicitGraphState,
+    overlay_state: explicitOverlayState
+  };
+}
 
 export function isGraphBearingCodePath(relativePath) {
   return (
@@ -342,7 +394,8 @@ function buildReadinessFromRecord({
   graphBearingWriteScope = [],
   graphBearingImplementationWriteScope = [],
   graphImpactUnbuildable = false,
-  liveGraphState = null
+  liveGraphState = null,
+  admissionRecovery = null
 }) {
   const subject = selectedUnit || record;
   const policy =
@@ -409,35 +462,47 @@ function buildReadinessFromRecord({
     ? graphImpactMatchesSubject(graphImpact, subject, unit)
     : false;
 
-  const effectiveGraphState = structuredGraphImpactMatches
-    ? graphImpact.graph_state
-    : graphState;
+  const effectiveGraphState = normalizeDispatchGraphState(
+    structuredGraphImpactMatches ? graphImpact.graph_state : graphState
+  );
   const clusteringGraphState = liveGraphState
-    ? normalizeGraphState(liveGraphState)
+    ? normalizeDispatchGraphState(liveGraphState)
     : effectiveGraphState;
 
   const effectiveGraphStateHasUnavailableSubjectPaths = graphStateHasUnavailableSubjectPath(
     effectiveGraphState,
     graphBearingSubjectPaths
   );
-  const dirtyOverlayStaleGraphImpact =
+  const graphImpactDisposition = evaluateGraphImpactBlocker(effectiveGraphState);
+  const graphImpactOperatorBlocked = graphImpactDisposition?.blocking === true;
+  const dirtyOverlayDegradedGraphImpact =
     structuredGraphImpactMatches &&
-    effectiveGraphState.staleness === "stale" &&
-    isDirtyOverlayCompatibleGraphState(effectiveGraphState);
-  const baseIndexStaleGraphImpact =
-    structuredGraphImpactMatches &&
-    effectiveGraphState.staleness === "stale" &&
-    effectiveGraphState.graph_available === true &&
-    effectiveGraphState.edge_source === "base_index" &&
-    effectiveGraphState.dirty_graph_mode === "base_index_only";
+    isDirtyOverlayCompatibleGraphState(effectiveGraphState) &&
+    ["stale", "missing", "rebuild_required", "unknown"].includes(
+      effectiveGraphState.staleness
+    );
 
   const graphAutoRecoverable =
     requiresGraphImpact &&
+    !structuredGraphImpactMatches &&
     graphBearingSubjectPaths.length > 0 &&
     effectiveGraphState.graph_available === true &&
     effectiveGraphState.staleness === "stale" &&
     isDirtyOverlayCompatibleGraphState(effectiveGraphState) &&
     !effectiveGraphStateHasUnavailableSubjectPaths;
+  const graphRecovery = !requiresGraphImpact
+    ? "not_required"
+    : structuredGraphImpactMatches && !graphImpactOperatorBlocked
+      ? "fresh"
+      : graphAutoRecoverable
+      ? "recoverable_stale"
+      : graphBearingSubjectPaths.length === 0 || effectiveGraphStateHasUnavailableSubjectPaths
+        ? "nonrecoverable_missing_paths"
+        : graphImpactOperatorBlocked || effectiveGraphState.graph_available !== true
+          ? "nonrecoverable_provider_unavailable"
+          : effectiveGraphState.staleness === "fresh"
+            ? "fresh"
+            : "nonrecoverable_provider_unavailable";
   if (
     requiresGraphImpact &&
     graphImpactSubjectPaths.length === 0
@@ -461,15 +526,22 @@ function buildReadinessFromRecord({
     !readOnly &&
     requiresGraphImpact &&
     graphBearingSubjectPaths.length > 0 &&
-    (effectiveGraphState.staleness === "stale" ||
-      effectiveGraphState.staleness === "rebuild_required" ||
-      effectiveGraphState.staleness === "missing") &&
-    !dirtyOverlayStaleGraphImpact &&
-    !baseIndexStaleGraphImpact
+    (graphImpactOperatorBlocked ||
+      ((!structuredGraphImpactMatches || !dirtyOverlayDegradedGraphImpact) &&
+        (effectiveGraphState.staleness === "stale" ||
+          effectiveGraphState.staleness === "rebuild_required" ||
+          effectiveGraphState.staleness === "missing")))
   ) {
+    const unavailableOrErrored =
+      effectiveGraphState.graph_available !== true ||
+      effectiveGraphState.graph_state === "unavailable" ||
+      effectiveGraphState.graph_state === "error" ||
+      effectiveGraphState.graph_state === "query_error";
     blockers.push({
-      code: "stale_write_scope",
-      reason: `write-scope evidence is ${effectiveGraphState.staleness}`
+      code: unavailableOrErrored ? "missing_graph_impact" : "stale_write_scope",
+      reason: unavailableOrErrored
+        ? `graph impact is ${effectiveGraphState.graph_state ?? "unavailable"}`
+        : `write-scope evidence is ${effectiveGraphState.staleness}`
     });
   }
 
@@ -636,7 +708,7 @@ function buildReadinessFromRecord({
     (entry) => `${entry.id ?? ""}|${entry.path ?? ""}|${entry.source_kind ?? ""}`
   );
 
-  return createReadinessEnvelope({
+  const readiness = createReadinessEnvelope({
     recordId: record.id,
     unit,
     policy: {
@@ -652,20 +724,39 @@ function buildReadinessFromRecord({
     derivedEvidence,
     canonicalRefs,
     dispatchRole: readOnly ? "read_only" : "implementation",
-    graphAutoRecoverable
+    graphAutoRecoverable,
+    recovery: {
+      graph_impact: graphRecovery,
+      admission_metrics: admissionRecovery?.recovery?.admission_metrics,
+      target_resolution: admissionRecovery?.recovery?.target_resolution
+    }
   });
+  return {
+    ...readiness,
+    state: {
+      ...readiness.state,
+      graph_state: {
+        ...readiness.state.graph_state,
+        graph_state: effectiveGraphState.graph_state,
+        overlay_state: effectiveGraphState.overlay_state
+      }
+    }
+  };
 }
 
 async function resolveDispatchGraphState(dir, graphState) {
   if (graphState) {
     return {
-      graphState: normalizeGraphState(graphState)
+      graphState: normalizeDispatchGraphState(graphState)
     };
   }
 
   const status = await getSidecarIndexStatus({ dir });
   return {
-    graphState: normalizeGraphState(status?.graph_state || status)
+    graphState: normalizeDispatchGraphState({
+      ...(isObject(status) ? status : {}),
+      ...(isObject(status?.graph_state) ? status.graph_state : {})
+    })
   };
 }
 
@@ -788,7 +879,10 @@ export async function validateWorkRecordDispatchById({
         graphImpactUnbuildable = true;
       }
 
-      resolvedGraphState = normalizeGraphState(live?.status?.graph_state || live?.status);
+      resolvedGraphState = normalizeDispatchGraphState({
+        ...(isObject(live?.status) ? live.status : {}),
+        ...(isObject(live?.status?.graph_state) ? live.status.graph_state : {})
+      });
     } catch (error) {
       if (error instanceof SidecarGraphIndexUnbuildableError) {
         graphImpactUnbuildable = true;
@@ -816,6 +910,16 @@ export async function validateWorkRecordDispatchById({
         loaded.source_digest ?? null
       );
   const suppliedGraphImpact = graphImpactProvided ? normalizeGraphImpactEvidence(graph_impact) : null;
+  if (suppliedGraphImpact) {
+    suppliedGraphImpact.graph_state = normalizeDispatchGraphState(
+      isObject(graph_impact?.graph_state) ? graph_impact.graph_state : graph_impact
+    );
+  }
+  const admissionRecovery = await classifyWorkRecordAdmissionRecovery({
+    dir,
+    record: loaded.record,
+    unit: parsedUnit.value
+  });
 
   const readiness = buildReadinessFromRecord({
     record: loaded.record,
@@ -833,6 +937,7 @@ export async function validateWorkRecordDispatchById({
     graphBearingImplementationWriteScope,
     graphImpactUnbuildable,
     liveGraphState,
+    admissionRecovery,
     now,
     reportOnly,
     readOnly
@@ -860,6 +965,141 @@ export async function validateWorkRecordDispatchById({
     readiness,
     interpretNodeEngineAdmissibility(packResult)
   );
+}
+
+function reviewedUnitDigestForDispatch(record, unit) {
+  return computeReviewedUnitSourceDigest(
+    unit.kind === "slice"
+      ? { record, selected_slice_id: unit.slice_id }
+      : record
+  );
+}
+
+async function loadPrivateDispatchSnapshot({ dir, unitAddress, recordStore = null }) {
+  const parsedUnit = parseUnitAddress(unitAddress);
+  if (!parsedUnit.ok) return null;
+  const { loadWorkRecordById } = await import("./work-record-store.mjs");
+  const loaded = await loadWorkRecordById({
+    dir,
+    id: parsedUnit.value.record_id,
+    recordStore
+  });
+  if (!loaded.valid || !loaded.record) return null;
+  return {
+    loaded,
+    unit: parsedUnit.value,
+    authored_source_digest: loaded.source_digest,
+    full_persistence_snapshot_digest: computeWorkRecordPersistenceSnapshotDigest(loaded.record),
+    reviewed_unit_digest: reviewedUnitDigestForDispatch(loaded.record, parsedUnit.value)
+  };
+}
+
+export async function validateWorkRecordDispatchLaunchIntentById(options = {}) {
+  const readiness = await validateWorkRecordDispatchById({
+    ...options,
+    node_engine_admissibility: null
+  });
+  if (!readiness.dispatchable) {
+    return { readiness, private_handoff: null };
+  }
+  const snapshot = await loadPrivateDispatchSnapshot(options);
+  return {
+    readiness,
+    private_handoff: snapshot
+      ? {
+          authored_source_digest: snapshot.authored_source_digest,
+          full_persistence_snapshot_digest: snapshot.full_persistence_snapshot_digest,
+          reviewed_unit_digest: snapshot.reviewed_unit_digest
+        }
+      : null
+  };
+}
+
+export async function revalidateWorkRecordDispatchPrivateHandoffById({
+  dir = ".",
+  unitAddress,
+  recordStore = null,
+  private_handoff,
+  now = new Date().toISOString()
+} = {}) {
+  if (!isObject(private_handoff)) {
+    return { valid: false, reason: "canonical_carrier_revalidation_failed", issue: "private_handoff_missing" };
+  }
+  const current = await loadPrivateDispatchSnapshot({ dir, unitAddress, recordStore });
+  if (!current) {
+    return { valid: false, reason: "canonical_carrier_revalidation_failed", issue: "canonical_work_record_unavailable" };
+  }
+  if (current.authored_source_digest !== private_handoff.authored_source_digest) {
+    return { valid: false, reason: "canonical_source_digest_changed", issue: "authored_source_digest_mismatch" };
+  }
+  if (
+    current.full_persistence_snapshot_digest !==
+    private_handoff.full_persistence_snapshot_digest
+  ) {
+    return { valid: false, reason: "canonical_carrier_revalidation_failed", issue: "persistence_snapshot_digest_mismatch" };
+  }
+  if (current.reviewed_unit_digest !== private_handoff.reviewed_unit_digest) {
+    return { valid: false, reason: "canonical_carrier_revalidation_failed", issue: "reviewed_unit_digest_mismatch" };
+  }
+
+  const classified = classifyWorkRecordAdmissionCompactRecovery({
+    record: current.loaded.record,
+    unit: current.unit
+  });
+  if (classified.recovery.admission_metrics !== "fresh") {
+    return {
+      valid: false,
+      reason: "canonical_carrier_revalidation_failed",
+      issue: classified.issue?.code ?? classified.recovery.admission_metrics
+    };
+  }
+  if (
+    classified.recovery.target_resolution !== "fresh" &&
+    classified.recovery.target_resolution !== "not_required"
+  ) {
+    return {
+      valid: false,
+      reason: "canonical_carrier_revalidation_failed",
+      issue: classified.issue?.code ?? classified.recovery.target_resolution
+    };
+  }
+
+  let evaluatedEvidence;
+  try {
+    evaluatedEvidence =
+      (await readPersistedWorkerAdmissionEvidenceSidecarEntry({
+        dir,
+        entry: classified.entry
+      })) ?? classified.entry;
+    evaluateWorkRecordAdmissionDerivedEvidence(evaluatedEvidence);
+  } catch (error) {
+    return {
+      valid: false,
+      reason: "canonical_carrier_revalidation_failed",
+      issue: error?.code ?? "malformed_worker_admission_derived_evidence"
+    };
+  }
+
+  const attestations = evaluatedEvidence?.normalized_request?.evidence?.review_attestations;
+  for (const attestation of Array.isArray(attestations) ? attestations : []) {
+    const verdict = validateReviewAttestation(attestation, {
+      repo: current.loaded.record.repo,
+      unit_address: current.unit.address,
+      source_digest: current.reviewed_unit_digest,
+      required_role_class: attestation?.reviewer_role_class,
+      required_controls: attestation?.reviewed_controls,
+      admitting_run_id: "dispatch-prelaunch-revalidation",
+      now
+    });
+    if (!verdict.valid) {
+      return {
+        valid: false,
+        reason: "canonical_carrier_revalidation_failed",
+        issue: verdict.decision_code ?? "review_attestation_invalid"
+      };
+    }
+  }
+  return { valid: true, reason: null, issue: null };
 }
 
 export async function validateWorkRecordDispatchReportById(options = {}) {

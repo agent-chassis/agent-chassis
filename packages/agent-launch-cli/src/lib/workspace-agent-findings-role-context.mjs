@@ -6,6 +6,8 @@ import { LauncherRoleContractError } from './workspace-agent-role-contract.mjs';
 
 const WK_ID_RE = /^WK-(\d{4})$/;
 const MAX_DIAGNOSTIC_ITEMS = 6;
+export const FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION =
+  'workspace-agent-frozen-findings-only-acceptance-contract.v1';
 
 function truncateList(values, limit = MAX_DIAGNOSTIC_ITEMS) {
   if (!Array.isArray(values)) {
@@ -531,9 +533,52 @@ export async function resolveFindingsOnlyAcceptanceContract({
   subject,
   workspaceDir,
   loadWorkRecord,
+  frozenReviewContract = null,
 } = {}) {
   if (role === 'worker') {
     return null;
+  }
+
+  if (frozenReviewContract !== null && frozenReviewContract !== undefined) {
+    try {
+      if (!isPlainObject(frozenReviewContract) ||
+          frozenReviewContract.schema_version !== FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION ||
+          frozenReviewContract.review_subject !== subject ||
+          typeof frozenReviewContract.canonical_parent_wk_contract !== 'string' ||
+          typeof frozenReviewContract.review_unit_contract !== 'string') {
+        throw new Error('frozen findings-only acceptance contract is incomplete or subject-mismatched');
+      }
+      const parent = JSON.parse(frozenReviewContract.canonical_parent_wk_contract);
+      const reviewUnit = JSON.parse(frozenReviewContract.review_unit_contract);
+      const parsedSubject = parseAddress(subject);
+      if (!parsedSubject || parsedSubject.kind !== 'slice' || parent?.id !== parsedSubject.recordId ||
+          parent.status !== 'review' || reviewUnit?.id !== parsedSubject.sliceId) {
+        throw new Error('frozen findings-only acceptance contract identity is stale or malformed');
+      }
+      const parentReviewUnit = Array.isArray(parent.slices)
+        ? parent.slices.find((slice) => normalizeSliceId(slice?.id ?? slice?.slice_id) === parsedSubject.sliceId)
+        : null;
+      if (!parentReviewUnit || JSON.stringify(parentReviewUnit) !== frozenReviewContract.review_unit_contract) {
+        throw new Error('frozen review unit is not the exact selected unit in the frozen parent contract');
+      }
+      const parentAcceptance = normalizeAcceptance(parent.acceptance, parsedSubject.recordId);
+      const reviewAcceptance = normalizeAcceptance(reviewUnit.acceptance, subject);
+      if (!parentAcceptance || !reviewAcceptance) {
+        throw new Error('frozen parent or review unit acceptance/validation is missing or invalid');
+      }
+      return {
+        acceptanceCriteria: [...parentAcceptance.criteria, ...reviewAcceptance.criteria],
+        acceptanceValidation: [...parentAcceptance.validation, ...reviewAcceptance.validation],
+      };
+    } catch (error) {
+      throw new LauncherRoleContractError(
+        `${error?.message ?? String(error)} (frozen_findings_only_contract_invalid)`,
+        {
+          code: 'frozen_findings_only_contract_invalid',
+          detail: { role: role ?? null, subject: subject ?? null },
+        },
+      );
+    }
   }
 
   const readWorkRecord =

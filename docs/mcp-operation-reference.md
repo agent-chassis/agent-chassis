@@ -47,9 +47,10 @@ stay a focused MCP setup and mental-model entry point.
 - `workspace_work_record_set_task` writes a narrow trusted task-completion update to a work-record or slice in a configured repo alias; it accepts `unit` plus exact task `text` or zero-based `index`, reuses the canonical work-record edit substrate, and rejects arbitrary JSON patching or direct field-path edits. Side effects: `workspace_write`, `record_write`. CLI fallback: `npm run wiki -- work-records set-task --unit <WK-ID|WK-ID#slice> --text <exact task>`, or `--index <n>` for a zero-based task position
 - `workspace_work_record_set_closure` writes a structured closure patch (`summary`, `validation`, `follow_ups`) to a work-record or slice in a configured repo alias; refuses if a supplied `expected_source_digest` no longer matches the on-disk record. After a successful closure write the response carries the same advisory `closeout_lint` summary as `set_status`: `ok`/`valid`, `warning_count`, `error_count`, bounded `top_findings`, `generated_views`, `next_action`, and a top-level `cleanly_closeable` flag, after running `generate_and_lint` to refresh generated views. It is advisory (the closure still persists) but a red lint means the unit is not cleanly closeable until the lint failure is fixed or recorded as a pre-existing blocker. Side effects: `workspace_write`, `record_write`
 - `workspace_work_record_upsert_slice` creates or updates a tracker-local slice on a `WK-####` in a configured repo alias. Takes the target record in `unit` (WK-####) and the slice body in `slice` (its `id` selects the slice). Validates the edited record against work-record.v1 before writing and refuses invalid edits. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default; pass `verbose: true` only for debugging to include the full updated record. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records upsert-slice --id <WK-ID> --slice-json '<json>' [--expected-source-digest <digest>] --json`
+- `workspace_work_record_ready_slice` atomically creates or updates one complete, independently executable tracker-local slice contract. Its one strict schema exposes only the fields in `ready-slice-contract.v1`; it has no opaque slice payload, arbitrary patch, caller-selected write authority, or CLI fallback. It performs at most one canonical contract write and returns the closed `ready-slice-structural-readiness.v1` projection after a successful write or no-op. It is installed and supported in the free/local tier for orchestrator and operator sessions only. Side effects: `workspace_write`, `record_write`.
 - `workspace_work_record_delete_slice` removes a tracker-local slice from a `WK-####` in a configured repo alias. Accepts a slice-scoped `unit` (WK-#####slice-id) or an explicit `slice_id`. Validates the edited record against work-record.v1 before writing. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default; pass `verbose: true` only for debugging to include the full updated record. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records delete-slice --id <WK-ID> --slice-id <slice-id> [--expected-source-digest <digest>] --json`
 - `workspace_work_record_set_list_field` sets one controlled list-valued contract field (`read_scope`, `docs`, `repo_paths`, `write_scope`, `depends_on`, `related`, `blocks` at record scope; `read_scope`, `docs`, `repo_paths`, `write_scope`, `depends_on` at slice scope) on a `WK-####` in a configured repo alias. `read_scope` is the canonical read-first reference list; `docs` is accepted as a backward-compatible alias and is folded into `read_scope` on write. The `unit` selects record vs. slice scope. Validates against work-record.v1 before writing. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records set-list-field --id <WK-ID> --field <field> --values-json '<json-array>' [--expected-source-digest <digest>] --json`
-- `workspace_work_record_set_acceptance` sets `acceptance.criteria` and/or `acceptance.validation` at record or slice scope on a `WK-####` in a configured repo alias. The `unit` selects record vs. slice scope. Validates against work-record.v1 before writing. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records set-acceptance --id <WK-ID> [--criteria-json '<json-array>'] [--validation-json '<json-array>'] [--expected-source-digest <digest>] --json`
+- `workspace_work_record_set_acceptance` sets `acceptance.criteria` and/or `acceptance.validation` at record or slice scope on a `WK-####` in a configured repo alias. The `unit` selects record vs. slice scope. It is the only contract setter with the closed invalid-base repair path described below; all other setters remain fail-closed on an invalid base. The strict input schema exposes only the named acceptance arrays and ordinary routing/concurrency/debug fields, never arbitrary JSON edits or caller-controlled repair authority. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default and preserves diagnostic order and codes subject to the diagnostic bounds described below. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records set-acceptance --id <WK-ID> [--criteria-json '<json-array>'] [--validation-json '<json-array>'] [--expected-source-digest <digest>] --json`
 - `workspace_work_record_shape_review_unit` shapes a `WK-####` or tracker-local slice into a findings-only review unit: sets `work_kind` to `"review"`, forces `write_scope` to `[]`, and points `dispatch_intent.intended_agent_role` at `"reviewer"`. Validates against work-record.v1 before writing. Accepts an optional `expected_source_digest` for stale-source protection. Output is compact by default. Side effects: `workspace_write`, `record_write`. CLI fallback (operator-shell only): `npm run wiki -- work-records shape-review-unit --id <WK-ID> [--expected-source-digest <digest>] --json`
 - `workspace_record_graph_impact_evidence` persists structured graph-impact evidence onto a work-record or slice in a configured repo alias. The `graph_impact` payload may be the full structured envelope returned by `workspace_code_index_graph_impact_paths` or `workspace_code_index_graph_impact_diff`, or a provenance-bound compact summary/ref derived from that envelope; the tool rejects caller-supplied filesystem roots, shell command output, and unbound handoff prose as trusted inputs and validates the persisted entry against the canonical work-record schema before writing. Side effects: `workspace_write`, `record_write`. This is the only agent-safe persistence route for graph-impact evidence — there is no shell/CLI fallback for trusted-evidence persistence, and the compatibility boundary with the full envelope remains intact. Output is compact by default (status, `written`, `selected_unit`, `source_digest`, `valid`, bounded `diagnostics`, and the bounded summary/ref); pass `verbose: true` only for debugging to include the raw `graph_state` and the full refreshed derived evidence. `verbose` never relaxes the trusted-evidence binding the route requires
 - `workspace_generate_and_lint` runs `generate_views` followed by `lint_repo` for a configured repo alias; write-capable for the generated wiki views surface and generated package README projections. Use after structural wiki changes. Accepts an optional `max_findings` integer (see `workspace_lint_repo` below) that controls how many lint findings the response returns after generation
@@ -61,6 +62,167 @@ stay a focused MCP setup and mental-model entry point.
 - `workspace_agent_run_wait` blocks until a `workspace_agent_dispatch` run reaches a terminal state or a caller-specified timeout expires, returning a single response per tool call so coordinators do not need to poll across turns. Schema version `workspace-agent-run-wait.v1`. Input: `monitor_handle` (required), optional `subject`, optional `timeout_ms` (integer [1, 300000], default 60000), optional `poll_interval_ms` (integer [500, 60000], default 5000), optional `verbose`, optional `include_final_result`. Out-of-range or non-integer values for `timeout_ms`/`poll_interval_ms` are refused with `validation_failure` and explicit detail; no silent clamping. Terminal response: `accepted:true`, `timed_out:false`, `terminal:true`, compact by default (bounded `final_result_summary`, including bounded `structured_role_result` validity/diagnostics when present); pass `verbose:true` or `include_final_result:true` for the full `final_result` envelope. Timeout response: `accepted:true`, `timed_out:true`, `terminal:false`, current status fields, `next_action:"retry_wait_or_check_status"`. Mid-wait backend refusal: `accepted:false` surfaced immediately (same refusal envelope as `workspace_agent_run_status`). Shares all identity-carrier refusals, workspace resolution, caller-session binding, and subject mismatch checks with `workspace_agent_run_status`. The wait loop is deadline-based: each sleep is capped to remaining timeout to prevent oversleep. Concurrent waits on the same handle are allowed and independent. As with `workspace_agent_run_status`, a free/local terminal success carrying `structured_role_result.valid:false` is expected `decision` prose-only behavior, not a terminal run failure. Read-only.
 - `workspace_work_record_summary` returns a compact `work-record-summary.v1` envelope for a `WK-####` record or `WK-####[#slice]` unit in a configured repo alias. Read-only; returns dependencies (`depends_on`, `blocks`, `related`), `write_scope`, `acceptance` (criteria + validation), `slices` (id/status/owner/write_scope/acceptance/dispatch_intent per slice), `validation`, `owners`, `review_state` (required, status, blocked), and `blockers` (open/accepted escalations and `depends_on` references). Inputs: optional `repo` alias plus one of `id`, `unit`, or `path`. CLI fallback: `npm run wiki -- work-records summary --unit <WK-ID|WK-ID#slice> --json`
 
+## Atomic ready-slice contract
+
+`workspace_work_record_ready_slice` accepts one strict whole object. `repo` is
+the optional workspace-alias transport selector; it is not part of the
+persisted contract. Unknown properties are rejected at every depth before the
+handler runs.
+
+### Selector and control fields
+
+| Field | Exact type | Create | Update and semantics |
+| --- | --- | --- | --- |
+| `unit` | `^WK-[0-9]{4}$` | Required parent address. | Required parent address. Slice addresses refuse; the server owns selected-slice allocation/lookup. |
+| `slice_id` | `^SLICE-[0-9]{3}$` or omitted | Must be omitted; the next unused ordinal is allocated. | Required and must select exactly one existing slice. Caller-selected new or semantic ids refuse. |
+| `expected_source_digest` | optional `^sha256:[0-9a-f]{64}$` | Optional authored-source stale-read guard. | Same. Omission still uses the operation-loaded authored digest for load-to-write CAS. |
+| `shaping_mode` | `implementation`, `reviewer`, or `redteam` | Defaults to `implementation`. | Omission preserves an already-consistent implementation/review/redteam work-kind/role tuple. Any other effective kind requires explicit shaping. |
+| `attestation_action` | `preserve_or_refuse` or `invalidate_for_review` | Defaults to `preserve_or_refuse`; invalidation refuses. | Defaults to `preserve_or_refuse`. Invalidation is valid only for a behavior-changing implementation edit with exactly one active selected-unit/current-digest compact carry. |
+| `verbose` | optional boolean | Defaults to `false`. | Defaults to `false`; it grants no write authority and does not widen the closed success projection. |
+
+Shaping is authoritative. `implementation` fixes
+`work_kind:implementation`, role `worker`, `target_unit:slice`, and requires
+non-empty effective `write_scope` and `expected_edit_targets`. `reviewer` fixes
+`work_kind:review`, role `reviewer`, `target_unit:slice`, and `write_scope:[]`.
+`redteam` does the same with `work_kind:redteam` and role `redteam`. Findings-only
+targets, when present, are an inspection-only plan. Contradictory caller-supplied
+work kind, role, target unit, write scope, target operations, or attestation
+action refuses.
+
+### Slice payload fields
+
+The payload is a strict partial replacement object: every omitted field on
+update preserves its exact persisted value, including authored empty arrays
+and unrelated `sections` siblings; every supplied field replaces that whole
+field after normalization. There is no nested merge or patch.
+
+| Field | Exact type | Create | Update |
+| --- | --- | --- | --- |
+| `title` | trimmed non-empty string | Required. | Preserve when omitted. |
+| `status` | `inbox`, `todo`, `active`, `review`, `done`, `blocked`, `parked`, or `cancelled` | Defaults to `todo`. | Preserve when omitted. |
+| `work_kind` | `implementation`, `review`, or `redteam` | Derived from shaping. | Preserved when shaping is omitted; otherwise derived. A supplied value must match shaping. |
+| `priority` | `low`, `medium`, `high`, or `critical` | Defaults to `medium`. | Preserve when omitted. |
+| `owner` | trimmed non-empty string | Defaults to `unassigned`. | Preserve when omitted. |
+| `depends_on` | array of non-empty unit-reference strings | Defaults to `[]`. | Preserve when omitted; supplied `[]` replaces the field. |
+| `read_scope` | non-empty array of non-empty repository/wiki reference strings | Required and non-empty; `docs` is not accepted. | Preserve when omitted; supplied `[]` refuses structural completion. |
+| `repo_paths` | non-empty array of repository-relative POSIX paths | Required and non-empty. | Preserve when omitted; supplied `[]` refuses structural completion. |
+| `write_scope` | array of repository-relative POSIX paths | Required and non-empty for implementation; defaults to `[]` for findings-only. | Preserve for unshaped implementation updates; findings-only shaping produces `[]`; implementation cannot be empty. |
+| `dispatch_intent` | strict complete `{intended_agent_role,target_unit,requires_graph_impact,requires_escalation}` | Role/target derive from shaping; both booleans default `false`. | Omission preserves booleans and, absent shaping, the consistent tuple. A supplied object is complete; `target_unit` is `slice`, role is `worker`, `reviewer`, or `redteam` according to shaping. |
+| `acceptance` | strict complete `{criteria,validation}` | Required with both arrays non-empty. | Preserve when omitted; supplied object replaces both arrays. |
+| `expected_edit_targets` | array of strict complete target objects | Required and non-empty for implementation; defaults to `[]` for findings-only. | Preserve when omitted; supplied `[]` is authoritative when compatible with shaping. |
+| `expected_changed_line_budget` | non-negative integer or `null` | Defaults to `null`. | Preserve when omitted; `null` clears it. |
+| `agent_notes` | string or array of strings | Omitted by default. | Preserve when omitted; `""` and `[]` are authored replacements. Arrays join with LF and the resulting UTF-8 value is limited to 8192 bytes. Only `sections.agent_notes` changes. |
+
+Repository paths are trimmed and stored as canonical relative POSIX paths after
+removing one leading `./`. Absolute paths, drive paths, `~`, backslashes, NUL,
+empty segments, and `.` or `..` segments refuse.
+
+An acceptance criterion is either a trimmed non-empty string or the strict
+object `{text,verification_method?,evidence_target?,facet_provenance?}`. `text`
+is required/non-null/non-empty. `verification_method` is omitted, `null`, or one
+of `inspection`, `analysis`, `demonstration`, `test_execution`, `audit`,
+`proof`. `evidence_target` is omitted, `null`, or an authored string.
+Acceptance provenance is a strict partial object over `text`,
+`verification_method`, and `evidence_target`.
+
+Each expected target is the strict object
+`{path,name,kind,operation,activity_kind?,artifact_kind?,granularity?,optional?,facet_provenance?}`.
+`path` and `name` are required/non-null/non-empty. `kind` is `function`,
+`method`, `class`, `module`, `export`, `test_case`, `schema_field`,
+`docs_section`, `config_key`, or `other`; `operation` is `create`, `modify`,
+`delete`, or `inspect`. `activity_kind` is omitted/`null` or
+`requirements_analysis`, `design_contract`, `implementation_new`,
+`implementation_modify`, `implementation_remove`,
+`verification_test_authoring`, `verification_test_modification`,
+`validation_runtime_check`, `documentation`, `migration_contract`,
+`coordination_record`, or `configuration`. `artifact_kind` is omitted/`null` or
+`production_code_module`, `production_code_export`, `unit_test`,
+`integration_test`, `operational_test`, `property_test`, `regression_test`,
+`fixture_corpus`, `cli_entrypoint`, `launcher_wrapper`, `mcp_tool_surface`,
+`schema_contract`, `policy_rule`, `protocol_doc`, `reference_doc`,
+`wiki_record_canonical`, `wiki_projection_generated`, or `build_or_config`.
+`granularity` is omitted/`null` or `file`, `module`, `function`, `method`,
+`class`, `export`, `test_case`, `schema_field`, `docs_section`, `config_key`, or
+`record`. `optional`, when present, is boolean and never defaults. Target
+provenance is strict partial over `path`, `name`, `kind`, `operation`,
+`activity_kind`, `artifact_kind`, `granularity`, and `optional`.
+
+Every provenance value is `null` or one of `authored_record`,
+`derived_normalizer`, `derived_code_graph`, `derived_diff`,
+`derived_policy_pack`, `unavailable`, `not_applicable`; omission stays absent.
+Unknown provenance keys refuse. Every allowed target provenance facet,
+including `kind`, participates in the selected-unit reviewed digest.
+
+### Atomicity, attestations, and digests
+
+The core constructs and validates one complete prospective record and performs
+at most one canonical write. Under the existing single store lock it compares
+the authored source digest first, then the server-private full-persistence-
+snapshot digest (which includes `derived_evidence` and projections), before one
+canonical replacement. Authored drift returns `stale_source_digest`;
+source-stable derived/projection drift returns
+`stale_persistence_snapshot_digest`. A no-op performs no transaction. The
+private snapshot digest is never accepted from or returned to the caller.
+
+Attestation checks bind only the selected unit and its current reviewed-unit
+digest. An unchanged digest preserves the compact carry byte-for-byte. A
+behavior-changing implementation edit with an active current carry refuses
+unless `invalidate_for_review` is explicitly valid; valid invalidation removes
+exactly that one canonical compact reference, preserves sibling/historical
+entries, and never fabricates review completion. Ready-slice publishes,
+rewrites, deletes, restores, or cleans no admission sidecar and supplies no
+sidecar mutation to the store transaction.
+
+The returned `source_digest` is the persisted authored whole-record identity.
+`reviewed_unit_digest` is the persisted selected-unit review identity. They are
+different roles; neither is the private full-snapshot CAS identity.
+
+### Closed structural-readiness response
+
+After a successful write or no-op, the route reloads the persisted record and
+uses only it, the selected unit, and the core result to return
+`ready-slice-structural-readiness.v1`:
+
+`{schema_version,selected_unit:{kind,address,record_id,slice_id},contract_persisted,written,no_op,source_digest,reviewed_unit_digest,structurally_complete,checks,blockers}`.
+`contract_persisted` is `true`; `no_op` is the inverse of `written`. Normal
+`checks` contains exactly these nine ordered checks and paths:
+
+1. `title_nonempty` / `title`
+2. `read_scope_nonempty` / `read_scope`
+3. `repo_paths_nonempty` / `repo_paths`
+4. `acceptance_criteria_nonempty` / `acceptance.criteria`
+5. `acceptance_validation_nonempty` / `acceptance.validation`
+6. `shaping_tuple_consistent` / `dispatch_intent`
+7. `implementation_write_scope_nonempty` / `write_scope`
+8. `implementation_expected_edit_targets_nonempty` / `expected_edit_targets`
+9. `findings_only_write_scope_empty` / `write_scope`
+
+Statuses are the closed set `ready`, `missing`, `empty`, `mismatch`,
+`not_applicable`, `error`. The last three checks apply respectively to
+implementation, implementation, and review/redteam; the other shaping gets
+`not_applicable`. Every applicable non-ready check produces exactly one ordered
+`{code:"work_record_readiness_failure",check,status,path}` blocker.
+`structurally_complete` is true only when every applicable check is ready.
+This is structural reporting only: it calls no dispatch/dependency evaluator,
+graph operation, admission/target-resolution materializer, Node Engine/local
+admissibility evaluator, attestation completion/carry persistence, lifecycle
+policy, launch, provisioning, or backend selector.
+
+A pre-write core refusal is returned as that typed refusal with
+`contract_persisted:false`, `written:false`, and `no_op:false`; no readiness
+projection is fabricated. If reload or pure projection fails after a successful
+write/no-op, persistence is not rolled back and no second mutation occurs. The
+response stays `contract_persisted:true`, keeps the persisted whole-record and
+reviewed-unit digests and actual written/no-op pair, and closes to one check and
+blocker: `projection_internal`, status `error`, path `null`. Exception text and
+reader payload are not exposed.
+
+Ready-slice prepares the authored contract. It is intentionally separate from
+the two-call launch flow's second operation, `workspace_agent_dispatch`.
+work record dispatch-owned derivation supplies recoverable evidence and authoritative
+Node Engine/pre-provisioning checks; ready-slice does not derive or persist that
+material and makes no dispatchability claim.
+
 ## Contract-edit compact default, verbose opt-in, stale-source protection, and validate-before-write
 
 The contract-edit MCP routes (`workspace_work_record_upsert_slice`,
@@ -71,8 +233,12 @@ share a common behavioral contract:
 **Compact default and verbose opt-in.** Output is compact by default. A compact
 response carries the operation status, the selected unit, the source digest,
 whether the write succeeded, and bounded diagnostics — without dumping the full
-updated record body. Pass `verbose: true` only for debugging when the full
-updated record is needed. The compact default is the normal agent path.
+updated record body. Compact responses preserve diagnostic order and codes, but
+diagnostic count and fields may be bounded. `diagnostics_truncation` reports any
+compaction, and `detail_available` identifies verbose retrieval. Pass
+`verbose: true` to return the complete core diagnostics. Responses requiring no
+truncation retain their existing shape. The compact default is the normal agent
+path.
 
 **Validate-before-write.** Every contract-edit operation validates the
 prospective updated record against work-record.v1 before writing. An edit that
@@ -82,11 +248,50 @@ full schema validation. This means agents can call these routes without
 building their own pre-validation step.
 
 **Stale-source protection.** Each route accepts an optional
-`expected_source_digest` parameter. When supplied, the tool computes the
-current on-disk source record's digest and refuses the write if it no longer
-matches — preventing concurrent-edit clobber. Agents working in environments
-where multiple sessions may edit the same record should use this parameter.
-When not supplied, the write proceeds without a freshness check.
+`expected_source_digest` parameter as caller-side stale-read protection. When
+supplied, it binds the write to the caller's previously observed source digest;
+the tool refuses the write if the current on-disk source record no longer
+matches. When omitted, the server still passes the digest loaded during the
+operation to the validated writer, preserving atomic load-to-write CAS
+protection against concurrent-edit clobber. Omission does not mean writing
+without a freshness check.
+
+**Closed invalid-base `set_acceptance` repair.** An invalid base does not grant
+general edit authority. Only `workspace_work_record_set_acceptance` may enter
+the repair path, and only for a structurally parsed `work-record.v1` work item
+whose enumerable persisted shape is already canonical. A legacy `docs` alias,
+or any other shape that persistence would normalize outside the selected
+acceptance path and explicitly enumerated server-managed fields, is refused.
+Every error diagnostic on the base must be confined to the selected record or
+slice `acceptance` subtree. Missing, duplicate, or otherwise ambiguous slice
+selection, malformed JSON, unsupported schema or record kind, and unrelated
+invalidity remain refusals.
+
+For object-shaped acceptance, an omitted `criteria` or `validation` argument
+preserves that existing sibling exactly. Missing or non-object acceptance may
+be repaired only by supplying both arrays as an explicit whole-acceptance
+replacement; a partial request is refused. Before persistence, the server
+applies the canonical persistence-normalization model and guards the complete
+diff: only caller-named acceptance paths and exactly enumerated server-managed
+updated/provenance paths may change. The current persistence seam enumerates
+only `updated` and does not mint or rewrite a provenance path. It then runs full
+schema and contract-policy validation over the complete prospective record and
+attempts one CAS-protected write using the source digest loaded during the
+operation. A supplied `expected_source_digest` additionally binds the repair to
+the caller's previously observed source digest and refuses without mutation if
+stale; omitting it does not disable the operation's load-to-write CAS protection.
+
+Repair refusals remain typed public results with `ok: false`, `valid: false`,
+`written: false`, and the compact core `diagnostics` projection described above;
+the MCP route does not translate them into success, absence, or fallback. Stable
+repair-boundary codes include
+`invalid_json`, `slice_not_found`, `acceptance_repair_ambiguous_slice`,
+`acceptance_repair_non_canonical_record`,
+`acceptance_repair_invalidity_outside_target`,
+`acceptance_repair_requires_whole_replacement`,
+`acceptance_repair_diff_guard_failed`, and `stale_source_digest`. Full
+prospective validation may also return the underlying schema or contract-policy
+diagnostics that must be resolved before retrying.
 
 **Review-unit shaping.** `workspace_work_record_shape_review_unit` is a
 composite contract-edit operation: it sets `work_kind` to `"review"`, forces

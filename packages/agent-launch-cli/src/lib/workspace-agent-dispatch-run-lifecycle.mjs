@@ -47,7 +47,7 @@ function attachWriteScopeVerification(envelope, rawFinalResult) {
   return Object.freeze({ ...envelope, write_scope_verification: candidate });
 }
 
-function resolveDispatchSelection({ role, app, model, workspaceDir }) {
+function resolveDispatchSelection({ role, app, model, workspaceDir, configRootDir = null }) {
   const appToken = typeof app === "string" && app.trim().length > 0 ? app.trim() : null;
   const modelToken = typeof model === "string" && model.trim().length > 0 ? model.trim() : null;
 
@@ -66,8 +66,11 @@ function resolveDispatchSelection({ role, app, model, workspaceDir }) {
       ? { ok: true, app: appToken, model: null, model_spec: null }
       : resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken });
   } else {
+    const modelConfigDir = typeof configRootDir === "string" && configRootDir.length > 0
+      ? configRootDir
+      : workspaceDir;
     try {
-      selection = resolveDispatchedRoleModel({ role, dir: workspaceDir });
+      selection = resolveDispatchedRoleModel({ role, dir: modelConfigDir });
     } catch (error) {
       const refusalRole = role === "review" ? "reviewer" : role;
       return {
@@ -116,6 +119,11 @@ export function createDispatchRunLifecycle(ctx = {}) {
     evaluateWorkerAdmission = null,
     prepareSourceToolSurface = null,
 
+    freezeWorkerScopeSnapshot = null,
+    validateWorkerScopeSnapshot = null,
+
+    deriveReviewerLaunchIdentity = null,
+
     proveAssignedSourceReadable = null
   } = ctx;
 
@@ -126,6 +134,10 @@ export function createDispatchRunLifecycle(ctx = {}) {
       subject = null,
       workspace_alias = null,
       workspace_dir = null,
+
+      config_root_dir = null,
+
+      trusted_frozen_review_contract = null,
       readiness = null,
       app: requestedApp = null,
 
@@ -152,7 +164,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
       role,
       app: requestedApp,
       model: dispatchModel,
-      workspaceDir: workspace_dir
+      workspaceDir: workspace_dir,
+      configRootDir: config_root_dir
     });
     if (!selection.ok) {
       return dispatchRefusal(
@@ -201,13 +214,74 @@ export function createDispatchRunLifecycle(ctx = {}) {
       );
     }
 
+    let frozenWorkerScopeSnapshot = null;
+    if (role === "worker" && typeof freezeWorkerScopeSnapshot === "function") {
+      let freezeResult;
+      try {
+        freezeResult = await freezeWorkerScopeSnapshot({
+          input,
+          app,
+          role,
+          subject,
+          workspace_dir: workspace_dir ?? null
+        });
+      } catch (error) {
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          "worker_scope_snapshot_freeze_threw",
+          { message: error?.message ?? String(error) }
+        );
+      }
+      if (!freezeResult?.ok) {
+        const refusal = freezeResult?.refusal ?? {};
+        return dispatchRefusal(
+          refusal.code ?? BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          refusal.reason ?? "worker_scope_snapshot_freeze_failed",
+          refusal.detail ?? null
+        );
+      }
+      frozenWorkerScopeSnapshot = freezeResult.snapshot ?? null;
+    }
+
+    const validateFrozenWorkerScope = async (consumer, result = null) => {
+      if (frozenWorkerScopeSnapshot === null || typeof validateWorkerScopeSnapshot !== "function") {
+        return null;
+      }
+      let validation;
+      try {
+        validation = await validateWorkerScopeSnapshot({
+          snapshot: frozenWorkerScopeSnapshot,
+          consumer,
+          result
+        });
+      } catch (error) {
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          "worker_scope_snapshot_validation_threw",
+          { consumer, message: error?.message ?? String(error) }
+        );
+      }
+      if (validation?.ok) return null;
+      const refusal = validation?.refusal ?? {};
+      return dispatchRefusal(
+        refusal.code ?? BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+        refusal.reason ?? "worker_scope_snapshot_validation_failed",
+        refusal.detail ?? { consumer }
+      );
+    };
+
     let workerAdmissionDiagnostic = null;
     if (role === "worker" && typeof evaluateWorkerAdmission === "function") {
       let admissionOutcome;
       try {
         admissionOutcome = await evaluateWorkerAdmission({
           workspaceDir: workspace_dir ?? null,
-          subject
+          subject,
+
+          canonical_work_record: frozenWorkerScopeSnapshot?.record ?? null,
+          canonical_selected_unit: frozenWorkerScopeSnapshot?.selected_unit_contract ?? null,
+          source_record_digest: frozenWorkerScopeSnapshot?.authority?.source_digest ?? null,
+          worker_scope_authority: frozenWorkerScopeSnapshot?.authority ?? null
         });
       } catch (error) {
         return dispatchRefusal(
@@ -223,6 +297,11 @@ export function createDispatchRunLifecycle(ctx = {}) {
           null
         );
       }
+      const admissionSnapshotRefusal = await validateFrozenWorkerScope(
+        "worker_admission",
+        admissionOutcome
+      );
+      if (admissionSnapshotRefusal) return admissionSnapshotRefusal;
       if (!admissionOutcome.allowed) {
 
         const refusalDetail = admissionOutcome.remote_admission
@@ -246,7 +325,16 @@ export function createDispatchRunLifecycle(ctx = {}) {
       readiness,
       dispatchModel: resolvedModel,
       familyExecutorRegistryEntry,
-      prepareSourceToolSurface,
+      prepareSourceToolSurface: frozenWorkerScopeSnapshot !== null &&
+          typeof prepareSourceToolSurface === "function"
+        ? (sourceInput) => prepareSourceToolSurface({
+            ...sourceInput,
+            canonical_work_record: frozenWorkerScopeSnapshot.record,
+            canonical_selected_unit: frozenWorkerScopeSnapshot.selected_unit_contract,
+            source_record_digest: frozenWorkerScopeSnapshot.authority.source_digest,
+            worker_scope_authority: frozenWorkerScopeSnapshot.authority
+          })
+        : prepareSourceToolSurface,
       proveAssignedSourceReadable
     });
     if (!sourceAccessResult.ok) {
@@ -257,11 +345,23 @@ export function createDispatchRunLifecycle(ctx = {}) {
       );
     }
     const sourceToolSurface = sourceAccessResult.sourceToolSurface;
+    const sourceSnapshotRefusal = await validateFrozenWorkerScope(
+      "source_preparation",
+      sourceAccessResult
+    );
+    if (sourceSnapshotRefusal) return sourceSnapshotRefusal;
+
+    const reviewerLaunchIdentity = typeof deriveReviewerLaunchIdentity === "function"
+      ? deriveReviewerLaunchIdentity({ role, subject, workspace_dir })
+      : null;
 
     const run_id = runIdFactory();
     const monitor_handle = monitorHandleFactory();
     const startedAtMs = clock();
     const startedAt = new Date(startedAtMs).toISOString();
+
+    const executorSnapshotRefusal = await validateFrozenWorkerScope("executor_planning");
+    if (executorSnapshotRefusal) return executorSnapshotRefusal;
 
     let executorResult;
     try {
@@ -278,7 +378,13 @@ export function createDispatchRunLifecycle(ctx = {}) {
 
         model: resolvedModel,
         backend: resolvedBackend,
-        source_tool_surface: sourceToolSurface
+        source_tool_surface: sourceToolSurface,
+
+        frozen_worker_scope_snapshot: frozenWorkerScopeSnapshot,
+
+        config_root_dir: role === "reviewer" ? (config_root_dir ?? null) : null,
+        trusted_frozen_review_contract:
+          role === "reviewer" ? (trusted_frozen_review_contract ?? null) : null
       });
     } catch (error) {
       return dispatchRefusal(
@@ -330,6 +436,15 @@ export function createDispatchRunLifecycle(ctx = {}) {
       probe: typeof executorResult.probe === "function" ? executorResult.probe : null,
       final_result: null
     };
+    if (reviewerLaunchIdentity !== null) {
+
+      Object.defineProperty(record, "reviewer_launch_identity", {
+        value: reviewerLaunchIdentity,
+        enumerable: true,
+        configurable: false,
+        writable: false
+      });
+    }
 
     if (record.terminal) {
       const capturedFinalResult = normalizeFinalResultWithStructuredRoleResult(
@@ -562,7 +677,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
       subject = null,
       app: requestedApp = null,
       model: requestedModel = null,
-      workspace_dir = null
+      workspace_dir = null,
+      config_root_dir = null
     } = input;
 
     const planRefusal = (reason, detail) => Object.freeze({
@@ -592,7 +708,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
       role,
       app: requestedApp,
       model: dispatchModel,
-      workspaceDir: workspace_dir
+      workspaceDir: workspace_dir,
+      configRootDir: config_root_dir
     });
     if (!selection.ok) {
       return planRefusal(selection.reason, selection.detail ?? null);
@@ -633,9 +750,42 @@ export function createDispatchRunLifecycle(ctx = {}) {
       subject: r.subject,
       status: r.status,
       terminal: r.terminal,
-      caller_session_id: r.caller_session_id
+      caller_session_id: r.caller_session_id,
+      ...(r.reviewer_launch_identity
+        ? { reviewer_launch_identity: r.reviewer_launch_identity }
+        : {})
     }));
   }
 
-  return { startLaunch, getRunStatus, waitForRunStatus, planLaunch, snapshotRuns };
+  function replaceReviewerLaunchIdentityForTest(runId, identity) {
+    const record = runs.get(runId);
+    if (!record) return false;
+    const { reviewer_launch_identity: _discardedIdentity, ...replacement } = record;
+    if (identity !== null) {
+      const frozenContract = identity?.trusted_frozen_review_contract &&
+          typeof identity.trusted_frozen_review_contract === "object"
+        ? Object.freeze({ ...identity.trusted_frozen_review_contract })
+        : identity?.trusted_frozen_review_contract;
+      Object.defineProperty(replacement, "reviewer_launch_identity", {
+        value: Object.freeze({
+          ...identity,
+          trusted_frozen_review_contract: frozenContract
+        }),
+        enumerable: true,
+        configurable: false,
+        writable: false
+      });
+    }
+    runs.set(runId, replacement);
+    return true;
+  }
+
+  return {
+    startLaunch,
+    getRunStatus,
+    waitForRunStatus,
+    planLaunch,
+    snapshotRuns,
+    replaceReviewerLaunchIdentityForTest
+  };
 }

@@ -46,6 +46,7 @@ export function buildFamilyExecutorBwrapPlan({
   provisionedWorktreeGitBinding = null,
   provisioned_worktree_git_identity = null,
   provisioned_worktree_git_binding = null,
+  workerScopeAuthority = null,
   envPolicy = null,
   familyRuntimeReadOnlyRoots = [],
   familySystemReadOnlyRoots = null,
@@ -122,6 +123,9 @@ export function buildFamilyExecutorBwrapPlan({
     ...(serverProvisionedWorktreeGitIdentity !== null
       ? { provisionedWorktreeGitIdentity: serverProvisionedWorktreeGitIdentity }
       : {}),
+    ...(workerScopeAuthority !== null
+      ? { workerScopeAuthority }
+      : {}),
     familyRuntimeReadOnlyRoots: mergedFamilyRuntimeReadOnlyRoots,
     familySystemReadOnlyRoots,
     familyRuntimeWritableRoots,
@@ -153,16 +157,20 @@ export function buildWorkerSecretMaskInputs({
   workspaceDir,
   agentLaunchDirName = DEFAULT_AGENT_LAUNCH_DIR_NAME,
   envFileName = DEFAULT_REPO_ENV_FILE_NAME,
-  envFileExists = existsSync
+  envFileExists = existsSync,
+  agentLaunchDirExists = existsSync
 } = {}) {
   const envFilePath = joinRepoChild(workspaceDir, envFileName);
   const agentLaunchPath = joinRepoChild(workspaceDir, agentLaunchDirName);
   const envMaskBinds = envFileExists(envFilePath)
     ? [Object.freeze({ src: WORKER_SECRET_MASK_SOURCE, dst: envFilePath })]
     : [];
+  const agentLaunchMaskDirs = agentLaunchDirExists(agentLaunchPath)
+    ? [agentLaunchPath]
+    : [];
   return Object.freeze({
     readOnlyRoots: Object.freeze(envMaskBinds),
-    maskTmpfsDirs: Object.freeze([agentLaunchPath])
+    maskTmpfsDirs: Object.freeze(agentLaunchMaskDirs)
   });
 }
 

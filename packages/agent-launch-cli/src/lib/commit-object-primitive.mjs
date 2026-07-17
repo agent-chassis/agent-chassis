@@ -14,7 +14,6 @@ export const COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES = Object.freeze({
   MATERIALIZE_FAILED: "agent_launch.commit_object_primitive.materialize_failed.v1",
   SPARSE_BINDING_REQUIRED: "agent_launch.commit_object_primitive.sparse_binding_required.v1",
   SPARSE_BINDING_INCOMPATIBLE: "agent_launch.commit_object_primitive.sparse_binding_incompatible.v1",
-  CROSS_CONE_RENAME: "agent_launch.commit_object_primitive.cross_cone_rename.v1",
   REF_TIP_UNRESOLVABLE: "agent_launch.commit_object_primitive.ref_tip_unresolvable.v1",
   REF_ADVANCE_FAILED: "agent_launch.commit_object_primitive.ref_advance_failed.v1",
 
@@ -200,71 +199,6 @@ function nulPaths(stdout) {
   return stdout.split("\0").filter(Boolean);
 }
 
-function treeEntries(runGit, ctx, treeish) {
-  const records = nulPaths(runGitOrThrow(
-    runGit,
-    ctx,
-    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "ls-tree", "-r", "-z", treeish],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    `failed to enumerate tree entries for ${treeish}`
-  ).stdout);
-  return records.map((record) => {
-    const tab = record.indexOf("\t");
-    const [mode, type, oid] = record.slice(0, tab).split(" ");
-    return Object.freeze({ mode, type, oid, path: record.slice(tab + 1) });
-  });
-}
-
-function deterministicTreeChanges(runGit, ctx, baseSha, candidateTree) {
-  const fields = nulPaths(runGitOrThrow(
-    runGit,
-    ctx,
-    [
-      ...COMMIT_OBJECT_MATERIALIZE_CONFIG,
-      "diff-tree", "-r", "--no-renames", "--name-status", "-z", baseSha, candidateTree
-    ],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    "failed to inspect sparse boundary changes"
-  ).stdout);
-  const changes = [];
-  for (let index = 0; index < fields.length;) {
-    const status = fields[index++];
-    const path = fields[index++];
-    if (!/^[ADMTUXB]$/u.test(status ?? "") || path === undefined) {
-      fail(
-        COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-        "sparse boundary change output was malformed"
-      );
-    }
-    changes.push(Object.freeze({ status, path }));
-  }
-  return changes;
-}
-
-function blobsShareCopyEvidence(runGit, ctx, leftOid, rightOid) {
-  if (leftOid === rightOid) return true;
-  const left = runGitOrThrow(
-    runGit,
-    ctx,
-    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "cat-file", "blob", leftOid],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    `failed to read sparse boundary blob ${leftOid}`
-  ).stdout;
-  const right = runGitOrThrow(
-    runGit,
-    ctx,
-    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "cat-file", "blob", rightOid],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    `failed to read sparse boundary blob ${rightOid}`
-  ).stdout;
-  const [shorter, longer] = left.length <= right.length ? [left, right] : [right, left];
-  if (shorter.length < 16) return false;
-  for (let index = 0; index <= shorter.length - 16; index += 1) {
-    if (longer.includes(shorter.slice(index, index + 16))) return true;
-  }
-  return false;
-}
-
 function sparseCandidatePaths(runGit, ctx, baseSha, coneDirs) {
   const tracked = nulPaths(runGitOrThrow(
     runGit,
@@ -281,81 +215,6 @@ function sparseCandidatePaths(runGit, ctx, baseSha, coneDirs) {
     "failed to enumerate untracked worktree paths"
   ).stdout);
   return [...new Set([...tracked, ...untracked].filter((repoPath) => pathIsInCone(repoPath, coneDirs)))].sort();
-}
-
-function assertNoCrossConeRename(runGit, ctx, baseSha, candidateTree, coneDirs) {
-  const probePaths = [
-    ...treeEntries(runGit, ctx, baseSha),
-    ...treeEntries(runGit, ctx, candidateTree)
-  ].map(({ path }) => path).filter((repoPath) => pathIsInCone(repoPath, coneDirs));
-  const outsideUntracked = nulPaths(runGitOrThrow(
-    runGit,
-    ctx,
-    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "ls-files", "--others", "--exclude-standard", "-z"],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    "failed to enumerate sparse boundary additions"
-  ).stdout).filter((repoPath) => !pathIsInCone(repoPath, coneDirs));
-  const boundaryProbePaths = [...new Set([...probePaths, ...outsideUntracked])].sort();
-  runGitOrThrow(
-    runGit,
-    ctx,
-    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "read-tree", baseSha],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    "failed to seed cross-cone probe index"
-  );
-  if (boundaryProbePaths.length > 0) {
-    runGitOrThrow(
-      runGit,
-      { ...ctx, stdin: `${boundaryProbePaths.join("\0")}\0` },
-      [
-        ...COMMIT_OBJECT_MATERIALIZE_CONFIG,
-        "--literal-pathspecs",
-        "add", "-A", "--sparse", "--pathspec-from-file=-", "--pathspec-file-nul"
-      ],
-      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-      "failed to build cross-cone probe"
-    );
-  }
-  const probeTree = runGitOrThrow(
-    runGit,
-    ctx,
-    [...COMMIT_OBJECT_MATERIALIZE_CONFIG, "write-tree"],
-    COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED,
-    "failed to write cross-cone probe tree"
-  ).stdout.trim();
-  assertOid(probeTree, "cross-cone probe tree", COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED);
-  const changes = deterministicTreeChanges(runGit, ctx, baseSha, probeTree);
-  const baseEntries = treeEntries(runGit, ctx, baseSha);
-  const probeEntries = treeEntries(runGit, ctx, probeTree);
-  const probeByPath = new Map(probeEntries.map((entry) => [entry.path, entry]));
-  const deletions = changes.filter(({ status }) => status === "D");
-  const additions = changes.filter(({ status }) => status === "A");
-  const crossings = [];
-  for (const source of deletions) {
-    for (const destination of additions) {
-      if (pathIsInCone(source.path, coneDirs) !== pathIsInCone(destination.path, coneDirs)) {
-        crossings.push(Object.freeze({ status: "R?", source: source.path, destination: destination.path }));
-      }
-    }
-  }
-  for (const destination of additions) {
-    const destinationEntry = probeByPath.get(destination.path);
-    if (destinationEntry?.type !== "blob") continue;
-    for (const sourceEntry of baseEntries) {
-      if (sourceEntry.type !== "blob" ||
-          pathIsInCone(sourceEntry.path, coneDirs) === pathIsInCone(destination.path, coneDirs)) continue;
-      if (blobsShareCopyEvidence(runGit, ctx, sourceEntry.oid, destinationEntry.oid)) {
-        crossings.push(Object.freeze({ status: "C?", source: sourceEntry.path, destination: destination.path }));
-      }
-    }
-  }
-  if (crossings.length > 0) {
-    fail(
-      COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.CROSS_CONE_RENAME,
-      "rename/copy crosses the server-resolved sparse cone boundary",
-      { crossings: Object.freeze(crossings) }
-    );
-  }
 }
 
 export function defaultRunGit({ gitDir, workTree, args, stdin = null, indexFile = null }) {
@@ -488,8 +347,6 @@ export function materializeCommitObject({
     );
     const tree = treeRes.stdout.trim();
     assertOid(tree, "materialized tree", COMMIT_OBJECT_PRIMITIVE_DIAGNOSTIC_CODES.MATERIALIZE_FAILED);
-
-    if (binding) assertNoCrossConeRename(runGit, ctx, baseSha, tree, binding.cone_dirs);
 
     const commitRes = runGitOrThrow(
       runGit,

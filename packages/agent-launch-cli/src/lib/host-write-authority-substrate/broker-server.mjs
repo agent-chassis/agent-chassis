@@ -18,6 +18,9 @@ import {
   HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS,
   brokerBuildRefusalResponse
 } from "./broker.mjs";
+import {
+  restoreHostWriteAuthorityBrokerEnvelope
+} from "./broker-channel.mjs";
 
 const BROKER_MAX_REQUEST_BYTES = 1024 * 1024;
 
@@ -143,6 +146,20 @@ export function createHostWriteAuthorityBrokerServer(options = {}) {
             detail: {
               issue: "request_not_json",
               message: err?.message ?? null
+            }
+          });
+          try { socket.write(JSON.stringify(refusal) + "\n"); } catch {   }
+          continue;
+        }
+        try {
+          parsed = await restoreHostWriteAuthorityBrokerEnvelope(parsed);
+        } catch (err) {
+          const refusal = brokerBuildRefusalResponse({
+            code: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_CODES.REQUEST_INVALID,
+            reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.LAUNCH_INPUT_INVALID,
+            detail: {
+              issue: "worker_scope_authority_transport_invalid",
+              message: err?.message ?? String(err)
             }
           });
           try { socket.write(JSON.stringify(refusal) + "\n"); } catch {   }

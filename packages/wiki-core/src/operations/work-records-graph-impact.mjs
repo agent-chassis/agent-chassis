@@ -6,7 +6,10 @@ import {
   isObject,
   parseDispatchUnitAddress
 } from "./work-records-shared.mjs";
-import { writeValidatedWorkRecord } from "./work-records-store-io.mjs";
+import {
+  computeWorkRecordPersistenceSnapshotDigest,
+  writeValidatedWorkRecordWithAdmissionSidecars
+} from "./work-records-store-io.mjs";
 import {
   carryForwardPersistedReviewAttestations,
   isWorkerAdmissionDerivedEvidenceForUnit,
@@ -16,11 +19,9 @@ import {
   evaluateWorkRecordAdmissionDerivedEvidence
 } from "../lib/work-record-admission.mjs";
 import {
-  buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath,
-  computeWorkRecordAdmissionDerivedEvidenceSidecarDigest,
   createPersistedWorkerAdmissionDerivedEvidence,
   createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary,
-  writeWorkRecordAdmissionDerivedEvidenceSidecar
+  prepareWorkRecordAdmissionDerivedEvidenceSidecar
 } from "../lib/work-record-admission-derived-evidence-persist.mjs";
 import { buildGraphEvidenceSidecarEntry } from "../lib/work-record-graph-evidence-sidecar.mjs";
 import {
@@ -28,6 +29,7 @@ import {
   computeWorkRecordSourceDigest,
   validateWorkRecord
 } from "../lib/work-record-schema.mjs";
+import { computeReviewedUnitSourceDigest } from "../lib/work-record-review-attestation.mjs";
 import { getWorkRecordPath, loadWorkRecordById } from "../lib/work-record-store.mjs";
 import {
   createInvalidGraphImpactPersistResult,
@@ -106,6 +108,27 @@ export async function persistWorkRecordGraphImpactByUnit({
   }
 
   const currentSourceDigest = loaded.source_digest || computeWorkRecordSourceDigest(loaded.record);
+  const currentPersistenceSnapshotDigest =
+    computeWorkRecordPersistenceSnapshotDigest(loaded.record);
+  const currentDigestRecord = cloneJson(loaded.record);
+  const currentReviewedUnitDigest = computeReviewedUnitSourceDigest(
+    requestedUnit.unit.kind === "slice"
+      ? { record: currentDigestRecord, selected_slice_id: requestedUnit.unit.slice_id }
+      : currentDigestRecord
+  );
+  if (!currentReviewedUnitDigest) {
+    return createInvalidGraphImpactPersistResult({
+      recordId: loaded.record.id,
+      diagnostics: [
+        {
+          code: "invalid_record",
+          severity: "error",
+          message: `Could not resolve reviewed-unit digest for ${requestedUnit.unit.address}`,
+          path: "unit"
+        }
+      ]
+    });
+  }
 
   if (expectedSourceDigest !== null && expectedSourceDigest !== undefined) {
     if (typeof expectedSourceDigest !== "string" || expectedSourceDigest.length === 0) {
@@ -146,7 +169,7 @@ export async function persistWorkRecordGraphImpactByUnit({
 
   if (
     normalizedGraphImpactInput.graph_impact.source_record_digest &&
-    normalizedGraphImpactInput.graph_impact.source_record_digest !== currentSourceDigest
+    normalizedGraphImpactInput.graph_impact.source_record_digest !== currentReviewedUnitDigest
   ) {
     return {
       ...loaded,
@@ -159,7 +182,7 @@ export async function persistWorkRecordGraphImpactByUnit({
         {
           code: "stale_source_digest",
           severity: "error",
-          message: "graph-impact source digest does not match the current on-disk record",
+          message: "graph-impact source digest does not match the current selected unit",
           path: "graph_impact.source_record_digest"
         }
       ]
@@ -224,7 +247,25 @@ export async function persistWorkRecordGraphImpactByUnit({
   const generatedAt = new Date().toISOString();
 
   const updatedRecord = canonicalizeWorkRecordReadScope(cloneJson(loaded.record));
-  const stampSourceDigest = computeWorkRecordSourceDigest(updatedRecord);
+  const updatedDigestRecord = cloneJson(updatedRecord);
+  const stampSourceDigest = computeReviewedUnitSourceDigest(
+    requestedUnit.unit.kind === "slice"
+      ? { record: updatedDigestRecord, selected_slice_id: requestedUnit.unit.slice_id }
+      : updatedDigestRecord
+  );
+  if (!stampSourceDigest) {
+    return createInvalidGraphImpactPersistResult({
+      recordId: loaded.record.id,
+      diagnostics: [
+        {
+          code: "invalid_record",
+          severity: "error",
+          message: `Could not resolve reviewed-unit digest for ${requestedUnit.unit.address}`,
+          path: "unit"
+        }
+      ]
+    });
+  }
 
   const selectedSlice =
     requestedUnit.unit.kind === "slice"
@@ -336,12 +377,11 @@ export async function persistWorkRecordGraphImpactByUnit({
   const admissionSummary = createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary(
     evaluateWorkRecordAdmissionDerivedEvidence(persistedEntry)
   );
-  const admissionSidecarRelativePath =
-    buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(persistedEntry);
-  const admissionSidecarAbsolutePath = path.resolve(targetDir, admissionSidecarRelativePath);
   const admissionSidecarPayload = cloneJson(persistedEntry);
-  const admissionSidecarDigest =
-    computeWorkRecordAdmissionDerivedEvidenceSidecarDigest(admissionSidecarPayload);
+  const admissionSidecarPublication =
+    prepareWorkRecordAdmissionDerivedEvidenceSidecar(admissionSidecarPayload);
+  const admissionSidecarRelativePath = admissionSidecarPublication.relativePath;
+  const admissionSidecarDigest = admissionSidecarPublication.digest;
   const compactPersistedEntry = createPersistedWorkerAdmissionDerivedEvidence(persistedEntry, {
     sidecarPath: admissionSidecarRelativePath,
     sidecarDigest: admissionSidecarDigest,
@@ -389,16 +429,12 @@ export async function persistWorkRecordGraphImpactByUnit({
   }
 
   await writeTextFileAtomically(sidecarWrite.absolutePath, sidecarWrite.text);
-
-  await writeWorkRecordAdmissionDerivedEvidenceSidecar(
-    admissionSidecarAbsolutePath,
-    admissionSidecarPayload
-  );
-
-  const writeResult = await writeValidatedWorkRecord({
+  const writeResult = await writeValidatedWorkRecordWithAdmissionSidecars({
     dir: targetDir,
     record: updatedRecord,
     expectedSourceDigest: currentSourceDigest,
+    expectedPersistenceSnapshotDigest: currentPersistenceSnapshotDigest,
+    admissionSidecars: [admissionSidecarPublication],
     recordStore
   });
 

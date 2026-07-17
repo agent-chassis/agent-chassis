@@ -76,11 +76,10 @@ function normalizeActivityArtifactTargetEntry(entry, index) {
   };
 }
 
-function normalizeActivityArtifactTargetsFromSources(source, selectedSlice) {
-  const rawTargets = selectArrayCandidate(
-    [selectedSlice, source],
-    ["activity_artifact_targets", "activityArtifactTargets", "expected_edit_targets", "expectedEditTargets"]
-  );
+function normalizeActivityArtifactTargetsFromSources(source, selectedSlice, inputKind = "feature_vector") {
+  const rawTargets = inputKind === "canonical_work_record"
+    ? selectArrayCandidate([selectedSlice, source], ["expected_edit_targets"])
+    : selectArrayCandidate([source], ["activity_artifact_targets"]);
   return rawTargets.map((entry, index) => normalizeActivityArtifactTargetEntry(entry, index));
 }
 
@@ -138,8 +137,10 @@ function normalizeScenarioEntry(entry, index) {
   };
 }
 
-function normalizeScenariosFromSources(source, selectedSlice) {
-  const rawScenarios = selectArrayCandidate([selectedSlice, source], ["scenarios", "scenario_inventory", "scenarioInventory"]);
+function normalizeScenariosFromSources(source, selectedSlice, inputKind = "feature_vector") {
+  const rawScenarios = inputKind === "canonical_work_record"
+    ? selectArrayCandidate([selectedSlice, source], ["scenarios", "scenario_inventory", "scenarioInventory"])
+    : selectArrayCandidate([source], ["scenarios"]);
   return rawScenarios.map((entry, index) => normalizeScenarioEntry(entry, index));
 }
 
@@ -338,15 +339,16 @@ function buildAcceptanceResolutionIndex(activityArtifactTargets, scenarios) {
   };
 }
 
-function normalizeAcceptanceMethodsFromSources(source, selectedSlice, activityArtifactTargets, scenarios) {
-  const rawAcceptanceMethods = selectArrayCandidate(
-    [selectedSlice, source],
-    ["acceptance_methods", "acceptanceMethods"]
-  );
-  const rawCriteria =
-    rawAcceptanceMethods.length > 0
-      ? rawAcceptanceMethods
-      : selectArrayCandidate([selectedSlice, source.acceptance], ["criteria"]);
+function normalizeAcceptanceMethodsFromSources(
+  source,
+  selectedSlice,
+  activityArtifactTargets,
+  scenarios,
+  inputKind = "feature_vector"
+) {
+  const rawCriteria = inputKind === "canonical_work_record"
+    ? selectArrayCandidate([selectedSlice?.acceptance, source.acceptance], ["criteria"])
+    : selectArrayCandidate([source], ["acceptance_methods"]);
 
   const resolutionIndex = buildAcceptanceResolutionIndex(activityArtifactTargets, scenarios);
   return rawCriteria.map((entry, index) => normalizeAcceptanceCriterionEntry(entry, index, resolutionIndex));

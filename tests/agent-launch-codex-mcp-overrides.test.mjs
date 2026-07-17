@@ -13,11 +13,61 @@ import {
   injectCodexConfigOverridesBeforeFinalPositional,
   WIKI_MCP_AGENT_SAFE_TOOL_PROFILE,
   WIKI_MCP_ASSIGNED_UNIT_ENV_VAR,
+  WIKI_MCP_COMMIT_BINDING_ENV_VAR,
+  WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR,
+  WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR,
+  WIKI_MCP_COMMIT_RUN_ID_ENV_VAR,
   WIKI_MCP_TOOL_PROFILE_ENV_VAR,
   WIKI_MCP_WORKER_TOOL_PROFILE,
   WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
   WIKI_MCP_WORKSPACE_DIR_ENV_VAR
 } from "../packages/agent-launch-cli/src/lib/codex-role-mcp-env.mjs";
+
+function managedProvisioningFixture({
+  retryId = 2,
+  sliceOverrides = {},
+  provisioningOverrides = {}
+} = {}) {
+  const writeScope = Object.freeze(["packages/agent-launch-cli/src/lib/codex-role-mcp-env.mjs"]);
+  const coneDirs = Object.freeze(["packages/agent-launch-cli/src/lib"]);
+  const sliceBinding = Object.freeze({
+    schema_version: "worktree-identity-binding.v1",
+    launch_ref: "wkmh_wk1537_slice004",
+    run_id: "wkdb_wk1537_slice004.slice",
+    retry_id: retryId,
+    initiative: "IN-0021",
+    record_id: "WK-1537",
+    slice_id: "SLICE-004",
+    unit_address: "IN-0021/WK-1537/SLICE-004",
+    worktree_path: "/launcher/worktrees/WK-1537-SLICE-004",
+    output_branch: "slice/IN-0021/WK-1537/SLICE-004",
+    base_ref: "wk/IN-0021/WK-1537",
+    base_sha: "0123456789abcdef0123456789abcdef01234567",
+    index_sparse: false,
+    write_scope: writeScope,
+    cone_dirs: coneDirs,
+    ...sliceOverrides
+  });
+  return Object.freeze({
+    schema_version: "managed-worktree-binding.v1",
+    complete: true,
+    initiative: "IN-0021",
+    record_id: "WK-1537",
+    slice_id: "SLICE-004",
+    unit_address: "IN-0021/WK-1537/SLICE-004",
+    retry_id: retryId,
+    run_authority: "launcher-run-authority-wk1537-slice004",
+    slice_binding: sliceBinding,
+    worktree_path: sliceBinding.worktree_path,
+    output_branch: sliceBinding.output_branch,
+    base_ref: sliceBinding.base_ref,
+    base_sha: sliceBinding.base_sha,
+    index_sparse: sliceBinding.index_sparse,
+    write_scope: Object.freeze([...sliceBinding.write_scope]),
+    cone_dirs: Object.freeze([...sliceBinding.cone_dirs]),
+    ...provisioningOverrides
+  });
+}
 
 function parseOverride(override) {
   const eq = override.indexOf("=");
@@ -56,6 +106,72 @@ test("Codex worker wiki MCP env overrides pin launcher-owned worker profile and 
   assert.throws(
     () => buildCodexWorkerWikiMcpEnvOverrides({ assignedUnit: "" }),
     /launcher-assigned unit/
+  );
+});
+
+test("managed Codex worker wiki MCP overrides emit only the exact launcher-minted commit tuple", () => {
+  const provisioning = managedProvisioningFixture();
+  const overrides = buildCodexWorkerWikiMcpEnvOverrides({
+    assignedUnit: "WK-1537#SLICE-004",
+    worktreeProvisioning: provisioning,
+    sliceBinding: provisioning.slice_binding
+  });
+
+  assert.equal(WIKI_MCP_COMMIT_BINDING_ENV_VAR, "WIKI_MCP_COMMIT_BINDING");
+  assert.deepEqual(overrides, [
+    'mcp_servers.wiki.env.WIKI_MCP_TOOL_PROFILE="worker"',
+    'mcp_servers.wiki.env.WIKI_MCP_ASSIGNED_UNIT="WK-1537#SLICE-004"',
+    `mcp_servers.wiki.env.${WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR}="wkmh_wk1537_slice004"`,
+    `mcp_servers.wiki.env.${WIKI_MCP_COMMIT_RUN_ID_ENV_VAR}="wkdb_wk1537_slice004.slice"`,
+    `mcp_servers.wiki.env.${WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR}="2"`
+  ]);
+  assert.ok(
+    overrides.every((override) => !override.includes(WIKI_MCP_COMMIT_BINDING_ENV_VAR)),
+    "the launcher must not serialize a general commit binding into Codex MCP config"
+  );
+});
+
+test("managed Codex worker wiki MCP overrides refuse missing, cloned, stale, aliased, and subject-mismatched tuples", () => {
+  const provisioning = managedProvisioningFixture();
+  const base = {
+    assignedUnit: "WK-1537#SLICE-004",
+    worktreeProvisioning: provisioning,
+    sliceBinding: provisioning.slice_binding
+  };
+  assert.throws(
+    () => buildCodexWorkerWikiMcpEnvOverrides({ ...base, sliceBinding: null }),
+    /exact frozen provisioning-owned object/
+  );
+  assert.throws(
+    () => buildCodexWorkerWikiMcpEnvOverrides({
+      ...base,
+      sliceBinding: Object.freeze({ ...provisioning.slice_binding })
+    }),
+    /exact frozen provisioning-owned object/
+  );
+  assert.throws(
+    () => buildCodexWorkerWikiMcpEnvOverrides({ ...base, assignedUnit: "WK-1537#SLICE-005" }),
+    /mismatches the selected subject/
+  );
+
+  const stale = managedProvisioningFixture({ provisioningOverrides: { retry_id: 3 } });
+  assert.throws(
+    () => buildCodexWorkerWikiMcpEnvOverrides({
+      assignedUnit: base.assignedUnit,
+      worktreeProvisioning: stale,
+      sliceBinding: stale.slice_binding
+    }),
+    /retry_id is malformed or stale/
+  );
+
+  const aliased = managedProvisioningFixture({ sliceOverrides: { runId: "caller-run" } });
+  assert.throws(
+    () => buildCodexWorkerWikiMcpEnvOverrides({
+      assignedUnit: base.assignedUnit,
+      worktreeProvisioning: aliased,
+      sliceBinding: aliased.slice_binding
+    }),
+    /caller alias runId is forbidden/
   );
 });
 

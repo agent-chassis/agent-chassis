@@ -56,10 +56,6 @@ async function writeTextFileAtomically(filePath, content) {
   }
 }
 
-async function writeJsonFileAtomically(filePath, value) {
-  await writeTextFileAtomically(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
 async function snapshotCleanupSidecarState(filePath) {
   try {
     return {
@@ -221,84 +217,6 @@ export async function rollbackCleanupSidecarWrites(writtenEntries) {
     }
   }
   return diagnostics;
-}
-
-export async function persistCleanupSidecars(targetDir, sidecarEntries) {
-  const writtenEntries = [];
-  const sidecarDiagnostics = [];
-
-  for (const [index, sidecarEntry] of sidecarEntries.entries()) {
-    if (!sidecarEntry || typeof sidecarEntry !== "object" || !sidecarEntry.entry || typeof sidecarEntry.entry !== "object" || Array.isArray(sidecarEntry.entry)) {
-      sidecarDiagnostics.push(
-        createCleanupSidecarDiagnostic({
-          code: "cleanup_sidecar_entry_invalid",
-          message: "cleanup sidecar entry must include a JSON object payload",
-          path: `report.sidecar_entries[${index}].entry`,
-          index
-        })
-      );
-      break;
-    }
-
-    const resolved = resolveCleanupSidecarPath(targetDir, sidecarEntry.path);
-    if (!resolved.ok) {
-      sidecarDiagnostics.push({
-        ...resolved.diagnostic,
-        index
-      });
-      break;
-    }
-
-    let previousState;
-    try {
-      previousState = await snapshotCleanupSidecarState(resolved.absolutePath);
-    } catch {
-      sidecarDiagnostics.push(
-        createCleanupSidecarDiagnostic({
-          code: "cleanup_sidecar_snapshot_failed",
-          message: `failed to snapshot existing cleanup sidecar before write: ${resolved.relativePath}`,
-          path: `report.sidecar_entries[${index}].path`,
-          index
-        })
-      );
-      break;
-    }
-
-    try {
-      await writeJsonFileAtomically(resolved.absolutePath, sidecarEntry.entry);
-      writtenEntries.push({
-        path: resolved.absolutePath,
-        ...previousState
-      });
-    } catch {
-      sidecarDiagnostics.push(
-        createCleanupSidecarDiagnostic({
-          code: "cleanup_sidecar_write_failed",
-          message: `failed to write cleanup sidecar: ${resolved.relativePath}`,
-          path: `report.sidecar_entries[${index}].entry`,
-          index
-        })
-      );
-      break;
-    }
-  }
-
-  if (sidecarDiagnostics.length > 0) {
-    const rollbackDiagnostics = await rollbackCleanupSidecarWrites(writtenEntries);
-    return {
-      ok: false,
-      diagnostics: [...sidecarDiagnostics, ...rollbackDiagnostics],
-      writtenEntries,
-      writtenPaths: writtenEntries.map((entry) => entry.path)
-    };
-  }
-
-  return {
-    ok: true,
-    diagnostics: [],
-    writtenEntries,
-    writtenPaths: writtenEntries.map((entry) => entry.path)
-  };
 }
 
 function graphSidecarAddress(entry) {

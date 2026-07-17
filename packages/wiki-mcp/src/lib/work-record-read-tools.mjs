@@ -10,7 +10,35 @@ import {
   validateDocsPolicyOperation,
   validateWorkRecordDispatch
 } from "@agent-chassis/wiki-core";
-import { runWorkRecordSummaryWithCompactGate } from "./work-record-compact-read-gate.mjs";
+import { parseWorkRecordSummaryUnit } from "@agent-chassis/wiki-core/src/lib/work-record-summary.mjs";
+import {
+  getSummarySelectorValidationIssues,
+  runWorkRecordSummaryWithCompactGate
+} from "./work-record-compact-read-gate.mjs";
+
+async function readSelectedWorkRecordFullSummary({ dir, id = null, unit = null }) {
+  const selectedUnit = parseWorkRecordSummaryUnit(unit ?? id);
+  if (!selectedUnit || selectedUnit.kind !== "slice") {
+    return {
+      record_id: selectedUnit?.record_id ?? null,
+      valid: false,
+      selected_unit: selectedUnit,
+      summary: null
+    };
+  }
+
+  const loaded = await readWorkRecordById({ dir, id: selectedUnit.record_id });
+  const slices = Array.isArray(loaded?.record?.slices) ? loaded.record.slices : [];
+  const selectedSlice = slices.find((slice) => slice?.id === selectedUnit.slice_id) ?? null;
+  return {
+    record_id: loaded?.record_id ?? selectedUnit.record_id,
+    valid: loaded?.valid === true && selectedSlice !== null,
+    selected_unit: selectedUnit,
+    summary: {
+      selected_unit_summary: selectedSlice
+    }
+  };
+}
 
 const NODE_TEST_STEP_TIMEOUT_MS = 30000;
 const NODE_TEST_OUTPUT_CAP_BYTES = 65536;
@@ -228,6 +256,27 @@ export function registerWorkRecordReadTools({
   registeredTier = "paid_cce"
 }) {
   const isPaidTier = registeredTier !== "free_local";
+  const nonEmptyString = z.string().refine((value) => value.trim().length > 0, {
+    message: "Expected a non-empty string"
+  });
+  const workRecordSummaryInputSchema = z.object({
+    repo: z.string().optional(),
+    id: nonEmptyString.optional(),
+    unit: nonEmptyString.optional(),
+    path: nonEmptyString.optional(),
+    verbose: z.boolean().optional(),
+    include_full_summary: z.boolean().optional(),
+    accept_full_read: z.literal(true).optional(),
+    compact_read_token: z.string().optional()
+  }).strict().superRefine((args, context) => {
+    for (const issue of getSummarySelectorValidationIssues(args)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: issue.path,
+        message: issue.message
+      });
+    }
+  });
   registerTool(
     "workspace_docs_policy_validate",
     {
@@ -260,28 +309,18 @@ export function registerWorkRecordReadTools({
     "workspace_work_record_summary",
     {
       description:
-        "Return a compact selected-unit work-record summary. Select the unit by id, unit, or path. For tracker WK-level summaries, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. For more detail, rerun the compact call or select a slice unit such as WK-0001#slice-id for bounded details and notes. Expensive verbose:true or include_full_summary:true reads are gated behind a recent compact_read_token or selected slice unit.",
-      inputSchema: {
-        repo: z.string().optional(),
-        id: z.string().optional(),
-        unit: z.string().optional(),
-        path: z.string().optional(),
-        verbose: z.boolean().optional(),
-        include_full_summary: z.boolean().optional(),
-        compact_read_token: z.string().optional()
-      }
+        "Return a compact selected-unit work-record summary. Select the unit by id, unit, or path. For tracker WK-level summaries, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. A selected slice unit such as WK-0001#slice-id returns only that unit's detail in one call; verbose, include_full_summary, and accept_full_read cannot widen a selected response. Large unscoped expensive reads remain compact-first unless the caller explicitly passes accept_full_read:true for that call.",
+      inputSchema: workRecordSummaryInputSchema
     },
     async (args) => {
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        if (!args.id && !args.unit && !args.path) {
-          throw new Error("workspace_work_record_summary requires id, unit, or path");
-        }
         const result = await runWorkRecordSummaryWithCompactGate({
           workspaceRepo: workspace.repo,
           workspaceDir: workspace.dir,
           args,
           getWorkRecordSummary,
+          readSelectedWorkRecordSummary: readSelectedWorkRecordFullSummary,
           readWorkRecordById
         });
         return jsonContent({ workspaceRepo: workspace.repo, ...result });

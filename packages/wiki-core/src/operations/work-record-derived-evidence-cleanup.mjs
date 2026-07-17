@@ -9,13 +9,20 @@ import {
   listWorkRecordJsonPaths
 } from "../lib/work-record-store.mjs";
 import { canonicalizeWorkRecordReadScope } from "../lib/work-record-schema.mjs";
-import { digestWorkRecord, readWorkRecordById, readWorkRecordByPath, writeValidatedWorkRecord } from "./work-records.mjs";
+import { digestWorkRecord, readWorkRecordById, readWorkRecordByPath } from "./work-records.mjs";
+import {
+  computeWorkRecordPersistenceSnapshotDigest,
+  inspectWorkRecordAdmissionSidecarArtifacts,
+  writeValidatedWorkRecordWithAdmissionSidecars
+} from "./work-records-store-io.mjs";
+import {
+  prepareWorkRecordAdmissionDerivedEvidenceSidecar
+} from "../lib/work-record-admission-derived-evidence-persist.mjs";
 import {
   applyFinalGraphSidecarDigest,
   collectSidecarCollisionDiagnostics,
   describeCleanupError,
   persistCleanupGraphSidecar,
-  persistCleanupSidecars,
   rollbackCleanupSidecarWrites
 } from "./work-record-derived-evidence-cleanup-sidecar-io.mjs";
 
@@ -156,6 +163,7 @@ export async function cleanupWorkRecordDerivedEvidenceOperation({
     expectedSourceDigest,
     expected_source_digest
   });
+  const persistenceSnapshotDigest = computeWorkRecordPersistenceSnapshotDigest(loaded.record);
 
   if (write) {
     const planned = planWorkRecordDerivedEvidenceCleanup(loaded.record, { verbose: true });
@@ -179,26 +187,15 @@ export async function cleanupWorkRecordDerivedEvidenceOperation({
       });
     }
 
-    const sidecarEntries = Array.isArray(planned.report?.sidecar_entries) ? planned.report.sidecar_entries : [];
-    const sidecarWriteResult = await persistCleanupSidecars(targetDir, sidecarEntries);
-    if (!sidecarWriteResult.ok) {
-      return createCleanupResult({
-        loaded,
-        report: applied.report,
-        sourceDigest,
-        expectedSourceDigest: expectedDigest,
-        currentSourceDigest: loaded.source_digest || null,
-        useAsExpectedSourceDigest: null,
-        written: false,
-        valid: false,
-        diagnostics: sidecarWriteResult.diagnostics,
-        canonicalRecordPath: loaded.canonical_record_path || loaded.source_path || null
-      });
-    }
+    const sidecarEntries = Array.isArray(planned.report?.sidecar_entries)
+      ? planned.report.sidecar_entries
+      : [];
+    const admissionSidecarPublications = sidecarEntries.map((entry) =>
+      prepareWorkRecordAdmissionDerivedEvidenceSidecar(entry.entry)
+    );
 
     const graphSidecarWriteResult = await persistCleanupGraphSidecar(targetDir, applied.graph_sidecar);
     if (!graphSidecarWriteResult.ok) {
-      const rollbackDiagnostics = await rollbackCleanupSidecarWrites(sidecarWriteResult.writtenEntries || []);
       return createCleanupResult({
         loaded,
         report: applied.report,
@@ -208,15 +205,12 @@ export async function cleanupWorkRecordDerivedEvidenceOperation({
         useAsExpectedSourceDigest: null,
         written: false,
         valid: false,
-        diagnostics: [...graphSidecarWriteResult.diagnostics, ...rollbackDiagnostics],
+        diagnostics: graphSidecarWriteResult.diagnostics,
         canonicalRecordPath: loaded.canonical_record_path || loaded.source_path || null
       });
     }
 
-    const allSidecarWrites = [
-      ...(sidecarWriteResult.writtenEntries || []),
-      ...(graphSidecarWriteResult.writtenEntries || [])
-    ];
+    const graphSidecarWrites = graphSidecarWriteResult.writtenEntries || [];
 
     applyFinalGraphSidecarDigest({
       record: applied.record,
@@ -225,16 +219,19 @@ export async function cleanupWorkRecordDerivedEvidenceOperation({
       finalDigest: graphSidecarWriteResult.finalDigest
     });
 
-    const writeResult = await writeValidatedWorkRecord({
+    const writeResult = await writeValidatedWorkRecordWithAdmissionSidecars({
       dir: targetDir,
       record: applied.record,
-      expectedSourceDigest: expectedDigest,
+      expectedSourceDigest: expectedDigest ?? loaded.source_digest,
+      expectedPersistenceSnapshotDigest: persistenceSnapshotDigest,
+      admissionSidecars: admissionSidecarPublications,
+      cleanupAdmissionSidecars: { mode: "remove" },
       recordStore
     });
 
     const writeDiagnostics = Array.isArray(writeResult.diagnostics) ? writeResult.diagnostics : [];
     if (!writeResult.written) {
-      const rollbackDiagnostics = await rollbackCleanupSidecarWrites(allSidecarWrites);
+      const rollbackDiagnostics = await rollbackCleanupSidecarWrites(graphSidecarWrites);
       return createCleanupResult({
         loaded,
         report: applied.report,
@@ -247,6 +244,10 @@ export async function cleanupWorkRecordDerivedEvidenceOperation({
         diagnostics: [...writeDiagnostics, ...rollbackDiagnostics],
         canonicalRecordPath: writeResult.canonical_record_path || loaded.source_path || null
       });
+    }
+
+    if (writeResult.admission_sidecar_cleanup) {
+      applied.report.admission_sidecar_cleanup = writeResult.admission_sidecar_cleanup;
     }
 
     return createCleanupResult({
@@ -270,6 +271,17 @@ export async function cleanupWorkRecordDerivedEvidenceOperation({
   });
 
   const planCollisionDiagnostics = collectSidecarCollisionDiagnostics(planned.report);
+  const admissionSidecarInspection = await inspectWorkRecordAdmissionSidecarArtifacts({
+    dir: targetDir,
+    id: loaded.record.id,
+    expectedSourceDigest: loaded.source_digest,
+    expectedPersistenceSnapshotDigest: persistenceSnapshotDigest,
+    recordStore
+  });
+  if (admissionSidecarInspection.admission_sidecar_cleanup) {
+    planned.report.admission_sidecar_cleanup =
+      admissionSidecarInspection.admission_sidecar_cleanup;
+  }
 
   return createCleanupResult({
     loaded,
@@ -280,8 +292,12 @@ export async function cleanupWorkRecordDerivedEvidenceOperation({
 
     useAsExpectedSourceDigest: loaded.source_digest || null,
     written: false,
-    valid: Boolean(loaded.valid),
-    diagnostics: [...(loaded.diagnostics || []), ...planCollisionDiagnostics],
+    valid: Boolean(loaded.valid) && admissionSidecarInspection.valid !== false,
+    diagnostics: [
+      ...(loaded.diagnostics || []),
+      ...planCollisionDiagnostics,
+      ...(admissionSidecarInspection.diagnostics || [])
+    ],
     canonicalRecordPath: loaded.canonical_record_path || loaded.source_path || null
   });
 }
@@ -377,15 +393,15 @@ const WORK_RECORD_DERIVED_EVIDENCE_CLEANUP_ALL_PARTIAL_WRITE_POLICY = Object.fre
   stale_digest:
     "The broad sweep loads and digests each record fresh immediately before its own write; it never reuses a cross-record expected_source_digest. To gate a single record on a known digest, run the single-record cleanup-derived-evidence path with --expected-source-digest instead.",
   per_record_validation:
-    "Each pruned record is validated through writeValidatedWorkRecord before its canonical JSON is replaced; an invalid pruned record is refused without writing.",
+    "Each pruned record is validated before the single-lock admission-sidecar transaction replaces canonical JSON; an invalid pruned record is refused without publication.",
   sidecar_rollback:
-    "WK-named sidecars for a record are written before that record's canonical JSON. If the canonical write fails or refuses, the sidecars written for that record are rolled back to their prior content (or removed when newly created). The per-WK graph sidecar rollback is concurrency-safe: it rereads the file first and skips rollback (reporting graph_sidecar_rollback_skipped_concurrent_update or graph_sidecar_rollback_recheck_failed) if a concurrent writer changed, deleted, or made the file unrecheckable since this writer wrote it, rather than clobbering that update.",
+    "Digest-qualified admission sidecars are published immutably under the record lock. A synchronous canonical replacement failure best-effort removes only destinations newly created by that attempt; existing and legacy admission sidecars are never restored or overwritten. The separate per-WK graph sidecar retains its concurrency-safe rollback contract.",
   collision_guard:
-    "Before any write, retained entries that would target the same sidecar path are detected and the record is refused, so one retained payload can never overwrite another.",
+    "Exact sidecar bytes determine the digest-qualified destination. Existing equal bytes are reused; unequal bytes at that immutable destination refuse without overwrite.",
   crash_recovery:
     "A crash between a sidecar write and its canonical write can leave an orphan sidecar under wiki/work-records/evidence/. The cleanup is idempotent: rerun it (dry-run first) to reconcile. Orphan sidecars are inert debug/replay payloads and never add dispatch authority.",
   concurrency:
-    "Records are processed with bounded concurrency (one independent task per record). Each task loads and digests its record fresh, writes only its own WK-named sidecars and canonical JSON via atomic per-file replace, and isolates its skip/refusal/write failure from siblings. Report ordering is fixed by WK id regardless of completion order."
+    "Records are processed with bounded concurrency (one independent task per record). Each task loads both persistence guards fresh and executes one record-local locked transaction; failures remain isolated and report ordering is fixed by WK id."
 });
 
 function normalizeRequestedRecordIds(ids) {

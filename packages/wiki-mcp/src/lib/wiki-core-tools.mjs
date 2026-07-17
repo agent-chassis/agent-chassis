@@ -19,7 +19,10 @@ import {
 
 import { buildLintFindingsResponse } from "@agent-chassis/wiki-core/src/operations/generate-and-lint.mjs";
 import { autofixDocsBacklinks } from "@agent-chassis/wiki-core/src/operations/autofix-docs-backlinks.mjs";
-import { runWorkRecordReadWithCompactGate } from "./work-record-compact-read-gate.mjs";
+import {
+  getReadSelectorValidationIssues,
+  runWorkRecordReadWithCompactGate
+} from "./work-record-compact-read-gate.mjs";
 
 export function registerWikiCoreTools({
   registerTool,
@@ -32,6 +35,50 @@ export function registerWikiCoreTools({
   resolveWorkspaceRepo,
   section = "all"
 }) {
+  const nonEmptyString = z.string().refine((value) => value.trim().length > 0, {
+    message: "Expected a non-empty string"
+  });
+  function strictReadSchema(shape, toolFamily) {
+    return z.object(shape).strict().superRefine((args, context) => {
+      for (const issue of getReadSelectorValidationIssues(args, toolFamily)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: issue.path,
+          message: issue.message
+        });
+      }
+    });
+  }
+
+  const workspaceReadPageInputSchema = strictReadSchema({
+    path: nonEmptyString,
+    repo: z.string().optional(),
+    profile: z.string().optional(),
+    extensionNamespaces: extensionNamespacesSchema,
+    verbose: z.boolean().optional(),
+    include_body: z.boolean().optional(),
+    include_raw: z.boolean().optional(),
+    include_record: z.boolean().optional(),
+    selected_slice: nonEmptyString.optional(),
+    selected_record: z.literal(true).optional(),
+    accept_full_read: z.literal(true).optional(),
+    compact_read_token: z.string().optional()
+  }, "workspace_read_page");
+
+  const workspaceGetRecordInputSchema = strictReadSchema({
+    id: nonEmptyString,
+    repo: z.string().optional(),
+    profile: z.string().optional(),
+    extensionNamespaces: extensionNamespacesSchema,
+    verbose: z.boolean().optional(),
+    include_record: z.boolean().optional(),
+    include_body: z.boolean().optional(),
+    include_raw: z.boolean().optional(),
+    selected_slice: nonEmptyString.optional(),
+    accept_full_read: z.literal(true).optional(),
+    compact_read_token: z.string().optional()
+  }, "workspace_get_record");
+
   function isGraphEvidenceSidecarReadPath(value) {
     return (
       typeof value === "string" &&
@@ -279,20 +326,8 @@ export function registerWikiCoreTools({
     "workspace_read_page",
     {
       description:
-        "Read a markdown page, JSON work-record, or graph-evidence sidecar from a workspace repository (no caller-supplied filesystem root). For work-record reads, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. For more detail, rerun compact or use selected_slice:<id> for bounded slice details and notes. Expensive include_body, include_raw, include_record, or verbose:true reads are gated behind a recent compact_read_token or selected slice. Graph-evidence sidecars are replay/debug data and never dispatch authority; use selected_slice or selected_record (mutually exclusive) to pull one replay entry.",
-      inputSchema: {
-        path: z.string(),
-        repo: z.string().optional(),
-        profile: z.string().optional(),
-        extensionNamespaces: extensionNamespacesSchema,
-        verbose: z.boolean().optional(),
-        include_body: z.boolean().optional(),
-        include_raw: z.boolean().optional(),
-        include_record: z.boolean().optional(),
-        selected_slice: z.string().optional(),
-        selected_record: z.boolean().optional(),
-        compact_read_token: z.string().optional()
-      }
+        "Read a markdown page, JSON work-record, or graph-evidence sidecar from a workspace repository (no caller-supplied filesystem root). For work-record reads, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. A selected_slice returns only that slice's detail in one call; verbose, include flags, and accept_full_read cannot widen a selected response. Large unscoped expensive reads remain compact-first unless the caller explicitly passes accept_full_read:true for that call. Graph-evidence sidecars are replay/debug data and never dispatch authority; use selected_slice or selected_record (mutually exclusive) to pull exactly one replay entry.",
+      inputSchema: workspaceReadPageInputSchema
     },
     async (args) => {
       try {
@@ -342,19 +377,8 @@ export function registerWikiCoreTools({
     "workspace_get_record",
     {
       description:
-        "Read a canonical wiki record from a workspace repository (no caller-supplied filesystem root). For work records, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. For more detail, rerun compact or use selected_slice:<id> for bounded slice details and notes. Expensive include_record, include_body, include_raw, or verbose:true reads are gated behind a recent compact_read_token or selected slice.",
-      inputSchema: {
-        id: z.string(),
-        repo: z.string().optional(),
-        profile: z.string().optional(),
-        extensionNamespaces: extensionNamespacesSchema,
-        verbose: z.boolean().optional(),
-        include_record: z.boolean().optional(),
-        include_body: z.boolean().optional(),
-        include_raw: z.boolean().optional(),
-        selected_slice: z.string().optional(),
-        compact_read_token: z.string().optional()
-      }
+        "Read a canonical wiki record from a workspace repository (no caller-supplied filesystem root). For work records, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. A selected_slice returns only that slice's detail in one call; verbose, include flags, and accept_full_read cannot widen a selected response. Large unscoped expensive reads remain compact-first unless the caller explicitly passes accept_full_read:true for that call.",
+      inputSchema: workspaceGetRecordInputSchema
     },
     async (args) => {
       try {

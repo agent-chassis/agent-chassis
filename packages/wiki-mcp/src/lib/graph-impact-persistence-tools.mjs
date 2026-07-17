@@ -7,6 +7,7 @@ import {
 
 import { generateAndPersistWorkRecordGraphImpactByUnit } from "@agent-chassis/wiki-core/src/operations/work-record-graph-impact-generate.mjs";
 import { SLICE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import { computeReviewedUnitSourceDigest } from "@agent-chassis/wiki-core/src/lib/work-record-review-attestation.mjs";
 import {
   applyServerBoundGraphImpactUnitAndDigest,
   areGraphImpactPathListsEqual,
@@ -370,9 +371,27 @@ export function registerGraphImpactPersistenceTools({
             dir: workspace.dir,
             id: requestedUnit.record_id
           });
-          const currentSourceDigest = isNonEmptyString(loadedForBinding?.source_digest)
-            ? loadedForBinding.source_digest
+
+          const digestRecord = loadedForBinding?.record
+            ? JSON.parse(JSON.stringify(loadedForBinding.record))
             : null;
+          const currentSourceDigest = digestRecord
+            ? computeReviewedUnitSourceDigest(
+                requestedUnit.kind === "slice"
+                  ? {
+                      record: digestRecord,
+                      selected_slice_id: requestedUnit.slice_id
+                    }
+                  : digestRecord
+              )
+            : null;
+          if (!isNonEmptyString(currentSourceDigest)) {
+            return errorContent(
+              new Error(
+                `workspace_record_graph_impact_evidence could not resolve the reviewed-unit digest for ${requestedUnit.address}`
+              )
+            );
+          }
           graphImpactInput = applyServerBoundGraphImpactUnitAndDigest(graphImpactInput, {
             unit: requestedUnit,
             sourceRecordDigest: currentSourceDigest

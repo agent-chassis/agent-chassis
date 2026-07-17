@@ -15,22 +15,33 @@ import { runtimeDirFor } from "./codex-role-orchestrator-history.mjs";
 import {
   resolveLauncherOwnedHostHome
 } from "./launcher-runtime-home-policy.mjs";
+import { assertFrozenWorkerScopeAuthority } from "./workspace-agent-launch-core.mjs";
 
-export function resolveCodexSourceHome(env, { readHostHome } = {}) {
+export function resolveCodexSourceHome(env, {
+  readHostHome,
+  workerScopeAuthority = null,
+  role = null,
+  subject = null
+} = {}) {
+  const frozenWorkerScopeAuthority = assertFrozenWorkerScopeAuthority(workerScopeAuthority, {
+    role: role ?? "worker",
+    subject,
+    required: workerScopeAuthority !== null
+  });
   if (env && typeof env.CODEX_SOURCE_HOME === "string" && env.CODEX_SOURCE_HOME.length > 0) {
     const explicit = resolveLauncherOwnedHostHome({
       readHostHome: () => env.CODEX_SOURCE_HOME,
       source: "codex_source_home"
     });
     if (!explicit.ok) return explicit;
-    return { ok: true, sourceHome: explicit.launcherOwnedHostHome };
+    return { ok: true, sourceHome: explicit.launcherOwnedHostHome, workerScopeAuthority: frozenWorkerScopeAuthority };
   }
   const hostHome = resolveLauncherOwnedHostHome({
     readHostHome,
     source: "codex_source_home"
   });
   if (!hostHome.ok) return hostHome;
-  return { ok: true, sourceHome: path.join(hostHome.launcherOwnedHostHome, ".codex") };
+  return { ok: true, sourceHome: path.join(hostHome.launcherOwnedHostHome, ".codex"), workerScopeAuthority: frozenWorkerScopeAuthority };
 }
 
 function resolveCodexBinaryDir(env) {

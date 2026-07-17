@@ -583,7 +583,9 @@ export function createAgyWorkspaceAgentLaunchExecutor(options = {}) {
         role,
         subject,
         workspaceDir,
-        loadWorkRecord
+        loadWorkRecord,
+
+        frozenReviewContract: input?.trusted_frozen_review_contract ?? null
       });
     } catch (err) {
       return buildSpawnRefusal("agy_build_args_threw", {
@@ -892,7 +894,9 @@ export function createHostWriteAuthorityBrokerAgyPlanLaunch({
             role: ctx.role,
             subject: ctx.subject,
             workspaceDir: ctx.workspaceDir,
-            loadWorkRecord
+            loadWorkRecord,
+
+            frozenReviewContract: ctx?.launchInput?.trusted_frozen_review_contract ?? null
           });
           const args = buildArgs({
             role: ctx.role,

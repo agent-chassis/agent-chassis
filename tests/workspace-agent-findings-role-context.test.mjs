@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
   loadWorkspaceAgentFindingsRoleContext,
+  resolveFindingsOnlyAcceptanceContract,
   resolveWorkspaceAgentFindingsRoleContext,
 } from '../packages/agent-launch-cli/src/lib/workspace-agent-findings-role-context.mjs';
 
@@ -225,4 +227,67 @@ test('rejects non-canonical slice ids supplied via selected-unit fields', () => 
   assert.equal(result.ok, false);
 
   assert.ok(['invalid_selected_unit', 'selected_unit_mismatch'].includes(result.error.code));
+});
+
+test('frozen whole-WK reviewer contract combines parent and selected review-unit authority without reading the WK worktree', async () => {
+  const parent = createWorkRecord();
+  parent.status = 'review';
+  const reviewUnit = parent.slices[0];
+  let worktreeLoads = 0;
+  const result = await resolveFindingsOnlyAcceptanceContract({
+    role: 'review',
+    subject: 'WK-1037#SLICE-003',
+    workspaceDir: '/stale/wk-worktree',
+    loadWorkRecord: async () => {
+      worktreeLoads += 1;
+      throw new Error('stale WK worktree contract must not be consulted');
+    },
+    frozenReviewContract: {
+      schema_version: FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
+      review_subject: 'WK-1037#SLICE-003',
+      canonical_parent_wk_contract: JSON.stringify(parent),
+      review_unit_contract: JSON.stringify(reviewUnit),
+    },
+  });
+
+  assert.equal(worktreeLoads, 0);
+  assert.deepEqual(result.acceptanceCriteria, [
+    'tracker criterion one',
+    'tracker criterion two',
+    'slice criterion one',
+    'slice criterion two',
+  ]);
+  assert.deepEqual(result.acceptanceValidation, [
+    'validation step one',
+    'validation step two',
+    'slice validation one',
+    'slice validation two',
+  ]);
+});
+
+test('frozen whole-WK reviewer contract fails closed on subject, parent, and selected-unit mismatch', async () => {
+  const parent = createWorkRecord();
+  parent.status = 'review';
+  const reviewUnit = parent.slices[0];
+  const contract = {
+    schema_version: FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
+    review_subject: 'WK-1037#SLICE-003',
+    canonical_parent_wk_contract: JSON.stringify(parent),
+    review_unit_contract: JSON.stringify(reviewUnit),
+  };
+  const mutations = [
+    { ...contract, review_subject: 'WK-1037#parser-slice' },
+    { ...contract, canonical_parent_wk_contract: JSON.stringify({ ...parent, status: 'active' }) },
+    { ...contract, review_unit_contract: JSON.stringify({ ...reviewUnit, id: 'SLICE-004' }) },
+  ];
+  for (const frozenReviewContract of mutations) {
+    await assert.rejects(
+      resolveFindingsOnlyAcceptanceContract({
+        role: 'review',
+        subject: 'WK-1037#SLICE-003',
+        frozenReviewContract,
+      }),
+      (error) => error?.code === 'frozen_findings_only_contract_invalid',
+    );
+  }
 });

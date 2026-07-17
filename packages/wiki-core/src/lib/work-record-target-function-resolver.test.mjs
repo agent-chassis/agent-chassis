@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveBoundedJavaScriptFunctionTargetFromSourceText } from "./work-record-target-function-resolver.mjs";
+import {
+  resolveBoundedJavaScriptFunctionTargetFromSourceText,
+  resolveBoundedJavaScriptTestCaseTargetFromSourceText
+} from "./work-record-target-function-resolver.mjs";
+import {
+  resolveBoundedJavaScriptTestCaseTargetFromSourceText as resolveParserBackedJavaScriptTestCaseTargetFromSourceText
+} from "./work-record-target-test-case-resolver.mjs";
 
 function resolveTarget(name, sourceText) {
   return resolveBoundedJavaScriptFunctionTargetFromSourceText({
@@ -14,6 +20,69 @@ function resolveTarget(name, sourceText) {
     }
   });
 }
+
+test("re-exports the parser-backed test_case resolver without changing function resolution", () => {
+  assert.strictEqual(
+    resolveBoundedJavaScriptTestCaseTargetFromSourceText,
+    resolveParserBackedJavaScriptTestCaseTargetFromSourceText
+  );
+
+  const target = {
+    path: "packages/wiki-core/src/lib/sample-target.test.mjs",
+    kind: "test_case",
+    name: "selected test",
+    operation: "modify"
+  };
+  const cases = [
+    {
+      sourceText: 'import test from "node:test";\n\ntest("selected test", () => {});\n',
+      target
+    },
+    {
+      sourceText: 'import test from "node:test";\ntest("selected test", () => {});\n',
+      target: { ...target, name: false }
+    },
+    {
+      sourceText: 'import test from "node:test";\ntest("selected test", () => {});\n',
+      target: { ...target, operation: "execute" }
+    },
+    {
+      sourceText: 'import test from "node:test";\nconst title = "selected test";\ntest(title, () => {});\n',
+      target
+    }
+  ];
+
+  const compatibilityResults = cases.map((value) => resolveBoundedJavaScriptTestCaseTargetFromSourceText(value));
+  const parserBackedResults = cases.map((value) => resolveParserBackedJavaScriptTestCaseTargetFromSourceText(value));
+  assert.deepEqual(compatibilityResults, parserBackedResults);
+
+  const [resolved, malformedName, malformedOperation, dynamicTitle] = compatibilityResults;
+  assert.equal(resolved.target_resolution_status, "resolved");
+  assert.deepEqual(resolved.target_resolution_provider, {
+    id: "portfolio-local.target-test-case-resolver",
+    version: "0.1.0",
+    mode: "local"
+  });
+  assert.deepEqual(resolved.target_resolution_span, { start_line: 3, end_line: 3, line_count: 1 });
+
+  for (const result of [malformedName, malformedOperation, dynamicTitle]) {
+    assert.notEqual(result.target_resolution_status, "resolved");
+    assert.notEqual(result.target_resolution_evidence_status, "present");
+    assert.equal(result.target_resolution_span, null);
+  }
+  assert.equal(malformedName.target_resolution_status, "provider_unavailable");
+  assert.equal(malformedOperation.target_resolution_status, "provider_unavailable");
+  assert.equal(dynamicTitle.target_resolution_status, "unresolved");
+
+  const functionResult = resolveTarget("stable", "export function stable() {\n  return true;\n}\n");
+  assert.equal(functionResult.target_resolution_status, "resolved");
+  assert.deepEqual(functionResult.target_resolution_provider, {
+    id: "portfolio-local.target-function-resolver",
+    version: "0.1.0",
+    mode: "local"
+  });
+  assert.deepEqual(functionResult.target_resolution_span, { start_line: 1, end_line: 3, line_count: 3 });
+});
 
 test("resolves JavaScript and ESM function targets to bounded line spans", () => {
   const sourceText = `function plain() {

@@ -1,4 +1,8 @@
-import { resolveBoundedJavaScriptFunctionTargetFromSourceText } from "./work-record-target-function-resolver.mjs";
+import {
+  resolveBoundedJavaScriptFunctionTargetFromSourceText,
+  resolveBoundedJavaScriptTestCaseTargetFromSourceText
+} from "./work-record-target-function-resolver.mjs";
+import { isSupportedRepositoryTestFilePath } from "./work-record-target-test-case-resolver.mjs";
 
 const WORK_RECORD_TARGET_RESOLUTION_PROVIDER_MODE_VALUES = Object.freeze([
   "local",
@@ -23,6 +27,8 @@ const WORK_RECORD_TARGET_RESOLUTION_EVIDENCE_STATUS_VALUES = Object.freeze([
   "degraded",
   "absent"
 ]);
+
+const SUPPORTED_TEST_CASE_TARGET_OPERATIONS = new Set(["create", "modify", "delete", "inspect"]);
 
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -164,12 +170,7 @@ function createProviderUnavailableTargetResolutionEvidence(target, reason) {
   };
 }
 
-function normalizeResolutionReason(value, targetResolutionStatus, target) {
-  const suppliedReason = normalizeString(value?.reason ?? value?.resolution_reason ?? value?.status_reason);
-  if (suppliedReason) {
-    return suppliedReason;
-  }
-
+function normalizeResolutionReason(targetResolutionStatus, target) {
   if (target?.operation === "create") {
     return "create target; no pre-existing symbol expected";
   }
@@ -229,9 +230,34 @@ function normalizeTargetResolverProviderForBoundedSource(value) {
 }
 
 export function resolveStructuralTargetResolverEvidenceFromExpectedEditTarget(value = {}, options = {}) {
-  const target = normalizeTargetResolutionTarget(value.target ?? value);
+  const rawTarget = value.target ?? value;
+  const rawTargetPath = isObject(rawTarget) ? rawTarget.path : undefined;
+  const target = normalizeTargetResolutionTarget(rawTarget);
   const hasExpectedEditTargets = options.hasExpectedEditTargets === true;
   const sourceText = normalizeString(value.source_text ?? value.sourceText);
+  const targetKind = normalizeString(target.kind)?.toLowerCase() ?? null;
+
+  if (targetKind === "test_case") {
+    if (!SUPPORTED_TEST_CASE_TARGET_OPERATIONS.has(target.operation)) {
+      return createProviderUnavailableTargetResolutionEvidence(
+        { ...target, operation: null },
+        "declared target operation was missing or unsupported"
+      );
+    }
+    if (!target.name) {
+      return createProviderUnavailableTargetResolutionEvidence(
+        target,
+        "declared target name was missing or unsupported"
+      );
+    }
+
+    if (target.operation === "create" && !isSupportedRepositoryTestFilePath(rawTargetPath)) {
+      return createProviderUnavailableTargetResolutionEvidence(
+        target,
+        "target path is not a supported repository JavaScript test file"
+      );
+    }
+  }
 
   if (target.operation === "create") {
     return normalizeStructuralTargetResolverEvidence(
@@ -243,6 +269,31 @@ export function resolveStructuralTargetResolverEvidenceFromExpectedEditTarget(va
       },
       options
     );
+  }
+
+  if (targetKind === "test_case") {
+    const resolved = resolveBoundedJavaScriptTestCaseTargetFromSourceText({
+
+      target: rawTarget,
+      source_text: value.source_text ?? value.sourceText,
+      source_record_digest: value.source_record_digest ?? value.sourceRecordDigest,
+      selected_unit: value.selected_unit ?? value.selectedUnit ?? value.unit,
+      normalized_input_digest: value.normalized_input_digest ?? value.normalizedInputDigest,
+      payload_bound_input_digest:
+        value.payload_bound_input_digest ?? value.payloadBoundInputDigest ?? value.expected_payload_bound_input_digest
+    });
+    const normalized = normalizeStructuralTargetResolverEvidence(resolved, options);
+    normalized.target_resolution_status_reason = resolved.target_resolution_status_reason;
+    for (const field of ["source_record_digest", "selected_unit", "payload_bound_input_digest"]) {
+      if (Object.prototype.hasOwnProperty.call(resolved, field)) {
+        normalized[field] = resolved[field];
+      }
+    }
+    const normalizedInputDigest = normalizeString(
+      resolved.normalized_input_digest ?? value.normalized_input_digest ?? value.normalizedInputDigest
+    );
+    if (normalizedInputDigest) normalized.normalized_input_digest = normalizedInputDigest;
+    return normalized;
   }
 
   if (isBoundedJavaScriptFunctionTarget(target) && sourceText) {
@@ -285,11 +336,11 @@ export function normalizeStructuralTargetResolverEvidence(value = {}, options = 
 
   if (targetOperation === "create") {
     return {
-      target_resolution_evidence_status: suppliedEvidenceStatus ?? "present",
-      target_resolution_provider: suppliedProvider,
+      target_resolution_evidence_status: "present",
+      target_resolution_provider: null,
       target_resolution_target: target,
       target_resolution_status: "not_applicable",
-      target_resolution_status_reason: normalizeResolutionReason(value, "not_applicable", target),
+      target_resolution_status_reason: "create target; no pre-existing symbol expected",
       target_resolution_span: null,
       target_resolution_fanout: null,
       target_resolution_candidates: []
@@ -327,7 +378,7 @@ export function normalizeStructuralTargetResolverEvidence(value = {}, options = 
       },
       target_resolution_target: target,
       target_resolution_status: "provider_unavailable",
-      target_resolution_status_reason: normalizeResolutionReason(value, "provider_unavailable", target),
+      target_resolution_status_reason: normalizeResolutionReason("provider_unavailable", target),
       target_resolution_span: null,
       target_resolution_fanout: null,
       target_resolution_candidates: []
@@ -345,7 +396,7 @@ export function normalizeStructuralTargetResolverEvidence(value = {}, options = 
     target_resolution_target: target,
     target_resolution_status:
       targetResolutionStatus === "provider_unavailable" ? "provider_unavailable" : targetResolutionStatus,
-    target_resolution_status_reason: normalizeResolutionReason(value, targetResolutionStatus, target),
+    target_resolution_status_reason: normalizeResolutionReason(targetResolutionStatus, target),
     target_resolution_span:
       targetResolutionStatus === "resolved" || targetResolutionStatus === "ambiguous" ? span : null,
     target_resolution_fanout:

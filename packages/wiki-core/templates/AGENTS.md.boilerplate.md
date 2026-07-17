@@ -38,6 +38,31 @@ launcher policy through inline `VAR=value`, exported env, alternate `HOME`/`XDG_
 roots, or `PATH`. Any runtime environment a tool needs must be launcher-minted
 from canonical config.
 
+## Managed Implementation-Worker Filesystem Confinement (Phase 1)
+
+For a Phase 1 managed implementation worker, let `R` be the normalized union of
+the canonical unit's `read_scope` and `repo_paths`, and let `W` be its normalized
+canonical `write_scope`. The launcher freezes those sets before launch. The
+worker's repository visibility is exactly `R union W`, and repository mutation
+is permitted exactly within `W`; a path in `W` remains visible even when it was
+not separately listed in `R`.
+
+The worker may use its prompt-governed Codex inspection shell only for
+non-mutating inspection inside the visible `R union W` namespace. That shell is
+not policy authority and does not widen the frozen sets. Phase 1 workers receive
+no validation or general MCP tools. Their only delivery authority is the
+closed-input commit capability, which runs in the trusted host/runtime boundary
+from the server-resolved binding; workers receive no direct repository git
+metadata or general commit shell.
+
+Supported family/backend paths must enforce the same contract. An unsupported
+family, backend, scope shape, or confinement capability fails closed instead of
+falling back to broader repository visibility or mutation. The initial bootstrap
+posture explicitly accepts readable launcher-provided Codex auth/sourceHome and
+`shareNet=true` model-API egress as residual risks under prompt governance. This
+is an operator-accepted bootstrap posture, not a digest-bound or per-dispatch
+mechanical risk-acceptance mechanism.
+
 ## Tool Discovery
 
 Use the repo's structured tool-discovery surface before choosing a tool, and name that capability in `AGENTS.md` or a linked docs page. Discovery should answer, in structured form, which tools exist, their purpose, required inputs, authority level, side effects, whether each is supported, and where the durable docs live.
@@ -104,11 +129,13 @@ the WK is incomplete, implementation contradicts it, tests expose cross-scope
 risk, the worker needs to edit outside `write_scope`, or acceptance criteria are
 ambiguous.
 
-Before finishing, workers update the assigned `WK-*`: a `## Closure` with the
-durable result (surfaces changed, validation run, blockers, follow-on work) and
-relevant frontmatter (`status`, `resolution`, `owner`, dates, and discovered
-scope corrections). Move remaining work into a new or existing `WK-*` rather than
-leaving unchecked tasks on a closed item. If the repo's structured
+Before finishing, the coordinator records the durable result on the assigned
+`WK-*`: a `## Closure` with the surfaces changed, validation run, blockers, and
+follow-on work, plus relevant frontmatter (`status`, `resolution`, `owner`, dates,
+and discovered scope corrections). A managed exact-slice implementation worker
+does not edit that record or its status; its completion path is defined below.
+Move remaining work into a new or existing `WK-*` rather than leaving unchecked
+tasks on a closed item. If the repo's structured
 closeout/status tools return an advisory lint summary, read it and state whether
 closeout lint passed, failed, or could not run. Create new `WK-*` work only with
 the repo's allocator-backed structured create capability — never mint IDs by hand
@@ -142,6 +169,17 @@ Every `WK-*` and slice follows one standard lifecycle:
 7. Record closure and status. When a change introduces a new agent-usable
    capability, surface it in the same change on an always-on agent surface this
    repo has adopted (tool-discovery / boilerplate / docs).
+
+For an exact-slice managed implementation worker, completion means invoking the
+closed-input commit capability and then terminating. After confirmed termination,
+trusted runtime integrates the committed slice into the current WK tip, freezes
+the accumulated whole-WK SHA as the review target, and transitions that target to
+`review`. The managed worker does not call `workspace_submit_for_review`. Prompt
+text, caller input, ambient environment, and worker-selected modes cannot select
+a legacy submission path. Findings-only reviewers and redteam workers continue
+to signal completion through `workspace_submit_for_review`, which moves only the
+assigned unit to `review`; after the mandatory findings-only review, the
+coordinator applies the `review` -> `done` transition.
 
 Routine read-only verification — validate work records, lint, inspect a
 generated artifact, check dispatch or adoption readiness, query graph impact, or
@@ -229,12 +267,14 @@ Act only as an orchestrator when you are instructed to do so.
 
 A `WK-*` worker owns execution within the stated write scope: verify the WK's
 contract (not only the currently passing tests), make the requested changes, keep
-inside scope unless a blocker requires escalation, and update the WK closure and
-frontmatter. A worker must not return only a plan or prompt when implementation
-was requested, silently broaden scope, or take over sibling `WK-*` items. A
-decision, review, or redteam worker does that mode only: it produces a decision
-brief or findings (ordered by severity, with file/line references) and does not
-opportunistically implement fixes unless explicitly reassigned.
+inside scope unless a blocker requires escalation, and return closure evidence
+for coordinator recording. A managed exact-slice implementation worker does not
+edit the WK record or status. A worker must not return only a plan or prompt when
+implementation was requested, silently broaden scope, or take over sibling
+`WK-*` items. A decision, review, or redteam worker does that mode only: it
+produces a decision brief or findings (ordered by severity, with file/line
+references) and does not opportunistically implement fixes unless explicitly
+reassigned.
 
 ## Canonical Layers
 

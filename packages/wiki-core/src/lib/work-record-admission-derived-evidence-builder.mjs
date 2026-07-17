@@ -24,11 +24,11 @@ import {
   normalizePreparationAuditRefs
 } from "./work-record-admission-evidence.mjs";
 import {
-  normalizeWorkUnitFeatureVector,
+  createWorkUnitFeatureVectorFromCanonicalRecord,
   WORK_UNIT_FEATURE_VECTOR_SCHEMA_VERSION,
   WORK_UNIT_FEATURE_VECTOR_VOCABULARY_VERSION
 } from "./work-record-feature-vector.mjs";
-import { computeWorkRecordSourceDigest } from "./work-record-schema.mjs";
+import { computeReviewedUnitSourceDigest } from "./work-record-review-attestation.mjs";
 import { normalizeStructuralTargetMetrics } from "./work-record-target-metrics.mjs";
 import { createNodeEngineCarrierFactsFromDispatchReadiness } from "./work-record-admission-derived-evidence-carrier-facts.mjs";
 import {
@@ -71,6 +71,23 @@ export function createWorkRecordAdmissionDerivedEvidence(options = {}) {
   if (!record) {
     throw new Error("createWorkRecordAdmissionDerivedEvidence requires record");
   }
+  const requestedSliceId = normalizeStringEntry(
+    options.dispatch_readiness?.unit?.slice_id ??
+      options.dispatchReadiness?.unit?.slice_id ??
+      options.slice_id ??
+      options.sliceId
+  );
+  const digestRecord = cloneJson(record);
+  const sourceRecordDigest = computeReviewedUnitSourceDigest(
+    requestedSliceId
+      ? { record: digestRecord, selected_slice_id: requestedSliceId }
+      : digestRecord
+  );
+  if (!sourceRecordDigest) {
+    throw new Error(
+      "createWorkRecordAdmissionDerivedEvidence: selected-unit reviewed digest cannot be resolved"
+    );
+  }
 
   const callerSchemaVersion = normalizeStringEntry(options.schema_version ?? options.schemaVersion);
   if (callerSchemaVersion && callerSchemaVersion !== WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SCHEMA_VERSION) {
@@ -84,7 +101,7 @@ export function createWorkRecordAdmissionDerivedEvidence(options = {}) {
   const dispatchReadiness = normalizeDispatchReadiness(rawDispatchReadiness);
 
   const resolvedRepo = normalizeStringEntry(record.repo ?? options.repo ?? options.repository) ?? null;
-  const featureVector = normalizeWorkUnitFeatureVector(record, {
+  const featureVector = createWorkUnitFeatureVectorFromCanonicalRecord(record, {
     repo: resolvedRepo,
     recordId: normalizeStringEntry(record.id) ?? dispatchReadiness.record_id ?? dispatchReadiness.unit?.record_id,
     sliceId: normalizeStringEntry(dispatchReadiness.unit?.slice_id ?? options.slice_id ?? options.sliceId),
@@ -95,18 +112,23 @@ export function createWorkRecordAdmissionDerivedEvidence(options = {}) {
   featureVector.vocabulary_version = WORK_UNIT_FEATURE_VECTOR_VOCABULARY_VERSION;
   const suppliedStructuralTargetMetrics =
     options.structural_target_metrics ?? options.structuralTargetMetrics ?? null;
+  const selectedSlice = requestedSliceId && Array.isArray(record.slices)
+    ? record.slices.find((slice) => isObject(slice) && normalizeStringEntry(slice.id) === requestedSliceId) ?? null
+    : null;
+  const effectiveTargetSource = selectedSlice && Array.isArray(selectedSlice.expected_edit_targets)
+    ? selectedSlice
+    : record;
   const derivedStructuralTargetMetrics = suppliedStructuralTargetMetrics
     ? suppliedStructuralTargetMetrics
     : normalizeStructuralTargetMetrics({
-        expected_edit_targets: Array.isArray(record.expected_edit_targets)
-          ? record.expected_edit_targets
+        expected_edit_targets: Array.isArray(effectiveTargetSource.expected_edit_targets)
+          ? effectiveTargetSource.expected_edit_targets
           : undefined,
-        target_resolution_evidence: isObject(record.target_resolution_evidence)
-          ? record.target_resolution_evidence
+        target_resolution_evidence: isObject(effectiveTargetSource.target_resolution_evidence)
+          ? effectiveTargetSource.target_resolution_evidence
           : undefined,
-        write_scope: Array.isArray(record.write_scope) ? record.write_scope : []
+        write_scope: Array.isArray(effectiveTargetSource.write_scope) ? effectiveTargetSource.write_scope : []
       });
-  const sourceRecordDigest = computeWorkRecordSourceDigest(record);
 
   const selectedUnitLargeFileDecAuthority = collectSelectedUnitLargeFileDecAuthority(
     record,
@@ -246,4 +268,3 @@ export function createWorkRecordAdmissionDerivedEvidence(options = {}) {
     provenance: createDerivedEvidenceProvenance(requestProvenance)
   };
 }
-

@@ -15,10 +15,525 @@ import {
 import {
   cleanupWorkRecordDerivedEvidenceOperation
 } from "@agent-chassis/wiki-core/src/operations/work-record-derived-evidence-cleanup.mjs";
+import {
+  readyWorkRecordSliceByUnit
+} from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
+import {
+  loadWorkRecordById
+} from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
+import {
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
+import {
+  computeReviewedUnitSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-review-attestation.mjs";
 import { SLICE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+const READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION =
+  "ready-slice-structural-readiness.v1";
+const READY_SLICE_BLOCKER_CODE = "work_record_readiness_failure";
+const READY_SLICE_PROVENANCE_VALUES = new Set([
+  "authored_record",
+  "derived_normalizer",
+  "derived_code_graph",
+  "derived_diff",
+  "derived_policy_pack",
+  "unavailable",
+  "not_applicable"
+]);
+const READY_SLICE_VERIFICATION_METHOD_VALUES = new Set([
+  "inspection",
+  "analysis",
+  "demonstration",
+  "test_execution",
+  "audit",
+  "proof"
+]);
+const READY_SLICE_TARGET_KIND_VALUES = new Set([
+  "function",
+  "method",
+  "class",
+  "module",
+  "export",
+  "test_case",
+  "schema_field",
+  "docs_section",
+  "config_key",
+  "other"
+]);
+const READY_SLICE_TARGET_OPERATION_VALUES = new Set([
+  "create",
+  "modify",
+  "delete",
+  "inspect"
+]);
+const READY_SLICE_ACTIVITY_KIND_VALUES = new Set([
+  "requirements_analysis",
+  "design_contract",
+  "implementation_new",
+  "implementation_modify",
+  "implementation_remove",
+  "verification_test_authoring",
+  "verification_test_modification",
+  "validation_runtime_check",
+  "documentation",
+  "migration_contract",
+  "coordination_record",
+  "configuration"
+]);
+const READY_SLICE_ARTIFACT_KIND_VALUES = new Set([
+  "production_code_module",
+  "production_code_export",
+  "unit_test",
+  "integration_test",
+  "operational_test",
+  "property_test",
+  "regression_test",
+  "fixture_corpus",
+  "cli_entrypoint",
+  "launcher_wrapper",
+  "mcp_tool_surface",
+  "schema_contract",
+  "policy_rule",
+  "protocol_doc",
+  "reference_doc",
+  "wiki_record_canonical",
+  "wiki_projection_generated",
+  "build_or_config"
+]);
+const READY_SLICE_GRANULARITY_VALUES = new Set([
+  "file",
+  "module",
+  "function",
+  "method",
+  "class",
+  "export",
+  "test_case",
+  "schema_field",
+  "docs_section",
+  "config_key",
+  "record"
+]);
+
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value ?? {}, key);
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isNonemptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isStrictProvenance(value, allowedKeys) {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  return Object.keys(value).every(
+    (key) =>
+      allowedKeys.has(key) &&
+      (value[key] === null || READY_SLICE_PROVENANCE_VALUES.has(value[key]))
+  );
+}
+
+function isCanonicalReadySliceCriterion(value) {
+  if (isNonemptyString(value)) {
+    return true;
+  }
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  const allowed = new Set([
+    "text",
+    "verification_method",
+    "evidence_target",
+    "facet_provenance"
+  ]);
+  if (
+    !Object.keys(value).every((key) => allowed.has(key)) ||
+    !isNonemptyString(value.text)
+  ) {
+    return false;
+  }
+  if (
+    hasOwn(value, "verification_method") &&
+    value.verification_method !== null &&
+    !READY_SLICE_VERIFICATION_METHOD_VALUES.has(value.verification_method)
+  ) {
+    return false;
+  }
+  if (
+    hasOwn(value, "evidence_target") &&
+    value.evidence_target !== null &&
+    typeof value.evidence_target !== "string"
+  ) {
+    return false;
+  }
+  return (
+    !hasOwn(value, "facet_provenance") ||
+    isStrictProvenance(
+      value.facet_provenance,
+      new Set(["text", "verification_method", "evidence_target"])
+    )
+  );
+}
+
+function isCanonicalRepositoryPath(value) {
+  if (!isNonemptyString(value) || value !== value.trim()) {
+    return false;
+  }
+  const segments = value.split("/");
+  return !(
+    value.startsWith("./") ||
+    value.startsWith("/") ||
+    value.startsWith("~") ||
+    /^[A-Za-z]:/u.test(value) ||
+    value.includes("\\") ||
+    value.includes("\0") ||
+    segments.some((segment) => !segment || segment === "." || segment === "..")
+  );
+}
+
+function isCanonicalReadySliceTarget(value) {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  const allowed = new Set([
+    "path",
+    "name",
+    "kind",
+    "operation",
+    "activity_kind",
+    "artifact_kind",
+    "granularity",
+    "optional",
+    "facet_provenance"
+  ]);
+  if (
+    !Object.keys(value).every((key) => allowed.has(key)) ||
+    !isCanonicalRepositoryPath(value.path) ||
+    !isNonemptyString(value.name) ||
+    !READY_SLICE_TARGET_KIND_VALUES.has(value.kind) ||
+    !READY_SLICE_TARGET_OPERATION_VALUES.has(value.operation)
+  ) {
+    return false;
+  }
+  for (const [field, values] of [
+    ["activity_kind", READY_SLICE_ACTIVITY_KIND_VALUES],
+    ["artifact_kind", READY_SLICE_ARTIFACT_KIND_VALUES],
+    ["granularity", READY_SLICE_GRANULARITY_VALUES]
+  ]) {
+    if (hasOwn(value, field) && value[field] !== null && !values.has(value[field])) {
+      return false;
+    }
+  }
+  if (hasOwn(value, "optional") && typeof value.optional !== "boolean") {
+    return false;
+  }
+  return (
+    !hasOwn(value, "facet_provenance") ||
+    isStrictProvenance(
+      value.facet_provenance,
+      new Set([
+        "path",
+        "name",
+        "kind",
+        "operation",
+        "activity_kind",
+        "artifact_kind",
+        "granularity",
+        "optional"
+      ])
+    )
+  );
+}
+
+function scalarCheck(unit, field, check, pathValue) {
+  let status;
+  if (!hasOwn(unit, field)) {
+    status = "missing";
+  } else if (typeof unit[field] !== "string") {
+    status = "mismatch";
+  } else if (unit[field].trim().length === 0) {
+    status = "empty";
+  } else {
+    status = "ready";
+  }
+  return { check, status, path: pathValue };
+}
+
+function arrayCheck(unit, field, check, pathValue, predicate = isNonemptyString) {
+  let status;
+  if (!hasOwn(unit, field)) {
+    status = "missing";
+  } else if (!Array.isArray(unit[field])) {
+    status = "mismatch";
+  } else if (unit[field].length === 0) {
+    status = "empty";
+  } else if (!unit[field].every(predicate)) {
+    status = "mismatch";
+  } else {
+    status = "ready";
+  }
+  return { check, status, path: pathValue };
+}
+
+function nestedArrayCheck(unit, parentField, field, check, pathValue, predicate) {
+  const parent = unit?.[parentField];
+  let status;
+  if (!isPlainObject(parent) || !hasOwn(parent, field)) {
+    status = "missing";
+  } else if (!Array.isArray(parent[field])) {
+    status = "mismatch";
+  } else if (parent[field].length === 0) {
+    status = "empty";
+  } else if (!parent[field].every(predicate)) {
+    status = "mismatch";
+  } else {
+    status = "ready";
+  }
+  return { check, status, path: pathValue };
+}
+
+function shapingTupleCheck(unit) {
+  const check = "shaping_tuple_consistent";
+  const pathValue = "dispatch_intent";
+  if (!hasOwn(unit, "work_kind") || !hasOwn(unit, "dispatch_intent")) {
+    return { check, status: "missing", path: pathValue };
+  }
+  const roles = {
+    implementation: "worker",
+    review: "reviewer",
+    redteam: "redteam"
+  };
+  const intent = unit.dispatch_intent;
+  const status =
+    isPlainObject(intent) &&
+    roles[unit.work_kind] !== undefined &&
+    intent.intended_agent_role === roles[unit.work_kind] &&
+    intent.target_unit === "slice" &&
+    typeof intent.requires_graph_impact === "boolean" &&
+    typeof intent.requires_escalation === "boolean"
+      ? "ready"
+      : "mismatch";
+  return { check, status, path: pathValue };
+}
+
+function notApplicable(check, pathValue) {
+  return { check, status: "not_applicable", path: pathValue };
+}
+
+function readinessBlockers(checks) {
+  return checks.flatMap((entry) =>
+    ["missing", "empty", "mismatch", "error"].includes(entry.status)
+      ? [
+          {
+            code: READY_SLICE_BLOCKER_CODE,
+            check: entry.check,
+            status: entry.status,
+            path: entry.path
+          }
+        ]
+      : []
+  );
+}
+
+export function projectReadySliceStructuralReadiness({
+  record,
+  selectedUnit,
+  coreResult,
+  computeSourceDigest = computeWorkRecordSourceDigest,
+  computeReviewedDigest = computeReviewedUnitSourceDigest
+}) {
+  if (
+    !isPlainObject(record) ||
+    !isPlainObject(selectedUnit) ||
+    selectedUnit.kind !== "slice" ||
+    !/^WK-[0-9]{4}$/.test(selectedUnit.record_id ?? "") ||
+    !/^SLICE-[0-9]{3}$/.test(selectedUnit.slice_id ?? "") ||
+    selectedUnit.address !== `${selectedUnit.record_id}#${selectedUnit.slice_id}` ||
+    record.id !== selectedUnit.record_id
+  ) {
+    throw new Error("persisted selected unit is unavailable");
+  }
+  const matches = Array.isArray(record.slices)
+    ? record.slices.filter((slice) => slice?.id === selectedUnit.slice_id)
+    : [];
+  if (matches.length !== 1) {
+    throw new Error("persisted selected unit is ambiguous");
+  }
+  const unit = matches[0];
+  const sourceDigest = computeSourceDigest(record);
+  const reviewedUnitDigest = computeReviewedDigest({
+    record,
+    slice_id: selectedUnit.slice_id
+  });
+  if (
+    !/^sha256:[0-9a-f]{64}$/.test(sourceDigest ?? "") ||
+    !/^sha256:[0-9a-f]{64}$/.test(reviewedUnitDigest ?? "")
+  ) {
+    throw new Error("persisted digest projection failed");
+  }
+
+  const checks = [
+    scalarCheck(unit, "title", "title_nonempty", "title"),
+    arrayCheck(unit, "read_scope", "read_scope_nonempty", "read_scope"),
+    arrayCheck(unit, "repo_paths", "repo_paths_nonempty", "repo_paths"),
+    nestedArrayCheck(
+      unit,
+      "acceptance",
+      "criteria",
+      "acceptance_criteria_nonempty",
+      "acceptance.criteria",
+      isCanonicalReadySliceCriterion
+    ),
+    nestedArrayCheck(
+      unit,
+      "acceptance",
+      "validation",
+      "acceptance_validation_nonempty",
+      "acceptance.validation",
+      isNonemptyString
+    ),
+    shapingTupleCheck(unit)
+  ];
+
+  if (unit.work_kind === "implementation") {
+    checks.push(
+      arrayCheck(
+        unit,
+        "write_scope",
+        "implementation_write_scope_nonempty",
+        "write_scope"
+      ),
+      arrayCheck(
+        unit,
+        "expected_edit_targets",
+        "implementation_expected_edit_targets_nonempty",
+        "expected_edit_targets",
+        isCanonicalReadySliceTarget
+      ),
+      notApplicable("findings_only_write_scope_empty", "write_scope")
+    );
+  } else if (unit.work_kind === "review" || unit.work_kind === "redteam") {
+    let findingsStatus;
+    if (!hasOwn(unit, "write_scope")) {
+      findingsStatus = "missing";
+    } else if (!Array.isArray(unit.write_scope) || unit.write_scope.length > 0) {
+      findingsStatus = "mismatch";
+    } else {
+      findingsStatus = "ready";
+    }
+    checks.push(
+      notApplicable("implementation_write_scope_nonempty", "write_scope"),
+      notApplicable(
+        "implementation_expected_edit_targets_nonempty",
+        "expected_edit_targets"
+      ),
+      {
+        check: "findings_only_write_scope_empty",
+        status: findingsStatus,
+        path: "write_scope"
+      }
+    );
+  } else {
+    throw new Error("persisted work_kind is outside ready-slice shaping");
+  }
+
+  const blockers = readinessBlockers(checks);
+  return {
+    schema_version: READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION,
+    selected_unit: {
+      kind: "slice",
+      address: selectedUnit.address,
+      record_id: selectedUnit.record_id,
+      slice_id: selectedUnit.slice_id
+    },
+    contract_persisted: true,
+    written: Boolean(coreResult?.written),
+    no_op: !Boolean(coreResult?.written),
+    source_digest: sourceDigest,
+    reviewed_unit_digest: reviewedUnitDigest,
+    structurally_complete: blockers.length === 0,
+    checks,
+    blockers
+  };
+}
+
+function projectionFailureReadySliceResult(coreResult) {
+  const check = { check: "projection_internal", status: "error", path: null };
+  return {
+    schema_version: READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION,
+    selected_unit: {
+      kind: "slice",
+      address: coreResult.selected_unit.address,
+      record_id: coreResult.selected_unit.record_id,
+      slice_id: coreResult.selected_unit.slice_id
+    },
+    contract_persisted: true,
+    written: Boolean(coreResult.written),
+    no_op: Boolean(coreResult.no_op),
+    source_digest: coreResult.source_digest,
+    reviewed_unit_digest: coreResult.reviewed_unit_digest,
+    structurally_complete: false,
+    checks: [check],
+    blockers: [{ code: READY_SLICE_BLOCKER_CODE, ...check }]
+  };
+}
+
+export async function runWorkspaceWorkRecordReadySliceRoute({
+  workspaceRepos,
+  args,
+  dependencies = {}
+}) {
+  const resolveWorkspace =
+    dependencies.resolveWorkspaceRepo ?? resolveWorkspaceRepo;
+  const runCore =
+    dependencies.readyWorkRecordSliceByUnit ?? readyWorkRecordSliceByUnit;
+  const loadPersisted =
+    dependencies.loadWorkRecordById ?? loadWorkRecordById;
+  const projectStructural =
+    dependencies.projectReadySliceStructuralReadiness ??
+    projectReadySliceStructuralReadiness;
+  const workspace = resolveWorkspace(workspaceRepos, args.repo);
+  const { repo: _repo, ...request } = args;
+  const coreResult = await runCore({ dir: workspace.dir, request });
+
+  if (coreResult?.contract_persisted !== true) {
+    return jsonContent(coreResult);
+  }
+
+  try {
+    const loaded = await loadPersisted({
+      dir: workspace.dir,
+      id: coreResult.selected_unit.record_id
+    });
+    if (
+      !loaded?.record ||
+      loaded.diagnostics?.some((diagnostic) => diagnostic?.severity === "error")
+    ) {
+      throw new Error("persisted record reload failed");
+    }
+    return jsonContent(
+      projectStructural({
+        record: loaded.record,
+        selectedUnit: coreResult.selected_unit,
+        coreResult,
+        computeSourceDigest:
+          dependencies.computeWorkRecordSourceDigest ?? computeWorkRecordSourceDigest,
+        computeReviewedDigest:
+          dependencies.computeReviewedUnitSourceDigest ?? computeReviewedUnitSourceDigest
+      })
+    );
+  } catch {
+    return jsonContent(projectionFailureReadySliceResult(coreResult));
+  }
 }
 
 export { shapeWriteResponse };

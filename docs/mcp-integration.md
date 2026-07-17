@@ -7,6 +7,44 @@
 This document explains how agents should consume `agent-chassis` through MCP.
 If the required backend infrastructure is unusable, `workspace_agent_dispatch` and `workspace_agent_run_status` fail closed with `backend_unavailable`. That covers both missing launch executor wiring and a missing or dead host-write-authority substrate; the host-write-authority case may surface with `backend_unavailable` plus the stable `host_write_authority_substrate_unavailable` reason.
 
+## Phase 1 managed implementation-worker MCP contract (staged)
+
+work record defines a Phase 1 managed implementation-worker contract that remains
+staged until `work record` activates production confinement. Before that
+activation, MCP descriptions, handshakes, dispatch results, and documentation
+must not claim that the confinement or the associated worker tool profile is
+active merely because predecessor code or this guidance has landed.
+
+For that contract, let `R` be the normalized union of the canonical unit's
+`read_scope` and `repo_paths`, and let `W` be the normalized canonical
+`write_scope`. The launcher freezes both sets before launch. Once activated,
+the worker's repository visibility is exactly `R union W`, and repository
+mutation is permitted exactly within `W`; a target in `W` is visible without
+also appearing in `R`.
+
+The worker's prompt-governed Codex inspection shell remains only a non-mutating
+inspection mechanism inside the visible `R union W` namespace. It is not MCP or
+policy authority and cannot widen the frozen binding. The Phase 1
+implementation-worker profile exposes no worker validation or general MCP
+tools. Its sole delivery authority is the closed-input commit capability in the
+trusted host/runtime boundary, using the server-resolved binding without
+exposing repository git metadata or a general commit shell to the worker.
+
+That restriction is specific to the Phase 1 implementation-worker profile. It
+does not change reviewer or redteam launcher-owned validation contracts:
+authorized reviewer/redteam `node_check` and confined `node_test` operations
+remain available according to their declared validation. Persistent MCP client
+registration and general `agent-safe` MCP guidance elsewhere on this page do
+not grant either surface to a Phase 1 implementation worker.
+
+Every supported family/backend path must preserve the same frozen namespace and
+worker tool surface. Unsupported families, backends, scope shapes, or
+confinement capabilities fail closed rather than falling back to broader
+visibility or mutation. The bootstrap posture retains readable
+launcher-provided Codex auth/sourceHome and `shareNet=true` model-API egress as
+operator-accepted residual risks under prompt governance; it is not a
+digest-bound or per-dispatch mechanical risk-acceptance mechanism.
+
 ## Key Point
 
 This repository does **not** require a hosted MCP endpoint.
@@ -15,6 +53,12 @@ The intended integration model is spawned per session, local process, `stdio`
 transport, no port binding, and no always-on service.
 
 In MCP terminology this is still called a "server", but operationally it behaves like a command the client launches on demand.
+
+Every launch path — externally registered clients, confined Codex orchestrators,
+managed Codex workers, reviewers and redteam, direct/unconfined launch, configured
+command paths, and installed-package startup — uses this stdio transport. There is
+no launcher-hosted HTTP transport, loopback listener, or bearer-authenticated wiki
+MCP endpoint. Stdio process/pipe ownership is the transport boundary.
 
 ## What Agents Should Implement
 

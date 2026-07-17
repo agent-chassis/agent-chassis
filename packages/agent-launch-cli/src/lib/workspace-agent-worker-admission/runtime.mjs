@@ -3,6 +3,7 @@ import {
 } from "@agent-chassis/agent-launch-core";
 import { randomBytes } from "node:crypto";
 import {
+  computeWorkRecordSourceDigest,
   loadWorkRecordById,
   validateWorkRecordDispatch
 } from "@agent-chassis/wiki-core";
@@ -47,6 +48,9 @@ import {
 import {
   findRepoRoot
 } from "../../commands/codex-role.mjs";
+import {
+  assertFrozenWorkerScopeAuthority
+} from "../workspace-agent-launch-core.mjs";
 
 export const ensureNewWorkerWriteRoots = helperEnsureNewWorkerWriteRoots;
 
@@ -58,6 +62,140 @@ function normalizeNonEmptyString(value) {
 
 function defaultAdmissionRunIdFactory() {
   return `${ADMISSION_RUN_ID_PREFIX}${randomBytes(8).toString("hex")}`;
+}
+
+function isPlainObject(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function isDeepFrozenCanonicalValue(value, seen = new WeakSet()) {
+  if (value === null || typeof value !== "object") return true;
+  if (seen.has(value)) return true;
+  seen.add(value);
+  if (!Object.isFrozen(value)) return false;
+  return Object.values(value).every((child) => isDeepFrozenCanonicalValue(child, seen));
+}
+
+function normalizeCarrierScope(value, { required = false } = {}) {
+  if (value === undefined && !required) return [];
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.length === 0)) {
+    return null;
+  }
+  return [...new Set(value)].sort();
+}
+
+function sameStringArray(left, right) {
+  return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+    left.every((entry, index) => entry === right[index]);
+}
+
+function managedAdmissionCarrierRefusal(reason, detail = null) {
+  return {
+    ok: false,
+    decision: {
+      allowed: false,
+      reason: "worker_scope_authority_invalid",
+      detail: {
+        reason,
+        ...(detail ?? {})
+      }
+    }
+  };
+}
+
+function resolveManagedAdmissionCarrier({
+  subject,
+  unit,
+  canonicalWorkRecord,
+  canonicalSelectedUnit,
+  sourceRecordDigest,
+  workerScopeAuthority
+}) {
+  const carrierValues = [
+    canonicalWorkRecord,
+    canonicalSelectedUnit,
+    sourceRecordDigest,
+    workerScopeAuthority
+  ];
+  const managed = carrierValues.some((value) => value !== null && value !== undefined);
+  if (!managed) return { ok: true, managed: false, record: null };
+  if (carrierValues.some((value) => value === null || value === undefined)) {
+    return managedAdmissionCarrierRefusal("managed_admission_carrier_partial");
+  }
+  if (!isPlainObject(canonicalWorkRecord) || !isDeepFrozenCanonicalValue(canonicalWorkRecord)) {
+    return managedAdmissionCarrierRefusal("canonical_work_record_mutable_or_malformed");
+  }
+  if (!isPlainObject(canonicalSelectedUnit) || !isDeepFrozenCanonicalValue(canonicalSelectedUnit)) {
+    return managedAdmissionCarrierRefusal("canonical_selected_unit_mutable_or_malformed");
+  }
+  try {
+    assertFrozenWorkerScopeAuthority(workerScopeAuthority, {
+      role: "worker",
+      subject,
+      required: true
+    });
+  } catch (error) {
+    return managedAdmissionCarrierRefusal("worker_scope_authority_mutable_or_malformed", {
+      message: error?.message ?? String(error)
+    });
+  }
+  const selectedFromRecord = Array.isArray(canonicalWorkRecord.slices)
+    ? canonicalWorkRecord.slices.find((candidate) => candidate?.id === unit.slice_id)
+    : null;
+  if (selectedFromRecord !== canonicalSelectedUnit) {
+    return managedAdmissionCarrierRefusal("canonical_selected_unit_substituted");
+  }
+  const selectedIdentityMatches =
+    canonicalWorkRecord.id === unit.record_id &&
+    canonicalSelectedUnit.id === unit.slice_id &&
+    canonicalSelectedUnit.work_kind === "implementation" &&
+    workerScopeAuthority.selected_unit.address === unit.address &&
+    workerScopeAuthority.selected_unit.record_id === unit.record_id &&
+    workerScopeAuthority.selected_unit.slice_id === unit.slice_id &&
+    workerScopeAuthority.selected_unit.repo === (canonicalWorkRecord.repo ?? null) &&
+    workerScopeAuthority.source_version === (canonicalWorkRecord.schema_version ?? null);
+  if (!selectedIdentityMatches) {
+    return managedAdmissionCarrierRefusal("canonical_selected_unit_identity_mismatch");
+  }
+  const computedDigest = computeWorkRecordSourceDigest(canonicalWorkRecord);
+  if (typeof sourceRecordDigest !== "string" || sourceRecordDigest !== computedDigest ||
+      workerScopeAuthority.source_digest !== sourceRecordDigest) {
+    return managedAdmissionCarrierRefusal("canonical_source_digest_mismatch", {
+      expected_source_digest: workerScopeAuthority.source_digest ?? null,
+      actual_source_digest: computedDigest
+    });
+  }
+  const expectedReadScope = normalizeCarrierScope(canonicalSelectedUnit.read_scope);
+  const expectedRepoPaths = normalizeCarrierScope(canonicalSelectedUnit.repo_paths);
+  const expectedWriteScope = normalizeCarrierScope(canonicalSelectedUnit.write_scope, { required: true });
+  if (expectedReadScope === null || expectedRepoPaths === null || expectedWriteScope === null ||
+      !sameStringArray(workerScopeAuthority.read_scope, expectedReadScope) ||
+      !sameStringArray(workerScopeAuthority.repo_paths, expectedRepoPaths) ||
+      !sameStringArray(workerScopeAuthority.write_scope, expectedWriteScope)) {
+    return managedAdmissionCarrierRefusal("canonical_selected_unit_scope_mismatch");
+  }
+  return {
+    ok: true,
+    managed: true,
+    record: canonicalWorkRecord,
+    sourceRecordDigest
+  };
+}
+
+async function validateCurrentManagedAdmissionSource({ repo, recordId, expectedDigest }) {
+  const loaded = await loadWorkRecordById({ dir: repo, id: recordId });
+  const actualDigest = loaded.record === null
+    ? null
+    : computeWorkRecordSourceDigest(loaded.record);
+  if (!loaded.valid || loaded.record === null || actualDigest !== expectedDigest) {
+    return managedAdmissionCarrierRefusal("canonical_source_digest_changed", {
+      expected_source_digest: expectedDigest,
+      actual_source_digest: actualDigest
+    });
+  }
+  return { ok: true, loaded };
 }
 
 export function refuseCallerSuppliedWorkerIdentity(request) {
@@ -271,7 +409,15 @@ export function evaluateWorkerAdmissionDecision({ unit, remote }) {
   };
 }
 
-export async function evaluateWorkerAdmissionForBackend({ workspaceDir, subject, env = process.env }) {
+export async function evaluateWorkerAdmissionForBackend({
+  workspaceDir,
+  subject,
+  env = process.env,
+  canonical_work_record = null,
+  canonical_selected_unit = null,
+  source_record_digest = null,
+  worker_scope_authority = null
+}) {
   if (!subject || typeof subject !== "string") {
     return { allowed: false, reason: "invalid_subject", detail: { subject: subject ?? null } };
   }
@@ -291,6 +437,24 @@ export async function evaluateWorkerAdmissionForBackend({ workspaceDir, subject,
       detail: { workspace_dir: workspaceDir ?? null }
     };
   }
+  const managedCarrier = resolveManagedAdmissionCarrier({
+    subject,
+    unit: unit.value,
+    canonicalWorkRecord: canonical_work_record,
+    canonicalSelectedUnit: canonical_selected_unit,
+    sourceRecordDigest: source_record_digest,
+    workerScopeAuthority: worker_scope_authority
+  });
+  if (!managedCarrier.ok) return managedCarrier.decision;
+  let currentManagedSource = null;
+  if (managedCarrier.managed) {
+    currentManagedSource = await validateCurrentManagedAdmissionSource({
+      repo,
+      recordId,
+      expectedDigest: managedCarrier.sourceRecordDigest
+    });
+    if (!currentManagedSource.ok) return currentManagedSource.decision;
+  }
   const now = new Date().toISOString();
   const readiness = await validateWorkRecordDispatch({ dir: repo, unitAddress, now });
   if (!readiness.dispatchable) {
@@ -301,7 +465,18 @@ export async function evaluateWorkerAdmissionForBackend({ workspaceDir, subject,
     };
   }
 
-  const loaded = await loadWorkRecordById({ dir: repo, id: recordId });
+  if (managedCarrier.managed) {
+    currentManagedSource = await validateCurrentManagedAdmissionSource({
+      repo,
+      recordId,
+      expectedDigest: managedCarrier.sourceRecordDigest
+    });
+    if (!currentManagedSource.ok) return currentManagedSource.decision;
+  }
+
+  const loaded = managedCarrier.managed
+    ? { record: managedCarrier.record }
+    : await loadWorkRecordById({ dir: repo, id: recordId });
   if (!loaded.record) {
     return { allowed: false, reason: "worker_admission_record_not_found", detail: { record_id: recordId } };
   }

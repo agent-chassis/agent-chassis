@@ -8,6 +8,14 @@ import {
   isObject,
   normalizeStringEntry,
 } from "./work-record-admission-shared.mjs";
+import {
+  normalizeControlledValue,
+  normalizeProvenance,
+  selectArrayCandidate
+} from "./work-record-feature-vector-normalize.mjs";
+import { normalizeEscalations } from "./work-record-feature-vector-facets.mjs";
+import { normalizeScenarios } from "./work-record-feature-vector.mjs";
+import { WORK_UNIT_VERIFICATION_METHOD_VALUES } from "./work-record-feature-vector-vocabulary.mjs";
 import { SHA256_PATTERN } from "./work-record-schema-constants.mjs";
 
 export const REVIEW_ATTESTATION_SCHEMA_VERSION = "review-attestation.v1";
@@ -192,10 +200,105 @@ function normalizeStringEntryArray(value) {
   }
   return entries;
 }
+function normalizeReviewedReadScope(...values) {
+  return [...new Set(values.flatMap((value) => normalizeStringEntryArray(value)))]
+    .sort((left, right) => left.localeCompare(right, "en"));
+}
+function normalizeEffectiveReviewedReadScope(record, unit, sliceId) {
+  const sliceOwnsReadScopeAlias = Boolean(
+    sliceId &&
+    isObject(unit) &&
+    (
+      Object.prototype.hasOwnProperty.call(unit, "docs") ||
+      Object.prototype.hasOwnProperty.call(unit, "read_scope")
+    )
+  );
+  const source = sliceOwnsReadScopeAlias || !sliceId ? unit : record;
+  return normalizeReviewedReadScope(source?.docs, source?.read_scope);
+}
+function normalizeReviewedScenarios(record, unit) {
+  const rawScenarios = selectArrayCandidate(
+    [unit, record],
+    ["scenarios", "scenario_inventory", "scenarioInventory"]
+  );
+  return normalizeScenarios(record, { selectedSlice: unit })
+    .map((scenario, index) => {
+      const rawScenario = rawScenarios[index];
+      const authoredId = isObject(rawScenario)
+        ? normalizeStringEntry(rawScenario.id)
+        : null;
+      return {
+
+        ...(authoredId ? { id: scenario.id } : {}),
+        scenario_kind: scenario.scenario_kind,
+        process_boundary: scenario.process_boundary,
+        asserts_contract: scenario.asserts_contract,
+        asserts_provenance_field: scenario.asserts_provenance_field,
+        uses_stub: scenario.uses_stub,
+        runtime_mode: scenario.runtime_mode,
+        artifact_kind: scenario.artifact_kind
+      };
+    })
+    .sort((left, right) => {
+      const leftCanonical = JSON.stringify(left);
+      const rightCanonical = JSON.stringify(right);
+      return leftCanonical < rightCanonical ? -1 : leftCanonical > rightCanonical ? 1 : 0;
+    });
+}
+const REVIEWED_ACCEPTANCE_PROVENANCE_FIELDS = Object.freeze([
+  "text",
+  "verification_method",
+  "evidence_target"
+]);
+const REVIEWED_ACCEPTANCE_VERIFICATION_METHODS = new Set(
+  WORK_UNIT_VERIFICATION_METHOD_VALUES
+);
+function normalizeReviewedCriterionProvenance(value) {
+  if (!isObject(value)) return null;
+  const provenance = {};
+  for (const field of REVIEWED_ACCEPTANCE_PROVENANCE_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(value, field)) continue;
+    if (value[field] === null) {
+      provenance[field] = null;
+      continue;
+    }
+    const normalized = normalizeProvenance(value[field], null);
+    if (normalized) provenance[field] = normalized;
+  }
+  return Object.keys(provenance).length > 0 ? provenance : null;
+}
+function normalizeReviewedCriterion(value) {
+  if (!isObject(value)) {
+    return normalizeStringEntry(value);
+  }
+
+  const criterion = {
+    text: normalizeStringEntry(value.text),
+    verification_method: normalizeControlledValue(
+      value.verification_method,
+      REVIEWED_ACCEPTANCE_VERIFICATION_METHODS
+    ),
+    evidence_target: normalizeStringEntry(value.evidence_target)
+  };
+  const id = normalizeStringEntry(value.id);
+  if (id) criterion.id = id;
+  const facetProvenance = normalizeReviewedCriterionProvenance(value.facet_provenance);
+  if (facetProvenance) criterion.facet_provenance = facetProvenance;
+  return criterion;
+}
+function normalizeReviewedCriteria(value) {
+  if (!Array.isArray(value)) return [];
+  const criteria = [];
+  for (const entry of value) {
+    const normalized = normalizeReviewedCriterion(entry);
+    if (normalized) criteria.push(normalized);
+  }
+  return criteria;
+}
 function normalizeReviewedAcceptance(value) {
   if (!isObject(value)) return null;
   const acceptance = {};
-  const criteria = normalizeStringEntryArray(value.criteria);
+  const criteria = normalizeReviewedCriteria(value.criteria);
   const validation = normalizeStringEntryArray(value.validation);
   if (criteria.length > 0) acceptance.criteria = criteria;
   if (validation.length > 0) acceptance.validation = validation;
@@ -203,6 +306,64 @@ function normalizeReviewedAcceptance(value) {
 }
 function normalizeReviewedMetadata(value) {
   return isObject(value) ? cloneJson(value) : null;
+}
+const REVIEWED_TARGET_PROVENANCE_FIELDS = Object.freeze([
+  "path",
+  "name",
+  "kind",
+  "operation",
+  "activity_kind",
+  "artifact_kind",
+  "granularity",
+  "optional"
+]);
+function normalizeReviewedTargetPath(value) {
+  const normalized = normalizeStringEntry(value);
+  return normalized ? normalized.replaceAll("\\", "/").replace(/^\.\//u, "") : null;
+}
+function normalizeReviewedTargetProvenance(value) {
+  if (!isObject(value)) return null;
+  const provenance = {};
+  for (const field of REVIEWED_TARGET_PROVENANCE_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(value, field)) continue;
+    if (value[field] === null) {
+      provenance[field] = null;
+      continue;
+    }
+    const normalized = normalizeStringEntry(value[field]);
+    if (normalized) provenance[field] = normalized;
+  }
+  return Object.keys(provenance).length > 0 ? provenance : null;
+}
+function normalizeReviewedExpectedEditTargets(value) {
+  if (!Array.isArray(value) || value.length === 0) return [];
+  return value.map((entry, index) => {
+    const target = isObject(entry) ? entry : {};
+    const normalized = {
+      id: normalizeStringEntry(target.id) ?? `target-${index + 1}`,
+      path: normalizeReviewedTargetPath(target.path),
+      name: normalizeStringEntry(target.name),
+      kind: normalizeStringEntry(target.kind),
+      activity_kind: normalizeStringEntry(target.activity_kind),
+      artifact_kind: normalizeStringEntry(target.artifact_kind),
+      operation: normalizeStringEntry(target.operation),
+      granularity: normalizeStringEntry(target.granularity),
+      optional: target.optional === true
+    };
+    const facetProvenance = normalizeReviewedTargetProvenance(target.facet_provenance);
+    if (facetProvenance) normalized.facet_provenance = facetProvenance;
+    return normalized;
+  });
+}
+function resolveEffectiveReviewedExpectedEditTargets(record, unit, sliceId) {
+  if (!sliceId || Array.isArray(unit?.expected_edit_targets)) {
+    return Array.isArray(unit?.expected_edit_targets)
+      ? unit.expected_edit_targets
+      : [];
+  }
+  return Array.isArray(record?.expected_edit_targets)
+    ? record.expected_edit_targets
+    : [];
 }
 function normalizeReviewedUnitDigestFacts(source) {
   const context = resolveReviewedUnitDigestContext(source);
@@ -235,10 +396,7 @@ function normalizeReviewedUnitDigestFacts(source) {
     facts.unit.id = sliceId;
   }
 
-  const docs = normalizeStringEntryArray(unit.docs ?? record?.docs);
-  if (docs.length > 0) facts.contract.docs = docs;
-
-  const readScope = normalizeStringEntryArray(unit.read_scope ?? record?.read_scope);
+  const readScope = normalizeEffectiveReviewedReadScope(record, unit, sliceId);
   if (readScope.length > 0) facts.contract.read_scope = readScope;
 
   const writeScope = normalizeStringEntryArray(unit.write_scope ?? record?.write_scope);
@@ -249,9 +407,6 @@ function normalizeReviewedUnitDigestFacts(source) {
 
   const dependsOn = normalizeStringEntryArray(unit.depends_on ?? record?.depends_on);
   if (dependsOn.length > 0) facts.contract.depends_on = dependsOn;
-
-  const related = normalizeStringEntryArray(unit.related ?? record?.related);
-  if (related.length > 0) facts.contract.related = related;
 
   const blocks = normalizeStringEntryArray(unit.blocks ?? record?.blocks);
   if (blocks.length > 0) facts.contract.blocks = blocks;
@@ -290,6 +445,23 @@ function normalizeReviewedUnitDigestFacts(source) {
     record?.sections?.expected_changed_line_budget;
   if (expectedChangedLineBudget !== undefined && expectedChangedLineBudget !== null) {
     facts.contract.expected_changed_line_budget = expectedChangedLineBudget;
+  }
+
+  const expectedEditTargets = normalizeReviewedExpectedEditTargets(
+    resolveEffectiveReviewedExpectedEditTargets(record, unit, sliceId)
+  );
+  if (expectedEditTargets.length > 0) {
+    facts.contract.expected_edit_targets = expectedEditTargets;
+  }
+
+  const scenarios = normalizeReviewedScenarios(record, unit);
+  if (scenarios.length > 0) {
+    facts.contract.scenarios = scenarios;
+  }
+
+  const escalations = normalizeEscalations(record?.escalations ?? []);
+  if (escalations.length > 0) {
+    facts.contract.escalations = escalations;
   }
 
   const runtimeModeMetadata = normalizeReviewedMetadata(
@@ -473,6 +645,88 @@ function isWellFormedOptionalReviewUnit(a) {
 }
 function deny(decisionCode, reason) {
   return { valid: false, decision_code: decisionCode, reasons: [reason] };
+}
+
+export function validateStoredReviewAttestationIntrinsic(attestation, context = {}) {
+  if (attestation === null || attestation === undefined) {
+    return { ...deny(CODES.missing, "no attestation supplied"), active: false };
+  }
+  if (!isWellFormedAttestation(attestation)) {
+    return { ...deny(CODES.malformed, "attestation is malformed"), active: false };
+  }
+  if (computeReviewAttestationDigest(attestation) !== attestation.attestation_digest) {
+    return {
+      ...deny(CODES.digestMismatch, "attestation_digest does not match bounded facts"),
+      active: false
+    };
+  }
+
+  const runRef = attestation.review_run_ref;
+  if (runRef.provenance_kind !== REVIEW_ATTESTATION_TRUSTED_PROVENANCE_KIND) {
+    return {
+      ...deny(CODES.untrustedProvenance, "provenance is not a trusted structured run"),
+      active: false
+    };
+  }
+  if (!REVIEW_ATTESTATION_TERMINAL_SUCCESS_STATUS_VALUES.includes(runRef.terminal_status)) {
+    return { ...deny(CODES.nonTerminal, "review run is not terminal-success"), active: false };
+  }
+  if (runRef.role_class !== attestation.reviewer_role_class) {
+    return {
+      ...deny(CODES.wrongRole, "review run role class does not match the attested reviewer role"),
+      active: false
+    };
+  }
+  const reviewUnit = attestationReviewUnit(attestation.review_unit);
+  if (reviewUnit) {
+    if (
+      reviewUnit.address === attestation.unit.address ||
+      runRef.subject_address !== reviewUnit.address
+    ) {
+      return {
+        ...deny(CODES.wrongUnit, "review run subject does not match the separate review unit"),
+        active: false
+      };
+    }
+  } else if (runRef.subject_address !== attestation.unit.address) {
+    return {
+      ...deny(CODES.wrongUnit, "review run subject does not match the attested unit"),
+      active: false
+    };
+  }
+
+  if (!isObject(context)) {
+    return { ...deny(CODES.missingExpectation, "intrinsic binding context is required"), active: false };
+  }
+  const expectedRepo = normalizeStringEntry(context.repo);
+  const expectedUnit = normalizeStringEntry(context.selected_unit_address);
+  const expectedDigest = normalizeStringEntry(context.current_reviewed_unit_digest);
+  const nowMs = isoTimestampMs(context.now);
+  if (!expectedRepo || !expectedUnit || !isSha256(expectedDigest) || nowMs === null) {
+    return {
+      ...deny(CODES.missingExpectation, "server-owned repo, selected unit, digest, and time are required"),
+      active: false
+    };
+  }
+  if (expectedRepo !== attestation.repo || expectedUnit !== attestation.unit.address) {
+    return { ...deny(CODES.wrongUnit, "stored attestation binds a different unit"), active: false };
+  }
+  if (expectedDigest !== attestation.source_digest) {
+    return {
+      ...deny(CODES.wrongDigest, "stored attestation binds a different reviewed-unit digest"),
+      active: false
+    };
+  }
+  if (nowMs > isoTimestampMs(attestation.expires_at)) {
+    return { ...deny(CODES.expired, "attestation has expired"), active: false };
+  }
+  return {
+    valid: true,
+    active: true,
+    decision_code: CODES.valid,
+    reasons: [],
+    launch_authoritative: false
+  };
 }
 
 export function validateReviewAttestation(attestation, expectation = {}) {

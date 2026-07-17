@@ -1,7 +1,9 @@
 
 
 import path from "node:path";
-import { realpathSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
+import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
 
 import { readCodexConfigText } from "./launch-isolation.mjs";
 import {
@@ -64,14 +66,19 @@ export function buildCodexWikiMcpServerOverrides({ mcpServerName, serverPath, re
   ];
 }
 
-export function collectCodexSynthesizedWikiMcpReadOnlyRoots(serverPath) {
-  const roots = [];
+function resolveNodeInterpreterDirRoot() {
   try {
     const nodeDir = path.dirname(realpathSync(process.execPath));
-    if (path.isAbsolute(nodeDir)) roots.push(nodeDir);
+    return path.isAbsolute(nodeDir) ? nodeDir : null;
   } catch {
-
+    return null;
   }
+}
+
+export function collectCodexSynthesizedWikiMcpReadOnlyRoots(serverPath) {
+  const roots = [];
+  const nodeDir = resolveNodeInterpreterDirRoot();
+  if (nodeDir) roots.push(nodeDir);
   let containerSource = serverPath;
   try {
     containerSource = realpathSync(serverPath);
@@ -98,6 +105,142 @@ function findPackageContainerDir(filePath) {
     dir = path.dirname(dir);
   }
   return null;
+}
+
+export const MANAGED_WORKER_WIKI_MCP_CLOSURE_PACKAGES = Object.freeze([
+  "@agent-chassis/wiki-mcp",
+  "@agent-chassis/wiki-core",
+  "@agent-chassis/agent-launch-cli",
+  "@agent-chassis/agent-launch-core"
+]);
+
+const requireFromWikiMcpOverride = createRequire(import.meta.url);
+
+function closureFailClosed(message) {
+  return new Error(`DEC-0160 managed-worker wiki-MCP runtime closure fail-closed: ${message}`);
+}
+
+function readPackageJsonName(dir) {
+  try {
+    return JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8"))?.name ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function findNamedPackageDir(filePath, packageName) {
+  let dir = path.dirname(filePath);
+  const root = path.parse(dir).root;
+  for (let i = 0; i < 40; i += 1) {
+    if (readPackageJsonName(dir) === packageName) return dir;
+    if (dir === root) break;
+    dir = path.dirname(dir);
+  }
+  return null;
+}
+
+function resolveClosurePackageDir(packageName) {
+  for (const spec of [`${packageName}/package.json`, packageName]) {
+    let resolvedReal;
+    try {
+      resolvedReal = realpathSync(requireFromWikiMcpOverride.resolve(spec));
+    } catch {
+      continue;
+    }
+    const dir = spec.endsWith("/package.json")
+      ? path.dirname(resolvedReal)
+      : findNamedPackageDir(resolvedReal, packageName);
+    if (dir && readPackageJsonName(dir) === packageName) return dir;
+  }
+  throw closureFailClosed(`cannot resolve import-graph package ${packageName}`);
+}
+
+function listTrackedPackageFiles(gitRoot, packageDir) {
+  const relDir = path.relative(gitRoot, packageDir);
+  let stdout;
+  try {
+    stdout = execFileSync("git", ["-C", gitRoot, "ls-files", "-z", "--", relDir], {
+      encoding: "buffer",
+      maxBuffer: 64 * 1024 * 1024
+    });
+  } catch (error) {
+    throw closureFailClosed(`git ls-files failed for ${relDir}: ${error?.message ?? error}`);
+  }
+  const files = [];
+  for (const rel of stdout.toString("utf8").split("\0")) {
+    if (rel.length === 0) continue;
+    const abs = path.join(gitRoot, rel);
+    try {
+      if (lstatSync(abs).isFile()) files.push(abs);
+    } catch {
+
+    }
+  }
+  if (files.length === 0) {
+    throw closureFailClosed(`no tracked files resolved for ${relDir}`);
+  }
+  return files;
+}
+
+export function collectManagedWorkerWikiMcpRuntimeClosureRoots(serverPath) {
+  if (typeof serverPath !== "string" || !path.isAbsolute(serverPath)) {
+    throw closureFailClosed("requires an absolute installed wiki-MCP server module path");
+  }
+  const roots = [];
+  const seen = new Set();
+  const add = (root) => {
+    if (typeof root === "string" && root.length > 0 && path.isAbsolute(root) && !seen.has(root)) {
+      seen.add(root);
+      roots.push(root);
+    }
+  };
+
+  const nodeDir = resolveNodeInterpreterDirRoot();
+  if (!nodeDir) {
+    throw closureFailClosed("cannot resolve the node interpreter directory");
+  }
+  add(nodeDir);
+
+  let serverReal;
+  try {
+    serverReal = realpathSync(serverPath);
+  } catch {
+    throw closureFailClosed(`wiki-MCP server module path does not resolve: ${serverPath}`);
+  }
+  const wikiMcpPackageDir = findPackageContainerDir(serverReal);
+  if (!wikiMcpPackageDir) {
+    throw closureFailClosed("cannot resolve the wiki-MCP package directory");
+  }
+  const packagesDir = path.dirname(wikiMcpPackageDir);
+  const repositoryRoot = path.dirname(packagesDir);
+  if (path.basename(packagesDir) !== "packages") {
+    throw closureFailClosed(
+      `wiki-MCP package is not under a workspace 'packages' directory: ${wikiMcpPackageDir}`
+    );
+  }
+
+  const nodeModulesDir = path.join(repositoryRoot, "node_modules");
+  try {
+    if (!statSync(nodeModulesDir).isDirectory()) throw new Error("not a directory");
+  } catch {
+    throw closureFailClosed(`repository-root node_modules is missing: ${nodeModulesDir}`);
+  }
+  add(nodeModulesDir);
+
+  for (const packageName of MANAGED_WORKER_WIKI_MCP_CLOSURE_PACKAGES) {
+    const packageDir = resolveClosurePackageDir(packageName);
+    const relToRoot = path.relative(repositoryRoot, packageDir);
+    if (relToRoot === "" || relToRoot.startsWith("..") || path.isAbsolute(relToRoot)) {
+      throw closureFailClosed(
+        `import-graph package ${packageName} resolves outside the repository root: ${packageDir}`
+      );
+    }
+    for (const trackedFile of listTrackedPackageFiles(repositoryRoot, packageDir)) {
+      add(trackedFile);
+    }
+  }
+
+  return roots;
 }
 
 export function rebuildCodexPlanIsolationWithReadOnlyRoot(plan, additionalRoots) {

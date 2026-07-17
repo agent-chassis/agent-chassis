@@ -1,27 +1,65 @@
 
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
-import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { link, mkdtemp, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 
 import { cloneJson, isObject, normalizeStringEntry } from "./work-record-admission-shared.mjs";
 import { ensureDirectory } from "./wiki-shared.mjs";
 import { createCompactWorkRecordAdmissionDerivedEvidence } from "./work-record-admission-derived-evidence.mjs";
+import { SLICE_ID_PATTERN } from "./work-record-schema-constants.mjs";
 
 export const WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDECAR_DIRECTORY =
   "wiki/work-records/evidence";
 
 const READ_ONLY_FILESYSTEM_ERROR_CODES = new Set(["EROFS", "EACCES", "EPERM"]);
+const NO_CLOBBER_UNSUPPORTED_ERROR_CODES = new Set([
+  "EXDEV",
+  "ENOSYS",
+  "ENOTSUP",
+  "EOPNOTSUPP",
+  "EPERM"
+]);
+const DIAGNOSTIC_FILESYSTEM_ERROR_CODES = new Set([
+  "EACCES",
+  "EEXIST",
+  "EIO",
+  "EMFILE",
+  "ENFILE",
+  "ENOENT",
+  "ENOSPC",
+  "ENOSYS",
+  "ENOTSUP",
+  "EOPNOTSUPP",
+  "EPERM",
+  "EROFS",
+  "EXDEV"
+]);
+const RECORD_ID_PATTERN = /^WK-[0-9]{4}$/u;
+const SIDECAR_DIGEST_PATTERN = /^sha256:([a-f0-9]{64})$/u;
 const CARRIER_FACTS_RECORDED_RULE = "carrier_facts_recorded_no_local_admissibility_judgment";
 const CARRIER_FACTS_RECORDED_REASON =
   "carrier facts are structurally complete for Node Engine evaluation";
 
-function sanitizeWorkRecordAdmissionDerivedEvidenceSidecarSegment(segment) {
-  const normalized = normalizeStringEntry(segment);
-  if (!normalized) {
-    return "slice";
+function resolveAdmissionSidecarIdentity(derivedEvidence) {
+  const recordId = normalizeStringEntry(derivedEvidence?.record_id);
+  const unit = isObject(derivedEvidence?.unit) ? derivedEvidence.unit : null;
+  const sliceId =
+    unit?.kind === "slice"
+      ? normalizeStringEntry(unit.slice_id) ||
+        normalizeStringEntry(String(unit.address || "").split("#")[1])
+      : null;
+  if (!recordId || !RECORD_ID_PATTERN.test(recordId)) {
+    throw new TypeError("admission sidecar record_id must use canonical WK-#### grammar");
   }
-  return encodeURIComponent(normalized);
+  if (unit?.kind === "slice" && (!sliceId || !SLICE_ID_PATTERN.test(sliceId))) {
+    throw new TypeError("admission sidecar slice_id must use canonical slice grammar");
+  }
+  return {
+    recordId,
+    sliceId: unit?.kind === "slice" ? sliceId : null,
+    unitAddress: normalizeStringEntry(unit?.address) || recordId
+  };
 }
 
 function isReadOnlyFilesystemError(error) {
@@ -64,16 +102,21 @@ function createWorkRecordAdmissionDerivedEvidenceSidecarWriteError(filePath, err
   return wrapped;
 }
 
-export function buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(derivedEvidence) {
-  const recordId = normalizeStringEntry(derivedEvidence?.record_id) || "WK-unknown";
-  const unit = isObject(derivedEvidence?.unit) ? derivedEvidence.unit : null;
-  if (unit?.kind === "slice") {
-    const sliceId = sanitizeWorkRecordAdmissionDerivedEvidenceSidecarSegment(
-      normalizeStringEntry(unit.slice_id) || String(unit.address || "").split("#")[1] || "slice"
-    );
-    return `${WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDECAR_DIRECTORY}/${recordId}.${sliceId}.admission.json`;
+export function buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(
+  derivedEvidence,
+  sidecarDigest = null
+) {
+  const identity = resolveAdmissionSidecarIdentity(derivedEvidence);
+  const digest = sidecarDigest ?? computeWorkRecordAdmissionDerivedEvidenceSidecarDigest(derivedEvidence);
+  const match = SIDECAR_DIGEST_PATTERN.exec(String(digest));
+  if (!match) {
+    throw new TypeError("admission sidecar digest must be sha256 plus 64 lowercase hex characters");
   }
-  return `${WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDECAR_DIRECTORY}/${recordId}.admission.json`;
+  const unitSegment = identity.sliceId ? `.${identity.sliceId}` : "";
+  return (
+    `${WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDECAR_DIRECTORY}/` +
+    `${identity.recordId}${unitSegment}.sha256-${match[1]}.admission.json`
+  );
 }
 
 function isCleanCarrierFactsRecordedResult(admission) {
@@ -194,8 +237,224 @@ export function createPersistedWorkerAdmissionDerivedEvidence(entry, options = {
 }
 
 export function computeWorkRecordAdmissionDerivedEvidenceSidecarDigest(value) {
-  const text = `${JSON.stringify(value, null, 2)}\n`;
-  return `sha256:${createHash("sha256").update(text, "utf8").digest("hex")}`;
+  return computeWorkRecordAdmissionDerivedEvidenceSidecarBytesDigest(
+    serializeWorkRecordAdmissionDerivedEvidenceSidecar(value)
+  );
+}
+
+export function serializeWorkRecordAdmissionDerivedEvidenceSidecar(value) {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+export function computeWorkRecordAdmissionDerivedEvidenceSidecarBytesDigest(bytes) {
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+export function prepareWorkRecordAdmissionDerivedEvidenceSidecar(value) {
+  const identity = resolveAdmissionSidecarIdentity(value);
+  const bytes = serializeWorkRecordAdmissionDerivedEvidenceSidecar(value);
+  const digest = computeWorkRecordAdmissionDerivedEvidenceSidecarBytesDigest(bytes);
+  return {
+    bytes,
+    digest,
+    recordId: identity.recordId,
+    relativePath: buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(value, digest),
+    unitAddress: identity.unitAddress,
+    value: cloneJson(value)
+  };
+}
+
+function normalizeFilesystemCauseCode(error) {
+  const causeCode = isObject(error) ? normalizeStringEntry(error.code) : null;
+  return causeCode && DIAGNOSTIC_FILESYSTEM_ERROR_CODES.has(causeCode) ? causeCode : null;
+}
+
+function createPublicationDiagnostic({
+  code,
+  identity,
+  sidecarPath,
+  operation,
+  causeCode = null
+}) {
+  const messages = {
+    sidecar_destination_content_conflict:
+      "immutable admission sidecar destination already contains different bytes",
+    sidecar_no_clobber_unsupported:
+      "destination filesystem does not support required hard-link no-clobber publication",
+    sidecar_publication_failed: "immutable admission sidecar publication failed"
+  };
+  return {
+    code,
+    severity: "error",
+    message: messages[code],
+    record_id: identity.recordId,
+    unit_address: identity.unitAddress,
+    sidecar_path: sidecarPath,
+    operation,
+    ...(causeCode ? { cause_code: causeCode } : {})
+  };
+}
+
+function publicationFailure({ code, identity, sidecarPath, operation, error = null }) {
+  return {
+    ok: false,
+    created: false,
+    diagnostic: createPublicationDiagnostic({
+      code,
+      identity,
+      sidecarPath,
+      operation,
+      causeCode: normalizeFilesystemCauseCode(error)
+    })
+  };
+}
+
+export async function publishWorkRecordAdmissionDerivedEvidenceSidecar({
+  targetDir,
+  publication,
+  linkFile = link,
+  openFile = open,
+  readDestination = readFile
+}) {
+  const prepared = publication?.bytes && publication?.relativePath
+    ? publication
+    : prepareWorkRecordAdmissionDerivedEvidenceSidecar(publication?.value ?? publication);
+  const identity = {
+    recordId: prepared.recordId,
+    unitAddress: prepared.unitAddress
+  };
+  const expectedDigest = computeWorkRecordAdmissionDerivedEvidenceSidecarBytesDigest(prepared.bytes);
+  const expectedBytes = serializeWorkRecordAdmissionDerivedEvidenceSidecar(prepared.value);
+  if (expectedDigest !== prepared.digest || expectedBytes !== prepared.bytes) {
+    return publicationFailure({
+      code: "sidecar_publication_failed",
+      identity,
+      sidecarPath: prepared.relativePath,
+      operation: "validate_prepared_bytes"
+    });
+  }
+  const expectedPath = buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(
+    prepared.value,
+    prepared.digest
+  );
+  if (expectedPath !== prepared.relativePath) {
+    return publicationFailure({
+      code: "sidecar_publication_failed",
+      identity,
+      sidecarPath: expectedPath,
+      operation: "validate_prepared_path"
+    });
+  }
+
+  const directory = path.resolve(targetDir, WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDECAR_DIRECTORY);
+  const destinationPath = path.resolve(targetDir, prepared.relativePath);
+  const digestHex = prepared.digest.slice("sha256:".length);
+  const sliceSegment = prepared.value?.unit?.kind === "slice"
+    ? `.${prepared.value.unit.slice_id}`
+    : "";
+  const stageBasename =
+    `.${prepared.recordId}${sliceSegment}.sha256-${digestHex}.stage-` +
+    `${randomBytes(16).toString("hex")}.admission.tmp`;
+  const stagePath = path.join(directory, stageBasename);
+  let stageCreated = false;
+
+  try {
+    try {
+      await ensureDirectory(directory);
+    } catch (error) {
+      return publicationFailure({
+        code: "sidecar_publication_failed",
+        identity,
+        sidecarPath: prepared.relativePath,
+        operation: "stage",
+        error
+      });
+    }
+    let handle = null;
+    try {
+      handle = await openFile(stagePath, "wx");
+      stageCreated = true;
+      await handle.writeFile(prepared.bytes, { encoding: "utf8" });
+      await handle.sync();
+      await handle.close();
+      handle = null;
+    } catch (error) {
+      if (handle) {
+        await handle.close().catch(() => {});
+      }
+      return publicationFailure({
+        code: "sidecar_publication_failed",
+        identity,
+        sidecarPath: prepared.relativePath,
+        operation: "stage",
+        error
+      });
+    }
+
+    try {
+      await linkFile(stagePath, destinationPath);
+      return {
+        ok: true,
+        created: true,
+        digest: prepared.digest,
+        relativePath: prepared.relativePath
+      };
+    } catch (error) {
+      if (error?.code === "EEXIST") {
+        let destinationBytes;
+        try {
+          destinationBytes = await readDestination(destinationPath);
+        } catch (readError) {
+          return publicationFailure({
+            code: "sidecar_publication_failed",
+            identity,
+            sidecarPath: prepared.relativePath,
+            operation: "destination_read",
+            error: readError
+          });
+        }
+        if (Buffer.from(prepared.bytes, "utf8").equals(destinationBytes)) {
+          return {
+            ok: true,
+            created: false,
+            digest: prepared.digest,
+            relativePath: prepared.relativePath
+          };
+        }
+        return publicationFailure({
+          code: "sidecar_destination_content_conflict",
+          identity,
+          sidecarPath: prepared.relativePath,
+          operation: "link",
+          error
+        });
+      }
+      if (NO_CLOBBER_UNSUPPORTED_ERROR_CODES.has(error?.code)) {
+        return publicationFailure({
+          code: "sidecar_no_clobber_unsupported",
+          identity,
+          sidecarPath: prepared.relativePath,
+          operation: "link",
+          error
+        });
+      }
+      return publicationFailure({
+        code: "sidecar_publication_failed",
+        identity,
+        sidecarPath: prepared.relativePath,
+        operation: "link",
+        error
+      });
+    }
+  } finally {
+    if (stageCreated) {
+      try {
+        await rm(stagePath, { force: true });
+      } catch {
+
+      }
+    }
+  }
 }
 
 export async function writeWorkRecordAdmissionDerivedEvidenceSidecar(filePath, value) {

@@ -710,7 +710,7 @@ function createRecordLocalTargetMetricSourceProvenance(record, selectedUnit, sou
     selected_unit: selectedUnit,
     source_record_digest: sourceRecordDigest,
     producer: {
-      id: "portfolio-local.target-function-resolver",
+      id: "portfolio-local.target-resolver",
       version: "0.1.0",
       mode: "local"
     }
@@ -770,9 +770,12 @@ export async function createWorkRecordAdmissionRecordLocalInputs({
     : await resolveRecordSourceDigest(record, dir);
   const selectedUnit = normalizeRecordSelectedUnit(record);
   const targetResolutionEvidence = isObject(record.target_resolution_evidence) ? record.target_resolution_evidence : null;
-  const metricSourceProvenance = isObject(targetResolutionEvidence?.metric_source_provenance)
-    ? targetResolutionEvidence.metric_source_provenance
-      : createRecordLocalTargetMetricSourceProvenance(record, selectedUnit, sourceRecordDigest);
+
+  const metricSourceProvenance = createRecordLocalTargetMetricSourceProvenance(
+    record,
+    selectedUnit,
+    sourceRecordDigest
+  );
   const thresholdCountedFileStats = collectThresholdCountedFileStats(fileStats);
 
   const thresholdCountedTestFileStats = thresholdCountedFileStats.filter((entry) =>

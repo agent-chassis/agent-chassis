@@ -1,7 +1,6 @@
 
 
 import path from "node:path";
-import { readFile } from "node:fs/promises";
 
 import {
   buildReviewResultEvidence,
@@ -10,6 +9,7 @@ import {
   reviewResultEvidenceAuthorityEffects,
   validateReviewResultEvidence
 } from "../lib/work-record-review-results.mjs";
+import { computeReviewedUnitSourceDigest } from "../lib/work-record-review-attestation.mjs";
 import {
   cloneJson,
   computeNormalizedInputDigest,
@@ -21,16 +21,18 @@ import {
   evaluateWorkRecordAdmissionDerivedEvidence
 } from "../lib/work-record-admission-derived-evidence.mjs";
 import {
-  buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath,
-  computeWorkRecordAdmissionDerivedEvidenceSidecarDigest,
   createPersistedWorkerAdmissionDerivedEvidence,
   createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary,
-  writeWorkRecordAdmissionDerivedEvidenceSidecar
+  prepareWorkRecordAdmissionDerivedEvidenceSidecar
 } from "../lib/work-record-admission-derived-evidence-persist.mjs";
 import {
+  readPersistedWorkerAdmissionEvidenceSidecar
+} from "../lib/work-record-admission-evidence-sidecar.mjs";
+import {
+  computeWorkRecordPersistenceSnapshotDigest,
   digestWorkRecord,
   readWorkRecordById,
-  writeValidatedWorkRecord
+  writeValidatedWorkRecordWithAdmissionSidecars
 } from "./work-records-store-io.mjs";
 import {
   materializeWorkRecordAdmissionDerivedEvidence,
@@ -196,64 +198,6 @@ function unitsHaveDurableRelationship(leftRecord, leftUnit, rightRecord, rightUn
     unitRecordReferencesUnit(rightRecord, leftUnit);
 }
 
-function findWorkerAdmissionEvidenceEntry(record, unit, sourceDigest) {
-  const entries = Array.isArray(record?.derived_evidence) ? record.derived_evidence : [];
-  return entries.find((entry) => {
-    const entryUnit = isObject(entry?.unit) ? entry.unit : null;
-    return (
-      entry?.schema_version === "worker-admission-derived-evidence.v1" &&
-      entry?.record_id === unit.record_id &&
-      entry?.decision_kind === "work_unit_atomicity" &&
-      entry?.source_record_digest === sourceDigest &&
-      entryUnit?.kind === unit.kind &&
-      entryUnit?.address === unit.address &&
-      entryUnit?.record_id === unit.record_id &&
-      (entryUnit?.slice_id ?? null) === (unit.slice_id ?? null)
-    );
-  }) ?? null;
-}
-
-function sidecarBindsToEntry(sidecar, entry) {
-  const sidecarUnit = isObject(sidecar?.unit) ? sidecar.unit : null;
-  const entryUnit = isObject(entry?.unit) ? entry.unit : null;
-  return (
-    sidecar?.schema_version === entry?.schema_version &&
-    sidecar?.record_id === entry?.record_id &&
-    sidecar?.source_record_digest === entry?.source_record_digest &&
-    sidecar?.generated_at === entry?.generated_at &&
-    sidecar?.decision_kind === entry?.decision_kind &&
-    sidecarUnit?.kind === entryUnit?.kind &&
-    sidecarUnit?.address === entryUnit?.address &&
-    sidecarUnit?.record_id === entryUnit?.record_id &&
-    (sidecarUnit?.slice_id ?? null) === (entryUnit?.slice_id ?? null) &&
-    isObject(sidecar?.normalized_request)
-  );
-}
-
-async function loadPriorFullEvidence({ dir, record, unit, sourceDigest }) {
-  const priorEntry = findWorkerAdmissionEvidenceEntry(record, unit, sourceDigest);
-  if (!priorEntry) return null;
-  if (isObject(priorEntry.normalized_request)) {
-    return cloneJson(priorEntry);
-  }
-  if (!trimmed(priorEntry.sidecar_path) || !trimmed(priorEntry.sidecar_digest)) {
-    return null;
-  }
-  let sidecar;
-  try {
-    sidecar = JSON.parse(await readFile(path.resolve(dir, priorEntry.sidecar_path), "utf8"));
-  } catch {
-    return null;
-  }
-  if (!sidecarBindsToEntry(sidecar, priorEntry)) {
-    return null;
-  }
-  if (computeWorkRecordAdmissionDerivedEvidenceSidecarDigest(sidecar) !== priorEntry.sidecar_digest) {
-    return null;
-  }
-  return cloneJson(sidecar);
-}
-
 function buildEvidenceOnlyMaterializationDispatchReadiness(unit) {
   return {
     schema_version: "dispatch-readiness.v1",
@@ -286,7 +230,12 @@ function buildEvidenceOnlyMaterializationDispatchReadiness(unit) {
 }
 
 async function createFullEvidenceForReviewResult({ dir, record, unit, sourceDigest }) {
-  const priorFullEvidence = await loadPriorFullEvidence({ dir, record, unit, sourceDigest });
+  const priorFullEvidence = await readPersistedWorkerAdmissionEvidenceSidecar({
+    dir,
+    record,
+    selectedUnit: unit,
+    sourceDigest
+  });
   if (priorFullEvidence) return priorFullEvidence;
   return materializeWorkRecordAdmissionDerivedEvidence({
     record,
@@ -337,7 +286,16 @@ function upsertReviewResultEvidence(fullEvidence, evidence) {
   return updated;
 }
 
-async function persistReviewResultEvidence({ dir, loaded, unit, sourceDigest, evidence, recordStore }) {
+async function persistReviewResultEvidence({
+  dir,
+  loaded,
+  unit,
+  sourceDigest,
+  recordSourceDigest,
+  evidence,
+  recordStore
+}) {
+  const persistenceSnapshotDigest = computeWorkRecordPersistenceSnapshotDigest(loaded.record);
   const updatedRecord = cloneJson(loaded.record);
   const fullEvidence = await createFullEvidenceForReviewResult({
     dir,
@@ -349,11 +307,10 @@ async function persistReviewResultEvidence({ dir, loaded, unit, sourceDigest, ev
   const admissionSummary = createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary(
     evaluateWorkRecordAdmissionDerivedEvidence(fullEvidenceWithReviewResult)
   );
-  const sidecarRelativePath =
-    buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(fullEvidenceWithReviewResult);
-  const sidecarAbsolutePath = path.resolve(dir, sidecarRelativePath);
-  const sidecarDigest =
-    computeWorkRecordAdmissionDerivedEvidenceSidecarDigest(fullEvidenceWithReviewResult);
+  const sidecarPublication =
+    prepareWorkRecordAdmissionDerivedEvidenceSidecar(fullEvidenceWithReviewResult);
+  const sidecarRelativePath = sidecarPublication.relativePath;
+  const sidecarDigest = sidecarPublication.digest;
   const compactEntry = createPersistedWorkerAdmissionDerivedEvidence(fullEvidenceWithReviewResult, {
     sidecarPath: sidecarRelativePath,
     sidecarDigest,
@@ -366,14 +323,12 @@ async function persistReviewResultEvidence({ dir, loaded, unit, sourceDigest, ev
     sourceDigest
   );
 
-  await writeWorkRecordAdmissionDerivedEvidenceSidecar(
-    sidecarAbsolutePath,
-    fullEvidenceWithReviewResult
-  );
-  const writeResult = await writeValidatedWorkRecord({
+  const writeResult = await writeValidatedWorkRecordWithAdmissionSidecars({
     dir,
     record: updatedRecord,
-    expectedSourceDigest: sourceDigest,
+    expectedSourceDigest: recordSourceDigest,
+    expectedPersistenceSnapshotDigest: persistenceSnapshotDigest,
+    admissionSidecars: [sidecarPublication],
     recordStore
   });
   return {
@@ -533,8 +488,13 @@ export async function recordWorkRecordReviewResultEvidence(options = {}) {
   }
 
   const canonicalRecordRepo = trimmed(loaded.record.repo);
-  const sourceDigest = trimmed(loaded.source_digest) ?? digestWorkRecord(loaded.record);
-  if (!canonicalRecordRepo || !sourceDigest) {
+  const recordSourceDigest = trimmed(loaded.source_digest) ?? digestWorkRecord(loaded.record);
+  const sourceDigest = trimmed(computeReviewedUnitSourceDigest(
+    unit.kind === "slice"
+      ? { record: cloneJson(loaded.record), selected_slice_id: unit.slice_id }
+      : cloneJson(loaded.record)
+  ));
+  if (!canonicalRecordRepo || !recordSourceDigest || !sourceDigest) {
     return {
       ...loaded,
       ...refusal("review_result_evidence.malformed.v1", [
@@ -561,7 +521,7 @@ export async function recordWorkRecordReviewResultEvidence(options = {}) {
         evidence: null
       };
     }
-    if (expectedSourceDigest !== sourceDigest) {
+    if (expectedSourceDigest !== recordSourceDigest) {
       return {
         ...loaded,
         ...refusal("review_result_evidence.stale_source_digest.v1", [
@@ -572,7 +532,7 @@ export async function recordWorkRecordReviewResultEvidence(options = {}) {
         written: false,
         source_digest: sourceDigest,
         expected_source_digest: expectedSourceDigest,
-        current_source_digest: sourceDigest,
+        current_source_digest: recordSourceDigest,
         evidence: null
       };
     }
@@ -682,6 +642,7 @@ export async function recordWorkRecordReviewResultEvidence(options = {}) {
     loaded,
     unit,
     sourceDigest,
+    recordSourceDigest,
     evidence: built.evidence,
     recordStore
   });

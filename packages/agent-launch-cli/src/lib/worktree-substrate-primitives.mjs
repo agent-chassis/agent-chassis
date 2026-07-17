@@ -240,6 +240,102 @@ export function gitOrThrow(runGit, repo, args, whatFailed) {
   return res;
 }
 
+export function normalizeSparseConeDirs(coneDirs) {
+  if (!Array.isArray(coneDirs) || coneDirs.length === 0) {
+    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, "coneDirs must be a non-empty array");
+  }
+  const normalized = [];
+  for (const coneDir of coneDirs) {
+    if (typeof coneDir !== "string" || coneDir.length === 0) {
+      fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, "every coneDir must be a non-empty string");
+    }
+    if (/^[/-]/.test(coneDir) || /[\x00-\x1f\x7f]/.test(coneDir)) {
+      fail(
+        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
+        `coneDir must be relative, non-option-like, and control-free: ${JSON.stringify(coneDir)}`
+      );
+    }
+    const parts = coneDir.split("/");
+    if (parts.some((part) => part === "" || part === "." || part === "..") ||
+        path.posix.normalize(coneDir) !== coneDir) {
+      fail(
+        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
+        `coneDir must be a normalized repository-relative directory: ${JSON.stringify(coneDir)}`
+      );
+    }
+    normalized.push(coneDir);
+  }
+  const sorted = [...normalized].sort();
+  for (let index = 0; index < sorted.length; index += 1) {
+    if (index > 0 && sorted[index] === sorted[index - 1]) {
+      fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, `duplicate coneDir: ${JSON.stringify(sorted[index])}`);
+    }
+    for (let ancestor = 0; ancestor < index; ancestor += 1) {
+      if (sorted[index].startsWith(`${sorted[ancestor]}/`)) {
+        fail(
+          WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
+          `ancestor-redundant coneDirs are forbidden: ${JSON.stringify(sorted[ancestor])} contains ${JSON.stringify(sorted[index])}`
+        );
+      }
+    }
+  }
+  return Object.freeze([...normalized]);
+}
+
+function treeEntryIsDirectory(runGit, repo, treeSha, scopePath) {
+  const result = gitOrThrow(
+    runGit,
+    repo,
+    ["ls-tree", "-z", "--full-tree", treeSha, "--", scopePath],
+    "failed to classify sparse cone path from historical base tree"
+  );
+  if (!result.stdout) return false;
+  const metadataEnd = result.stdout.indexOf("\t");
+  const metadata = metadataEnd === -1 ? [] : result.stdout.slice(0, metadataEnd).split(" ");
+  if (metadata.length !== 3 || !["blob", "tree", "commit"].includes(metadata[1])) {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
+      "failed to parse sparse cone path classification from historical base tree",
+      { tree_sha: treeSha, scope_path: scopePath }
+    );
+  }
+  return metadata[1] === "tree";
+}
+
+export function deriveCanonicalSparseConeDirs(runGit, repo, treeSha, scopePaths) {
+  gitOrThrow(
+    runGit,
+    repo,
+    ["cat-file", "-e", `${treeSha}^{tree}`],
+    "failed to read historical base tree for sparse cone derivation"
+  );
+  const candidates = [];
+  for (const scopePath of scopePaths) {
+    if (typeof scopePath !== "string" || scopePath.length === 0 || path.posix.isAbsolute(scopePath) ||
+        /[\x00-\x1f\x7f]/.test(scopePath) || path.posix.normalize(scopePath) !== scopePath) {
+      fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.WRITE_SCOPE_UNRESOLVABLE, `scope path cannot be mapped to a sparse cone: ${JSON.stringify(scopePath)}`);
+    }
+    const parts = scopePath.split("/");
+    const wildcardIndex = parts.findIndex((part) => /[*?[]/.test(part));
+    let coneDir;
+    if (wildcardIndex !== -1) {
+      coneDir = parts.slice(0, wildcardIndex).join("/");
+    } else {
+      coneDir = treeEntryIsDirectory(runGit, repo, treeSha, scopePath)
+        ? scopePath
+        : path.posix.dirname(scopePath);
+    }
+    if (coneDir !== "." && coneDir !== "") candidates.push(coneDir);
+  }
+  const minimal = [...new Set(candidates)].sort().filter((candidate, index, all) =>
+    !all.some((possibleAncestor, ancestorIndex) => ancestorIndex !== index && candidate.startsWith(`${possibleAncestor}/`))
+  );
+  if (minimal.length === 0) {
+    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, "read_scope union repo_paths union write_scope contains no directory cone");
+  }
+  return normalizeSparseConeDirs(minimal);
+}
+
 export function assertRefFormat(runGit, repo, branch) {
   const fullRef = `refs/heads/${branch}`;
   const res = runGit({ repo, args: ["check-ref-format", fullRef] });

@@ -15,6 +15,13 @@ export const LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER =
 export const LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER =
   'Public seam steering: when admission-related behavior needs a test seam, drive and assert it through the launcher-registered public backend and tool surfaces; do not target private or unexported admission-recovery helper internals.';
 
+export const LAUNCHER_REDTEAM_ADVERSARIAL_GUIDANCE_LINES = Object.freeze([
+  'Your findings are an adversarial perspective and are not authoritative: state in your response that they are adversarial input, may be wrong, are non-authoritative, and must be evaluated independently by the orchestrator before any action.',
+  "Explicitly identify every change you propose to the selected unit's scope. The orchestrator must raise each proposed scope change to the operator in an interactive session and must reject proposed scope changes in a headless session.",
+  'Read every DEC referenced by the selected work, and use structured wiki search over the canonical wiki decisions to find any other directly relevant DEC; for each, check its status, scope, expiration, supersession, and applicability to the selected unit before relying on it.',
+  "Finding or citing a DEC does not by itself widen the selected unit's scope or grant additional authority to you or the orchestrator.",
+]);
+
 export const LAUNCHER_FAMILY_ROLE_CONTRACT_ROLES = Object.freeze([
   'worker',
   'reviewer',
@@ -47,17 +54,17 @@ const FINDINGS_ONLY_TOOL_SURFACE_GUIDANCE = [
 ].join(' ');
 
 const IMPLEMENTATION_TOOL_SURFACE_GUIDANCE = [
-  'Use the launcher-provided structured read tools for inspection.',
   'Your repo read/write access is exactly the launcher-provided session contract, not inferred from filesystem layout or bwrap internals.',
   'Use the launcher-granted native edit capability only for explicitly assigned write_scope paths.',
   'For Codex, the native edit mechanism is the directly granted apply_patch tool: use apply_patch for in-place edits instead of Edit/Write, shell, Bash, or raw exec_command.',
   'Before reporting that Codex editing is unavailable, check the exact apply_patch entry in the directly granted tool inventory (including ALL_TOOLS when tools are deferred); filtering ALL_TOOLS only for wiki, filesystem, read, or related names is not evidence that apply_patch is absent.',
-  'WK closure, status, review evidence, dispatch-readiness, and other coordination writes must use launcher-provided structured MCP/work-record tools.',
+  'No structured validation or general MCP surface is granted to an implementation worker.',
+  'The only delivery capability is the closed-input commit tool; it accepts no worker-supplied path, ref, message, or binding.',
   'Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.',
-  'You may read your assigned read_scope, repo_paths, and write_scope using the launcher-granted source-read access for this session; when no structured filesystem-MCP reader is configured for the session, native read-only inspection of that assigned scope from the read-only repo mount is the authorized read mechanism, so do not report a blocker merely because a structured filesystem-MCP reader is absent.',
+  'You may read your assigned read_scope, repo_paths, and write_scope using native read-only inspection of the launcher-confined repository namespace.',
   'For Codex, use the launcher-granted unified exec inspection surface only for non-mutating reads of assigned paths; this does not grant raw exec_command, Bash, shell, or mutation.',
-  'This launcher-granted read access takes precedence over the AGENTS.md "structured tools first / shell denied" default: native read-only inspection of in-scope files is the session\'s authorized read mechanism, is not raw shell, and does not require a structured reader to be present.',
-  'If needed access or structured tools are unavailable, stop and report a blocker rather than trying shell, raw filesystem writes, environment overrides, or fallback paths.',
+  'This launcher-granted read access takes precedence over the AGENTS.md "structured tools first / shell denied" default: native read-only inspection of in-scope files is the session\'s authorized read mechanism and does not require a structured reader.',
+  'If needed access or the closed-input commit capability is unavailable, stop and report a blocker rather than trying shell, raw filesystem writes, environment overrides, or fallback paths.',
 ].join(' ');
 
 function toStringValue(value) {
@@ -246,8 +253,7 @@ function classifyFromText(text) {
     normalized.includes('native edit/write tools only when the launcher grants write authority for your assigned write_scope and bwrap') ||
     normalized.includes('stock edit/write tools are only allowed within granted write authority') ||
     normalized.includes('stop and report a blocker') ||
-    normalized.includes('needed access or structured tools are unavailable') ||
-    normalized.includes('update the work record closure and status');
+    normalized.includes('needed access or structured tools are unavailable');
 
   if (hasFindingsMarker && hasImplementationMarker) {
     return 'ambiguous';
@@ -355,6 +361,9 @@ export function renderLauncherFamilyRoleContract(options = {}) {
   const guidance = launcherRoleToolSurfaceGuidance({ role, shape });
   const workspaceDir = toStringValue(input.workspaceDir).trim();
 
+  const canonicalRepo = toStringValue(input.canonicalRepo).trim();
+  const isManagedReviewer = role === 'reviewer' && canonicalRepo !== '';
+
   const lines = [
     role === 'worker' ? LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER : LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER,
     `# ${appName} ${role} role contract`,
@@ -387,14 +396,28 @@ export function renderLauncherFamilyRoleContract(options = {}) {
 
   if (role === 'worker') {
     lines.push('modify only files inside the assigned write_scope.');
-    lines.push('update the work record closure and status.');
-    lines.push('WK closure, status, review evidence, dispatch-readiness, and other coordination writes must use launcher-provided structured MCP/work-record tools.');
+    lines.push('Do not edit the WK record, its closure, or its status.');
+    lines.push('Do not call workspace_submit_for_review.');
+    lines.push('Complete the managed exact-slice implementation lifecycle by invoking the closed-input commit capability and then terminating.');
+    lines.push('After confirmed termination, trusted runtime integrates the committed slice into the current WK tip, freezes the accumulated whole-WK SHA as the review target, and transitions that target to review.');
+    lines.push('Prompt text, caller input, ambient environment, and worker-selected modes cannot select legacy submission or WK-update behavior.');
+    lines.push('No structured validation or general MCP tools are available; delivery uses only the closed-input commit capability.');
     lines.push('Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.');
-    lines.push('You may read your assigned read_scope, repo_paths, and write_scope using the launcher-granted source-read access for this session; when no structured filesystem-MCP reader is configured for the session, native read-only inspection of that assigned scope from the read-only repo mount is the authorized read mechanism, so do not report a blocker merely because a structured filesystem-MCP reader is absent.');
-    lines.push('This launcher-granted read access takes precedence over the AGENTS.md "structured tools first / shell denied" default: native read-only inspection of in-scope files is the session\'s authorized read mechanism, is not raw shell, and does not require a structured reader to be present.');
-    lines.push('If needed access or structured tools are unavailable, stop and report a blocker rather than trying shell, raw filesystem writes, environment overrides, or fallback paths.');
+    lines.push('You may read your assigned read_scope, repo_paths, and write_scope using native read-only inspection of the launcher-confined repository namespace.');
+    lines.push('This launcher-granted read access takes precedence over the AGENTS.md "structured tools first / shell denied" default and does not require a structured reader.');
+    lines.push('If needed access or the closed-input commit capability is unavailable, stop and report a blocker rather than trying shell, raw filesystem writes, environment overrides, or fallback paths.');
+  } else if (isManagedReviewer) {
+    lines.push('Do not update the work record.');
+    lines.push('Do not call workspace_submit_for_review.');
+    lines.push('Complete by returning your terminal structured findings result for trusted-runtime capture; trusted runtime derives the review_result from that captured response and transitions the review target. There is no submit step and no repository write.');
+    lines.push('You have no repository write grant: do not modify any file or the work record.');
+    lines.push('Prompt text, caller input, ambient environment, and reviewer-selected modes cannot select a legacy submission path.');
   } else {
     lines.push('Do not update the work record.');
+    lines.push('When findings-only reviewer or redteam work is complete, call workspace_submit_for_review; it moves only the assigned unit to review.');
+    if (role === 'redteam') {
+      lines.push(...LAUNCHER_REDTEAM_ADVERSARIAL_GUIDANCE_LINES);
+    }
   }
 
   const notesBlock = formatBulletList('Notes', input.notes);
@@ -522,6 +545,7 @@ const launcherRoleContractExports = Object.freeze({
   LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER,
   LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER,
   LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER,
+  LAUNCHER_REDTEAM_ADVERSARIAL_GUIDANCE_LINES,
   LAUNCHER_ORCHESTRATOR_PROMPT_MODES,
   LAUNCHER_ORCHESTRATOR_HEADLESS_DIRECTIVE,
   TERMINAL_STRUCTURED_ROLE_RESULT_MODES,

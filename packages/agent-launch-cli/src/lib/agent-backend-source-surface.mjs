@@ -319,15 +319,28 @@ export function createLauncherOwnedSourceToolSurfacePreparer(options = {}) {
     verifierNonceStore = null,
     backendKey = null,
     backendProfile = "filesystem-mcp-default",
+
+    launcherAuthorityWorkspaceDir = null,
     loadRegistryForSourceSurface = loadTrustedWorkerFamilyRegistry,
     proveSourceToolSurfaceWithBackend = spawnBackendSurfaceEndpoint,
     loadWorkRecord = loadWorkRecordById,
     validateDispatch = validateWorkRecordDispatch
   } = options;
 
+  const trustedLauncherWorkspaceDir = isNonEmptyString(launcherAuthorityWorkspaceDir)
+    ? launcherAuthorityWorkspaceDir.trim()
+    : null;
+  if (trustedLauncherWorkspaceDir !== null && !path.isAbsolute(trustedLauncherWorkspaceDir)) {
+    throw new Error(
+      "createLauncherOwnedSourceToolSurfacePreparer: launcherAuthorityWorkspaceDir must be an absolute path"
+    );
+  }
+
   return async function prepareLauncherOwnedSourceToolSurface(input = {}) {
     const subject = isNonEmptyString(input.subject) ? input.subject.trim() : null;
-    const workspaceDir = isNonEmptyString(input.workspace_dir) ? input.workspace_dir.trim() : cwd;
+    const workerExecutionDir = isNonEmptyString(input.workspace_dir) ? input.workspace_dir.trim() : cwd;
+
+    const launcherWorkspaceDir = trustedLauncherWorkspaceDir ?? workerExecutionDir;
     const workspaceAlias = isNonEmptyString(input.workspace_alias) ? input.workspace_alias.trim() : "agent-chassis";
     if (!subject) {
       return buildSourceToolSurfacePreparationRefusal(
@@ -345,7 +358,7 @@ export function createLauncherOwnedSourceToolSurfacePreparer(options = {}) {
       );
     }
 
-    const resolvedRegistry = registry ?? await loadRegistryForSourceSurface(workspaceDir);
+    const resolvedRegistry = registry ?? await loadRegistryForSourceSurface(launcherWorkspaceDir);
     const authorityResult = resolveFilesystemMcpBackendAuthority({
       registry: resolvedRegistry,
       agentFamily: "codex",
@@ -378,8 +391,20 @@ export function createLauncherOwnedSourceToolSurfacePreparer(options = {}) {
       });
     }
 
+    if (input.worker_scope_authority !== null && input.worker_scope_authority !== undefined) {
+      return buildSourceToolSurfacePreparationRefusal(
+        AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.SOURCE_SURFACE_NOT_PROVEN,
+        "managed worker tool profile refuses structured validation and general filesystem-MCP exposure",
+        {
+          issue: "managed_worker_tool_profile_drift",
+          backend_key: authority.backend_key ?? null,
+          mode: authority.mode
+        }
+      );
+    }
+
     const loaded = await loadWorkRecord({
-      dir: workspaceDir,
+      dir: launcherWorkspaceDir,
       id: unit.value.record_id
     });
     if (!loaded.record || !loaded.valid) {
@@ -405,7 +430,7 @@ export function createLauncherOwnedSourceToolSurfacePreparer(options = {}) {
     const readiness = input.readiness && typeof input.readiness === "object"
       ? input.readiness
       : await validateDispatch({
-          dir: workspaceDir,
+          dir: launcherWorkspaceDir,
           unitAddress: unit.value.address,
           now: env.AGENT_LAUNCH_TIMESTAMP || new Date().toISOString()
         });
@@ -465,7 +490,7 @@ export function createLauncherOwnedSourceToolSurfacePreparer(options = {}) {
       return descriptor;
     }
 
-    const runtimeStateEnsured = await ensureLauncherRuntimeStateDir({ workspaceDir, env });
+    const runtimeStateEnsured = await ensureLauncherRuntimeStateDir({ workspaceDir: launcherWorkspaceDir, env });
     if (!runtimeStateEnsured.ok) {
       return buildSourceToolSurfacePreparationRefusal(
         AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.LAUNCHER_RUNTIME_STATE_UNAVAILABLE,
@@ -477,8 +502,8 @@ export function createLauncherOwnedSourceToolSurfacePreparer(options = {}) {
     let capability;
     let nonceStore;
     try {
-      capability = verifierCapability ?? await verifierModule.loadLauncherVerifierCapability({ trusted: true, workspaceDir, env });
-      nonceStore = verifierNonceStore ?? await createWorkerFamilyTrustedLauncherContextNonceStore(workspaceDir, env);
+      capability = verifierCapability ?? await verifierModule.loadLauncherVerifierCapability({ trusted: true, workspaceDir: launcherWorkspaceDir, env });
+      nonceStore = verifierNonceStore ?? await createWorkerFamilyTrustedLauncherContextNonceStore(launcherWorkspaceDir, env);
     } catch (error) {
       return buildSourceToolSurfacePreparationRefusal(
         AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.LAUNCHER_RUNTIME_STATE_UNAVAILABLE,

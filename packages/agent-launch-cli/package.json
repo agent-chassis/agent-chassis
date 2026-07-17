@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/agent-launch-cli",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -29,14 +29,14 @@
     "./src/*": "./src/*"
   },
   "dependencies": {
-    "@agent-chassis/agent-launch-core": "^0.5.0",
-    "@agent-chassis/wiki-core": "^0.5.0",
-    "@agent-chassis/wiki-mcp": "^0.5.0"
+    "@agent-chassis/agent-launch-core": "^0.5.1",
+    "@agent-chassis/wiki-core": "^0.5.1",
+    "@agent-chassis/wiki-mcp": "^0.5.1"
   },
   "engines": {
     "node": ">=22"
   },
   "peerDependencies": {
-    "@agent-chassis/wiki-mcp": "^0.5.0"
+    "@agent-chassis/wiki-mcp": "^0.5.1"
   }
 }

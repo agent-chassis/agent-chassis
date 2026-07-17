@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "work-record-tools.json",
   "summary": "Work-record create/edit/validate/migrate routes across MCP and CLI.",
-  "tool_count": 28,
+  "tool_count": 29,
   "tools": [
     {
       "tool_name": "workspace_create_record",
@@ -649,6 +649,58 @@
         "packages/wiki-core/src/lib/work-record-derived-evidence-cleanup.mjs"
       ],
       "notes": "Agent-safe MCP route for reporting or pruning oversized worker-admission derived evidence on a WK (whole-record, not a slice). Dry-run by default (compact before/after report, no write); pass write:true to persist the pruned record with stale-source protection. Keeps the newest usable worker-admission entry per unit and preserves graph-impact and other evidence. In dry-run, use use_as_expected_source_digest as the expected_source_digest for a subsequent guarded write. The CLI cleanup command is an operator fallback only."
+    },
+    {
+      "tool_name": "workspace_work_record_ready_slice",
+      "display_name": "Workspace work-record ready slice",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_ready_slice",
+      "task_ids": [
+        "contract-edit"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 110,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/mcp-operation-reference.md",
+        "docs/tool-discovery.md",
+        "docs/work-record-ontology.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/work-record-tools.json",
+        "packages/wiki-mcp/src/lib/work-record-write-tools.mjs",
+        "packages/wiki-mcp/src/lib/work-record-write-route-helpers.mjs",
+        "packages/wiki-core/src/operations/work-record-contract-edit.mjs",
+        "tests/work-record-write-tools.test.mjs",
+        "tests/mcp-startup-regression.test.mjs"
+      ],
+      "notes": "Installed free/local MCP route for atomically preparing one complete tracker-local slice contract with strict replacement/preservation semantics and one dual-CAS canonical write at most. Success or no-op returns only the closed ready-slice-structural-readiness.v1 projection. This route does not derive dispatch readiness, dependencies, graph/admission evidence, Node Engine judgments, launch, provisioning, or backend choice; call workspace_agent_dispatch separately for WK-1567 dispatch-owned derivation and launch intent.",
+      "use_when": ["work_record_mutation", "mutation_operation=ready slice"],
+      "do_not_use_when": ["read-only context", "dispatch readiness", "launch intent"],
+      "authoritative_for": ["atomic ready-slice contract mutations", "structural ready-slice projection"],
+      "recommended_first_call": {"routing_intents": ["work_record_mutation"], "operation": "ready slice"},
+      "requires_prior_state": ["WK unit", "complete ready-slice contract fields"],
+      "replacement_for_misuse": [{"misuse_code": "ignored_required_next_action", "routing_intent": "work_record_mutation", "use_instead": "workspace_work_record_ready_slice"}]
     },
     {
       "tool_name": "workspace_work_record_upsert_slice",

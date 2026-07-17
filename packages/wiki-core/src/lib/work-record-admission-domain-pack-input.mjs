@@ -10,7 +10,6 @@ import {
   computeNormalizedRequestOutputHash,
   systemUtcClock
 } from "./work-record-admission-derived-evidence-time.mjs";
-import { createAcceptedAuthorityFacts } from "./work-record-admission-accepted-authority-facts.mjs";
 import {
   WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_DECISION_KIND,
   WORK_RECORD_ADMISSION_LOCAL_AUTHORITY
@@ -18,6 +17,7 @@ import {
 import { carryReviewAttestations } from "./review-attestation-pack-carry.mjs";
 import { createWorkRecordAdmissionDerivedEvidence } from "./work-record-admission-derived-evidence-builder.mjs";
 import { createWorkRecordAdmissionRecordLocalInputs } from "./work-record-admission-record-inputs.mjs";
+import { computeReviewedUnitSourceDigest } from "./work-record-review-attestation.mjs";
 import { loadOrgPolicyProfile } from "./org-policy-profile-loader.mjs";
 import {
   attachPersistedReviewAttestations,
@@ -155,9 +155,6 @@ export function createWorkerAdmissionDomainPackInput(options = {}) {
   const degradations = cloneJson(featureVector?.degradations ?? []);
   const artifactRefs = cloneJson(normalizedRequest.artifact_refs ?? []);
   const preparationAuditRefs = cloneJson(normalizedRequest.preparation_audit_refs ?? []);
-  const acceptedAuthorities = createAcceptedAuthorityFacts(normalizedRequest, {
-    sourceDigest: derivedEvidence.source_record_digest
-  });
 
   const reviewAttestationBinding = isObject(options.review_attestation_binding)
     ? options.review_attestation_binding
@@ -225,7 +222,6 @@ export function createWorkerAdmissionDomainPackInput(options = {}) {
     decision_kind: WORKER_ADMISSION_DOMAIN_PACK_BOUND_IDENTIFIERS.decision_kind,
     node_engine_binding: nodeEngineBinding,
     normalized_portfolio_facts: normalizedPortfolioFacts,
-    accepted_authorities: acceptedAuthorities,
     feature_vector: featureVector,
     derived_metrics: derivedMetrics,
     degradations,
@@ -239,7 +235,6 @@ export function createWorkerAdmissionDomainPackInput(options = {}) {
       operation_version: WORKER_ADMISSION_DOMAIN_PACK_BOUND_IDENTIFIERS.operation_version,
       bound_fact_keys: [
         "normalized_portfolio_facts",
-        "accepted_authorities",
         "feature_vector",
         "derived_metrics",
         "degradations",
@@ -252,11 +247,6 @@ export function createWorkerAdmissionDomainPackInput(options = {}) {
         field: "normalized_portfolio_facts",
         classification: "local_normalization",
         reason: "projection of canonical normalized worker-admission request facts"
-      },
-      {
-        field: "accepted_authorities",
-        classification: "local_normalization",
-        reason: "bounded selected-unit accepted DEC authority facts for remote pack_input projection"
       },
       {
         field: "feature_vector",
@@ -362,9 +352,20 @@ export async function createSelectedUnitWorkerAdmissionDomainPackInput({
     };
   }
 
+  const reviewedUnitSourceDigest = computeReviewedUnitSourceDigest(
+    isSlice
+      ? { record: cloneJson(record), selected_slice_id: selectedUnit.slice_id }
+      : cloneJson(record)
+  );
+  if (!reviewedUnitSourceDigest) {
+    throw new Error(
+      `selected-unit reviewed digest cannot be resolved for ${selectedUnit.address}`
+    );
+  }
   const recordLocalInputs = await createWorkRecordAdmissionRecordLocalInputs({
     dir,
-    record: materializationSubject
+    record: materializationSubject,
+    sourceRecordDigestOverride: reviewedUnitSourceDigest
   });
 
   const dispatchReadiness = {

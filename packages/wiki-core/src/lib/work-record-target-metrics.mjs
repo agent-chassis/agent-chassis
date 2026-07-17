@@ -689,6 +689,7 @@ function normalizeExpectedEditTarget(
         ? "provider_unavailable"
       : matchedResolverEvidence?.target_resolution_status ?? "provider_unavailable";
 
+  const matchedProvider = matchedResolverEvidence?.target_resolution_provider ?? null;
   const target = {
     path,
     kind: kindResult.value,
@@ -700,14 +701,21 @@ function normalizeExpectedEditTarget(
       operationResult.value === "create"
         ? "create target; no pre-existing symbol expected"
         : forceProviderUnavailableReason ?? matchedResolverEvidence?.target_resolution_status_reason ?? targetResolutionStatusReason,
-    provider:
-      forceProviderUnavailableReason
-        ? null
-        : matchedResolverEvidence?.target_resolution_provider?.id ?? null,
+    provider: forceProviderUnavailableReason ? null : matchedProvider?.id ?? null,
+    provider_version: forceProviderUnavailableReason ? null : matchedProvider?.version ?? null,
+    provider_mode: forceProviderUnavailableReason ? null : matchedProvider?.mode ?? null,
     span:
       forceProviderUnavailableReason
         ? null
-        : matchedResolverEvidence?.target_resolution_span ?? null
+        : matchedResolverEvidence?.target_resolution_span ?? null,
+    fanout:
+      forceProviderUnavailableReason
+        ? null
+        : matchedResolverEvidence?.target_resolution_fanout ?? null,
+    candidates:
+      forceProviderUnavailableReason || !Array.isArray(matchedResolverEvidence?.target_resolution_candidates)
+        ? []
+        : matchedResolverEvidence.target_resolution_candidates
   };
 
   if (kindResult.status === "invalid" || operationResult.status === "invalid" || path === null || name === null) {
@@ -794,6 +802,45 @@ function normalizeResolverEvidence(value, hasExpectedEditTargets, context = {}) 
   };
 }
 
+function isResolverEvidenceEmbeddedBindingStale(value, context = {}) {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  const embeddedDigest = normalizeSha256Digest(
+    value.source_record_digest ?? value.sourceRecordDigest ?? value.record_digest ?? value.recordDigest
+  );
+  const embeddedUnit = normalizeCompleteWorkUnitAddress(
+    normalizeWorkUnitAddress(
+      value.selected_unit ?? value.selectedUnit ?? value.unit ?? value.work_unit_address ?? value.workUnitAddress
+    )
+  );
+
+  if (!embeddedDigest && !embeddedUnit) {
+    return false;
+  }
+
+  const contextDigest = normalizeSha256Digest(context.source_record_digest ?? context.sourceRecordDigest);
+  const contextUnit = normalizeCompleteWorkUnitAddress(
+    context.selected_unit ?? context.selectedUnit ?? context.unit
+  );
+
+  if (!contextDigest || !contextUnit) {
+    return true;
+  }
+  if (!embeddedDigest || !embeddedUnit) {
+    return true;
+  }
+  if (embeddedDigest !== contextDigest) {
+    return true;
+  }
+  if (!normalizeWorkUnitAddressComparable(embeddedUnit, contextUnit)) {
+    return true;
+  }
+
+  return false;
+}
+
 export function normalizeStructuralTargetMetrics(value = {}) {
   const expectedEditTargets = Array.isArray(value.expected_edit_targets) ? value.expected_edit_targets : null;
   const hasExpectedEditTargets = Array.isArray(expectedEditTargets);
@@ -822,8 +869,14 @@ export function normalizeStructuralTargetMetrics(value = {}) {
     source_record_digest: sourceRecordDigestContext,
     metric_source_provenance_input: metricSourceProvenanceInput
   });
+
   const resolverEvidenceEntries = normalizeResolverEvidenceEntries(
-    resolverEvidence.binding_status === "unavailable" ? null : value.target_resolution_evidence,
+    isResolverEvidenceEmbeddedBindingStale(value.target_resolution_evidence, {
+      selected_unit: selectedUnitContext,
+      source_record_digest: sourceRecordDigestContext
+    })
+      ? null
+      : value.target_resolution_evidence,
     hasExpectedEditTargets
   );
   const provisionalTargets = hasExpectedEditTargets
@@ -886,34 +939,12 @@ export function normalizeStructuralTargetMetrics(value = {}) {
   const targetKindCount = countUniqueStrings(validTargets.map((entry) => entry.kind));
   const writeScope = Array.isArray(value.write_scope) ? value.write_scope : [];
   const uniqueWriteScopeCount = countUniqueStrings(writeScope);
+
   const resolvedTargets = validTargets.filter((entry) => entry.resolution_status === "resolved");
-  const resolvedWriteScopePaths = new Set(resolvedTargets.map((entry) => entry.path).filter(Boolean));
-  const unresolvedTargetCount = validTargets.filter((entry) =>
-    ["provider_unavailable", "unresolved", "unsupported_kind", "missing_path"].includes(entry.resolution_status)
-  ).length;
-  const ambiguousTargetCount = validTargets.filter((entry) => entry.resolution_status === "ambiguous").length;
-  const resolvedSpanLineCounts = resolvedTargets
-    .map((entry) => normalizeTargetSpan(entry.span)?.line_count ?? null)
-    .filter((entry) => entry !== null);
-  const targetSpanLineCount = resolvedSpanLineCounts.length > 0
-    ? resolvedSpanLineCounts.reduce((sum, entry) => sum + entry, 0)
-    : null;
-  const maxTargetSpanLineCount = resolvedSpanLineCounts.length > 0
-    ? resolvedSpanLineCounts.reduce((max, entry) => Math.max(max, entry), 0)
-    : null;
   const fileStatsByPath = new Map(normalizeFileStatsLike(value.file_stats).map((entry) => [entry.path, entry.loc]));
-  const resolvedSpanRatios = resolvedTargets
-    .map((entry) => {
-      const span = normalizeTargetSpan(entry.span);
-      const fileLoc = fileStatsByPath.get(entry.path) ?? null;
-      return span && fileLoc && fileLoc > 0 ? span.line_count / fileLoc : null;
-    })
-    .filter((entry) => entry !== null);
-  const targetSpanToFileRatio = resolvedSpanRatios.length > 0 ? Math.max(...resolvedSpanRatios) : null;
   const resolvedFanoutCounts = resolvedTargets
     .map((entry) => {
-      const matchedResolverEvidence = findResolverEvidenceForTarget(entry, resolverEvidenceEntries);
-      const fanout = normalizeTargetFanout(matchedResolverEvidence?.target_resolution_fanout);
+      const fanout = normalizeTargetFanout(entry.fanout);
       return fanout?.direct_reference_count ?? fanout?.affected_symbol_count ?? null;
     })
     .filter((entry) => entry !== null);
@@ -955,33 +986,37 @@ export function normalizeStructuralTargetMetrics(value = {}) {
     (hasMetricSourceProvenanceInput ? "target provenance was not supplied" : "no structural target provenance supplied");
   const finalBindingReason =
     bindingStatus === "trusted" ? "trusted structural target evidence" : bindingReason;
-  const finalProviderUnavailableReason = bindingStatus !== "trusted" ? bindingReason : null;
-  const targetResolutionEvidenceStatus = finalProviderUnavailableReason ? "degraded" : resolverEvidence.target_resolution_evidence_status;
-  const targetResolutionProvider = finalProviderUnavailableReason ? null : resolverEvidence.target_resolution_provider;
-  const targetResolutionProviderVersion = finalProviderUnavailableReason ? null : resolverEvidence.target_resolution_provider_version;
-  const targetResolutionStatusReason = finalProviderUnavailableReason ?? resolverEvidence.target_resolution_status_reason;
-  const finalTargets = finalProviderUnavailableReason
+
+  const aggregateBindingUntrusted = bindingStatus !== "trusted";
+  const targetResolutionEvidenceStatus = aggregateBindingUntrusted ? "degraded" : resolverEvidence.target_resolution_evidence_status;
+  const targetResolutionProvider = aggregateBindingUntrusted ? null : resolverEvidence.target_resolution_provider;
+  const targetResolutionProviderVersion = aggregateBindingUntrusted ? null : resolverEvidence.target_resolution_provider_version;
+  const targetResolutionStatusReason = aggregateBindingUntrusted ? bindingReason : resolverEvidence.target_resolution_status_reason;
+
+  const finalTargets = targetDependencyFanoutReason
     ? normalizedTargets.map((entry) => ({
         ...entry,
         ...(entry.status === "valid" && entry.operation !== "create"
           ? {
               resolution_status: "provider_unavailable",
-              resolution_reason: finalProviderUnavailableReason,
+              resolution_reason: targetDependencyFanoutReason,
               provider: null,
-              span: null
+              provider_version: null,
+              provider_mode: null,
+              span: null,
+              fanout: null,
+              candidates: []
             }
           : {})
       }))
     : normalizedTargets;
-  const finalResolvedTargets = finalProviderUnavailableReason ? [] : resolvedTargets;
-  const finalUnresolvedTargetCount = finalProviderUnavailableReason
-    ? validTargets.filter((entry) =>
-        ["provider_unavailable", "unresolved", "unsupported_kind", "missing_path"].includes(entry.resolution_status)
-      ).length
-    : unresolvedTargetCount;
-  const finalAmbiguousTargetCount = finalProviderUnavailableReason
-    ? validTargets.filter((entry) => entry.resolution_status === "ambiguous").length
-    : ambiguousTargetCount;
+  const finalValidTargets = finalTargets.filter((entry) => entry.status === "valid");
+  const finalResolvedTargets = finalValidTargets.filter((entry) => entry.resolution_status === "resolved");
+  const finalResolvedWriteScopePaths = new Set(finalResolvedTargets.map((entry) => entry.path).filter(Boolean));
+  const finalUnresolvedTargetCount = finalValidTargets.filter((entry) =>
+    ["provider_unavailable", "unresolved", "unsupported_kind", "missing_path"].includes(entry.resolution_status)
+  ).length;
+  const finalAmbiguousTargetCount = finalValidTargets.filter((entry) => entry.resolution_status === "ambiguous").length;
   const finalResolvedSpanLineCounts = finalResolvedTargets
     .map((entry) => normalizeTargetSpan(entry.span)?.line_count ?? null)
     .filter((entry) => entry !== null);
@@ -1001,8 +1036,7 @@ export function normalizeStructuralTargetMetrics(value = {}) {
   const finalTargetSpanToFileRatio = finalResolvedSpanRatios.length > 0 ? Math.max(...finalResolvedSpanRatios) : null;
   const finalResolvedFanoutCounts = finalResolvedTargets
     .map((entry) => {
-      const matchedResolverEvidence = findResolverEvidenceForTarget(entry, resolverEvidenceEntries);
-      const fanout = normalizeTargetFanout(matchedResolverEvidence?.target_resolution_fanout);
+      const fanout = normalizeTargetFanout(entry.fanout);
       return fanout?.direct_reference_count ?? fanout?.affected_symbol_count ?? null;
     })
     .filter((entry) => entry !== null);
@@ -1019,14 +1053,14 @@ export function normalizeStructuralTargetMetrics(value = {}) {
     target_resolution_provider: targetResolutionProvider,
     target_resolution_provider_version: targetResolutionProviderVersion,
     target_resolution_status_reason: targetResolutionStatusReason,
-    resolved_edit_target_count: finalProviderUnavailableReason ? 0 : resolvedTargets.length,
+    resolved_edit_target_count: finalResolvedTargets.length,
     unresolved_edit_target_count: finalUnresolvedTargetCount,
     ambiguous_edit_target_count: finalAmbiguousTargetCount,
     target_span_line_count: finalTargetSpanLineCount,
     max_target_span_line_count: finalMaxTargetSpanLineCount,
     target_span_to_file_ratio: finalTargetSpanToFileRatio,
     target_dependency_fanout_count: finalTargetDependencyFanoutCount,
-    write_scope_without_resolved_targets: Math.max(0, uniqueWriteScopeCount - resolvedWriteScopePaths.size),
+    write_scope_without_resolved_targets: Math.max(0, uniqueWriteScopeCount - finalResolvedWriteScopePaths.size),
     targets: finalTargets,
     source_record_digest: sourceRecordDigest,
     selected_unit: selectedUnit,
@@ -1039,7 +1073,7 @@ export function normalizeStructuralTargetMetrics(value = {}) {
       policy_version: metricSourceProvenance?.policy_version ?? "worker-admission-policy.v1",
       source_record_digest: sourceRecordDigest,
       selected_unit: selectedUnit,
-      payload_bound_input_digest: finalProviderUnavailableReason ? null : metricSourceProvenance?.payload_bound_input_digest ?? null,
+      payload_bound_input_digest: aggregateBindingUntrusted ? null : metricSourceProvenance?.payload_bound_input_digest ?? null,
       expected_payload_bound_input_digest: metricSourceProvenance?.expected_payload_bound_input_digest ?? null,
       producer: metricSourceProvenance?.producer ?? null,
       binding_status: bindingStatus,

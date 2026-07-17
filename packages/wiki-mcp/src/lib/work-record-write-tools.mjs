@@ -12,8 +12,282 @@ import {
   buildCloseoutLintSummary
 } from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
 import {
+  runWorkspaceWorkRecordReadySliceRoute,
   validateOptionalExpectedSourceDigest
 } from "./work-record-write-route-helpers.mjs";
+import {
+  WORK_UNIT_FACET_PROVENANCE_VALUES,
+  WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES,
+  WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES,
+  WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES,
+  WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import {
+  WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES,
+  WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES
+} from "@agent-chassis/wiki-core/src/lib/work-record-target-metrics.mjs";
+
+export const WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME =
+  "workspace_work_record_ready_slice";
+
+const READY_SLICE_STATUS_VALUES = [
+  "inbox",
+  "todo",
+  "active",
+  "review",
+  "done",
+  "blocked",
+  "parked",
+  "cancelled"
+];
+const READY_SLICE_WORK_KIND_VALUES = ["implementation", "review", "redteam"];
+const READY_SLICE_PRIORITY_VALUES = ["low", "medium", "high", "critical"];
+const READY_SLICE_SHAPING_VALUES = ["implementation", "reviewer", "redteam"];
+const READY_SLICE_ATTESTATION_ACTION_VALUES = [
+  "preserve_or_refuse",
+  "invalidate_for_review"
+];
+
+function addReadySliceSchemaIssue(context, path, message) {
+  context.addIssue({ code: "custom", path: [path], message });
+}
+
+function isReadySliceRepositoryPath(value) {
+  const normalized = value.startsWith("./") ? value.slice(2) : value;
+  const segments = normalized.split("/");
+  return !(
+    !normalized ||
+    normalized.startsWith("/") ||
+    normalized.startsWith("~") ||
+    /^[A-Za-z]:/u.test(normalized) ||
+    normalized.includes("\\") ||
+    normalized.includes("\0") ||
+    segments.some((segment) => !segment || segment === "." || segment === "..")
+  );
+}
+
+export function createReadySliceInputSchema(z) {
+  const nonemptyString = z.string().trim().min(1);
+  const repositoryPath = nonemptyString.refine(isReadySliceRepositoryPath, {
+    message: "must be a canonical repository-relative POSIX path"
+  });
+  const provenanceValue = z.enum(WORK_UNIT_FACET_PROVENANCE_VALUES).nullable();
+  const acceptanceProvenance = z
+    .object({
+      text: provenanceValue.optional(),
+      verification_method: provenanceValue.optional(),
+      evidence_target: provenanceValue.optional()
+    })
+    .strict();
+  const targetProvenance = z
+    .object({
+      path: provenanceValue.optional(),
+      name: provenanceValue.optional(),
+      kind: provenanceValue.optional(),
+      operation: provenanceValue.optional(),
+      activity_kind: provenanceValue.optional(),
+      artifact_kind: provenanceValue.optional(),
+      granularity: provenanceValue.optional(),
+      optional: provenanceValue.optional()
+    })
+    .strict();
+  const acceptanceCriterion = z.union([
+    nonemptyString,
+    z
+      .object({
+        text: nonemptyString,
+        verification_method: z
+          .enum(WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES)
+          .nullable()
+          .optional(),
+        evidence_target: z.string().nullable().optional(),
+        facet_provenance: acceptanceProvenance.optional()
+      })
+      .strict()
+  ]);
+  const acceptance = z
+    .object({
+      criteria: z.array(acceptanceCriterion).min(1),
+      validation: z.array(nonemptyString).min(1)
+    })
+    .strict();
+  const expectedTarget = z
+    .object({
+      path: repositoryPath,
+      name: nonemptyString,
+      kind: z.enum(WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES),
+      operation: z.enum(WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES),
+      activity_kind: z
+        .enum(WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES)
+        .nullable()
+        .optional(),
+      artifact_kind: z
+        .enum(WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES)
+        .nullable()
+        .optional(),
+      granularity: z
+        .enum(WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES)
+        .nullable()
+        .optional(),
+      optional: z.boolean().optional(),
+      facet_provenance: targetProvenance.optional()
+    })
+    .strict();
+  const dispatchIntent = z
+    .object({
+      intended_agent_role: z.enum(["worker", "reviewer", "redteam"]),
+      target_unit: z.literal("slice"),
+      requires_graph_impact: z.boolean(),
+      requires_escalation: z.boolean()
+    })
+    .strict();
+  const agentNotes = z
+    .union([z.string(), z.array(z.string())])
+    .refine(
+      (value) =>
+        Buffer.byteLength(Array.isArray(value) ? value.join("\n") : value, "utf8") <= 8192,
+      { message: "agent_notes must be at most 8192 UTF-8 bytes after LF joining" }
+    );
+
+  return z
+    .object({
+      repo: z.string().optional(),
+      unit: z.string().regex(/^WK-[0-9]{4}$/),
+      slice_id: z.string().regex(/^SLICE-[0-9]{3}$/).optional(),
+      expected_source_digest: z
+        .string()
+        .regex(/^sha256:[0-9a-f]{64}$/)
+        .optional(),
+      shaping_mode: z.enum(READY_SLICE_SHAPING_VALUES).optional(),
+      attestation_action: z
+        .enum(READY_SLICE_ATTESTATION_ACTION_VALUES)
+        .optional(),
+      verbose: z.boolean().optional(),
+      title: nonemptyString.optional(),
+      status: z.enum(READY_SLICE_STATUS_VALUES).optional(),
+      work_kind: z.enum(READY_SLICE_WORK_KIND_VALUES).optional(),
+      priority: z.enum(READY_SLICE_PRIORITY_VALUES).optional(),
+      owner: nonemptyString.optional(),
+      depends_on: z.array(nonemptyString).optional(),
+      read_scope: z.array(nonemptyString).min(1).optional(),
+      repo_paths: z.array(repositoryPath).min(1).optional(),
+      write_scope: z.array(repositoryPath).optional(),
+      dispatch_intent: dispatchIntent.optional(),
+      acceptance: acceptance.optional(),
+      expected_edit_targets: z.array(expectedTarget).optional(),
+      expected_changed_line_budget: z.number().int().nonnegative().nullable().optional(),
+      agent_notes: agentNotes.optional()
+    })
+    .strict()
+    .superRefine((args, context) => {
+      const create = args.slice_id === undefined;
+      const mode = args.shaping_mode ?? (create ? "implementation" : null);
+      const expectedShape = {
+        implementation: { workKind: "implementation", role: "worker" },
+        reviewer: { workKind: "review", role: "reviewer" },
+        redteam: { workKind: "redteam", role: "redteam" }
+      }[mode];
+
+      if (create) {
+        for (const field of ["title", "read_scope", "repo_paths", "acceptance"]) {
+          if (args[field] === undefined) {
+            addReadySliceSchemaIssue(context, field, `${field} is required on create`);
+          }
+        }
+      }
+      if (
+        create &&
+        args.attestation_action === "invalidate_for_review"
+      ) {
+        addReadySliceSchemaIssue(
+          context,
+          "attestation_action",
+          "creation cannot invalidate an attestation"
+        );
+      }
+      if (
+        (mode === "reviewer" || mode === "redteam") &&
+        args.attestation_action === "invalidate_for_review"
+      ) {
+        addReadySliceSchemaIssue(
+          context,
+          "attestation_action",
+          "findings-only shaping cannot invalidate an implementation attestation"
+        );
+      }
+      if (expectedShape && args.work_kind !== undefined && args.work_kind !== expectedShape.workKind) {
+        addReadySliceSchemaIssue(
+          context,
+          "work_kind",
+          "work_kind contradicts shaping_mode"
+        );
+      }
+      if (
+        expectedShape &&
+        args.dispatch_intent !== undefined &&
+        args.dispatch_intent.intended_agent_role !== expectedShape.role
+      ) {
+        addReadySliceSchemaIssue(
+          context,
+          "dispatch_intent",
+          "dispatch_intent contradicts shaping_mode"
+        );
+      }
+      if (mode === "implementation") {
+        if (create && (!Array.isArray(args.write_scope) || args.write_scope.length === 0)) {
+          addReadySliceSchemaIssue(
+            context,
+            "write_scope",
+            "implementation write_scope is required and non-empty on create"
+          );
+        }
+        if (
+          create &&
+          (!Array.isArray(args.expected_edit_targets) ||
+            args.expected_edit_targets.length === 0)
+        ) {
+          addReadySliceSchemaIssue(
+            context,
+            "expected_edit_targets",
+            "implementation expected_edit_targets is required and non-empty on create"
+          );
+        }
+        if (args.write_scope !== undefined && args.write_scope.length === 0) {
+          addReadySliceSchemaIssue(
+            context,
+            "write_scope",
+            "implementation write_scope must be non-empty"
+          );
+        }
+        if (
+          args.expected_edit_targets !== undefined &&
+          args.expected_edit_targets.length === 0
+        ) {
+          addReadySliceSchemaIssue(
+            context,
+            "expected_edit_targets",
+            "implementation expected_edit_targets must be non-empty"
+          );
+        }
+      }
+      if (mode === "reviewer" || mode === "redteam") {
+        if (args.write_scope?.length > 0) {
+          addReadySliceSchemaIssue(
+            context,
+            "write_scope",
+            "reviewer/redteam write_scope must be empty"
+          );
+        }
+        if (args.expected_edit_targets?.some((target) => target.operation !== "inspect")) {
+          addReadySliceSchemaIssue(
+            context,
+            "expected_edit_targets",
+            "reviewer/redteam expected_edit_targets must be an inspection plan"
+          );
+        }
+      }
+    });
+}
 
 const CLOSEOUT_LINT_STATUS_TRIGGER_VALUES = ["review", "done"];
 const CLOSEOUT_LINT_FINDING_LIMIT = 3;
@@ -337,6 +611,26 @@ export function registerWorkRecordWriteTools({
   );
 
   registerTool(
+    WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME,
+    {
+      description:
+        "Write-capable: atomically create or update one independently executable tracker-local slice contract using ready-slice-contract.v1. The strict whole-object schema rejects unknown properties and arbitrary nested patches; omitted update fields preserve exact persisted values, while supplied fields replace whole fields after normalization. Creation allocates the next SLICE-### and applies documented defaults. implementation/reviewer/redteam shaping owns work_kind, dispatch role, target_unit, write_scope constraints, and findings-only inspection constraints. The operation performs one load-to-write CAS and one full-persistence-snapshot CAS under the store lock, never returns the private snapshot digest, invalidates only an explicitly selected unit/current-digest attestation carry when valid, and never mutates sidecars. Success/no-op returns only ready-slice-structural-readiness.v1; this closed structural vocabulary is read-only and is not dispatch readiness, dependency policy, admission evidence, Node Engine evaluation, launch, provisioning, or backend selection. A post-persistence projection failure remains contract_persisted:true with persisted whole-record and reviewed-unit digests and projection_internal. workspace_agent_dispatch remains the separate WK-1567 dispatch-owned evidence-derivation and launch-intent call.",
+      inputSchema: createReadySliceInputSchema(z)
+    },
+    async (args) => {
+      try {
+        return await runWorkspaceWorkRecordReadySliceRoute({
+          workspaceRepos,
+          args,
+          dependencies: { resolveWorkspaceRepo }
+        });
+      } catch (error) {
+        return errorContent(error);
+      }
+    }
+  );
+
+  registerTool(
     "workspace_work_record_upsert_slice",
     {
       description:
@@ -503,7 +797,7 @@ export function registerWorkRecordWriteTools({
     "workspace_work_record_set_acceptance",
     {
       description:
-        "Write-capable: set acceptance.criteria and/or acceptance.validation at record or slice scope for a WK, selected by `unit`. Validates against work-record.v1 before writing.",
+        "Write-capable: set acceptance.criteria and/or acceptance.validation at record or slice scope for a WK, selected by `unit`. This is the only contract setter that may repair a structurally parsed invalid base, and only when the persisted record is already canonical and every base error is confined to the selected acceptance subtree; every other setter remains fail-closed. Object-shaped acceptance preserves an omitted criteria/validation sibling exactly, while missing or non-object acceptance requires both arrays as a whole replacement. The server guards the post-normalization persisted diff to caller-named acceptance paths plus enumerated server-managed fields, fully validates the prospective record, and performs one CAS-protected write. Compact responses preserve diagnostic order and codes, but diagnostic count and fields may be bounded; `diagnostics_truncation` reports compaction, and `detail_available` identifies verbose retrieval. `verbose:true` returns complete core diagnostics, while responses requiring no truncation retain their existing shape. The strict schema grants no arbitrary invalid-record edit or caller-controlled authority input.",
       inputSchema: z
         .object({
           repo: z.string().optional(),

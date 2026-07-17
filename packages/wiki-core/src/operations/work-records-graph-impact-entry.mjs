@@ -141,7 +141,8 @@ export async function createPersistedGraphImpactEntry({
   );
   const recordLocalInputs = await createWorkRecordAdmissionRecordLocalInputs({
     dir,
-    record: materializationRecord
+    record: materializationRecord,
+    sourceRecordDigestOverride: sourceDigest
   });
   const contextualStructuralTargetMetrics = createContextualizedStructuralTargetMetrics(
     materializationRecord,

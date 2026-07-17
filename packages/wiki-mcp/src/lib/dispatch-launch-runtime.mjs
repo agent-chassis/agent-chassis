@@ -4,10 +4,18 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 import {
   BACKEND_REFUSAL_CODES,
+  createManagedWorkerConfinementActivationBinding,
   createWorkspaceAgentDispatchBackend
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
 import {
+  WIKI_MCP_ASSIGNED_UNIT_ENV_VAR,
+  WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR,
+  WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR,
+  WIKI_MCP_COMMIT_RUN_ID_ENV_VAR,
   WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR,
+  WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
+  WIKI_MCP_TOOL_PROFILE_ENV_VAR,
+  WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
   WIKI_MCP_WORKSPACE_DIR_ENV_VAR
 } from "@agent-chassis/agent-launch-cli/src/lib/codex-role-mcp-env.mjs";
 import {
@@ -29,6 +37,9 @@ import {
   buildFamilyExecutorRegistryEntry
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-launch-adapter-contract.mjs";
 import {
+  createHostWriteAuthorityBrokerChannel,
+  createHostWriteAuthorityProvisioningAdapter,
+  createHostWriteAuthorityIntegrationAdapter,
   createHostWriteAuthoritySubstrateAdapterIfBrokerReachable,
   resolveHostWriteAuthoritySidecarEndpoint
 } from "@agent-chassis/agent-launch-cli/src/lib/host-write-authority-substrate.mjs";
@@ -39,8 +50,53 @@ import {
 import {
   createLauncherOwnedSourceToolSurfacePreparer
 } from "@agent-chassis/agent-launch-cli/src/lib/agent-backend.mjs";
+import { runPostWorkerSliceLifecycle } from "./dispatch-run-monitor-routes.mjs";
+import { WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION } from "./workspace-commit-tool.mjs";
 
 const SESSION_IDENTITY_SCHEMA_VERSION = "workspace-agent-dispatch-session-identity.v1";
+const DISPATCH_CODEX_AUTHENTICATED_SMOKE_TIMEOUT_ENV_VAR =
+  "WIKI_MCP_DISPATCH_CODEX_AUTHENTICATED_SMOKE_TIMEOUT_MS";
+const dispatchCodexTestSeamEvidence = [];
+const DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_PREFIX = "mcp_servers.wiki.env.";
+const DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_ALLOWLIST = new Set([
+  WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
+  WIKI_MCP_WORKSPACE_DIR_ENV_VAR,
+  WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR,
+  WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
+  WIKI_MCP_TOOL_PROFILE_ENV_VAR,
+  WIKI_MCP_ASSIGNED_UNIT_ENV_VAR,
+  WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR,
+  WIKI_MCP_COMMIT_RUN_ID_ENV_VAR,
+  WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR
+]);
+
+export function consumeDispatchCodexTestSeamEvidence() {
+  return dispatchCodexTestSeamEvidence.splice(0, dispatchCodexTestSeamEvidence.length);
+}
+
+function captureDispatchCodexTestWikiChildEnv(childArgs) {
+  const wikiChildEnv = {};
+  for (let index = 0; index < childArgs.length - 1; index += 1) {
+    if (childArgs[index] !== "-c") continue;
+    const override = childArgs[index + 1];
+    index += 1;
+    if (typeof override !== "string" ||
+        !override.startsWith(DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_PREFIX)) {
+      continue;
+    }
+    const separator = override.indexOf("=", DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_PREFIX.length);
+    if (separator < 0) continue;
+    const key = override.slice(DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_PREFIX.length, separator);
+    if (!DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_ALLOWLIST.has(key)) continue;
+    const value = JSON.parse(override.slice(separator + 1));
+    if (typeof value !== "string") {
+      throw new Error(`test seam wiki child environment ${key} must be a string`);
+    }
+
+    wikiChildEnv[key] = value;
+  }
+  return Object.freeze(wikiChildEnv);
+}
 
 function selectDispatchLaunchExecutor(env = process.env) {
   const fixture = String(env.WIKI_MCP_DISPATCH_BACKEND_TEST_FIXTURE ?? "").trim();
@@ -64,7 +120,8 @@ function selectDispatchLaunchExecutor(env = process.env) {
   const seams = String(env.WIKI_MCP_DISPATCH_CODEX_EXECUTOR_SEAMS ?? "").trim();
   if (seams) {
     if (seams === "accept_succeed_test_seams") {
-      return createCodexWorkspaceAgentLaunchExecutor(
+      return createProductionCodexDispatchExecutor(
+        env,
         buildAcceptSucceedCodexExecutorTestSeams()
       );
     }
@@ -74,7 +131,53 @@ function selectDispatchLaunchExecutor(env = process.env) {
   }
 
   const hostWriteAuthority = resolveHostWriteAuthoritySubstrateAdapter(env);
-  return createCodexWorkspaceAgentLaunchExecutor({ hostWriteAuthority });
+  const killTimeoutMs = resolveAuthenticatedSmokeKillTimeoutMs(env);
+  return createProductionCodexDispatchExecutor(env, { hostWriteAuthority, killTimeoutMs });
+}
+
+function createProductionCodexDispatchExecutor(env, options = {}) {
+  return createCodexWorkspaceAgentLaunchExecutor({
+    ...options,
+    env,
+    buildPlan: buildManagedWorkerGitlessCodexRolePlan
+  });
+}
+
+async function buildManagedWorkerGitlessCodexRolePlan(input) {
+
+  const { buildCodexRolePlan } = await import(
+    "@agent-chassis/agent-launch-cli/src/commands/codex-role.mjs"
+  );
+  const plan = await buildCodexRolePlan(input);
+  if (input?.role !== "worker" || input?.worker_scope_authority == null || plan?.mode === "refusal") {
+    return plan;
+  }
+  const args = Array.isArray(plan?.args) ? [...plan.args] : null;
+  if (args === null) {
+    throw new Error("managed Codex worker plan must carry argv");
+  }
+  if (!args.includes("--skip-git-repo-check")) {
+    const execIndex = args.indexOf("exec");
+    if (execIndex < 0) {
+      throw new Error("managed Codex worker plan must carry the exec subcommand");
+    }
+
+    args.splice(execIndex + 1, 0, "--skip-git-repo-check");
+  }
+  return { ...plan, args };
+}
+
+function resolveAuthenticatedSmokeKillTimeoutMs(env) {
+  const raw = String(env[DISPATCH_CODEX_AUTHENTICATED_SMOKE_TIMEOUT_ENV_VAR] ?? "").trim();
+  if (!raw) return null;
+  const timeout = Number(raw);
+  if (!Number.isInteger(timeout) || timeout < 1_000 || timeout > 300_000) {
+    throw new Error(
+      `${DISPATCH_CODEX_AUTHENTICATED_SMOKE_TIMEOUT_ENV_VAR} must be an integer in [1000, 300000]`
+    );
+  }
+
+  return timeout;
 }
 
 function resolveHostWriteAuthoritySubstrateAdapter(env = process.env) {
@@ -84,6 +187,24 @@ function resolveHostWriteAuthoritySubstrateAdapter(env = process.env) {
     return null;
   }
   return createHostWriteAuthoritySubstrateAdapterIfBrokerReachable({ endpoint });
+}
+
+export function resolveHostWriteAuthorityProvisioningAdapter(env = process.env) {
+  const endpoint = resolveHostWriteAuthoritySidecarEndpoint(env);
+  if (endpoint === null) {
+    return null;
+  }
+  const channel = createHostWriteAuthorityBrokerChannel({ endpoint });
+  return createHostWriteAuthorityProvisioningAdapter({ channel });
+}
+
+export function resolveHostWriteAuthorityIntegrationAdapter(env = process.env) {
+  const endpoint = resolveHostWriteAuthoritySidecarEndpoint(env);
+  if (endpoint === null) {
+    return null;
+  }
+  const channel = createHostWriteAuthorityBrokerChannel({ endpoint });
+  return createHostWriteAuthorityIntegrationAdapter({ channel });
 }
 
 export function buildDispatchLaunchExecutors(env = process.env) {
@@ -113,45 +234,28 @@ export function buildDispatchLaunchExecutors(env = process.env) {
 function buildAcceptSucceedCodexExecutorTestSeams() {
 
   return {
-    buildPlan: async (input) => ({
-      mode: "executable",
-      role: input?.role ?? "worker",
-      subject: input?.subject ?? null,
-      repo: input?.cwd ?? null,
-      command: "codex",
-      args: [],
-      env: input?.env ?? {},
-      preparedNewWriteRoots: []
-    }),
-    buildBwrapPlan: () => ({
-      bwrapPath: "/test-seams/bwrap-not-invoked",
-      argv: [],
-      env: {}
-    }),
-    assertBwrap: () => {},
-    ensureWriteRoots: async () => {},
-    spawn: () => createCodexExecutorTestSeamChild()
+
+    spawn: (plan) => {
+      const childArgs = Array.isArray(plan?.childArgs) ? plan.childArgs : [];
+      dispatchCodexTestSeamEvidence.push(Object.freeze({
+        repo: typeof plan?.repo === "string" ? plan.repo : null,
+        cwd: typeof plan?.cwd === "string" ? plan.cwd : null,
+        wiki_mcp_child_env: captureDispatchCodexTestWikiChildEnv(childArgs)
+      }));
+      return createCodexExecutorTestSeamChild();
+    }
   };
 }
 
 function createCodexExecutorTestSeamChild() {
-
   const listeners = { exit: [], error: [] };
   setImmediate(() => {
-    for (const cb of listeners.exit) {
-      try {
-        cb(0, null);
-      } catch {
-
-      }
-    }
+    for (const listener of listeners.exit) listener(0, null);
   });
   return {
     pid: 0,
-    on(event, cb) {
-      if (event in listeners && typeof cb === "function") {
-        listeners[event].push(cb);
-      }
+    on(event, listener) {
+      if (event in listeners && typeof listener === "function") listeners[event].push(listener);
     }
   };
 }
@@ -241,31 +345,46 @@ export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
   return Object.freeze({
     mainRepo: canonicalMainRepo,
     worktreeRoot: canonicalWorktreeRoot,
-    sharedDependencyRoot: path.join(launcherBase, ".agent-dependencies", repoName, "node_modules"),
-    cacheRoot: path.join(launcherBase, ".agent-caches", repoName),
 
-    confinementAvailable: false,
-    resolveAttemptState: failMissingLauncherOwnedProvisioningAttemptState
+    managedConfinementActivation: createManagedWorkerConfinementActivationBinding()
   });
-}
-
-async function failMissingLauncherOwnedProvisioningAttemptState() {
-  throw new Error(
-    "launcher-owned dispatch worktree attempt-state source is not configured; refusing provisioning instead of defaulting retryId to 0"
-  );
 }
 
 export function buildDispatchRuntime(env = process.env) {
   const dispatchSessionIdentity = mintDispatchSessionIdentity();
   const launchExecutors = buildDispatchLaunchExecutors(env);
+
+  const worktreeProvisioning = resolveDispatchWorktreeProvisioningConfig(env);
+
+  const hostProvisioningAdapter =
+    worktreeProvisioning === null ? null : resolveHostWriteAuthorityProvisioningAdapter(env);
+  const worktreeProvisioningConfig =
+    worktreeProvisioning !== null && hostProvisioningAdapter !== null
+      ? Object.freeze({ ...worktreeProvisioning, hostProvisioningAdapter })
+      : worktreeProvisioning;
+
+  const hostSliceIntegrationAdapter =
+    worktreeProvisioning === null ? null : resolveHostWriteAuthorityIntegrationAdapter(env);
+  const composedPostWorkerSliceLifecycle = hostSliceIntegrationAdapter === null
+    ? runPostWorkerSliceLifecycle
+    : ({ workspace, status, deps = {} }) => runPostWorkerSliceLifecycle({
+        workspace,
+        status,
+        deps: { ...deps, hostSliceIntegrationAdapter }
+      });
   const dispatchBackend =
     launchExecutors && launchExecutors.codex
       ? createWorkspaceAgentDispatchBackend({
           launchExecutors,
           requireManagedProvisioning: true,
-          worktreeProvisioning: resolveDispatchWorktreeProvisioningConfig(env),
+          worktreeProvisioning: worktreeProvisioningConfig,
+          closedInputCommitComposition: WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION,
+          postWorkerSliceLifecycle: composedPostWorkerSliceLifecycle,
           evaluateWorkerAdmission: evaluateWorkerAdmissionForBackend,
-          prepareSourceToolSurface: createLauncherOwnedSourceToolSurfacePreparer({ env })
+          prepareSourceToolSurface: createLauncherOwnedSourceToolSurfacePreparer({
+            env,
+            launcherAuthorityWorkspaceDir: worktreeProvisioning?.mainRepo ?? null
+          })
         })
       : null;
   return { dispatchBackend, dispatchSessionIdentity };

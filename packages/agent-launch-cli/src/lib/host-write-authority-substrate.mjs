@@ -20,18 +20,35 @@ export {
   buildHostWriteAuthorityLaunchInput,
   buildHostWriteAuthorityStartLaunchEnvelope,
   buildHostWriteAuthorityProbeEnvelope,
+  buildHostWriteAuthorityProvisionWorktreeEnvelope,
+  buildHostWriteAuthorityProvisionWorktreeRequest,
+  HOST_WRITE_AUTHORITY_PROVISION_WORKTREE_REQUEST_FIELDS,
+  buildHostWriteAuthorityCommitSliceEnvelope,
+  buildHostWriteAuthorityCommitSliceRequest,
+  HOST_WRITE_AUTHORITY_COMMIT_SLICE_REQUEST_FIELDS,
+  buildHostWriteAuthorityIntegrateSliceEnvelope,
+  buildHostWriteAuthorityIntegrateSliceRequest,
+  HOST_WRITE_AUTHORITY_INTEGRATE_SLICE_REQUEST_FIELDS,
+  HOST_WRITE_AUTHORITY_SLICE_INTEGRATED_RESULT_FIELDS,
+  isCompleteIntegrateSliceRequestIdentity,
+  validateSliceIntegratedResult,
   validateHostWriteAuthorityResponseEnvelope
 } from "./host-write-authority-substrate/request-envelopes.mjs";
 
 export {
-  createHostWriteAuthoritySubstrateAdapter
+  createHostWriteAuthoritySubstrateAdapter,
+  createHostWriteAuthorityProvisioningAdapter,
+  createHostWriteAuthorityCommitAdapter,
+  createHostWriteAuthorityIntegrationAdapter
 } from "./host-write-authority-substrate/adapter.mjs";
 
 export {
   HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS,
   HOST_WRITE_AUTHORITY_BROKER_REFUSAL_CODES,
   buildBrokerWorkerAdmissionEnv,
-  createHostWriteAuthorityBroker
+  createHostWriteAuthorityBroker,
+  defaultCommitManagedWorkerSlice,
+  defaultIntegrateManagedWorkerSlice
 } from "./host-write-authority-substrate/broker.mjs";
 
 export {

@@ -1,6 +1,5 @@
 
 
-import { createHash } from "node:crypto";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 
@@ -9,6 +8,9 @@ import {
   WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_DECISION_KIND,
   WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SCHEMA_VERSION
 } from "./work-record-admission-decision-codes.mjs";
+import {
+  computeWorkRecordAdmissionDerivedEvidenceSidecarBytesDigest
+} from "./work-record-admission-derived-evidence-persist.mjs";
 
 export const ADMISSION_EVIDENCE_SIDECAR_DIRECTORY = "wiki/work-records/evidence";
 
@@ -62,9 +64,11 @@ export function normalizeAdmissionSidecarPath(value) {
 }
 
 export function computeAdmissionSidecarDigest(value) {
-  return `sha256:${createHash("sha256")
-    .update(`${JSON.stringify(value, null, 2)}\n`, "utf8")
-    .digest("hex")}`;
+  return computeAdmissionSidecarBytesDigest(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+export function computeAdmissionSidecarBytesDigest(bytes) {
+  return computeWorkRecordAdmissionDerivedEvidenceSidecarBytesDigest(bytes);
 }
 
 export function sidecarBindsToPersistedEntry(sidecar, entry) {
@@ -80,37 +84,42 @@ export function sidecarBindsToPersistedEntry(sidecar, entry) {
   );
 }
 
-export async function readPersistedWorkerAdmissionEvidenceSidecar({ dir, record, selectedUnit, sourceDigest }) {
-  const persistedEntry = findPersistedWorkerAdmissionEvidenceEntry(record, selectedUnit, sourceDigest);
+export async function readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, entry }) {
 
-  if (!persistedEntry) {
+  if (!isObject(entry)) {
     return null;
   }
 
-  if (isObject(persistedEntry.normalized_request)) {
-    return cloneJson(persistedEntry);
+  if (isObject(entry.normalized_request)) {
+    return cloneJson(entry);
+  }
+
+  if (entry.sidecar_path === null || entry.sidecar_path === undefined) {
+    if (entry.sidecar_digest === null || entry.sidecar_digest === undefined) {
+      return null;
+    }
   }
 
   const entryDiagnostics = {
-    record_id: persistedEntry.record_id ?? null,
-    unit: cloneJson(persistedEntry.unit ?? null),
-    source_record_digest: persistedEntry.source_record_digest ?? null,
-    sidecar_path: persistedEntry.sidecar_path ?? null
+    record_id: entry.record_id ?? null,
+    unit: cloneJson(entry.unit ?? null),
+    source_record_digest: entry.source_record_digest ?? null,
+    sidecar_path: entry.sidecar_path ?? null
   };
 
-  const sidecarPath = normalizeAdmissionSidecarPath(persistedEntry.sidecar_path);
-  const expectedDigest = normalizeStringEntry(persistedEntry.sidecar_digest);
+  const sidecarPath = normalizeAdmissionSidecarPath(entry.sidecar_path);
+  const expectedDigest = normalizeStringEntry(entry.sidecar_digest);
   if (!sidecarPath || !expectedDigest) {
     throw new WorkerAdmissionSidecarError(
       "sidecar_reference_malformed",
       "compact persisted derived-evidence entry references a sidecar with a missing or invalid sidecar_path/sidecar_digest",
-      { ...entryDiagnostics, sidecar_digest: persistedEntry.sidecar_digest ?? null }
+      { ...entryDiagnostics, sidecar_digest: entry.sidecar_digest ?? null }
     );
   }
 
-  let raw;
+  let rawBytes;
   try {
-    raw = await readFile(path.resolve(dir, sidecarPath), "utf8");
+    rawBytes = await readFile(path.resolve(dir, sidecarPath));
   } catch (error) {
     throw new WorkerAdmissionSidecarError(
       "sidecar_read_failed",
@@ -119,6 +128,20 @@ export async function readPersistedWorkerAdmissionEvidenceSidecar({ dir, record,
     );
   }
 
+  const actualDigest = computeAdmissionSidecarBytesDigest(rawBytes);
+  if (actualDigest !== expectedDigest) {
+    throw new WorkerAdmissionSidecarError(
+      "sidecar_digest_mismatch",
+      `referenced admission evidence sidecar at ${sidecarPath} does not match its persisted digest`,
+      {
+        ...entryDiagnostics,
+        expected_digest: expectedDigest,
+        actual_digest: actualDigest
+      }
+    );
+  }
+
+  const raw = rawBytes.toString("utf8");
   let sidecar;
   try {
     sidecar = JSON.parse(raw);
@@ -130,7 +153,7 @@ export async function readPersistedWorkerAdmissionEvidenceSidecar({ dir, record,
     );
   }
 
-  if (!sidecarBindsToPersistedEntry(sidecar, persistedEntry)) {
+  if (!sidecarBindsToPersistedEntry(sidecar, entry)) {
     throw new WorkerAdmissionSidecarError(
       "sidecar_binding_mismatch",
       `referenced admission evidence sidecar at ${sidecarPath} does not bind to its persisted entry`,
@@ -138,19 +161,12 @@ export async function readPersistedWorkerAdmissionEvidenceSidecar({ dir, record,
     );
   }
 
-  const actualDigest = computeAdmissionSidecarDigest(sidecar);
-  if (actualDigest !== expectedDigest) {
-    console.warn(JSON.stringify({
-      level: "warn",
-      event: "worker_admission_sidecar_digest_mismatch",
-      ...entryDiagnostics,
-      expected_digest: expectedDigest,
-      actual_digest: actualDigest
-    }));
-    return null;
-  }
-
   return cloneJson(sidecar);
+}
+
+export async function readPersistedWorkerAdmissionEvidenceSidecar({ dir, record, selectedUnit, sourceDigest }) {
+  const persistedEntry = findPersistedWorkerAdmissionEvidenceEntry(record, selectedUnit, sourceDigest);
+  return readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, entry: persistedEntry });
 }
 
 export function attachPersistedReviewAttestations(derivedEvidence, persistedEvidence) {

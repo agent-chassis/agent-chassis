@@ -23,12 +23,20 @@ export const HOST_WRITE_AUTHORITY_RESPONSE_SCHEMA_VERSION =
 
 export const HOST_WRITE_AUTHORITY_OPS = Object.freeze({
   START_LAUNCH: "start_launch",
-  PROBE_RUN: "probe_run"
+  PROBE_RUN: "probe_run",
+  PROVISION_WORKTREE: "provision_worktree",
+  COMMIT_SLICE: "commit_slice",
+  INTEGRATE_SLICE: "integrate_slice"
 });
 
 export const HOST_WRITE_AUTHORITY_RESPONSE_KINDS = Object.freeze({
   LAUNCH_ACCEPTED: "launch_accepted",
   PROBE_RESULT: "probe_result",
+  WORKTREE_PROVISIONED: "worktree_provisioned",
+
+  SLICE_COMMITTED: "slice_committed",
+
+  SLICE_INTEGRATED: "slice_integrated",
   REFUSAL: "refusal"
 });
 
@@ -66,7 +74,16 @@ export const HOST_WRITE_AUTHORITY_REFUSAL_REASONS = Object.freeze({
   PROTOCOL_VERSION_UNSUPPORTED:
     "host_write_authority_protocol_version_unsupported",
   FORBIDDEN_TOKEN_IN_LAUNCH_INPUT:
-    "host_write_authority_forbidden_token_in_launch_input"
+    "host_write_authority_forbidden_token_in_launch_input",
+
+  PROVISIONING_CARRIER_INVALID:
+    "host_write_authority_provisioning_carrier_invalid",
+
+  COMMIT_RESULT_INVALID:
+    "host_write_authority_commit_result_invalid",
+
+  INTEGRATION_RESULT_INVALID:
+    "host_write_authority_integration_result_invalid"
 });
 
 export const REFUSAL_REASON_TO_BACKEND_CODE = Object.freeze({
@@ -81,7 +98,13 @@ export const REFUSAL_REASON_TO_BACKEND_CODE = Object.freeze({
   [HOST_WRITE_AUTHORITY_REFUSAL_REASONS.BROKER_REFUSED]:
     BACKEND_CODE_LAUNCH_REFUSED,
   [HOST_WRITE_AUTHORITY_REFUSAL_REASONS.FORBIDDEN_TOKEN_IN_LAUNCH_INPUT]:
-    BACKEND_CODE_LAUNCH_REFUSED
+    BACKEND_CODE_LAUNCH_REFUSED,
+  [HOST_WRITE_AUTHORITY_REFUSAL_REASONS.PROVISIONING_CARRIER_INVALID]:
+    BACKEND_CODE_LAUNCH_FAILED_BEFORE_START,
+  [HOST_WRITE_AUTHORITY_REFUSAL_REASONS.COMMIT_RESULT_INVALID]:
+    BACKEND_CODE_LAUNCH_FAILED_BEFORE_START,
+  [HOST_WRITE_AUTHORITY_REFUSAL_REASONS.INTEGRATION_RESULT_INVALID]:
+    BACKEND_CODE_LAUNCH_FAILED_BEFORE_START
 });
 
 export const WORKER_GATE_REFUSAL_DETAIL_KIND = "worker_gate_refusal";

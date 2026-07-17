@@ -48,6 +48,30 @@ meaningfully safer than no-sandbox while staying usable everywhere.
 - **Orchestrator / escalated / host sessions** are operator-trusted and outside
   the dispatched-run enforcement envelope by design.
 
+### Phase 1 managed implementation-worker R/W boundary
+
+For the bounded Phase 1 managed implementation-worker tranche, `R` is the
+normalized union of the canonical unit's `read_scope` and `repo_paths`; `W` is
+the normalized canonical `write_scope`. The launcher freezes both sets before
+launch. The worker can see exactly `R union W` repository content and can mutate
+exactly `W`. Including `W` in visibility is deliberate: an authorized write
+target does not also need to be duplicated in `read_scope` or `repo_paths`.
+
+The Codex inspection shell remains available only as a prompt-governed,
+non-mutating way to inspect the visible namespace. It is not an authority source
+and cannot widen `R` or `W`. This tranche exposes no worker validation or general
+MCP tools. Delivery uses only the closed-input commit capability in the trusted
+host/runtime boundary, with the server-resolved binding as its input; the worker
+does not receive the repository gitdir, index, refs, or a general commit shell.
+
+Every family/backend path claimed as supported must enact this same binding.
+Unsupported families, backends, scope shapes, or confinement capabilities fail
+closed rather than plain-spawning or widening visibility. The initial bootstrap
+posture preserves readable launcher-provided Codex auth/sourceHome and
+`shareNet=true` model-API egress as explicit operator-accepted residual risks
+under prompt governance. It does not add or imply a digest-bound or per-dispatch
+mechanical risk-acceptance gate.
+
 ## Product Structure
 
 The system ships as two products over one codebase:

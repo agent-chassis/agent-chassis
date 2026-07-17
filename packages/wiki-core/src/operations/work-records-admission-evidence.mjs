@@ -1,7 +1,6 @@
 
 
 import path from "node:path";
-import { readFile } from "node:fs/promises";
 import {
   cloneJson,
   createContextualizedStructuralTargetMetrics,
@@ -11,7 +10,10 @@ import {
   normalizeNonEmptyString,
   parseDispatchUnitAddress
 } from "./work-records-shared.mjs";
-import { writeValidatedWorkRecord } from "./work-records-store-io.mjs";
+import {
+  computeWorkRecordPersistenceSnapshotDigest,
+  writeValidatedWorkRecordWithAdmissionSidecars
+} from "./work-records-store-io.mjs";
 import {
   WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_GENERATOR,
   WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SCHEMA_VERSION,
@@ -20,14 +22,18 @@ import {
   evaluateWorkRecordAdmissionDerivedEvidence,
   systemUtcClock
 } from "../lib/work-record-admission.mjs";
-import { validateReviewAttestation } from "../lib/work-record-review-attestation.mjs";
 import {
-  buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath,
-  computeWorkRecordAdmissionDerivedEvidenceSidecarDigest,
+  computeReviewedUnitSourceDigest,
+  validateReviewAttestation
+} from "../lib/work-record-review-attestation.mjs";
+import {
   createPersistedWorkerAdmissionDerivedEvidence,
   createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary,
-  writeWorkRecordAdmissionDerivedEvidenceSidecar
+  prepareWorkRecordAdmissionDerivedEvidenceSidecar
 } from "../lib/work-record-admission-derived-evidence-persist.mjs";
+import {
+  readPersistedWorkerAdmissionEvidenceSidecarEntry
+} from "../lib/work-record-admission-evidence-sidecar.mjs";
 import {
   canonicalizeWorkRecordReadScope,
   computeWorkRecordSourceDigest,
@@ -35,6 +41,7 @@ import {
 } from "../lib/work-record-schema.mjs";
 import { getWorkRecordPath, loadWorkRecordById } from "../lib/work-record-store.mjs";
 import { carryForwardSourceCompatibleGraphImpactEvidence } from "../lib/work-record-admission-graph-impact-carry.mjs";
+import { WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES } from "../lib/work-record-target-metrics.mjs";
 
 function isWorkerAdmissionDerivedEvidenceDiagnosticPath(diagnosticPath) {
   const normalizedPath = String(diagnosticPath || "");
@@ -93,6 +100,15 @@ function isRecordLevelWorkerAdmissionDerivedEvidenceEntry(entry, recordId) {
 
 function todayDateString() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function selectedUnitReviewedDigest(record, unit) {
+  const digestRecord = cloneJson(record);
+  return computeReviewedUnitSourceDigest(
+    unit?.kind === "slice"
+      ? { record: digestRecord, selected_slice_id: unit.slice_id }
+      : digestRecord
+  );
 }
 
 function getWorkerAdmissionDerivedEvidenceIssueForUnit(record, sourceDigest, requestedUnit) {
@@ -255,10 +271,21 @@ async function createLiveWorkerAdmissionDerivedEvidence({
           slice_id: selectedSlice.id
         }
       : record;
-  const sourceRecordDigest = computeWorkRecordSourceDigest(record);
+  const sourceRecordDigest = selectedUnitReviewedDigest(record, requestedUnit);
+  if (!sourceRecordDigest) {
+    return {
+      issue: {
+        code: "invalid_record",
+        message: `Could not resolve reviewed-unit digest for ${requestedUnit.address}`,
+        details: {}
+      }
+    };
+  }
   const recordLocalInputs = await createWorkRecordAdmissionRecordLocalInputs({
     dir,
-    record: materializationSubject
+    record: materializationSubject,
+
+    sourceRecordDigestOverride: sourceRecordDigest
   });
   const contextualStructuralTargetMetrics = createContextualizedStructuralTargetMetrics(
     materializationSubject,
@@ -300,6 +327,257 @@ function isWorkerAdmissionDerivedEvidenceForUnit(entry, recordId, unit) {
     entry.unit.record_id === recordId &&
     entry.unit.slice_id === unit.slice_id
   );
+}
+
+function getOwnDataPropertyDescriptor(value, propertyName) {
+  const descriptor = Object.getOwnPropertyDescriptor(value, propertyName);
+  return descriptor && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor
+    : null;
+}
+
+function classifyTargetResolutionRecovery(evidence, inheritedState = null) {
+  const metrics = evidence?.metric_summary?.structural_target_metrics;
+  if (!isObject(metrics)) return "nonrecoverable_malformed";
+  const counterNames = [
+    "expected_edit_target_count",
+    "planned_create_target_count",
+    "planned_modify_target_count",
+    "planned_delete_target_count",
+    "planned_inspect_target_count",
+    "target_kind_count",
+    "resolved_edit_target_count",
+    "unresolved_edit_target_count",
+    "ambiguous_edit_target_count",
+    "write_scope_without_resolved_targets"
+  ];
+  const counters = {};
+  for (const name of counterNames) {
+    const descriptor = getOwnDataPropertyDescriptor(metrics, name);
+    if (
+      !descriptor ||
+      !Number.isSafeInteger(descriptor.value) ||
+      descriptor.value < 0
+    ) {
+      return "nonrecoverable_malformed";
+    }
+    counters[name] = descriptor.value;
+  }
+
+  const expectedCount = counters.expected_edit_target_count;
+  const plannedCreateCount = counters.planned_create_target_count;
+  const plannedOperationCount =
+    plannedCreateCount +
+    counters.planned_modify_target_count +
+    counters.planned_delete_target_count +
+    counters.planned_inspect_target_count;
+  const resolvedCount = counters.resolved_edit_target_count;
+  const unresolvedCount = counters.unresolved_edit_target_count;
+  const ambiguousCount = counters.ambiguous_edit_target_count;
+  const resolutionCount =
+    resolvedCount + unresolvedCount + ambiguousCount + plannedCreateCount;
+  const targetKindCount = counters.target_kind_count;
+  if (
+    !Number.isSafeInteger(plannedOperationCount) ||
+    plannedOperationCount !== expectedCount ||
+    !Number.isSafeInteger(resolutionCount) ||
+    resolutionCount !== expectedCount
+  ) {
+    return "nonrecoverable_malformed";
+  }
+  if (
+    (expectedCount === 0 && targetKindCount !== 0) ||
+    (expectedCount > 0 &&
+      (targetKindCount < 1 ||
+        targetKindCount >
+          Math.min(expectedCount, WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES.length)))
+  ) {
+    return "nonrecoverable_malformed";
+  }
+
+  const statusDescriptor = getOwnDataPropertyDescriptor(
+    metrics,
+    "target_resolution_evidence_status"
+  );
+  const providerDescriptor = getOwnDataPropertyDescriptor(
+    metrics,
+    "target_resolution_provider"
+  );
+  if (!statusDescriptor || !providerDescriptor) return "nonrecoverable_malformed";
+
+  const status = statusDescriptor.value;
+  const provider = providerDescriptor.value;
+  if (!["present", "absent", "partial", "degraded"].includes(status)) {
+    return "nonrecoverable_malformed";
+  }
+  const providerPresent =
+    typeof provider === "string" &&
+    normalizeNonEmptyString(provider) === provider;
+  const providerAbsent = provider === null;
+  if (!providerPresent && !providerAbsent) return "nonrecoverable_malformed";
+
+  if (expectedCount === 0) {
+    return status === "absent" && providerAbsent
+      ? "not_required"
+      : "nonrecoverable_malformed";
+  }
+
+  if (status === "degraded") {
+    return providerAbsent
+      ? "nonrecoverable_provider_unavailable"
+      : "nonrecoverable_malformed";
+  }
+  if (status !== "present" && status !== "partial") {
+    return "nonrecoverable_malformed";
+  }
+  if (!providerPresent) return "nonrecoverable_malformed";
+  if (status === "partial" && unresolvedCount === 0 && ambiguousCount === 0) {
+    return "nonrecoverable_malformed";
+  }
+  if (ambiguousCount > 0 || status === "partial") return "nonrecoverable_ambiguous";
+  if (unresolvedCount > 0) return "nonrecoverable_missing_paths";
+  return inheritedState ?? "fresh";
+}
+
+function admissionRecoveryResult(admissionMetrics, targetResolution, issue = null, evidence = null) {
+  return { recovery: { admission_metrics: admissionMetrics, target_resolution: targetResolution }, issue, evidence };
+}
+
+function classifyPersistedWorkerAdmissionComponents({ record, unit, entry, evaluatedEvidence }) {
+  const targetState = classifyTargetResolutionRecovery(evaluatedEvidence);
+  const admissionState =
+    entry.schema_version !== WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SCHEMA_VERSION ||
+    entry.generator?.version !== WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_GENERATOR.version
+      ? "recoverable_outdated"
+      : entry.source_record_digest !== selectedUnitReviewedDigest(record, unit)
+        ? "recoverable_stale"
+        : "fresh";
+  const inheritedTargetState = targetState === "fresh"
+    ? admissionState
+    : targetState;
+  const issue = admissionState === "recoverable_outdated"
+    ? { code: "outdated_worker_admission_derived_evidence" }
+    : admissionState === "recoverable_stale"
+      ? { code: "stale_worker_admission_derived_evidence" }
+      : null;
+  return admissionRecoveryResult(admissionState, inheritedTargetState, issue, evaluatedEvidence);
+}
+
+export function classifyWorkRecordAdmissionCompactRecovery({ record, unit } = {}) {
+  if (!isObject(record) || !isObject(unit)) {
+    return admissionRecoveryResult("nonrecoverable_malformed", "nonrecoverable_malformed", {
+      code: "invalid_record"
+    });
+  }
+  const matchingEntries = (Array.isArray(record.derived_evidence) ? record.derived_evidence : [])
+    .filter((entry) => isWorkerAdmissionDerivedEvidenceForUnit(entry, record.id, unit));
+  if (matchingEntries.length > 1) {
+    return admissionRecoveryResult("nonrecoverable_ambiguous", "nonrecoverable_ambiguous", {
+      code: "duplicate_worker_admission_derived_evidence"
+    });
+  }
+  if (matchingEntries.length === 0) {
+    return admissionRecoveryResult("recoverable_missing", "recoverable_missing", {
+      code: "missing_worker_admission_derived_evidence"
+    });
+  }
+  const entry = matchingEntries[0];
+  if (classifyTargetResolutionRecovery(entry) === "nonrecoverable_malformed") {
+    return { ...admissionRecoveryResult(
+      "nonrecoverable_malformed",
+      "nonrecoverable_malformed",
+      null,
+      entry
+    ), entry };
+  }
+  let evaluatedEvidence;
+  try {
+    evaluateWorkRecordAdmissionDerivedEvidence(entry);
+    evaluatedEvidence = entry;
+  } catch {
+    return admissionRecoveryResult("nonrecoverable_malformed", "nonrecoverable_malformed", {
+      code: "malformed_worker_admission_derived_evidence"
+    });
+  }
+  const classified = classifyPersistedWorkerAdmissionComponents({
+    record,
+    unit,
+    entry,
+    evaluatedEvidence
+  });
+  return { ...classified, entry };
+}
+
+export async function classifyWorkRecordAdmissionRecovery({
+  dir = ".",
+  record,
+  unit
+} = {}) {
+  if (!isObject(record) || !isObject(unit)) {
+    return admissionRecoveryResult("nonrecoverable_malformed", "nonrecoverable_malformed", {
+      code: "invalid_record"
+    });
+  }
+
+  const matchingEntries = (Array.isArray(record.derived_evidence) ? record.derived_evidence : [])
+    .filter((entry) => isWorkerAdmissionDerivedEvidenceForUnit(entry, record.id, unit));
+  if (matchingEntries.length > 1) {
+    return admissionRecoveryResult("nonrecoverable_ambiguous", "nonrecoverable_ambiguous", {
+      code: "duplicate_worker_admission_derived_evidence"
+    });
+  }
+  if (matchingEntries.length === 0) {
+    let live;
+    try {
+      live = await createLiveWorkerAdmissionDerivedEvidence({
+        dir: path.resolve(String(dir)),
+        record,
+        requestedUnit: unit
+      });
+    } catch {
+      return admissionRecoveryResult("nonrecoverable_provider_unavailable", "nonrecoverable_provider_unavailable", {
+        code: "admission_evidence_provider_unavailable"
+      });
+    }
+    if (!live?.evidence) {
+      return admissionRecoveryResult("nonrecoverable_malformed", "nonrecoverable_malformed", {
+        code: live?.issue?.code ?? "live_admission_materialization_failed"
+      });
+    }
+    try {
+      if (classifyTargetResolutionRecovery(live.evidence) === "nonrecoverable_malformed") {
+        throw new TypeError("malformed target-resolution evidence");
+      }
+      evaluateWorkRecordAdmissionDerivedEvidence(live.evidence);
+    } catch {
+      return admissionRecoveryResult("nonrecoverable_malformed", "nonrecoverable_malformed", {
+        code: "malformed_worker_admission_derived_evidence"
+      });
+    }
+    return admissionRecoveryResult("recoverable_missing",
+      classifyTargetResolutionRecovery(live.evidence, "recoverable_missing"),
+      { code: "missing_worker_admission_derived_evidence" }, live.evidence);
+  }
+
+  const entry = matchingEntries[0];
+  let evaluatedEvidence;
+  try {
+    evaluatedEvidence =
+      (await readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, entry })) ?? entry;
+    if (classifyTargetResolutionRecovery(evaluatedEvidence) === "nonrecoverable_malformed") {
+      throw new TypeError("malformed target-resolution evidence");
+    }
+    evaluateWorkRecordAdmissionDerivedEvidence(evaluatedEvidence);
+  } catch (error) {
+    const integrityFailure = typeof error?.code === "string" && error.code.startsWith("sidecar_");
+    return admissionRecoveryResult(
+      integrityFailure ? "nonrecoverable_integrity_failure" : "nonrecoverable_malformed",
+      integrityFailure ? "nonrecoverable_integrity_failure" : "nonrecoverable_malformed",
+      { code: error?.code ?? "malformed_worker_admission_derived_evidence" }
+    );
+  }
+
+  return classifyPersistedWorkerAdmissionComponents({ record, unit, entry, evaluatedEvidence });
 }
 
 function resolveWorkerAdmissionReviewAttestationRepoBinding(derivedEvidence, previousEntry, persistedEvidence) {
@@ -361,12 +639,11 @@ async function carryForwardPersistedReviewAttestations(
   let persistedEvidence = null;
   if (isObject(previousEntry.normalized_request)) {
     persistedEvidence = previousEntry;
-  } else if (isCompactWorkerAdmissionEntryWithSidecar(previousEntry)) {
-    const rehydrated = await evaluateCompactWorkerAdmissionEntryViaSidecar({
+  } else {
+    persistedEvidence = await readPersistedWorkerAdmissionEvidenceSidecarEntry({
       dir,
       entry: previousEntry
     });
-    persistedEvidence = rehydrated?.evidence ?? null;
   }
 
   const persistedAttestations = persistedEvidence?.normalized_request?.evidence?.review_attestations;
@@ -474,65 +751,6 @@ function isCompactWorkerAdmissionEntryWithSidecar(entry) {
     typeof entry.sidecar_digest === "string" &&
     entry.sidecar_digest.length > 0
   );
-}
-
-function rehydratedSidecarBindsToCompactEntry(rehydrated, entry) {
-  if (!isObject(rehydrated) || !isObject(entry)) {
-    return false;
-  }
-  if (!isObject(rehydrated.normalized_request)) {
-    return false;
-  }
-  const rehydratedUnit = isObject(rehydrated.unit) ? rehydrated.unit : null;
-  const entryUnit = isObject(entry.unit) ? entry.unit : null;
-  if (!rehydratedUnit || !entryUnit) {
-    return false;
-  }
-  return (
-    normalizeNonEmptyString(rehydrated.schema_version) === normalizeNonEmptyString(entry.schema_version) &&
-    normalizeNonEmptyString(rehydrated.decision_kind) === normalizeNonEmptyString(entry.decision_kind) &&
-    normalizeNonEmptyString(rehydrated.record_id) === normalizeNonEmptyString(entry.record_id) &&
-    normalizeNonEmptyString(rehydrated.source_record_digest) ===
-      normalizeNonEmptyString(entry.source_record_digest) &&
-    normalizeNonEmptyString(rehydrated.generated_at) === normalizeNonEmptyString(entry.generated_at) &&
-    normalizeNonEmptyString(rehydratedUnit.kind) === normalizeNonEmptyString(entryUnit.kind) &&
-    normalizeNonEmptyString(rehydratedUnit.address) === normalizeNonEmptyString(entryUnit.address) &&
-    normalizeNonEmptyString(rehydratedUnit.record_id) === normalizeNonEmptyString(entryUnit.record_id) &&
-    normalizeNonEmptyString(rehydratedUnit.slice_id) === normalizeNonEmptyString(entryUnit.slice_id)
-  );
-}
-
-async function evaluateCompactWorkerAdmissionEntryViaSidecar({ dir, entry }) {
-  if (!isCompactWorkerAdmissionEntryWithSidecar(entry)) {
-    return null;
-  }
-  let rehydrated;
-  try {
-    const sidecarAbsolutePath = path.resolve(dir, entry.sidecar_path);
-    rehydrated = JSON.parse(await readFile(sidecarAbsolutePath, "utf8"));
-  } catch {
-    return null;
-  }
-  if (!isObject(rehydrated)) {
-    return null;
-  }
-  let rehydratedDigest;
-  try {
-    rehydratedDigest = computeWorkRecordAdmissionDerivedEvidenceSidecarDigest(rehydrated);
-  } catch {
-    return null;
-  }
-  if (rehydratedDigest !== entry.sidecar_digest) {
-    return null;
-  }
-  if (!rehydratedSidecarBindsToCompactEntry(rehydrated, entry)) {
-    return null;
-  }
-  try {
-    return { admission: evaluateWorkRecordAdmissionDerivedEvidence(rehydrated), evidence: rehydrated };
-  } catch {
-    return null;
-  }
 }
 
 const LARGE_FILE_AUTHORITY_SENSITIVE_DECISION_CODES = new Set([
@@ -643,7 +861,7 @@ export async function evaluateWorkRecordAdmissionDerivedEvidenceById({
     };
   }
 
-  const sourceDigest = loaded.source_digest || computeWorkRecordSourceDigest(loaded.record);
+  const sourceDigest = selectedUnitReviewedDigest(loaded.record, requestedUnit.unit);
   const issueOrEntry = getWorkerAdmissionDerivedEvidenceIssueForUnit(
     loaded.record,
     sourceDigest,
@@ -698,17 +916,18 @@ export async function evaluateWorkRecordAdmissionDerivedEvidenceById({
   const admission = evaluateWorkRecordAdmissionDerivedEvidence(issueOrEntry.entry);
 
   if (admissionDecisionIsLargeFileAuthoritySensitive(admission)) {
-    const sidecarAdmission = await evaluateCompactWorkerAdmissionEntryViaSidecar({
+    const rehydratedEvidence = await readPersistedWorkerAdmissionEvidenceSidecarEntry({
       dir: targetDir,
       entry: issueOrEntry.entry
     });
-    if (sidecarAdmission) {
+    if (rehydratedEvidence) {
+      const sidecarAdmission = evaluateWorkRecordAdmissionDerivedEvidence(rehydratedEvidence);
       return {
         ...loaded,
         selected_unit: requestedUnit.unit,
-        record_level_derived_evidence: sidecarAdmission.evidence,
+        record_level_derived_evidence: rehydratedEvidence,
         record_level_derived_evidence_index: issueOrEntry.index,
-        admission: sidecarAdmission.admission,
+        admission: sidecarAdmission,
         admission_refusal: null,
         admission_source: "rehydrated_admission_sidecar"
       };
@@ -773,6 +992,8 @@ export async function refreshWorkRecordAdmissionDerivedEvidenceById({
   }
 
   const currentSourceDigest = loaded.source_digest || computeWorkRecordSourceDigest(loaded.record);
+  const currentPersistenceSnapshotDigest =
+    computeWorkRecordPersistenceSnapshotDigest(loaded.record);
 
   if (expectedSourceDigest !== null && expectedSourceDigest !== undefined) {
     if (typeof expectedSourceDigest !== "string" || expectedSourceDigest.length === 0) {
@@ -832,7 +1053,6 @@ export async function refreshWorkRecordAdmissionDerivedEvidenceById({
   const updatedRecord = canonicalizeWorkRecordReadScope(cloneJson(loaded.record));
   updatedRecord.updated = todayDateString();
 
-  const materializedSourceDigest = computeWorkRecordSourceDigest(updatedRecord);
   const selectedSlice =
     requestedUnit.unit.kind === "slice"
       ? Array.isArray(updatedRecord.slices)
@@ -851,6 +1071,31 @@ export async function refreshWorkRecordAdmissionDerivedEvidenceById({
           code: "invalid_record",
           severity: "error",
           message: `Selected slice ${requestedUnit.unit.slice_id} does not exist on ${loaded.record.id}`,
+          path: "unit"
+        }
+      ],
+      written: false
+    };
+  }
+
+  const currentReviewedUnitDigest = selectedUnitReviewedDigest(
+    loaded.record,
+    requestedUnit.unit
+  );
+  const materializedReviewedUnitDigest = selectedUnitReviewedDigest(
+    updatedRecord,
+    requestedUnit.unit
+  );
+  if (!currentReviewedUnitDigest || !materializedReviewedUnitDigest) {
+    return {
+      ...loaded,
+      valid: false,
+      diagnostics: [
+        ...loaded.diagnostics,
+        {
+          code: "invalid_record",
+          severity: "error",
+          message: `Could not resolve reviewed-unit digest for ${requestedUnit.unit.address}`,
           path: "unit"
         }
       ],
@@ -905,13 +1150,13 @@ export async function refreshWorkRecordAdmissionDerivedEvidenceById({
     dir: targetDir,
     record: materializationSubject,
 
-    sourceRecordDigestOverride: materializedSourceDigest
+    sourceRecordDigestOverride: materializedReviewedUnitDigest
   });
   const contextualStructuralTargetMetrics = createContextualizedStructuralTargetMetrics(
     materializationSubject,
     recordLocalInputs,
     requestedUnit.unit,
-    materializedSourceDigest
+    materializedReviewedUnitDigest
   );
   const derivedEvidence = createWorkRecordAdmissionDerivedEvidence({
     record: updatedRecord,
@@ -940,15 +1185,15 @@ export async function refreshWorkRecordAdmissionDerivedEvidenceById({
     priorDerivedEvidenceEntry,
     derivedEvidence,
     targetDir,
-    currentSourceDigest
+    currentReviewedUnitDigest
   );
   const admissionSummary = createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary(
     evaluateWorkRecordAdmissionDerivedEvidence(derivedEvidence)
   );
-  const sidecarRelativePath = buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(derivedEvidence);
-  const sidecarAbsolutePath = path.resolve(targetDir, sidecarRelativePath);
   const sidecarPayload = cloneJson(derivedEvidence);
-  const sidecarDigest = computeWorkRecordAdmissionDerivedEvidenceSidecarDigest(sidecarPayload);
+  const sidecarPublication = prepareWorkRecordAdmissionDerivedEvidenceSidecar(sidecarPayload);
+  const sidecarRelativePath = sidecarPublication.relativePath;
+  const sidecarDigest = sidecarPublication.digest;
   const persistedDerivedEvidence = createPersistedWorkerAdmissionDerivedEvidence(derivedEvidence, {
     sidecarPath: sidecarRelativePath,
     sidecarDigest,
@@ -959,7 +1204,7 @@ export async function refreshWorkRecordAdmissionDerivedEvidenceById({
   updatedRecord.derived_evidence = upsertWorkerAdmissionDerivedEvidenceEntries(
     updatedRecord,
     persistedDerivedEvidence,
-    currentSourceDigest
+    currentReviewedUnitDigest
   );
 
   const sourceDigest = computeWorkRecordSourceDigest(updatedRecord);
@@ -979,12 +1224,12 @@ export async function refreshWorkRecordAdmissionDerivedEvidenceById({
     };
   }
 
-  await writeWorkRecordAdmissionDerivedEvidenceSidecar(sidecarAbsolutePath, sidecarPayload);
-
-  const writeResult = await writeValidatedWorkRecord({
+  const writeResult = await writeValidatedWorkRecordWithAdmissionSidecars({
     dir: targetDir,
     record: updatedRecord,
     expectedSourceDigest: currentSourceDigest,
+    expectedPersistenceSnapshotDigest: currentPersistenceSnapshotDigest,
+    admissionSidecars: [sidecarPublication],
     recordStore
   });
 

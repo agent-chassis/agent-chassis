@@ -16,6 +16,7 @@ import {
   isObject,
   stringifyPathList
 } from "./work-record-dispatch-shared.mjs";
+import { computeReviewedUnitSourceDigest } from "./work-record-review-attestation.mjs";
 
 const CANONICAL_REF_SOURCE_KINDS = new Set([
   "canonical_docs",
@@ -39,6 +40,23 @@ const CANONICAL_AUTHORITY_PROVENANCE_EVIDENCE_BASIS = new Set([
 ]);
 
 const GENERATED_WIKI_VIEW_FORBIDDEN_REASON = "generated wiki view";
+
+const GRAPH_IMPACT_TAXONOMY_STATE_VALUES = new Set([
+  "available",
+  "unavailable",
+  "error",
+  "query_error"
+]);
+
+function normalizeGraphImpactTaxonomyState(value) {
+  return GRAPH_IMPACT_TAXONOMY_STATE_VALUES.has(value) ? value : null;
+}
+
+function normalizeGraphImpactOverlayState(value) {
+  if (value === "active" || value === "included") return "active";
+  if (value === "absent" || value === "not_included") return "absent";
+  return null;
+}
 
 export function isCanonicalGraphImpactRef(entry) {
   if (!isObject(entry)) {
@@ -101,6 +119,8 @@ export function isGeneratedWikiViewGraphImpactRef(entry) {
 
 export function normalizeGraphState(graphState = null) {
   const emptyState = {
+    graph_state: null,
+    overlay_state: null,
     dirty_state: "unknown",
     staleness: "unknown",
     graph_available: false,
@@ -140,10 +160,16 @@ export function normalizeGraphState(graphState = null) {
         graphSchemaVersion !== SIDECAR_GRAPH_SCHEMA_VERSION ||
         (hasOwn(source, "unavailable_paths") && !Array.isArray(source.unavailable_paths)))
     ) {
-      return emptyState;
+      return {
+        ...emptyState,
+        graph_state: normalizeGraphImpactTaxonomyState(source.graph_state),
+        overlay_state: normalizeGraphImpactOverlayState(source.overlay_state)
+      };
     }
 
     return {
+      graph_state: normalizeGraphImpactTaxonomyState(source.graph_state),
+      overlay_state: normalizeGraphImpactOverlayState(source.overlay_state),
       dirty_state: source.dirty_state ?? "unknown",
       staleness,
       graph_available: graphAvailable,
@@ -285,8 +311,14 @@ export function matchesDispatchUnitAddress(candidateUnit, unit) {
   return isObject(candidateUnit) && isObject(unit) && candidateUnit.address === unit.address;
 }
 
-export function resolveStoredGraphImpactEvidence(record, subject, unit, currentSourceDigest = null) {
+export function resolveStoredGraphImpactEvidence(record, subject, unit, _currentSourceDigest = null) {
   let candidatePresent = false;
+  const digestRecord = clone(record);
+  const reviewedUnitDigest = computeReviewedUnitSourceDigest(
+    unit?.kind === "slice"
+      ? { record: digestRecord, selected_slice_id: unit.slice_id }
+      : digestRecord
+  );
 
   for (const entry of Array.isArray(record?.derived_evidence) ? record.derived_evidence : []) {
     const derivedEvidenceUnit = isObject(entry?.unit) ? entry.unit : null;
@@ -302,7 +334,7 @@ export function resolveStoredGraphImpactEvidence(record, subject, unit, currentS
       ? entry.source_record_digest
       : null;
     const digestMatches =
-      isNonEmptyString(currentSourceDigest) && entryDigest === currentSourceDigest;
+      isNonEmptyString(reviewedUnitDigest) && entryDigest === reviewedUnitDigest;
 
     for (const candidate of collectStoredGraphImpactCandidates(entry)) {
       candidatePresent = true;
@@ -380,7 +412,7 @@ export function isDirtyOverlayCompatibleGraphState(graphState) {
 }
 
 export function graphImpactMatchesSubject(graphImpact, subject, unit, scopeUnit = null) {
-  if (!isObject(graphImpact) || !graphImpact.graph_state?.graph_available) {
+  if (!isObject(graphImpact) || !isObject(graphImpact.graph_state)) {
     return false;
   }
 

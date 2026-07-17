@@ -379,12 +379,33 @@ function compatibilityResultFromSandboxDecision({ decision, role, subject }) {
   return buildClosedCompatibilityResult(decision);
 }
 
+function buildSparseWorkerPlainSpawnRefusal(decision) {
+  return freeze({
+    schema_version: WORKSPACE_AGENT_FAIL_OPEN_SCHEMA_VERSION,
+    disposition: WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.CLOSED,
+    accepted: false,
+    plan: null,
+    warning: null,
+    enforcement: decision?.enforcement ?? null,
+    isolation: null,
+    refusal: freeze({
+      reason: WORKSPACE_AGENT_FAIL_OPEN_CLOSED_REASONS.ENFORCEMENT_REQUIRED,
+      detail: freeze({
+        blocker: "worker_sparse_namespace_plain_spawn_forbidden",
+        message: "a managed worker scope authority may not fall back to plain spawn"
+      })
+    }),
+    sandbox_decision: decision
+  });
+}
+
 export function buildWorkspaceAgentFailOpenPlan({
   launchFacts,
   role = null,
   subject = null,
   workspaceDir = null,
   commandSurface = null,
+  workerScopeAuthority = null,
   confirmedIsolatedSpawn = false,
   classifyIsolationBackendAvailability,
   probeCanonicalBwrapAvailability
@@ -399,6 +420,12 @@ export function buildWorkspaceAgentFailOpenPlan({
     classifyIsolationBackendAvailability,
     probeCanonicalBwrapAvailability
   });
+  if (
+    workerScopeAuthority !== null &&
+    decision?.outcome === WORKSPACE_AGENT_SANDBOX_OUTCOMES.UNENFORCED_PLAIN_LAUNCH
+  ) {
+    return buildSparseWorkerPlainSpawnRefusal(decision);
+  }
   return compatibilityResultFromSandboxDecision({ decision, role, subject });
 }
 

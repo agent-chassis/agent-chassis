@@ -1,15 +1,21 @@
 
 
 import path from "node:path";
-import { mkdtemp, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdtemp, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { isObject } from "./work-records-shared.mjs";
 import {
   canonicalizeWorkRecordReadScope,
+  canonicalizeWorkRecordJson,
   computeWorkRecordSourceDigest,
   validateWorkRecord
 } from "../lib/work-record-schema.mjs";
 import { getWorkRecordPath, loadWorkRecordById, loadWorkRecordByPath } from "../lib/work-record-store.mjs";
 import { ensureDirectory } from "../lib/wiki-shared.mjs";
+import {
+  WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDECAR_DIRECTORY,
+  publishWorkRecordAdmissionDerivedEvidenceSidecar
+} from "../lib/work-record-admission-derived-evidence-persist.mjs";
 
 const WORK_RECORD_WRITE_LOCK_FILE = ".work-record-write.lock";
 const WORK_RECORD_WRITE_LOCK_STALE_AFTER_MS = 60_000;
@@ -252,6 +258,407 @@ export async function readWorkRecordByPath({
 
 export function digestWorkRecord(record) {
   return computeWorkRecordSourceDigest(record);
+}
+
+export function computeWorkRecordPersistenceSnapshotDigest(record) {
+  const hash = createHash("sha256");
+  hash.update(canonicalizeWorkRecordJson(record || {}));
+  return `sha256:${hash.digest("hex")}`;
+}
+
+function createStoreDiagnostic(code, message, {
+  recordId = null,
+  unitAddress = null,
+  sidecarPath = null,
+  operation = null,
+  causeCode = null
+} = {}) {
+  return {
+    code,
+    severity: "error",
+    message,
+    ...(recordId ? { record_id: recordId } : {}),
+    ...(unitAddress ? { unit_address: unitAddress } : {}),
+    ...(sidecarPath ? { sidecar_path: sidecarPath } : {}),
+    ...(operation ? { operation } : {}),
+    ...(causeCode ? { cause_code: causeCode } : {})
+  };
+}
+
+function collectReferencedAdmissionSidecarPaths(value, paths = new Set()) {
+  if (Array.isArray(value)) {
+    for (const entry of value) collectReferencedAdmissionSidecarPaths(entry, paths);
+    return paths;
+  }
+  if (!isObject(value)) return paths;
+  for (const [key, entry] of Object.entries(value)) {
+    if (
+      key === "sidecar_path" &&
+      typeof entry === "string" &&
+      entry.startsWith(`${WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDECAR_DIRECTORY}/`)
+    ) {
+      paths.add(path.posix.normalize(entry));
+      continue;
+    }
+    collectReferencedAdmissionSidecarPaths(entry, paths);
+  }
+  return paths;
+}
+
+function recordOwnedAdmissionArtifactPatterns(recordId) {
+  const escapedRecordId = recordId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const slice = "(?:SLICE-[0-9]{3}|[a-z0-9][a-z0-9-]*)";
+  return {
+    immutable: new RegExp(
+      `^${escapedRecordId}(?:\\.${slice})?\\.sha256-[a-f0-9]{64}\\.admission\\.json$`,
+      "u"
+    ),
+    stage: new RegExp(
+      `^\\.${escapedRecordId}(?:\\.${slice})?\\.sha256-[a-f0-9]{64}` +
+        "\\.stage-[a-f0-9]{32}\\.admission\\.tmp$",
+      "u"
+    )
+  };
+}
+
+async function inventoryRecordOwnedAdmissionArtifacts({ targetDir, record }) {
+  const recordId = typeof record?.id === "string" ? record.id : null;
+  const directory = path.resolve(
+    targetDir,
+    WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDECAR_DIRECTORY
+  );
+  const referenced = collectReferencedAdmissionSidecarPaths(record);
+  const patterns = recordOwnedAdmissionArtifactPatterns(recordId);
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return { ok: true, immutable: [], stages: [], unreferenced: [] };
+    }
+    return {
+      ok: false,
+      diagnostic: createStoreDiagnostic(
+        "sidecar_cleanup_failed",
+        "record-local admission sidecar inventory failed",
+        { recordId, operation: "cleanup_inventory" }
+      )
+    };
+  }
+  const immutable = [];
+  const stages = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const relativePath = `${WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SIDECAR_DIRECTORY}/${entry.name}`;
+    if (patterns.immutable.test(entry.name)) immutable.push(relativePath);
+    if (patterns.stage.test(entry.name)) stages.push(relativePath);
+  }
+  immutable.sort();
+  stages.sort();
+  return {
+    ok: true,
+    immutable,
+    stages,
+    unreferenced: immutable.filter((entry) => !referenced.has(entry))
+  };
+}
+
+async function cleanupRecordOwnedAdmissionArtifacts({ targetDir, record, mode }) {
+  const inventory = await inventoryRecordOwnedAdmissionArtifacts({ targetDir, record });
+  if (!inventory.ok || mode !== "remove") return inventory;
+  const removals = [...inventory.unreferenced, ...inventory.stages];
+  for (const relativePath of removals) {
+    try {
+      await rm(path.resolve(targetDir, relativePath));
+    } catch (error) {
+      return {
+        ...inventory,
+        ok: false,
+        diagnostic: createStoreDiagnostic(
+          "sidecar_cleanup_failed",
+          "record-local admission sidecar removal failed",
+          {
+            recordId: record.id,
+            sidecarPath: relativePath,
+            operation: "cleanup_remove",
+            causeCode: ["EACCES", "ENOENT", "EPERM", "EROFS"].includes(error?.code)
+              ? error.code
+              : null
+          }
+        )
+      };
+    }
+  }
+  return { ...inventory, removed: removals };
+}
+
+function staleTransactionResult({
+  record,
+  canonicalRecordPath,
+  sourceDigest,
+  code,
+  currentSourceDigest = null,
+  expectedSourceDigest = null
+}) {
+  return {
+    valid: false,
+    written: false,
+    diagnostics: [
+      createStoreDiagnostic(
+        code,
+        code === "stale_source_digest"
+          ? "source digest does not match the current on-disk record"
+          : "persistence snapshot changed since admission materialization",
+        { recordId: record?.id ?? null }
+      )
+    ],
+    record,
+    source_digest: sourceDigest,
+    canonical_record_path: canonicalRecordPath,
+    ...(code === "stale_source_digest"
+      ? {
+          current_source_digest: currentSourceDigest,
+          ...(expectedSourceDigest ? { expected_source_digest: expectedSourceDigest } : {})
+        }
+      : {})
+  };
+}
+
+export async function writeValidatedWorkRecordWithAdmissionSidecars({
+  dir = ".",
+  record: inputRecord,
+  expectedSourceDigest,
+  expectedPersistenceSnapshotDigest,
+  admissionSidecars = [],
+  cleanupAdmissionSidecars = null,
+  recordStore = null,
+  canonicalReplace = rename
+} = {}) {
+  const targetDir = path.resolve(String(dir));
+  const record = isObject(inputRecord)
+    ? canonicalizeWorkRecordReadScope(inputRecord)
+    : inputRecord;
+  const recordId = typeof record?.id === "string" ? record.id : null;
+  const canonicalRecordPath = recordId ? getWorkRecordPath(targetDir, recordId) : null;
+  const sourceDigest = isObject(record) ? computeWorkRecordSourceDigest(record) : null;
+  const diagnostics = isObject(record)
+    ? validateWorkRecord(record, { sourcePath: canonicalRecordPath, sourceDigest })
+    : [createStoreDiagnostic("invalid_record", "work record must be an object")];
+  if (!canonicalRecordPath || diagnostics.some((entry) => entry.severity === "error")) {
+    return {
+      valid: false,
+      written: false,
+      diagnostics,
+      record: isObject(record) ? record : null,
+      source_digest: sourceDigest,
+      canonical_record_path: canonicalRecordPath
+    };
+  }
+  if (typeof expectedSourceDigest !== "string" || expectedSourceDigest.length === 0) {
+    return {
+      valid: false,
+      written: false,
+      diagnostics: [
+        createStoreDiagnostic(
+          "invalid_expected_source_digest",
+          "expected source digest must be a non-empty string",
+          { recordId }
+        )
+      ],
+      record,
+      source_digest: sourceDigest,
+      canonical_record_path: canonicalRecordPath
+    };
+  }
+  if (
+    typeof expectedPersistenceSnapshotDigest !== "string" ||
+    expectedPersistenceSnapshotDigest.length === 0
+  ) {
+    return {
+      valid: false,
+      written: false,
+      diagnostics: [
+        createStoreDiagnostic(
+          "invalid_expected_persistence_snapshot_digest",
+          "expected persistence snapshot digest must be a non-empty string",
+          { recordId }
+        )
+      ],
+      record,
+      source_digest: sourceDigest,
+      canonical_record_path: canonicalRecordPath
+    };
+  }
+
+  let tempWrite = null;
+  try {
+    tempWrite = await writeJsonFileToTemp(canonicalRecordPath, record);
+    return await withWorkRecordWriteLock(targetDir, async () => {
+      const currentLoaded = await loadWorkRecordByPath({
+        dir: targetDir,
+        path: canonicalRecordPath,
+        recordStore
+      });
+      const currentSourceDigest = currentLoaded.source_digest || null;
+      if (currentSourceDigest !== expectedSourceDigest) {
+        return staleTransactionResult({
+          record,
+          canonicalRecordPath,
+          sourceDigest,
+          code: "stale_source_digest",
+          currentSourceDigest,
+          expectedSourceDigest
+        });
+      }
+      const currentSnapshotDigest = computeWorkRecordPersistenceSnapshotDigest(currentLoaded.record);
+      if (currentSnapshotDigest !== expectedPersistenceSnapshotDigest) {
+        return staleTransactionResult({
+          record,
+          canonicalRecordPath,
+          sourceDigest,
+          code: "stale_persistence_snapshot_digest"
+        });
+      }
+
+      const publications = [];
+      for (const publication of admissionSidecars) {
+        const published = await publishWorkRecordAdmissionDerivedEvidenceSidecar({
+          targetDir,
+          publication
+        });
+        if (!published.ok) {
+          for (const created of publications.filter((entry) => entry.created)) {
+            await rm(path.resolve(targetDir, created.relativePath), { force: true }).catch(() => {});
+          }
+          return {
+            valid: false,
+            written: false,
+            diagnostics: [published.diagnostic],
+            record,
+            source_digest: sourceDigest,
+            canonical_record_path: canonicalRecordPath
+          };
+        }
+        publications.push(published);
+      }
+
+      try {
+        await canonicalReplace(tempWrite.tempPath, canonicalRecordPath);
+      } catch {
+        for (const created of publications.filter((entry) => entry.created)) {
+          await rm(path.resolve(targetDir, created.relativePath), { force: true }).catch(() => {});
+        }
+        return {
+          valid: true,
+          written: false,
+          diagnostics: [
+            createStoreDiagnostic(
+              "work_record_write_failed",
+              "failed to write canonical work record JSON",
+              { recordId }
+            )
+          ],
+          record,
+          source_digest: sourceDigest,
+          canonical_record_path: canonicalRecordPath
+        };
+      }
+
+      const cleanupMode = cleanupAdmissionSidecars?.mode;
+      const cleanup = cleanupMode
+        ? await cleanupRecordOwnedAdmissionArtifacts({
+            targetDir,
+            record,
+            mode: cleanupMode
+          })
+        : null;
+      return {
+        valid: cleanup ? cleanup.ok : true,
+        written: true,
+        diagnostics: cleanup && !cleanup.ok ? [cleanup.diagnostic] : diagnostics,
+        record,
+        source_digest: sourceDigest,
+        canonical_record_path: canonicalRecordPath,
+        current_source_digest: currentSourceDigest,
+        admission_sidecar_publications: publications.map((entry) => ({
+          created: entry.created,
+          sidecar_path: entry.relativePath,
+          sidecar_digest: entry.digest
+        })),
+        admission_sidecar_cleanup: cleanup
+      };
+    });
+  } catch {
+    return {
+      valid: true,
+      written: false,
+      diagnostics: [
+        createStoreDiagnostic(
+          "work_record_write_failed",
+          "failed to stage canonical work record JSON",
+          { recordId }
+        )
+      ],
+      record,
+      source_digest: sourceDigest,
+      canonical_record_path: canonicalRecordPath
+    };
+  } finally {
+    if (tempWrite) await rm(tempWrite.tempDir, { recursive: true, force: true });
+  }
+}
+
+export async function inspectWorkRecordAdmissionSidecarArtifacts({
+  dir = ".",
+  id,
+  expectedSourceDigest,
+  expectedPersistenceSnapshotDigest,
+  recordStore = null
+} = {}) {
+  const targetDir = path.resolve(String(dir));
+  const canonicalRecordPath = getWorkRecordPath(targetDir, id);
+  return withWorkRecordWriteLock(targetDir, async () => {
+    const loaded = await loadWorkRecordByPath({
+      dir: targetDir,
+      path: canonicalRecordPath,
+      recordStore
+    });
+    if (loaded.source_digest !== expectedSourceDigest) {
+      return staleTransactionResult({
+        record: loaded.record,
+        canonicalRecordPath,
+        sourceDigest: loaded.source_digest,
+        code: "stale_source_digest",
+        currentSourceDigest: loaded.source_digest,
+        expectedSourceDigest
+      });
+    }
+    if (
+      computeWorkRecordPersistenceSnapshotDigest(loaded.record) !==
+      expectedPersistenceSnapshotDigest
+    ) {
+      return staleTransactionResult({
+        record: loaded.record,
+        canonicalRecordPath,
+        sourceDigest: loaded.source_digest,
+        code: "stale_persistence_snapshot_digest"
+      });
+    }
+    const inventory = await cleanupRecordOwnedAdmissionArtifacts({
+      targetDir,
+      record: loaded.record,
+      mode: "report"
+    });
+    return {
+      valid: inventory.ok,
+      written: false,
+      diagnostics: inventory.ok ? [] : [inventory.diagnostic],
+      record: loaded.record,
+      source_digest: loaded.source_digest,
+      canonical_record_path: canonicalRecordPath,
+      admission_sidecar_cleanup: inventory
+    };
+  });
 }
 
 export async function writeValidatedWorkRecord({

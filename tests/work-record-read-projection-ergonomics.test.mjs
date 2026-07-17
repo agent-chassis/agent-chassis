@@ -168,6 +168,34 @@ async function installFixture(tempDir, fixture) {
   return target;
 }
 
+test("core reads reserve the complete work-record namespaces to anchored flat paths", async () => {
+  await withTempDir(async (tempDir) => {
+    await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/reserved-read-path-test" });
+    for (const reservedPath of [
+      "wiki/work-records/nested/WK-9900.json",
+      "wiki/work-records//WK-9900.json",
+      "wiki//work-records/WK-9900.json",
+      "wiki/./work-records/WK-9900.json",
+      "wiki/work-records/evidence/nested/WK-9900.graph.json",
+      "wiki/work-records/evidence//WK-9900.graph.json",
+      "wiki/work-records/not-a-record.md"
+    ]) {
+      await assert.rejects(
+        readWikiPage({ dir: tempDir, path: reservedPath }),
+        /Malformed reserved work-record path/
+      );
+    }
+
+    const genericPath = path.join(tempDir, "docs", "reserved-path-generic.md");
+    await writeFile(genericPath, "# Safe generic page\n", "utf8");
+    const generic = await readWikiPage({
+      dir: tempDir,
+      path: "docs/reserved-path-generic.md"
+    });
+    assert.equal(generic.format, "markdown");
+  });
+});
+
 test("tracker compact default via readWikiPage: slice_counts and working_slices present, no full slice bodies", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/projection-test" });
@@ -381,7 +409,7 @@ test("tracker compact default via getWikiRecord: same projection behavior", asyn
   });
 });
 
-test("selected_slice: returns full actionable details for that slice without sibling history", async () => {
+test("selected_slice: returns the canonical selected-unit contract without sibling history", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/projection-slice-test" });
     const fixture = buildTrackerFixture("WK-9904", 10);
@@ -406,17 +434,17 @@ test("selected_slice: returns full actionable details for that slice without sib
 
     assert.ok(Array.isArray(sl.write_scope), "selected_slice must include write_scope");
     assert.ok(Array.isArray(sl.repo_paths), "selected_slice must include repo_paths");
-    assert.ok(Array.isArray(sl.docs), "selected_slice must include docs");
+    assert.deepEqual(
+      sl.read_scope,
+      ["AGENTS.md", "docs/mcp-integration.md"],
+      "legacy docs must project through canonical read_scope"
+    );
+    assert.equal(Object.hasOwn(sl, "docs"), false);
     assert.ok(sl.dispatch_intent, "selected_slice must include dispatch_intent");
     assert.equal(sl.agent_notes, "string note body");
-    assert.equal(sl.agent_notes_bytes, Buffer.byteLength("string note body", "utf8"));
-
-    assert.equal(
-      Object.prototype.hasOwnProperty.call(sl, "closure_summary"),
-      true,
-      "selected_slice must have closure_summary field (null for working slices)"
-    );
-    assert.equal(sl.closure_summary, null, "active slice with no closure should have null closure_summary");
+    assert.equal(Object.hasOwn(sl, "agent_notes_bytes"), false);
+    assert.equal(Object.hasOwn(sl, "closure_summary"), false);
+    assert.deepEqual(sl.sections, { agent_notes: "string note body" });
 
     assert.equal(
       Object.prototype.hasOwnProperty.call(result, "record"),
@@ -436,7 +464,7 @@ test("selected_slice: returns full actionable details for that slice without sib
   });
 });
 
-test("selected_slice on done slice: closure_summary is bounded", async () => {
+test("selected_slice sections exclude authored closure outside the agent_notes allowlist", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/projection-done-slice-test" });
     const fixture = buildTrackerFixture("WK-9905", 5);
@@ -451,14 +479,9 @@ test("selected_slice on done slice: closure_summary is bounded", async () => {
     assert.equal(result.selected_slice_found, true);
     const sl = result.selected_slice;
     assert.equal(sl.status, "done");
-    assert.ok(sl.closure_summary, "done slice must have closure_summary");
-    assert.equal(typeof sl.closure_summary.summary, "string");
-    assert.ok(
-      sl.closure_summary.summary.length <= 500,
-      `closure_summary.summary must be bounded to 500 chars, got ${sl.closure_summary.summary.length}`
-    );
-    assert.ok(Array.isArray(sl.closure_summary.validation));
-    assert.ok(Array.isArray(sl.closure_summary.follow_ups));
+    assert.deepEqual(sl.sections, {});
+    assert.equal(Object.hasOwn(sl.sections, "closure"), false);
+    assert.equal(Object.hasOwn(sl, "closure_summary"), false);
   });
 });
 
@@ -496,12 +519,12 @@ test("selected_slice via getWikiRecord: same behavior", async () => {
     assert.equal(result.selected_slice.id, "todo-slice");
     assert.ok(result.selected_slice.acceptance);
     assert.equal(result.selected_slice.acceptance.criteria.length, 2);
-    assert.equal(result.selected_slice.agent_notes, null);
-    assert.equal(result.selected_slice.agent_notes_bytes, 0);
+    assert.equal(Object.hasOwn(result.selected_slice, "agent_notes"), false);
+    assert.equal(Object.hasOwn(result.selected_slice, "agent_notes_bytes"), false);
   });
 });
 
-test("selected_slice with array-form notes: returns note body and shared byte count", async () => {
+test("selected_slice with array-form notes returns the authored selected-unit note body", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/projection-array-note-slice-test" });
     const fixture = buildTrackerFixture("WK-9913", 5);
@@ -515,10 +538,39 @@ test("selected_slice with array-form notes: returns note body and shared byte co
 
     assert.equal(result.selected_slice_found, true);
     assert.deepEqual(result.selected_slice.agent_notes, ["array note one", "array note two"]);
-    assert.equal(
-      result.selected_slice.agent_notes_bytes,
-      Buffer.byteLength(["array note one", "array note two"].join("\n"), "utf8")
-    );
+    assert.equal(Object.hasOwn(result.selected_slice, "agent_notes_bytes"), false);
+  });
+});
+
+test("selected_slice preserves canonical empty notes and nullable non-negative budgets", async () => {
+  await withTempDir(async (tempDir) => {
+    await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/projection-typed-slice-test" });
+    const fixture = buildTrackerFixture("WK-9917", 2);
+    const active = fixture.slices.find((slice) => slice.id === "active-slice");
+    active.sections.agent_notes = "";
+    active.expected_changed_line_budget = null;
+    const blocked = fixture.slices.find((slice) => slice.id === "blocked-slice");
+    blocked.sections.agent_notes = [];
+    blocked.expected_changed_line_budget = 0;
+    await installFixture(tempDir, fixture);
+
+    const emptyString = await readWikiPage({
+      dir: tempDir,
+      path: "wiki/work-records/WK-9917.json",
+      selected_slice: "active-slice"
+    });
+    assert.equal(emptyString.selected_slice.agent_notes, "");
+    assert.equal(emptyString.selected_slice.sections.agent_notes, "");
+    assert.equal(emptyString.selected_slice.expected_changed_line_budget, null);
+
+    const emptyArray = await getWikiRecord({
+      dir: tempDir,
+      id: "WK-9917",
+      selected_slice: "blocked-slice"
+    });
+    assert.deepEqual(emptyArray.selected_slice.agent_notes, []);
+    assert.deepEqual(emptyArray.selected_slice.sections.agent_notes, []);
+    assert.equal(emptyArray.selected_slice.expected_changed_line_budget, 0);
   });
 });
 

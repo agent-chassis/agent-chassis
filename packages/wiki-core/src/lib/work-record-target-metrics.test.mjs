@@ -191,7 +191,11 @@ test("normalizeStructuralTargetMetrics preserves normalized target plan evidence
       resolution_status: "provider_unavailable",
       resolution_reason: "no structural target provenance supplied",
       provider: null,
+      provider_version: null,
+      provider_mode: null,
       span: null,
+      fanout: null,
+      candidates: [],
       status: "valid",
       evidence: {
         issue: "expected_edit_targets.entry",
@@ -208,7 +212,11 @@ test("normalizeStructuralTargetMetrics preserves normalized target plan evidence
       resolution_status: "not_applicable",
       resolution_reason: "create target; no pre-existing symbol expected",
       provider: null,
+      provider_version: null,
+      provider_mode: null,
       span: null,
+      fanout: null,
+      candidates: [],
       status: "valid",
       evidence: {
         issue: "expected_edit_targets.entry",
@@ -875,7 +883,8 @@ test("normalizeStructuralTargetMetrics treats graph-impact fanout problems as a 
   assert.equal(metrics.target_resolution_evidence_status, "degraded");
   assert.equal(metrics.target_resolution_status_reason, "expected payload-bound input digest is required");
   assert.equal(metrics.resolved_edit_target_count, 0);
-  assert.equal(metrics.unresolved_edit_target_count, 0);
+
+  assert.equal(metrics.unresolved_edit_target_count, 1);
   assert.equal(metrics.target_span_line_count, null);
   assert.equal(metrics.target_dependency_fanout_count, null);
   assert.equal(metrics.targets[0].resolution_status, "provider_unavailable");
@@ -941,7 +950,11 @@ test("normalizeStructuralTargetMetrics marks missing target fields as invalid an
       resolution_status: "not_applicable",
       resolution_reason: "no structural target provenance supplied",
       provider: null,
+      provider_version: null,
+      provider_mode: null,
       span: null,
+      fanout: null,
+      candidates: [],
       status: "invalid",
       evidence: {
         issue: "expected_edit_targets.entry",

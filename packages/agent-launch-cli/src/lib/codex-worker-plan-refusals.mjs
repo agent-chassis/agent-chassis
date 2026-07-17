@@ -2,7 +2,10 @@ import {
   parseWorkRecordUnitAddress,
   WORK_RECORD_WRAPPER_GATE_SCHEMA_VERSION
 } from "@agent-chassis/agent-launch-core";
-import { normalizeWorkUnitFeatureVector } from "@agent-chassis/wiki-core/src/lib/work-record-feature-vector.mjs";
+import {
+  createWorkUnitFeatureVectorFromCanonicalRecord,
+  WorkRecordFeatureVectorSourceError
+} from "@agent-chassis/wiki-core/src/lib/work-record-feature-vector.mjs";
 import {
   bootstrapNodeEngineEnvFromFile,
   resolveNodeEngineEnvFilePath
@@ -186,14 +189,6 @@ export function evaluateVectorConstructionRefusal({
   record,
   sliceId
 }) {
-  const featureVector = normalizeWorkUnitFeatureVector(
-    {
-      ...record,
-      schema_version: "work-unit-feature-vector.v1",
-      vocabulary_version: "wk-ontology.v1"
-    },
-    { repo, recordId, sliceId, selectedSliceId: sliceId }
-  );
   const selectedSlice = sliceId
     ? Array.isArray(record.slices)
       ? record.slices.find((slice) => slice && slice.id === sliceId) || null
@@ -216,6 +211,30 @@ export function evaluateVectorConstructionRefusal({
           path: "record.slices"
         }
       ]
+    });
+  }
+
+  let featureVector;
+  try {
+    featureVector = createWorkUnitFeatureVectorFromCanonicalRecord(record, {
+      repo,
+      recordId,
+      sliceId,
+      selectedSliceId: sliceId
+    });
+  } catch (error) {
+    if (!(error instanceof WorkRecordFeatureVectorSourceError)) {
+      throw error;
+    }
+    return buildVectorConstructionRefusal({
+      role,
+      env,
+      repo,
+      recordId,
+      unitAddress,
+      readiness,
+      wrapperGateCode: "wrapper.vector_construction.invalid_feature_vector.v1",
+      diagnostics: error.diagnostics
     });
   }
 

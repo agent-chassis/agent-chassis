@@ -1,3 +1,4 @@
+
 # MCP Tool And Operation Reference
 
 This page is the MCP reference surface for `agent-chassis`: the per-operation reference pointer, dispatch identity and bootstrap review, the runtime blocker taxonomy and coordination preflight, the agent-facing MCP tool and resource profiles, and code index interface parity. It is reference material split out of [docs/mcp-integration.md](mcp-integration.md); start there for setup and the workflow narrative.

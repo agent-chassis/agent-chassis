@@ -16,20 +16,30 @@ import {
   calculateSliceAgentNotesBytes,
   shouldSuppressTrackerSliceDetail
 } from "../lib/work-record-projection-helpers.mjs";
+import { projectSelectedWorkRecordUnit } from "../lib/work-record-selected-unit-projection.mjs";
 
 const WORK_RECORD_ID_PATTERN = /^(WK|IN|DEC|SRC)-\d+$/;
 const WORK_RECORD_RELATIVE_PREFIX = `${WORK_RECORD_DIRECTORY_NAME}/`;
+const WORK_RECORD_JSON_RELATIVE_PATH_PATTERN =
+  /^wiki\/work-records\/WK-[0-9]{4}\.json$/;
 
-const GRAPH_SIDECAR_EVIDENCE_PREFIX = `${WORK_RECORD_DIRECTORY_NAME}/evidence/`;
-const GRAPH_SIDECAR_SUFFIX = ".graph.json";
+const GRAPH_EVIDENCE_RELATIVE_PATH_PATTERN =
+  /^wiki\/work-records\/evidence\/WK-[0-9]{4}\.graph\.json$/;
+const WORK_RECORD_NAMESPACE_CLAIM_PATTERN =
+  /^(?:\.\/)?wiki\/+work-records(?:\/|$)/;
 const COMPACT_DIAGNOSTICS_LIMIT = 5;
 const COMPACT_LINKS_LIMIT = 5;
 const EXTERNAL_URL_PATTERN = /^https?:\/\//i;
 const WORKING_SLICES_LIMIT = 30;
-const SLICE_CLOSURE_SUMMARY_CHARS = 500;
 
 function isWorkRecordId(value) {
   return WORK_RECORD_ID_PATTERN.test(String(value));
+}
+
+function claimsReservedWorkRecordNamespace(value) {
+  const normalized = path.posix.normalize(String(value));
+  return normalized === WORK_RECORD_DIRECTORY_NAME ||
+    normalized.startsWith(WORK_RECORD_RELATIVE_PREFIX);
 }
 
 function missingWikiRecordError(normalizedId) {
@@ -45,17 +55,11 @@ function missingWikiRecordError(normalizedId) {
 }
 
 function isWorkRecordJsonRelativePath(relativePath) {
-  return (
-    relativePath.startsWith(WORK_RECORD_RELATIVE_PREFIX) &&
-    relativePath.endsWith(".json")
-  );
+  return WORK_RECORD_JSON_RELATIVE_PATH_PATTERN.test(relativePath);
 }
 
 function isGraphEvidenceSidecarRelativePath(relativePath) {
-  return (
-    relativePath.startsWith(GRAPH_SIDECAR_EVIDENCE_PREFIX) &&
-    relativePath.endsWith(GRAPH_SIDECAR_SUFFIX)
-  );
+  return GRAPH_EVIDENCE_RELATIVE_PATH_PATTERN.test(relativePath);
 }
 
 function normalizeRelativeRepoPath(targetDir, requestedPath) {
@@ -63,10 +67,24 @@ function normalizeRelativeRepoPath(targetDir, requestedPath) {
     throw new Error("readWikiPage requires path");
   }
 
+  const requestedPathText = String(requestedPath);
+  const requestedRelativePath = requestedPathText.trim().replace(/^\.\//, "");
+  if (
+    !path.isAbsolute(requestedPathText) &&
+    (
+      WORK_RECORD_NAMESPACE_CLAIM_PATTERN.test(requestedPathText.trim()) ||
+      claimsReservedWorkRecordNamespace(requestedPathText.trim())
+    ) &&
+    !WORK_RECORD_JSON_RELATIVE_PATH_PATTERN.test(requestedRelativePath) &&
+    !GRAPH_EVIDENCE_RELATIVE_PATH_PATTERN.test(requestedRelativePath)
+  ) {
+    throw new Error(`Malformed reserved work-record path: ${requestedPath}`);
+  }
+
   const targetRoot = path.resolve(targetDir);
-  const absolutePath = path.isAbsolute(String(requestedPath))
-    ? path.resolve(String(requestedPath))
-    : path.resolve(targetRoot, String(requestedPath));
+  const absolutePath = path.isAbsolute(requestedPathText)
+    ? path.resolve(requestedPathText)
+    : path.resolve(targetRoot, requestedPathText);
   const relativePath = path.relative(targetRoot, absolutePath).replaceAll(path.sep, "/");
 
   if (relativePath.startsWith("../") || relativePath === ".." || path.isAbsolute(relativePath)) {
@@ -85,6 +103,9 @@ function ensureReadablePathSuffix(relativePath, requestedPath) {
   }
   if (isWorkRecordJsonRelativePath(relativePath)) {
     return;
+  }
+  if (relativePath.startsWith(WORK_RECORD_RELATIVE_PREFIX)) {
+    throw new Error(`Malformed reserved work-record path: ${requestedPath}`);
   }
   throw new Error(`Only markdown pages can be read: ${requestedPath}`);
 }
@@ -214,34 +235,7 @@ function summarizeWorkingSlice(slice) {
 function projectSelectedSlice(slices, sliceId) {
   const slice = Array.isArray(slices) ? slices.find((s) => s.id === sliceId) : null;
   if (!slice) return null;
-  const closure = slice.sections?.closure;
-  const closure_summary = closure
-    ? {
-        summary:
-          typeof closure.summary === "string"
-            ? closure.summary.slice(0, SLICE_CLOSURE_SUMMARY_CHARS)
-            : closure.summary,
-        validation: Array.isArray(closure.validation) ? closure.validation : null,
-        follow_ups: Array.isArray(closure.follow_ups) ? closure.follow_ups : null
-      }
-    : null;
-  return {
-    id: slice.id,
-    title: slice.title ?? null,
-    status: slice.status ?? null,
-    work_kind: slice.work_kind ?? null,
-    priority: slice.priority ?? null,
-    owner: slice.owner ?? null,
-    depends_on: Array.isArray(slice.depends_on) ? slice.depends_on : [],
-    write_scope: Array.isArray(slice.write_scope) ? slice.write_scope : [],
-    repo_paths: Array.isArray(slice.repo_paths) ? slice.repo_paths : [],
-    docs: Array.isArray(slice.docs) ? slice.docs : [],
-    acceptance: slice.acceptance ?? null,
-    dispatch_intent: slice.dispatch_intent ?? null,
-    agent_notes: slice.sections?.agent_notes ?? null,
-    agent_notes_bytes: calculateSliceAgentNotesBytes(slice),
-    closure_summary
-  };
+  return projectSelectedWorkRecordUnit(slice);
 }
 
 function serializeMarkdownPage(page, { raw, pageKind, targetDir, include_body = false, include_raw = false, include_links = false }) {

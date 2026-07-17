@@ -1,10 +1,8 @@
 
 
-import path from "node:path";
-import { readFile } from "node:fs/promises";
-
 import {
   buildReviewAttestation,
+  computeReviewedUnitSourceDigest,
   REVIEW_ATTESTATION_AUTHORITY,
   REVIEW_ATTESTATION_REVIEW_OUTCOME_VALUES
 } from "@agent-chassis/wiki-core/src/lib/work-record-review-attestation.mjs";
@@ -18,17 +16,22 @@ import {
   evaluateWorkRecordAdmissionDerivedEvidence
 } from "@agent-chassis/wiki-core/src/lib/work-record-admission-derived-evidence.mjs";
 import {
-  buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath,
-  computeWorkRecordAdmissionDerivedEvidenceSidecarDigest,
   createPersistedWorkerAdmissionDerivedEvidence,
   createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary,
-  writeWorkRecordAdmissionDerivedEvidenceSidecar
+  prepareWorkRecordAdmissionDerivedEvidenceSidecar
 } from "@agent-chassis/wiki-core/src/lib/work-record-admission-derived-evidence-persist.mjs";
 import {
+  readPersistedWorkerAdmissionEvidenceSidecar,
+  WorkerAdmissionSidecarError
+} from "@agent-chassis/wiki-core/src/lib/work-record-admission-evidence-sidecar.mjs";
+import {
   materializeWorkRecordAdmissionDerivedEvidence,
-  readWorkRecordById,
-  writeValidatedWorkRecord
+  readWorkRecordById
 } from "@agent-chassis/wiki-core";
+import {
+  computeWorkRecordPersistenceSnapshotDigest,
+  writeValidatedWorkRecordWithAdmissionSidecars
+} from "@agent-chassis/wiki-core/src/operations/work-records-store-io.mjs";
 import {
   upsertWorkerAdmissionDerivedEvidenceEntries
 } from "@agent-chassis/wiki-core/src/operations/work-records-admission-evidence.mjs";
@@ -131,66 +134,6 @@ function refusal(decisionCode, reasons, extra = {}) {
   };
 }
 
-function findWorkerAdmissionEvidenceEntry(record, unit) {
-  const entries = Array.isArray(record?.derived_evidence) ? record.derived_evidence : [];
-  return entries.find((entry) => {
-    const entryUnit = isObject(entry?.unit) ? entry.unit : null;
-    return (
-      entry?.schema_version === "worker-admission-derived-evidence.v1" &&
-      entry?.record_id === unit.record_id &&
-      entryUnit?.kind === unit.kind &&
-      entryUnit?.address === unit.address &&
-      entryUnit?.record_id === unit.record_id &&
-      (entryUnit?.slice_id ?? null) === (unit.slice_id ?? null)
-    );
-  }) ?? null;
-}
-
-function sidecarBindsToEntry(sidecar, entry) {
-  const sidecarUnit = isObject(sidecar?.unit) ? sidecar.unit : null;
-  const entryUnit = isObject(entry?.unit) ? entry.unit : null;
-  return (
-    sidecar?.schema_version === entry?.schema_version &&
-    sidecar?.record_id === entry?.record_id &&
-    sidecar?.source_record_digest === entry?.source_record_digest &&
-    sidecar?.generated_at === entry?.generated_at &&
-    sidecar?.decision_kind === entry?.decision_kind &&
-    sidecarUnit?.kind === entryUnit?.kind &&
-    sidecarUnit?.address === entryUnit?.address &&
-    sidecarUnit?.record_id === entryUnit?.record_id &&
-    (sidecarUnit?.slice_id ?? null) === (entryUnit?.slice_id ?? null) &&
-    isObject(sidecar?.normalized_request)
-  );
-}
-
-async function loadPriorFullEvidence({ workspace, record, unit, sourceDigest }) {
-  const priorEntry = findWorkerAdmissionEvidenceEntry(record, unit);
-  if (!priorEntry || priorEntry.source_record_digest !== sourceDigest) {
-    return null;
-  }
-  if (isObject(priorEntry.normalized_request)) {
-    return cloneJson(priorEntry);
-  }
-  if (!isNonEmptyString(priorEntry.sidecar_path) || !isNonEmptyString(priorEntry.sidecar_digest)) {
-    return null;
-  }
-  const sidecarPath = path.resolve(workspace.dir, priorEntry.sidecar_path);
-  let sidecar;
-  try {
-    sidecar = JSON.parse(await readFile(sidecarPath, "utf8"));
-  } catch {
-    return null;
-  }
-  if (!sidecarBindsToEntry(sidecar, priorEntry)) {
-    return null;
-  }
-  const sidecarDigest = computeWorkRecordAdmissionDerivedEvidenceSidecarDigest(sidecar);
-  if (sidecarDigest !== priorEntry.sidecar_digest) {
-    return null;
-  }
-  return cloneJson(sidecar);
-}
-
 function buildDispatchReadinessForUnit(record, unit) {
   return {
     record_id: unit.record_id,
@@ -202,10 +145,10 @@ function buildDispatchReadinessForUnit(record, unit) {
 }
 
 async function createFullEvidenceForAttestation({ workspace, record, unit, sourceDigest }) {
-  const priorFullEvidence = await loadPriorFullEvidence({
-    workspace,
+  const priorFullEvidence = await readPersistedWorkerAdmissionEvidenceSidecar({
+    dir: workspace.dir,
     record,
-    unit,
+    selectedUnit: unit,
     sourceDigest
   });
   if (priorFullEvidence) {
@@ -262,7 +205,15 @@ function upsertReviewAttestation(fullEvidence, attestation) {
   return updated;
 }
 
-async function persistReviewAttestation({ workspace, loaded, unit, sourceDigest, attestation }) {
+async function persistReviewAttestation({
+  workspace,
+  loaded,
+  unit,
+  sourceDigest,
+  recordSourceDigest,
+  attestation
+}) {
+  const persistenceSnapshotDigest = computeWorkRecordPersistenceSnapshotDigest(loaded.record);
   const updatedRecord = cloneJson(loaded.record);
   const fullEvidence = await createFullEvidenceForAttestation({
     workspace,
@@ -274,11 +225,10 @@ async function persistReviewAttestation({ workspace, loaded, unit, sourceDigest,
   const admissionSummary = createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary(
     evaluateWorkRecordAdmissionDerivedEvidence(fullEvidenceWithAttestation)
   );
-  const sidecarRelativePath =
-    buildWorkRecordAdmissionDerivedEvidenceSidecarRelativePath(fullEvidenceWithAttestation);
-  const sidecarAbsolutePath = path.resolve(workspace.dir, sidecarRelativePath);
-  const sidecarDigest =
-    computeWorkRecordAdmissionDerivedEvidenceSidecarDigest(fullEvidenceWithAttestation);
+  const sidecarPublication =
+    prepareWorkRecordAdmissionDerivedEvidenceSidecar(fullEvidenceWithAttestation);
+  const sidecarRelativePath = sidecarPublication.relativePath;
+  const sidecarDigest = sidecarPublication.digest;
   const compactEntry = createPersistedWorkerAdmissionDerivedEvidence(fullEvidenceWithAttestation, {
     sidecarPath: sidecarRelativePath,
     sidecarDigest,
@@ -291,27 +241,26 @@ async function persistReviewAttestation({ workspace, loaded, unit, sourceDigest,
     sourceDigest
   );
 
-  await writeWorkRecordAdmissionDerivedEvidenceSidecar(
-    sidecarAbsolutePath,
-    fullEvidenceWithAttestation
-  );
-  const writeResult = await writeValidatedWorkRecord({
+  const writeResult = await writeValidatedWorkRecordWithAdmissionSidecars({
     dir: workspace.dir,
     record: updatedRecord,
-    expectedSourceDigest: sourceDigest
+    expectedSourceDigest: recordSourceDigest,
+    expectedPersistenceSnapshotDigest: persistenceSnapshotDigest,
+    admissionSidecars: [sidecarPublication]
   });
   if (!writeResult?.written) {
-    const diagnostic = Array.isArray(writeResult?.diagnostics) && writeResult.diagnostics.length > 0
-      ? writeResult.diagnostics[0]?.message
-      : "validated work-record write refused";
-    throw new Error(`${TOOL_NAME} failed to persist review attestation: ${diagnostic}`);
+    const error = new Error(`${TOOL_NAME} failed to persist review attestation`);
+    error.code = writeResult?.diagnostics?.[0]?.code ?? "work_record_write_failed";
+    error.diagnostics = writeResult?.diagnostics ?? [];
+    throw error;
   }
   return {
     evidence: fullEvidenceWithAttestation,
     compact_entry: compactEntry,
     sidecar_path: sidecarRelativePath,
     sidecar_digest: sidecarDigest,
-    source_digest: writeResult.source_digest ?? sourceDigest
+    source_digest: sourceDigest,
+    record_source_digest: writeResult.source_digest ?? recordSourceDigest
   };
 }
 
@@ -532,17 +481,26 @@ export function registerReviewAttestationTools({
             ])
           );
         }
-        const sourceDigest = trimmed(loaded.source_digest);
-        if (!sourceDigest) {
+        const recordSourceDigest = trimmed(loaded.source_digest);
+        const digestRecord = cloneJson(loaded.record);
+        const sourceDigest = trimmed(computeReviewedUnitSourceDigest(
+          unit.kind === "slice"
+            ? { record: digestRecord, selected_slice_id: unit.slice_id }
+            : digestRecord
+        ));
+        if (!recordSourceDigest || !sourceDigest) {
           return errorContent(
-            new Error(`${TOOL_NAME} could not compute a canonical source_digest for ${unit.address}`)
+            new Error(`${TOOL_NAME} could not compute canonical digests for ${unit.address}`)
           );
         }
 
-        if (isNonEmptyString(args.expected_source_digest) && trimmed(args.expected_source_digest) !== sourceDigest) {
+        if (
+          isNonEmptyString(args.expected_source_digest) &&
+          trimmed(args.expected_source_digest) !== recordSourceDigest
+        ) {
           return jsonContent(
             refusal("review_attestation.stale_source_digest.v1", [
-              "expected_source_digest does not match the current canonical unit source_digest"
+              "expected_source_digest does not match the current canonical record source_digest"
             ])
           );
         }
@@ -696,6 +654,7 @@ export function registerReviewAttestationTools({
           loaded,
           unit,
           sourceDigest,
+          recordSourceDigest,
           attestation
         });
 
@@ -722,6 +681,16 @@ export function registerReviewAttestationTools({
           }
         });
       } catch (error) {
+        if (error instanceof WorkerAdmissionSidecarError) {
+          error.envelope = {
+            schema_version: "worker-admission-sidecar-error.v1",
+            code: error.code,
+            message: error.message,
+            record_id: error.diagnostics?.record_id ?? null,
+            unit_address: error.diagnostics?.unit?.address ?? null,
+            sidecar_path: error.diagnostics?.sidecar_path ?? null
+          };
+        }
         return errorContent(error);
       }
     }

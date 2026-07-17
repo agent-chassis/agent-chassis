@@ -14,11 +14,24 @@ export const AGENT_CHILD_TOOL_SURFACE_SUPPORTED_ROLES = Object.freeze(["worker",
 export const AGENT_CHILD_TOOL_SURFACE_READ_ONLY_ROLES = Object.freeze(["reviewer", "redteam"]);
 
 export const AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES = Object.freeze({
+  commit: "commit",
   apply_from_scratch: "filesystem_mcp.apply_from_scratch",
   read: "filesystem_mcp.read",
   write: "filesystem_mcp.write",
   structured_validation: "filesystem_mcp.structured_validation",
   final_report: "filesystem_mcp.final_report"
+});
+
+const MANAGED_WORKER_PROFILES = Object.freeze(new Set(["worker", "worker_spark"]));
+
+const WORKER_CLOSED_INPUT_COMMIT_CONTRACT = Object.freeze({
+  surface: AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES.commit,
+  input_schema: "closed_empty_object",
+  worker_supplied_binding: false,
+  worker_supplied_paths: false,
+  worker_supplied_ref: false,
+  worker_supplied_message: false,
+  execution_boundary: "trusted_host_runtime"
 });
 
 const WORKER_APPLY_FROM_SCRATCH_TOOL_CONTRACT = Object.freeze({
@@ -159,6 +172,10 @@ function normalizeScopedToolNames(writeEnabled) {
   return scopedToolNames;
 }
 
+function isManagedWorkerProfile(role, profile) {
+  return role === "worker" && typeof profile === "string" && MANAGED_WORKER_PROFILES.has(profile);
+}
+
 function deriveValidationTransport(validationPolicy) {
   if (!isPlainObject(validationPolicy)) {
     return null;
@@ -235,6 +252,8 @@ export function buildScopedChildToolSurfaceDescriptor(input) {
   }
 
   const isReadOnlyRole = AGENT_CHILD_TOOL_SURFACE_READ_ONLY_ROLES.includes(role);
+  const profile = isNonEmptyString(input.profile) ? input.profile.trim() : null;
+  const managedWorkerProfile = isManagedWorkerProfile(role, profile);
   if (isReadOnlyRole && writeScopeResult.normalized.length > 0) {
     return buildRefusal(
       AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.WRITE_FORBIDDEN_FOR_ROLE,
@@ -244,8 +263,8 @@ export function buildScopedChildToolSurfaceDescriptor(input) {
   }
 
   const validationPolicy = input.validation_policy;
-  const validationTransport = deriveValidationTransport(validationPolicy);
-  if (!validationTransport || !SUPPORTED_VALIDATION_TRANSPORTS.includes(validationTransport)) {
+  const validationTransport = managedWorkerProfile ? "unsupported" : deriveValidationTransport(validationPolicy);
+  if (!managedWorkerProfile && (!validationTransport || !SUPPORTED_VALIDATION_TRANSPORTS.includes(validationTransport))) {
     return buildRefusal(
       AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.VALIDATION_INVALID,
       "validation_policy.commands must be a non-empty list of {form: argv|named} entries"
@@ -267,25 +286,30 @@ export function buildScopedChildToolSurfaceDescriptor(input) {
     );
   }
 
-  const writeEnabled = !isReadOnlyRole;
+  const writeEnabled = !isReadOnlyRole && !managedWorkerProfile;
 
-  const toolSurface = {
-    read: true,
-    write: writeEnabled,
-    structured_validation: true,
-    final_report: true
-  };
+  const toolSurface = managedWorkerProfile
+    ? { read: false, write: false, structured_validation: false, final_report: false }
+    : {
+        read: true,
+        write: writeEnabled,
+        structured_validation: true,
+        final_report: true
+      };
 
-  const scopedToolNames = normalizeScopedToolNames(writeEnabled);
+  const scopedToolNames = managedWorkerProfile
+    ? [AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES.commit]
+    : normalizeScopedToolNames(writeEnabled);
 
   const disallowedTools = [...AGENT_CHILD_TOOL_SURFACE_FORBIDDEN_STOCK_TOOLS];
   disallowedTools.sort();
 
-  const effectiveWriteScope = writeEnabled ? writeScopeResult.normalized : [];
+  const effectiveWriteScope = isReadOnlyRole ? [] : writeScopeResult.normalized;
 
   const partial = {
     schema_version: AGENT_CHILD_TOOL_SURFACE_SCHEMA_VERSION,
     role,
+    ...(profile !== null ? { profile } : {}),
     raw_exec_enabled: false,
     read_scope: readScopeResult.normalized,
     write_scope: effectiveWriteScope,
@@ -293,9 +317,11 @@ export function buildScopedChildToolSurfaceDescriptor(input) {
     disallowed_tools: disallowedTools,
     tool_surface: toolSurface,
     validation_transport: validationTransport,
-    structured_validation_contract: STRUCTURED_VALIDATION_CONTRACT,
+    ...(managedWorkerProfile ? {} : { structured_validation_contract: STRUCTURED_VALIDATION_CONTRACT }),
     provenance_sink: provenanceSink,
-    ...(writeEnabled ? { scoped_tool_contracts: WORKER_SCOPED_TOOL_CONTRACTS } : {})
+    ...(managedWorkerProfile
+      ? { scoped_tool_contracts: Object.freeze({ commit: WORKER_CLOSED_INPUT_COMMIT_CONTRACT }) }
+      : writeEnabled ? { scoped_tool_contracts: WORKER_SCOPED_TOOL_CONTRACTS } : {})
   };
 
   const descriptor = Object.freeze({
@@ -508,6 +534,7 @@ export function buildScopedChildToolSurfaceDescriptorFromAgentBackendRequest(req
   }
   return buildScopedChildToolSurfaceDescriptor({
     role: request.agent?.role,
+    profile: request.agent?.profile,
     read_scope: request.scope?.read_scope,
     write_scope: request.scope?.write_scope,
     validation_policy: request.validation,
@@ -533,14 +560,42 @@ export function assertAcceptedScopedChildToolSurfaceDescriptor(descriptor) {
       "accepted scoped child tool surface descriptor must disable raw exec"
     );
   }
+  const managedWorkerProfile = isManagedWorkerProfile(descriptor.role, descriptor.profile);
+  if (managedWorkerProfile) {
+    const expectedSurface = {
+      read: false,
+      write: false,
+      structured_validation: false,
+      final_report: false
+    };
+    if (
+      !sameJson(descriptor.tool_surface, expectedSurface) ||
+      !sameJson(descriptor.scoped_tool_names, [AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES.commit]) ||
+      !sameJson(descriptor.scoped_tool_contracts, { commit: WORKER_CLOSED_INPUT_COMMIT_CONTRACT }) ||
+      Object.hasOwn(descriptor, "structured_validation_contract") ||
+      descriptor.validation_transport !== "unsupported"
+    ) {
+      return buildRefusal(
+        AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.DESCRIPTOR_INVALID,
+        "managed worker tool profile must expose only the closed-input commit capability",
+        {
+          profile: descriptor.profile,
+          tool_surface: descriptor.tool_surface ?? null,
+          scoped_tool_names: descriptor.scoped_tool_names ?? null
+        }
+      );
+    }
+  }
 
   if (
-    !isPlainObject(descriptor.structured_validation_contract) ||
-    descriptor.structured_validation_contract.raw_exec_enabled !== false ||
-    descriptor.structured_validation_contract.shell !== false ||
-    !sameJson(
-      descriptor.structured_validation_contract.operations,
-      AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS
+    !managedWorkerProfile && (
+      !isPlainObject(descriptor.structured_validation_contract) ||
+      descriptor.structured_validation_contract.raw_exec_enabled !== false ||
+      descriptor.structured_validation_contract.shell !== false ||
+      !sameJson(
+        descriptor.structured_validation_contract.operations,
+        AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS
+      )
     )
   ) {
     return buildRefusal(
@@ -556,12 +611,12 @@ export function assertAcceptedScopedChildToolSurfaceDescriptor(descriptor) {
     );
   }
   const scopedToolNames = descriptor.scoped_tool_names;
-  const missingScopedTools = [
+  const missingScopedTools = managedWorkerProfile ? [] : [
     AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES.read,
     AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES.structured_validation,
     AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES.final_report
   ].filter((name) => !scopedToolNames.includes(name));
-  if (descriptor.role === "worker") {
+  if (descriptor.role === "worker" && !managedWorkerProfile) {
     if (!scopedToolNames.includes(AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES.apply_from_scratch)) {
       missingScopedTools.push(AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES.apply_from_scratch);
     }
@@ -576,7 +631,9 @@ export function assertAcceptedScopedChildToolSurfaceDescriptor(descriptor) {
       { missing_scoped_tools: missingScopedTools.sort() }
     );
   }
-  const expectedScopedToolNames = normalizeScopedToolNames(descriptor.role === "worker");
+  const expectedScopedToolNames = managedWorkerProfile
+    ? [AGENT_CHILD_TOOL_SURFACE_SCOPED_TOOL_NAMES.commit]
+    : normalizeScopedToolNames(descriptor.role === "worker");
   if (!sameJson(scopedToolNames, expectedScopedToolNames)) {
     return buildRefusal(
       AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.DESCRIPTOR_INVALID,
@@ -587,7 +644,7 @@ export function assertAcceptedScopedChildToolSurfaceDescriptor(descriptor) {
       }
     );
   }
-  if (descriptor.role === "worker") {
+  if (descriptor.role === "worker" && !managedWorkerProfile) {
     if (!isPlainObject(descriptor.scoped_tool_contracts) || !sameJson(descriptor.scoped_tool_contracts, WORKER_SCOPED_TOOL_CONTRACTS)) {
       return buildRefusal(
         AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.DESCRIPTOR_INVALID,
@@ -598,7 +655,7 @@ export function assertAcceptedScopedChildToolSurfaceDescriptor(descriptor) {
         }
       );
     }
-  } else if (Object.hasOwn(descriptor, "scoped_tool_contracts")) {
+  } else if (descriptor.role !== "worker" && Object.hasOwn(descriptor, "scoped_tool_contracts")) {
     return buildRefusal(
       AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.DESCRIPTOR_INVALID,
       "read-only scoped child tool surface descriptors must not expose worker apply_from_scratch contracts",
@@ -645,6 +702,13 @@ export function assertLauncherOwnedSourceToolSurface(surface) {
   const descriptor = assertAcceptedScopedChildToolSurfaceDescriptor(surface.descriptor);
   if (isScopedChildToolSurfaceRefusal(descriptor)) {
     return descriptor;
+  }
+  if (isManagedWorkerProfile(descriptor.role, descriptor.profile)) {
+    return buildRefusal(
+      AGENT_CHILD_TOOL_SURFACE_REFUSAL_CODES.SOURCE_SURFACE_NOT_PROVEN,
+      "managed worker profiles refuse filesystem-MCP backend handshakes; only the closed-input commit capability is allowed",
+      { profile: descriptor.profile }
+    );
   }
 
   if (!isPlainObject(surface.request) || surface.request.schema_version !== "agent-backend-request.v1") {

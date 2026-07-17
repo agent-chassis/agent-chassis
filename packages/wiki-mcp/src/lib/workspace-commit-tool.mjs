@@ -19,10 +19,24 @@ import {
 
 export { WORKER_COMMIT_TOOL_NAME };
 
+export const WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION = Object.freeze({
+  schema_version: "workspace-closed-input-commit-composition.v1",
+  installed: true,
+  tool_name: WORKER_COMMIT_TOOL_NAME,
+  input_contract: "closed",
+  binding_authority: "server_resolved"
+});
+
 const WIKI_MCP_COMMIT_BINDING_ENV_VAR = "WIKI_MCP_COMMIT_BINDING";
 const WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR = "WIKI_MCP_COMMIT_LAUNCH_REF";
 const WIKI_MCP_COMMIT_RUN_ID_ENV_VAR = "WIKI_MCP_COMMIT_RUN_ID";
 const WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR = "WIKI_MCP_COMMIT_RETRY_ID";
+
+const HOST_WRITE_AUTHORITY_ENDPOINT_ENV_VAR = "AGENT_LAUNCH_HOST_WRITE_AUTHORITY_TCP_ENDPOINT";
+const AGENT_LAUNCH_SUBSTRATE_MODULE = "../../../agent-launch-cli/src/lib/host-write-authority-substrate.mjs";
+const COMMIT_TOOL_EXPOSURE_GUARD_MODULE = "../../../agent-launch-cli/src/lib/commit-tool-exposure-guard.mjs";
+const EXACT_SLICE_UNIT_ADDRESS_RE = /^(IN-\d{4})\/(WK-\d{4})\/(SLICE-\d{3})$/u;
+const EXACT_SLICE_ASSIGNED_UNIT_RE = /^(WK-\d{4})#(SLICE-\d{3})$/u;
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -113,20 +127,77 @@ function resolveCommitCredentialFromEnv(env) {
   });
 }
 
-function resolveCommitBindingFromCredential(credential, workspaceDir) {
+function projectVerifiedExactSliceSubject(binding, assignedUnit) {
+  if (!isPlainObject(binding)) {
+    throw new Error("identity-store commit binding must be an object");
+  }
+
+  const unitMatch = typeof binding.unit_address === "string"
+    ? EXACT_SLICE_UNIT_ADDRESS_RE.exec(binding.unit_address)
+    : null;
+  if (!unitMatch) {
+    throw new Error("identity-store commit binding unit_address must identify one canonical exact slice");
+  }
+  const [, initiative, recordId, sliceId] = unitMatch;
+  const subject = `${recordId}#${sliceId}`;
+  const assignedMatch = typeof assignedUnit === "string"
+    ? EXACT_SLICE_ASSIGNED_UNIT_RE.exec(assignedUnit)
+    : null;
+  if (!assignedMatch || assignedMatch[1] !== recordId || assignedMatch[2] !== sliceId) {
+    throw new Error("launcher-assigned unit does not match the identity-store exact slice");
+  }
+  if (binding.initiative !== initiative) {
+    throw new Error("identity-store commit binding initiative does not match unit_address");
+  }
+  if (binding.record_id !== recordId) {
+    throw new Error("identity-store commit binding record_id does not match unit_address");
+  }
+  if (binding.slice_id !== sliceId) {
+    throw new Error("identity-store commit binding slice_id does not match unit_address");
+  }
+
+  const selectedUnit = binding.selected_unit;
+  if (!isPlainObject(selectedUnit) ||
+      selectedUnit.kind !== "slice" ||
+      selectedUnit.address !== subject ||
+      selectedUnit.record_id !== recordId ||
+      selectedUnit.slice_id !== sliceId ||
+      !Object.prototype.hasOwnProperty.call(selectedUnit, "repo") ||
+      !(selectedUnit.repo === null || (typeof selectedUnit.repo === "string" && selectedUnit.repo.length > 0))) {
+    throw new Error("identity-store commit binding selected_unit does not match the exact slice");
+  }
+
+  const branch = `slice/${initiative}/${recordId}/${sliceId}`;
+  if (binding.output_branch !== branch && binding.output_branch !== `refs/heads/${branch}`) {
+    throw new Error("identity-store commit binding output_branch does not match the exact slice");
+  }
+  if (Object.prototype.hasOwnProperty.call(binding, "subject") && binding.subject !== subject) {
+    throw new Error("identity-store commit binding subject conflicts with the exact slice");
+  }
+
+  return Object.freeze({ ...binding, subject });
+}
+
+function resolveCommitBindingFromCredential(credential, workspaceDir, assignedUnit) {
   if (!isPlainObject(credential)) {
     throw new Error("commit credential must be a launcher-provided object");
   }
   if (credential.kind === "direct_binding") {
+    if (!isPlainObject(credential.binding) ||
+        !Object.prototype.hasOwnProperty.call(credential.binding, "subject") ||
+        credential.binding.subject !== assignedUnit) {
+      throw new Error("direct commit binding requires an explicit subject matching the launcher-assigned unit");
+    }
     return credential.binding;
   }
   if (credential.kind === "identity_store_tuple") {
-    return resolveWorktreeBinding({
+    const binding = resolveWorktreeBinding({
       mainRepo: workspaceDir,
       launchRef: credential.launchRef,
       runId: credential.runId,
       retryId: credential.retryId
     });
+    return projectVerifiedExactSliceSubject(binding, assignedUnit);
   }
   throw new Error(`unsupported commit credential kind: ${JSON.stringify(credential.kind)}`);
 }
@@ -212,6 +283,60 @@ function resolveWriteScopeMatcher(workspaceDir, writeScope) {
   });
 }
 
+async function delegateManagedWorkerCommitToBroker({
+  args,
+  assignedUnit,
+  credential,
+  brokerEndpointValue,
+  jsonContent
+}) {
+
+  const { assertClosedInputSchema } = await import(COMMIT_TOOL_EXPOSURE_GUARD_MODULE);
+  assertClosedInputSchema(args);
+
+  const {
+    createHostWriteAuthorityBrokerChannel,
+    createHostWriteAuthorityCommitAdapter,
+    parseHostWriteAuthoritySidecarEndpoint
+  } = await import(AGENT_LAUNCH_SUBSTRATE_MODULE);
+
+  const endpoint = parseHostWriteAuthoritySidecarEndpoint(brokerEndpointValue);
+  if (endpoint === null) {
+    return jsonContent(
+      createCommitRefusal("commit.broker_endpoint_invalid.v1", [
+        "the launcher-projected host-write broker endpoint is malformed; the managed worker commit refuses to delegate rather than run Git in the confined namespace"
+      ])
+    );
+  }
+
+  const channel = createHostWriteAuthorityBrokerChannel({ endpoint });
+  const commitAdapter = createHostWriteAuthorityCommitAdapter({ channel });
+  const delegated = await commitAdapter({
+    assigned_unit: assignedUnit,
+    launch_ref: credential.launchRef,
+    run_id: credential.runId,
+    retry_id: credential.retryId
+  });
+
+  if (!delegated || delegated.accepted !== true) {
+    return jsonContent(
+      createCommitRefusal(
+        "commit.broker_delegation_refused.v1",
+        [
+          "the host-write broker refused or could not complete the delegated managed-worker commit; failing closed"
+        ],
+        { broker_refusal: delegated?.refusal ?? null }
+      )
+    );
+  }
+
+  return jsonContent({
+    workspaceRepo: null,
+    tool: WORKER_COMMIT_TOOL_NAME,
+    ...delegated.commit_result
+  });
+}
+
 export function registerWorkspaceCommitTool({
   registerTool,
   workspaceRepos,
@@ -227,12 +352,13 @@ export function registerWorkspaceCommitTool({
     WORKER_COMMIT_TOOL_NAME,
     {
       description:
-        "Worker-only affordance: materialize the launcher-provisioned worktree into an immutable commit object, verify that object against the launcher-assigned write_scope, advance the WK ref, and submit the launcher-assigned unit for findings-only review. The tool accepts no caller-supplied branch, path, base_sha, write_scope, subject, expected envelope, author identity, or commit message.",
+        "Worker-only closed-input affordance. For a managed exact slice, materialize and verify the launcher-bound delta against the launcher-assigned write_scope, advance only the exact slice ref, and return awaiting confirmed worker termination and trusted WK integration; do not advance the WK ref or submit the slice for review. Trusted runtime subsequently integrates the committed slice into the WK and freezes the accumulated whole-WK target for findings-only review. Legacy direct-WK bindings, where supported, advance the WK ref and submit the launcher-assigned unit for findings-only review. The tool accepts no caller-supplied branch, path, base_sha, write_scope, subject, expected envelope, author identity, or commit message.",
       inputSchema: z.object({}).strict()
     },
     async (args) => {
       try {
-        const assignedUnit = trimmed(env.WIKI_MCP_ASSIGNED_UNIT);
+        const rawAssignedUnit = env.WIKI_MCP_ASSIGNED_UNIT;
+        const assignedUnit = trimmed(rawAssignedUnit);
         if (!assignedUnit) {
           return jsonContent(
             createCommitRefusal("commit.missing_assigned_unit.v1", [
@@ -241,7 +367,6 @@ export function registerWorkspaceCommitTool({
           );
         }
 
-        const workspace = resolveWorkspaceRepo(workspaceRepos);
         const credential = resolveCommitCredentialFromEnv(env);
         if (!credential) {
           return jsonContent(
@@ -251,13 +376,25 @@ export function registerWorkspaceCommitTool({
           );
         }
 
+        const brokerEndpointValue = trimmed(env[HOST_WRITE_AUTHORITY_ENDPOINT_ENV_VAR]);
+        if (brokerEndpointValue && credential.kind === "identity_store_tuple") {
+          return await delegateManagedWorkerCommitToBroker({
+            args,
+            assignedUnit,
+            credential,
+            brokerEndpointValue,
+            jsonContent
+          });
+        }
+
+        const workspace = resolveWorkspaceRepo(workspaceRepos);
         let rawBinding = null;
         const admitted = admitWorkerCommitCall({
           credential,
           workerArgs: args,
           deps: {
             resolveBinding(value) {
-              rawBinding = resolveCommitBindingFromCredential(value, workspace.dir);
+              rawBinding = resolveCommitBindingFromCredential(value, workspace.dir, rawAssignedUnit);
               return rawBinding;
             }
           }

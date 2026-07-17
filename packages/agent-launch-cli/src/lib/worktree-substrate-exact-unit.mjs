@@ -22,6 +22,8 @@ import {
   branchExists,
   revParse,
   gitOrThrow,
+  normalizeSparseConeDirs,
+  deriveCanonicalSparseConeDirs,
   rollbackWorktreeAndBranch,
   perWkBranchRef,
   perWkWorktreePath,
@@ -35,87 +37,7 @@ import {
   resolveVerifiedSparseExactUnitBinding
 } from "./worktree-substrate-identity.mjs";
 
-export function normalizeSparseConeDirs(coneDirs) {
-  if (!Array.isArray(coneDirs) || coneDirs.length === 0) {
-    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, "coneDirs must be a non-empty array");
-  }
-  const normalized = [];
-  for (const coneDir of coneDirs) {
-    if (typeof coneDir !== "string" || coneDir.length === 0) {
-      fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, "every coneDir must be a non-empty string");
-    }
-    if (/^[/-]/.test(coneDir) || /[\x00-\x1f\x7f]/.test(coneDir)) {
-      fail(
-        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
-        `coneDir must be relative, non-option-like, and control-free: ${JSON.stringify(coneDir)}`
-      );
-    }
-    const parts = coneDir.split("/");
-    if (parts.some((part) => part === "" || part === "." || part === "..") ||
-        path.posix.normalize(coneDir) !== coneDir) {
-      fail(
-        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
-        `coneDir must be a normalized repository-relative directory: ${JSON.stringify(coneDir)}`
-      );
-    }
-    normalized.push(coneDir);
-  }
-  const sorted = [...normalized].sort();
-  for (let index = 0; index < sorted.length; index += 1) {
-    if (index > 0 && sorted[index] === sorted[index - 1]) {
-      fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, `duplicate coneDir: ${JSON.stringify(sorted[index])}`);
-    }
-    for (let ancestor = 0; ancestor < index; ancestor += 1) {
-      if (sorted[index].startsWith(`${sorted[ancestor]}/`)) {
-        fail(
-          WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
-          `ancestor-redundant coneDirs are forbidden: ${JSON.stringify(sorted[ancestor])} contains ${JSON.stringify(sorted[index])}`
-        );
-      }
-    }
-  }
-  return Object.freeze([...normalized]);
-}
-
-function treeEntryIsDirectory(runGit, repo, treeSha, scopePath) {
-  const result = gitOrThrow(
-    runGit,
-    repo,
-    ["ls-tree", "-z", "--full-tree", treeSha, "--", scopePath],
-    "failed to classify sparse cone path from captured WK-tip tree"
-  );
-  if (!result.stdout) return false;
-  const metadataEnd = result.stdout.indexOf("\t");
-  return metadataEnd !== -1 && result.stdout.slice(0, metadataEnd).split(" ")[1] === "tree";
-}
-
-function deriveCanonicalConeDirs(runGit, repo, treeSha, scopePaths) {
-  const candidates = [];
-  for (const scopePath of scopePaths) {
-    if (typeof scopePath !== "string" || scopePath.length === 0 || path.posix.isAbsolute(scopePath) ||
-        /[\x00-\x1f\x7f]/.test(scopePath) || path.posix.normalize(scopePath) !== scopePath) {
-      fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.WRITE_SCOPE_UNRESOLVABLE, `scope path cannot be mapped to a sparse cone: ${JSON.stringify(scopePath)}`);
-    }
-    const parts = scopePath.split("/");
-    const wildcardIndex = parts.findIndex((part) => /[*?[]/.test(part));
-    let coneDir;
-    if (wildcardIndex !== -1) {
-      coneDir = parts.slice(0, wildcardIndex).join("/");
-    } else {
-      coneDir = treeEntryIsDirectory(runGit, repo, treeSha, scopePath)
-        ? scopePath
-        : path.posix.dirname(scopePath);
-    }
-    if (coneDir !== "." && coneDir !== "") candidates.push(coneDir);
-  }
-  const minimal = [...new Set(candidates)].sort().filter((candidate, index, all) =>
-    !all.some((possibleAncestor, ancestorIndex) => ancestorIndex !== index && candidate.startsWith(`${possibleAncestor}/`))
-  );
-  if (minimal.length === 0) {
-    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, "read_scope union write_scope contains no directory cone");
-  }
-  return normalizeSparseConeDirs(minimal);
-}
+export { normalizeSparseConeDirs };
 
 export function sliceBranchRef(initiative, wkId, sliceId) {
   assertInitiativeId(initiative);
@@ -239,6 +161,12 @@ export function allocateSparseExactUnitWorktree({
   retryId = 0,
   worktreeRoot,
   coneDirs,
+  readScope,
+  repoPaths,
+  writeScope,
+  selectedUnit,
+  sourceDigest,
+  sourceVersion,
   deps = {}
 } = {}) {
   const runGit = deps.runGit ?? defaultRunGit;
@@ -254,13 +182,23 @@ export function allocateSparseExactUnitWorktree({
   if (name.kind !== "slice") {
     fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_UNIT_ADDRESS, "sparse exact-unit allocation requires a slice unit_address");
   }
-  const scopes = canonicalUnitScopes(repo, name.wk_id, name.slice_id);
+  const callerScopeCarriers = { readScope, repoPaths, writeScope, selectedUnit, sourceDigest, sourceVersion };
+  const suppliedCarrier = Object.entries(callerScopeCarriers).find(([, value]) => value !== undefined);
+  if (suppliedCarrier) {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
+      `caller-supplied sparse authority is forbidden; ${suppliedCarrier[0]} must be resolved from the exact canonical selected unit server-side`
+    );
+  }
+  const scopes = canonicalUnitScopes(repo, name.wk_id, name.slice_id, {
+    expectedInitiative: name.initiative
+  });
   const { base_ref: baseRef, base_sha: baseSha } = resolveWkBranchTipBase({ mainRepo: repo, unitAddress: name.unit_address, deps: { runGit } });
-  const canonicalCones = deriveCanonicalConeDirs(
+  const canonicalCones = deriveCanonicalSparseConeDirs(
     runGit,
     repo,
     baseSha,
-    [...scopes.readScope, ...scopes.writeScope]
+    [...scopes.readableScope, ...scopes.writeScope]
   );
   if (coneDirs !== undefined) {
     const suppliedCones = normalizeSparseConeDirs(coneDirs);
@@ -270,7 +208,7 @@ export function allocateSparseExactUnitWorktree({
     if (!sameCones) {
       fail(
         WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
-        "coneDirs must exactly equal the canonical read_scope union write_scope directory cones",
+        "coneDirs must exactly equal the canonical read_scope union repo_paths union write_scope directory cones",
         { expected: canonicalCones, actual: suppliedCones }
       );
     }
@@ -284,7 +222,15 @@ export function allocateSparseExactUnitWorktree({
     fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.TARGET_EXISTS, "sparse exact-unit target already exists", { branch, worktreePath });
   }
   assertNoRefNamespaceCollision(enumerateRefs(runGit, repo), fullRef);
-  const { writeScope, source: writeScopeSource } = scopes;
+  const {
+    readScope: canonicalReadScope,
+    repoPaths: canonicalRepoPaths,
+    writeScope: canonicalWriteScope,
+    selectedUnit: canonicalSelectedUnit,
+    source: writeScopeSource,
+    sourceDigest: canonicalSourceDigest,
+    sourceVersion: canonicalSourceVersion
+  } = scopes;
   mkdirSync(root, { recursive: true });
   const bindingPath = bindingFilePath(repo, launchRef, runId, retryId);
   let bindingCreated = false;
@@ -317,8 +263,13 @@ export function allocateSparseExactUnitWorktree({
       base_sha: baseSha,
       output_branch: branch,
       worktree_path: worktreePath,
-      write_scope: writeScope,
+      read_scope: canonicalReadScope,
+      repo_paths: canonicalRepoPaths,
+      write_scope: canonicalWriteScope,
       write_scope_source: writeScopeSource,
+      selected_unit: canonicalSelectedUnit,
+      source_digest: canonicalSourceDigest,
+      source_version: canonicalSourceVersion,
       cone_dirs: cones,
       index_sparse: false
     });

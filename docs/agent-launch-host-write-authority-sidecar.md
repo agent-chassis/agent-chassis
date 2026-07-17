@@ -94,5 +94,257 @@ broker/server logs, channel errors, MCP dispatch responses,
 `workspace_agent_run_status` `final_result` envelopes, structured blocker
 detail fields, and WK closure / attempt-log text.
 
+## Initial Managed Worktree Provisioning Over The Broker (work record)
+
+Managed dispatch previously ran `provisionManagedWorktreesAtDispatch` inside the
+read-only orchestrator wiki-MCP namespace before control reached the writable
+host-write-authority broker, so `git worktree add` failed while creating the WK
+branch lock under the main repo's read-only `.git/refs`. The one initial
+(`retry_id === 0`) provisioning operation now crosses the existing host-write
+sidecar boundary so the broker performs it from its writable host namespace. MCP
+remains stdio-only (decision); this reuses the already-running host-write
+transport and adds no listener, HTTP/URL transport, bearer/token/authentication
+system, proxy, relay, daemon, second broker, generic Git API, or worker-visible
+Git metadata.
+
+**One `provision_worktree` operation.** The host-write protocol gains exactly one
+operation, `provision_worktree`, and one response kind, `worktree_provisioned`.
+The broker invokes the existing `provisionManagedWorktreesAtDispatch` primitive
+(injected, never reimplemented) and returns its complete launcher-owned
+`managed-worktree-binding.v1` carrier. The op is initial-only: a request whose
+`retry_id` is not `0` is refused (`broker_provisioning_request_invalid`). Later
+`retry_id > 0` recovery/idempotency is out of scope and owned by work record.
+
+**Launcher-owned roots, request carries only identity.** The broker resolves its
+canonical `mainRepo` and `worktreeRoot` from launcher-owned production
+composition — the orchestrator plan's repo (the `.agent-worktrees/<repo>`
+sibling), frozen before launch — plus the injected provisioner. These roots and
+the provisioner NEVER come from the MCP request, worker, prompt, argv,
+environment, cwd, claimed identity, or a returned carrier. The
+`provision_request` payload carries only the server-resolved per-attempt identity
+(`role`, `subject`, `initiative`, `launch_ref`, `run_id`, `retry_id`); an
+extended, missing, non-worker, non-slice, or non-zero-`retry_id` payload is
+refused before the provisioner runs. A broker not composed with those roots +
+provisioner refuses `provision_worktree` with `broker_provisioning_unavailable`.
+
+**Exact carrier validation and deep refreeze.** The MCP-side provisioning adapter
+validates the response envelope, proves the returned carrier is the complete,
+exact-schema, internally-consistent `managed-worktree-binding.v1` object for the
+initial attempt, proves it survives JSON encoding unchanged (lossless), and
+deep-refreezes it (JSON cannot carry `Object.freeze` metadata). A malformed,
+extended, mismatched, or lossy carrier fails closed with
+`host_write_authority_provisioning_carrier_invalid`
+(`operator_recovery_needed`). The dispatch backend then feeds the validated
+carrier unchanged into the existing `start_launch` path and re-runs the same
+current-attempt and frozen-scope-authority re-verification it applies to an
+in-process carrier before recording the binding or spawning the worker.
+
 Remote agent runner distribution and its endpoint/authority handling are out of
 scope for this local sidecar contract.
+
+## Admissibility Is Decided Once By CCE; The Broker Is A Trusted Executor (work record)
+
+Worker admissibility is decided exactly once, by CCE, on the dispatch/backend path:
+dispatch readiness returns a ratified pack-backed `admit` (or the sole positive
+`local_only_fail_open` posture), and that is the single admissibility authority. The
+host-write-authority broker does **not** re-decide it. The broker is a trusted
+executor: on `start_launch` for a worker it trusts the CCE admit already rendered on
+the dispatch path and proceeds to provision → plan → spawn, with frozen-`write_scope`
+enforcement owned by the closed-input `commit_slice` path. It renders no admissibility
+verdict, loads no canonical record for admission, computes no admission digest, and
+performs no CCE re-consult. The transport is the trust boundary.
+
+This retires the earlier stopgap (work record/work record) in which the broker independently
+re-consulted CCE with its own bootstrapped Node Engine env, and moots the
+carrier-digest re-read the broker performed to bind that re-consult (work record): the
+broker no longer re-reads or re-hashes the canonical record on the launch path, so the
+worktree-vs-mainRepo digest, dirty-record digest, and sparse-worktree CCE-config
+fragilities that class introduced are gone. `broker_worker_admission_refused` is no
+longer emitted as a launch gate. The broker still derives one worker-branch fact — that
+a launch is a launcher-proven managed worker, signalled by the launcher transporting a
+frozen scope authority — solely to gate the managed-worker endpoint projection below;
+that derivation reads only the transported scope authority, never a record.
+
+A cryptographically-verifiable signed admit that the broker could positively verify
+(rather than merely trust the transport) is optional future hardening (work record); it is
+**not** built here and is not required for this posture.
+
+### Managed-Worktree-Binding Carrier Field Set And Trusted-Side Topology Derivation (work record)
+
+The `managed-worktree-binding.v1` carrier that crosses the `start_launch` wire has an
+exact field set. The outer carrier carries exactly: `schema_version`, `complete`,
+`main_repo`, `initiative`, `record_id`, `slice_id`, `unit_address`, `retry_id`,
+`run_authority`, `wk_binding`, `slice_binding`, `worktree_path`, `output_branch`,
+`base_ref`, `base_sha`, `write_scope`, `cone_dirs`, `index_sparse`,
+`validation_worktree_path`, and `shared_git_exposed`. The nested `wk_binding` carries
+exactly the 14 fields `schema_version`, `launch_ref`, `run_id`, `retry_id`,
+`unit_address`, `initiative`, `record_id`, `slice_id`, `base_ref`, `base_sha`,
+`output_branch`, `worktree_path`, `write_scope`, `write_scope_source`; the nested
+`slice_binding` carries those 14 plus `read_scope`, `repo_paths`, `selected_unit`,
+`source_digest`, `source_version`, `cone_dirs`, `index_sparse`. The channel proves each
+nested binding carries **exactly** its declared field set, so no extra or
+authority-shaped field can enter through a nested binding.
+
+The former caller-carried `provisionedWorktreeGitBinding` /
+`provisioned_worktree_git_binding` launch-input aliases are **deleted** — a decision-style
+deletion, not a compatibility mirror. They are removed from the host-write allowlist, the
+envelope sanitizer's alias mirroring, and the broker-channel presence/agreement
+requirement; a launch input carrying either spelling refuses as a non-schema field before
+serialization. The linked-worktree Git topology (`worktreePath`, `gitDir`, `mainGitDir`,
+`gitPointerFile`) is instead derived at the trusted broker plan-launch boundary
+exclusively from the validated carrier's `main_repo` and `worktree_path`, matching the
+launcher's own `provisionedWorktreeGitIdentity` derivation, and only after the channel's
+exact-schema/freeze/losslessness proofs and the pre-preparation current-attempt binding
+(including the `workspace_dir` presence-and-equality requirement) succeed. Realpath /
+symlink hardening of those derived paths remains work record.
+
+## Managed Worker Closed-Input Commit Over The Broker (work record)
+
+A managed implementation worker's only delivery authority is the closed-input
+`commit` MCP tool exposed in its confined stdio wiki-MCP child. That child runs
+inside the Git-less managed namespace, so it cannot run `git` itself. The commit
+is therefore delegated across the existing host-write sidecar boundary so the
+broker performs it from its writable host namespace. MCP stays stdio-only
+(decision); this reuses the already-running host-write transport and adds no
+listener, HTTP/URL transport, bearer/token/authentication system, proxy, relay,
+daemon, second broker, generic Git API, or worker-visible Git metadata. The
+worker's MCP tool surface stays exactly `{commit}` and its input schema stays the
+strict empty object.
+
+**One `commit_slice` operation.** The host-write protocol gains exactly one
+operation, `commit_slice`, and one response kind, `slice_committed`. The request
+carries only the launcher-minted per-run identity — `{ assigned_unit, launch_ref,
+run_id, retry_id }` — resolved from launcher-owned configuration projected into
+the worker's stdio wiki-MCP child. It carries no caller-selected repo, worktree,
+ref, branch, base SHA, write_scope, tree, commit, message, Git args, command,
+mode, or identity override; those are dropped by the request builder and the
+broker's exact outer/inner envelope guards. An extended, missing, non-canonical,
+or negative-`retry_id` payload is refused (`broker_commit_request_invalid`)
+before any Git operation.
+
+**Launcher-owned root, server-side binding resolution.** The broker resolves its
+canonical `commitMainRepo` from launcher-owned production composition (the same
+launcher-minted `mainRepo` used for provisioning), never from the MCP request,
+worker, prompt, argv, environment, cwd, or claimed identity. It independently
+reads the exact frozen slice binding from the identity store under that canonical
+root, re-verifies it against the launcher-assigned unit (unit_address, initiative,
+record/slice ids, selected_unit, and output_branch), and then runs the EXISTING
+content-inert `materializeCommitObject` / `verifyAndMeasureCommitScope` /
+`commitSliceRef` primitives — never a second commit implementation, a generic Git
+surface, or a worker-selected message (the message is server-generated). A stale,
+mismatched, sibling, or absent binding, or a Git failure, fails closed
+(`broker_commit_threw`) with zero ref mutations. A write-scope containment failure
+refuses (`broker_commit_scope_refused`) before advancing any ref. A broker not
+composed with the canonical root + commit primitive refuses
+(`broker_commit_unavailable`). Successful delivery advances only the exact slice
+ref; trusted runtime still owns slice-to-WK integration and freezing the
+accumulated whole-WK review target.
+
+**Endpoint projection is worker-only.** The launcher projects the host-write
+endpoint into a MANAGED worker's stdio wiki-MCP child config (as a Codex
+`-c mcp_servers.wiki.env.AGENT_LAUNCH_HOST_WRITE_AUTHORITY_TCP_ENDPOINT="..."`
+override) ONLY when that worker carries the commit tuple. Reviewer, redteam,
+orchestrator, direct/unmanaged, Claude, Agy, configured-command, and
+configured-URL paths never receive the endpoint and never gain the
+managed-worker commit operation. When no endpoint is projected (unmanaged/direct/
+legacy), the worker's `commit` tool runs the existing in-process pipeline
+unchanged.
+
+**Adapter fail-closed.** Before calling the broker, the MCP-side commit adapter
+requires the complete launcher-minted `assigned_unit` / `launch_ref` / `run_id` /
+`retry_id` request identity. On success it accepts only the exact closed
+`commit_result` field set, requires canonical Git object IDs, and binds the
+returned `assigned_unit` and canonical slice ref to the requested unit. The
+broker independently owns same-attempt tuple freshness through its server-side
+binding resolution; the response does not add an untrusted tuple echo. The
+adapter also proves that the result survives JSON encoding unchanged (lossless)
+before deep-freezing it. An extended, partial, sibling-unit, wrong-ref,
+malformed-object-ID, not-committed, submit-for-review, or lossy result fails
+closed with `host_write_authority_commit_result_invalid` — never a false success
+and never a Git fallback in the confined namespace.
+
+## Post-Terminal Slice-to-WK Integration Over The Broker (work record)
+
+After a managed implementation worker terminates and its closed-input `commit_slice`
+advances the slice ref, trusted runtime must integrate that committed slice into the
+parent WK branch: rebase the slice onto the current WK tip if the base is stale,
+fast-forward the WK ref, advance the persistent full-WK worktree, and freeze the
+accumulated whole-WK review target by moving the canonical parent record to `review`.
+That work runs `git` (and a canonical work-record status write), so it cannot run
+inside the read-only orchestrator wiki-MCP namespace — the work record canary observed it
+fail there with `agent_launch.slice_integration.git_failed.v1` even though the commit
+had already advanced the slice ref. The integration is therefore delegated across the
+existing host-write sidecar boundary so the broker performs it from its writable host
+namespace. MCP stays stdio-only (decision); this reuses the already-running host-write
+transport and adds no listener, HTTP/URL transport, bearer/token/authentication system,
+proxy, relay, daemon, second broker, generic Git API, retry protocol, cleanup RPC,
+cached-success registry, or worker-visible Git metadata.
+
+**One `integrate_slice` operation.** The host-write protocol now enumerates exactly
+three same-pattern managed-lifecycle write operations — `provision_worktree`,
+`commit_slice`, and `integrate_slice` — with the response kinds `worktree_provisioned`,
+`slice_committed`, and `slice_integrated`. The broker invokes the existing
+`integrateCommittedSlice` primitive (`slice-integration.mjs`, unchanged) and returns its
+complete launcher-owned `slice-integration.v1` result plus an echo of the four-field
+request tuple. The request carries only the launcher-minted per-run identity — `{
+assigned_unit, launch_ref, run_id, retry_id }`, the **base** run identity the parent
+monitor already tracks. It carries no caller-selected repo, worktree, ref, base/WK SHA,
+write_scope, or mode; those are dropped by the request builder and the broker's exact
+outer/inner envelope guards. An extended, missing, non-canonical, negative-`retry_id`,
+or pre-qualified-`run_id` payload is refused (`broker_integration_request_invalid`)
+before any tuple lookup or Git operation.
+
+**Trusted-runtime-only trigger; no trigger authentication.** Unlike `commit_slice`,
+which the confined worker's `commit` tool delegates, the worker has **no** integrate
+tool. Integration is invoked only by trusted runtime — the parent run-monitor lifecycle
+(`dispatch-run-monitor-routes.mjs`), and only after that lifecycle observes the worker
+reach terminal outcome **succeeded** (`status.terminal && status.status === "succeeded"`
+at the `runPostWorkerSliceLifecycle` gate). The terminal-succeeded gate therefore lives
+at the parent, not the broker; a failed or still-running worker never reaches the
+integration call. Because nothing but trusted runtime can call the operation, there is
+nothing to authenticate: the broker accepts the same loopback residual as
+`commit_slice` and adds no trigger credential.
+
+**Launcher-owned root, server-side binding resolution.** The broker resolves its
+canonical `integrationMainRepo` from launcher-owned production composition (the same
+launcher-minted `mainRepo` used for provisioning and commit), never from the MCP
+request, worker, prompt, argv, environment, cwd, or claimed identity. It derives the
+`.slice`- and `.wk`-qualified binding identity from the base run id through the same
+`bindingIdentity` normalization `commit_slice` uses (a pre-qualified id is refused),
+independently re-verifies the slice binding against the launcher-assigned unit
+(reusing `verifyExactSliceCommitBinding`), and then runs the existing
+`integrateCommittedSlice` pipeline with a persistent full-WK-worktree advance seam and
+a host-side canonical review-freeze status transition. A stale, sibling, or
+base/`.slice`-collision tuple resolves no valid binding and fails closed pre-mutation
+with zero Git operations. A broker not composed with the canonical root + integration
+primitive refuses (`broker_integration_unavailable`).
+
+**Exactly-once with a fail-loud latch.** The broker maintains a per-tuple state machine
+created lazily on the first `integrate_slice`: `in_flight -> integrated`, with a
+`failed_indeterminate` terminal state. A concurrent duplicate refuses
+(`broker_integration_in_flight`) and a post-success replay refuses
+(`broker_integration_already_integrated`), both before any Git mutation. A primitive
+failure proven pre-mutation releases the gate so a later attempt can retry; a throw
+after a mutation that could not be guaranteed reversed (`rebase_restore_failed` or a
+review-freeze WK-ref compensation failure) latches `failed_indeterminate`, and every
+subsequent request for that tuple refuses (`broker_integration_latched_indeterminate`)
+with zero Git mutation. This is fail-loud exactly-once, explicitly **not** work record
+response-loss / restart recovery, which is not absorbed. decision integration semantics
+are preserved exactly (post-confirmed-termination only; stale-base rebase onto the WK
+tip; conflicts fail loud with abort/restore and no automatic slice-ref rollback; ff-only
+WK advancement) and work record/decision confinement is unchanged.
+
+**Adapter fail-closed and delegated-result parity.** Before calling the broker, the
+MCP-side integration adapter requires the complete launcher-minted request identity. On
+success it accepts only the exact closed `slice-integration.v1` result field set —
+including the frozen whole-WK `review_target` (its own exact nested schema), bounded
+transition evidence, the integrated slice SHA, previous and new WK tips, and the rebase
+disposition — validates every represented Git object ID and cross-field consistency,
+binds the echoed four-field tuple back to the originating request, proves the result
+survives JSON encoding unchanged (lossless), and deep-freezes it. An extended, partial,
+sibling-unit, wrong-ref, malformed-object-ID, tuple-unbound, or lossy result fails
+closed with `host_write_authority_integration_result_invalid`. The validated result
+carries every field the downstream review-freeze consumer needs, so
+`bindFrozenReviewContext` and the reviewer dispatch work unchanged from the delegated
+result. Direct/writable-host composition (no sidecar endpoint) keeps the existing
+in-process integration path.

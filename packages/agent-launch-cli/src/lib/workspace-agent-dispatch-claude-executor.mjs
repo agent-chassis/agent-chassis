@@ -415,7 +415,9 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
         role,
         subject,
         workspaceDir,
-        loadWorkRecord
+        loadWorkRecord,
+
+        frozenReviewContract: input?.trusted_frozen_review_contract ?? null
       });
       commandLine = buildCommandLine({
         claudePath: resolvedClaudePath,
@@ -852,7 +854,9 @@ export function createHostWriteAuthorityBrokerClaudePlanLaunch({
             role: ctx.role,
             subject: ctx.subject,
             workspaceDir: ctx.workspaceDir,
-            loadWorkRecord
+            loadWorkRecord,
+
+            frozenReviewContract: ctx?.launchInput?.trusted_frozen_review_contract ?? null
           });
           const commandLine = buildCommandLine({
             claudePath: ctx.resolvedClaudePath,

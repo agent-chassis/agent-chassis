@@ -11,8 +11,8 @@
     },
     {
       "file": "mcp-work-record-tools.json",
-      "tool_count": 12,
-      "summary": "MCP work-record evidence and review-result recording tools."
+      "tool_count": 13,
+      "summary": "MCP work-record assignment, evidence, and review-result recording tools."
     },
     {
       "file": "mcp-launcher-tools.json",
@@ -31,7 +31,7 @@
     },
     {
       "file": "work-record-tools.json",
-      "tool_count": 28,
+      "tool_count": 29,
       "summary": "Work-record create/edit/validate/migrate routes across MCP and CLI."
     },
     {
@@ -60,7 +60,7 @@
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 98,
+  "expected_tool_count": 100,
   "uniqueness": {
     "key": "tool_name",
     "scope": "assembled_corpus",

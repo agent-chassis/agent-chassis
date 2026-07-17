@@ -31,7 +31,9 @@ function renderCodexFindingsOnlyRoleContract({
   notes,
   acceptanceCriteria = [],
   acceptanceValidation = [],
-  terminalStructuredRoleResultMode = undefined
+  terminalStructuredRoleResultMode = undefined,
+
+  canonicalRepo = undefined
 }) {
   return renderLauncherFamilyRoleContract({
     appName: "Codex",
@@ -41,7 +43,9 @@ function renderCodexFindingsOnlyRoleContract({
     acceptanceValidation,
     notes,
 
-    terminalStructuredRoleResultMode
+    terminalStructuredRoleResultMode,
+
+    canonicalRepo
   });
 }
 
@@ -68,7 +72,7 @@ export function orchestratorPrompt({ initiative, threadName, focus, headless = f
   });
 }
 
-export function reviewPrompt(subject, { acceptanceCriteria = [], acceptanceValidation = [], terminalStructuredRoleResultMode = undefined } = {}) {
+export function reviewPrompt(subject, { acceptanceCriteria = [], acceptanceValidation = [], terminalStructuredRoleResultMode = undefined, canonicalRepo = undefined } = {}) {
   const subjectText = subjectTextForNotes(subject);
   return renderCodexFindingsOnlyRoleContract({
     role: "reviewer",
@@ -76,6 +80,8 @@ export function reviewPrompt(subject, { acceptanceCriteria = [], acceptanceValid
     acceptanceCriteria,
     acceptanceValidation,
     terminalStructuredRoleResultMode,
+
+    canonicalRepo,
     notes: [
       `Suggested Codex rename command: /rename ${subjectText} reviewer`,
       "Review the WK implementation and result against the WK Summary, Scope, Acceptance Criteria, write_scope, validation expectations, and any contract language such as full corpus, all records, no cap, no fallback, or complete coverage.",

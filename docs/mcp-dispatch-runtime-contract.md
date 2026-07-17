@@ -33,6 +33,73 @@ subject-role matrix:
 - `redteam` dispatches a `WK-####`, `WK-#####slice`, or `IN-####` subject
 - any other role/subject pairing refuses before launch
 
+### Dispatch-Owned Admission Evidence Recovery
+
+Only explicit `workspace_agent_dispatch` launch intent with `role=worker` may
+automatically mutate recoverable derived evidence. `workspace_validate_dispatch`,
+readiness projections, summaries, and reviewer/redteam dispatch are read-only.
+A fresh worker dispatch performs no canonical-record, admission-sidecar, or graph
+write. There is no coordinator-facing carrier-preparation API and no manual
+refresh prerequisite.
+
+Public readiness exposes a digest-free `recovery` object for `graph_impact`,
+`admission_metrics`, and `target_resolution`. Each value is one of
+`not_required`, `fresh`, `recoverable_missing`, `recoverable_stale`,
+`recoverable_outdated`, `nonrecoverable_integrity_failure`,
+`nonrecoverable_ambiguous`, `nonrecoverable_missing_paths`,
+`nonrecoverable_provider_unavailable`, or `nonrecoverable_malformed`. Dispatch
+uses these typed values directly; it does not parse prose or Node Engine reason
+strings to decide whether a write is allowed.
+
+Recovery is bounded and straight-line: strict readiness/integrity classification;
+at most one graph recovery; canonical reload and structural recheck; at most one
+admission/target-resolution recovery; reload and recheck; exactly one configured
+Node Engine evaluation or launcher-confirmed `local_only_fail_open` posture check;
+one final freshness/integrity revalidation; then at most one backend handoff.
+Graph recovery runs first because graph persistence can rematerialize admission
+evidence. Graph mutation remains limited to the existing required, graph-bearing,
+available, stale, active dirty-overlay, no-unavailable-subject-path predicate.
+All other graph states retain the runtime-blocker taxonomy mapping or the
+non-mutating degraded-overlay proceed behavior.
+
+Referenced admission sidecars are authenticated from exact bytes, parsed,
+identity/source-bound, and evaluated before stale/outdated recovery is considered.
+A missing or corrupt referenced sidecar is an integrity failure and permits no
+recovery write; only true entry absence can be `recoverable_missing`.
+
+Worker launch validation carries three values only in a server-private handoff:
+the authored-source digest, the full persistence-snapshot digest (including
+derived evidence and projections), and the reviewed-unit digest. After Node Engine
+or posture evaluation, dispatch compares them in that order, then revalidates
+exact sidecar bytes and attestation identity/source binding. Authored-source drift
+maps to `worker_admission_carrier_invalid` /
+`canonical_source_digest_changed`; every source-stable carrier, snapshot,
+reviewed-unit, sidecar, or attestation failure maps to
+`worker_admission_carrier_invalid` /
+`canonical_carrier_revalidation_failed` with bounded typed detail. The private
+values are discarded before MCP response or backend handoff and never appear in
+public readiness, diagnostics, logs, backend arguments, or worker carriers.
+
+Configured Node Engine tiers require a ratified pack-backed `admit`.
+Launcher-derived `local_only_fail_open` is the sole positive confirmed-no-Node-
+Engine posture. Absent enforcement, configured unavailability, unratified or
+malformed results, `needs_review`, reject, and unknown outcomes fail closed.
+The public dispatch schema is strict and accepts no caller-selected Node Engine
+configuration, classification, disposition, posture, or fail-open field.
+
+This dispatch/backend admission decision is the single admissibility authority
+(work record). The host-write-authority broker downstream does **not** re-evaluate worker
+admissibility: it trusts the CCE admit rendered here and acts as a trusted executor
+(provision → plan → spawn, with frozen-`write_scope` enforcement on the closed-input
+commit). It renders no admissibility verdict, loads no canonical record for admission,
+computes no admission digest, and performs no CCE re-consult on the launch path. The
+host-write transport is the trust boundary. This retires the broker's former
+independent re-consult (work record/work record) and moots the broker's admission-carrier
+canonical re-read (work record); an optional signed admit the broker could positively
+verify is future hardening (work record), not built here. The digest/carrier
+integrity checks described above remain in force where they belong — on this
+dispatch/backend path.
+
 The role enum is exactly `worker`, `reviewer`, and `redteam`. There is no
 `fixup` role; post-review fixes use normal worker slices or follow-up WKs.
 There is no `orchestrator` role on `workspace_agent_dispatch`; orchestrator
@@ -180,6 +247,207 @@ precondition for the controlled-orchestrator path.
 
 Remote agent runner distribution and remote endpoint/authority handling are
 excluded from the local sidecar endpoint contract.
+
+### Managed Provisioning Carrier On The Host-Write Wire (work record)
+
+Managed dispatch resolves two distinct roots: the launcher-authority root (the
+launcher-minted canonical `mainRepo`, the trusted source for the launcher registry,
+verifier, nonce/runtime state, canonical work-record loading, and dispatch
+validation) and the worker-execution root (the disposable sparse worktree that is
+the worker `cwd` and exact `R union W` boundary). The
+[filesystem-MCP backends](agent-launch-filesystem-mcp-backends.md) page defines that
+separation; this section covers how the broker path obtains the launcher-authority
+root.
+
+For the in-process path the composition binds the source-tool-surface preparer's
+trusted launcher-authority root directly to the provisioning configuration's
+`mainRepo`. The host-write broker path runs in a separate process and previously had
+no way to learn that root, so it re-resolved the launcher registry from the worker
+worktree and refused every managed worker. The launcher-owned
+`managed-worktree-binding.v1` provisioning carrier now crosses the existing sanitized
+host-write launch-input wire as a validated frozen carrier so the broker re-derives
+launcher authority from the same launcher-minted `main_repo`:
+
+- **Whitelisted, launcher-owned.** `worktree_provisioning` is an optional launch-input
+  field admitted through the existing generic allowlist copier. It is
+  launcher/server-side context, never worker prompt/request/env/argv/claimed-identity
+  authority. Its absence never blocks delegation; a genuinely absent carrier for a
+  managed worker is refused downstream by the managed-commit gate, not on the wire.
+- **Frozen, exact-schema, lossless.** The channel requires the carrier to be a
+  complete, exact-schema, launcher-frozen, internally-consistent
+  `managed-worktree-binding.v1` object before serialization, proves it survives JSON
+  transport unchanged, and deeply refreezes it (and its nested bindings) after
+  parsing. The channel never reconstructs the carrier from request content.
+- **Pre-preparation attempt binding.** Before the broker performs any
+  launcher-authority side effect (source-surface preparer invocation, and therefore
+  registry access, backend proof, nonce/runtime-state creation, or child
+  planning/spawn), it proves the restored carrier belongs to the current attempt:
+  worker role and exact subject; `workspace_dir` is **present** and equals
+  `provisioning.worktree_path` (a missing, null, or empty `workspace_dir` refuses with
+  zero topology derivation, source preparation, planning, or spawn);
+  `monitor_handle`, `run_id`, and `retry_id` agree with the nested slice binding
+  (`launch_ref`, `run_id`, `retry_id`); `run_authority` is present and consistent; the
+  scope authority agrees; and the nested slice-binding identity agrees. A missing,
+  mutable, partial, extended, stale, replayed, lossy, mismatched, or caller-carried
+  carrier refuses before any of those side effects.
+- **No caller-carried Git-binding aliases (work record).** The former
+  caller-carried `provisionedWorktreeGitBinding` / `provisioned_worktree_git_binding`
+  launch-input fields are **deleted** — not retained behind a compatibility mirror — from
+  the host-write allowlist, the envelope sanitizer, and the broker-channel presence and
+  agreement requirement. A launch input carrying either spelling refuses as a non-schema
+  field before serialization; no silent ignore. The exact nested `wk_binding` and
+  `slice_binding` field sets are enforced at the channel so a removed alias cannot
+  re-enter through a nested binding. The launcher-owned `worktree_provisioning` carrier
+  remains the sole managed-authority carrier on the wire.
+- **Trusted-side topology derivation.** Only after the wire exact-schema/freeze/losslessness
+  proofs and the pre-preparation attempt binding succeed, the linked-worktree Git topology
+  (`worktreePath`, `gitDir`, `mainGitDir`, `gitPointerFile`) is derived at the trusted broker
+  plan-launch boundary exclusively from the validated carrier's `main_repo` and
+  `worktree_path`, matching the launcher's own `provisionedWorktreeGitIdentity` derivation,
+  and frozen before it reaches the downstream planning/isolation seams. It is never derived
+  from caller input, environment, cwd, or worktree content.
+- **Trusted root only after binding.** Only after the attempt binding succeeds does
+  broker re-derivation trust `provisioning.main_repo` as the launcher-authority root
+  for source-tool-surface preparation. This resolves authority root only; it changes
+  no realpath/symlink path policy.
+
+### Initial Provisioning Routing: Direct-Local Versus Broker-Host (work record)
+
+The INITIAL (`retry_id === 0`) managed-worktree provisioning step
+(`provisionManagedWorktreesAtDispatch`, which runs `git worktree add`) selects
+one of two composition paths, chosen by launcher-owned startup state only:
+
+- **Direct / writable-host composition.** When no launcher-owned host-write
+  sidecar endpoint is configured (`AGENT_LAUNCH_HOST_WRITE_AUTHORITY_TCP_ENDPOINT`
+  absent), `buildDispatchRuntime` attaches no host provisioning adapter and the
+  dispatch backend runs the existing in-process local provisioner unchanged. This
+  is correct wherever the MCP process can already write the repo `.git`.
+- **Controlled-orchestrator / broker-host composition.** When the endpoint is
+  configured, `buildDispatchRuntime` resolves a launcher-owned provisioning
+  adapter and attaches it to the provisioning config. The backend then requests
+  the initial provisioning across the host-write broker (see the
+  [host-write-authority sidecar](agent-launch-host-write-authority-sidecar.md)
+  page), so `git worktree add` runs from the writable host namespace instead of
+  the read-only orchestrator MCP namespace. The endpoint is launcher-owned
+  startup state read once before the MCP transport is wired; it is never selected
+  by prompt, request payload, argv, claimed identity, or agent-authored env.
+
+The routing is gated purely on whether the launcher-owned adapter is configured;
+caller input cannot select the provisioning mode or the canonical roots. Only the
+initial attempt is routed — `retry_id > 0` reissue keeps the existing local path
+and its bounded retry hardening is owned by work record. A missing/unavailable broker
+or a malformed, extended, mismatched, or lossy returned carrier fails the managed
+dispatch closed before the backend records a binding, plans, or spawns the
+worker; the backend then feeds the validated, deep-frozen carrier unchanged into
+the existing `start_launch` path.
+
+### Managed Worker Closed-Input Commit Delegation (work record)
+
+A managed implementation worker delivers its slice through the closed-input
+`commit` MCP tool in its confined, Git-less stdio wiki-MCP child. Because that
+child cannot run `git`, the commit is delegated to the writable host-write broker
+over the existing sidecar transport (MCP stays stdio-only, decision). The routing
+is gated purely on launcher-owned configuration:
+
+- **Endpoint projection is worker-and-managed only.** The launcher projects the
+  host-write endpoint into the worker's stdio wiki-MCP child config (a Codex
+  `-c mcp_servers.wiki.env.AGENT_LAUNCH_HOST_WRITE_AUTHORITY_TCP_ENDPOINT` override)
+  ONLY when the worker carries the commit tuple. The endpoint value is threaded as
+  launch context from the sidecar-bound broker through the Codex worker
+  plan-launch — never on the host-write wire and never inside `launch_input`.
+  Reviewer, redteam, orchestrator, direct/unmanaged, Claude, Agy,
+  configured-command, and configured-URL paths receive no endpoint and gain no
+  commit authority.
+- **Delegate iff the endpoint is present.** When the endpoint env var is present
+  in the worker's MCP child and the credential is the launcher-minted
+  identity-store tuple, the `commit` tool sends a `commit_slice` request carrying
+  only `{ assigned_unit, launch_ref, run_id, retry_id }` and runs NO Git in the
+  confined process. When absent (unmanaged/direct/legacy), the existing in-process
+  commit pipeline runs unchanged.
+- **Broker owns roots + primitives.** The broker resolves its canonical commit
+  root from launcher-owned production composition (the same `mainRepo` used for
+  provisioning), independently resolves and verifies the exact frozen slice
+  binding server-side, and runs the existing content-inert materialize / scope /
+  slice-ref CAS primitives. Caller input cannot select the repo, worktree, ref,
+  branch, base SHA, write_scope, message, or mode. A malformed request, a
+  stale/mismatched/absent binding, a write-scope containment failure, an
+  unavailable commit host, or a malformed/lossy result fails the commit closed
+  with a structured refusal — never a false success and never a Git fallback.
+  Successful delivery advances only the exact slice ref; trusted runtime retains
+  slice-to-WK integration and whole-WK review freezing.
+
+### Delegated Post-Terminal Slice-to-WK Integration (work record)
+
+After the managed worker terminates, trusted runtime integrates its committed slice
+into the parent WK branch. That integration runs `git` (stale-base rebase, ff-only WK
+advancement, persistent full-WK-worktree advance) and a canonical review-freeze status
+write, none of which succeed inside the read-only orchestrator wiki-MCP namespace — the
+work record canary observed `agent_launch.slice_integration.git_failed.v1` there after the
+commit already advanced the slice ref. The integration is therefore delegated to the
+writable host-write broker over the existing sidecar transport (MCP stays stdio-only,
+decision), as one `integrate_slice` operation returning `slice_integrated` — the third
+same-pattern managed-lifecycle write operation alongside `provision_worktree` and
+`commit_slice`. See the [host-write-authority sidecar](agent-launch-host-write-authority-sidecar.md)
+contract for the operation, trigger, and exactly-once details.
+
+- **Direct-local versus broker-host routing.** `buildDispatchRuntime` resolves a
+  launcher-owned integration adapter whenever the host-write sidecar endpoint is
+  configured — the same broker-host composition that routes provisioning and commit —
+  and threads it into the backend, which supplies it to the post-worker slice
+  lifecycle (`runPostWorkerSliceLifecycle`). When the endpoint is absent (a
+  direct/writable-host composition), no adapter is attached and the lifecycle keeps
+  the existing in-process integration path. The endpoint is launcher-owned startup
+  state, never selected by prompt, request payload, argv, claimed identity, or
+  agent-authored env.
+- **Trusted-runtime-only trigger.** The lifecycle owner delegates only after it
+  observes the worker reach terminal outcome succeeded (`status.terminal &&
+  status.status === "succeeded"`); the worker has no integrate tool, so the broker
+  accepts the same loopback residual as `commit_slice` and adds no trigger credential.
+  The request carries only the base run tuple `{ assigned_unit, launch_ref, run_id,
+  retry_id }`; the broker derives the `.slice`/`.wk` binding identity and every
+  canonical root itself, enforces per-tuple exactly-once with a fail-loud
+  `failed_indeterminate` latch, and returns a delegated result with full parity so the
+  downstream review-freeze consumer works unchanged. Response-loss / restart recovery
+  and retry hardening remain owned by work record and are not absorbed.
+
+### Managed Worker wiki-MCP Runtime Closure (work record / decision)
+
+The closed-input `commit` tool is served by a stdio wiki-MCP child inside the
+managed worker's confined, Git-less sparse `R∪W` namespace. That namespace mounts
+none of the server runtime, so the child could not start and the sole delivery
+surface was unreachable (the work record live canary, run `wkdb_345a805426cd0a64`).
+decision authorizes a single additional read-only, launcher-derived runtime
+closure in a managed worker's namespace so the server starts in-namespace:
+
+- **Closure members.** Exactly the node interpreter directory; the
+  repository-root `node_modules` directory, wholesale read-only (vendored
+  third-party code — its transitive import graph is intentionally not
+  enumerated); and, for the workspace packages in the wiki-MCP server's real
+  import graph (`@agent-chassis/wiki-mcp`, `wiki-core`, `agent-launch-cli`,
+  `agent-launch-core`), ONLY their git-tracked source/data/contract/package
+  files. Whole-workspace-package-directory binds are FORBIDDEN — a package
+  directory can contain ignored runtime state (for example
+  `packages/agent-launch-cli/bin/.agent-runs`) carrying live credential aliases.
+- **Launcher-derived, fail-closed.** The closure is derived exclusively from
+  launcher-owned paths (the launcher-resolved wiki-MCP server module plus Node
+  module resolution). No caller input, prompt, environment, or argv can add,
+  remove, or retarget a member. An unresolved member fails closed with a
+  structured pre-spawn refusal — never a silent widening, hang, or in-child
+  import crash treated as success.
+- **Read-only delivery infrastructure only.** Every root is read-only. The mount
+  is gated strictly on `managedWorkerCommitRequired`; unmanaged workers,
+  reviewers, redteam, and orchestrator plans are unchanged. The worker's
+  repository WRITE surface stays exactly `write_scope`, the closed-input `commit`
+  tool stays the sole delivery capability, and the worker-facing wiki-MCP tool
+  profile stays commit-only. The closure refines decision/decision delivery
+  infrastructure; it is not a change to the `R∪W` repository-content contract and
+  confers no precedent for widening it.
+- **Topology.** Every closure root resolves under the launcher-authority root,
+  which managed provisioning holds distinct from the worker-execution worktree,
+  so no mounted content can ever appear as the worker's commit content. A staged
+  self-contained runtime (the closure copied to a launcher-owned directory
+  outside the repository) is the tracked hardening successor; the loopback
+  broker transport (work record) is governed separately and is unchanged here.
 
 ### Caller/Session Identity
 

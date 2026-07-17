@@ -8,7 +8,6 @@ import {
   mkdirSync,
   realpathSync,
   rmdirSync,
-  rmSync,
   unlinkSync
 } from "node:fs";
 import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
@@ -63,7 +62,6 @@ export const WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES = Object.freeze({
     "agent_launch.worktree_provisioning_dispatch.base_sha_raced.v1",
   GIT_FAILED: "agent_launch.worktree_provisioning_dispatch.git_failed.v1",
   ROOT_REFUSED: "agent_launch.worktree_provisioning_dispatch.root_refused.v1",
-  DEPENDENCY_REFUSED: "agent_launch.worktree_provisioning_dispatch.dependency_refused.v1",
   BINDING_INCOMPLETE: RUNTIME_BLOCKER_CODES.MANAGED_WORKTREE_PROVISIONING_UNAVAILABLE,
   REISSUE_REFUSED: "agent_launch.worktree_provisioning_dispatch.reissue_refused.v1",
   ROLLBACK_FAILED: "agent_launch.worktree_provisioning_dispatch.rollback_failed.v1"
@@ -633,13 +631,8 @@ function removeBindingFile(repo, launchRef, runId, retryId, failures) {
   }
 }
 
-function compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, bindings, cachePath, cacheCreated, createdRoots = [], cause }) {
+function compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, bindings, createdRoots = [], cause }) {
   const failures = [];
-  if (cacheCreated && existsSync(cachePath)) {
-    try { rmSync(cachePath, { recursive: true, force: false }); } catch (error) {
-      failures.push({ stage: "cache", path: cachePath, message: error?.message ?? String(error) });
-    }
-  }
   for (const [kind, binding] of [["slice", bindings.slice], ["wk", bindings.wk]]) {
     if (!binding) continue;
     removeBindingFile(repo, launchRef, bindingIdentity(runId, kind), retryId, failures);
@@ -673,6 +666,27 @@ const COMPLETE_SPARSE_BINDING_FIELDS = Object.freeze([
   ...COMPLETE_EXACT_BINDING_FIELDS, "cone_dirs", "index_sparse"
 ]);
 
+const EXACT_NESTED_WK_BINDING_FIELDS = COMPLETE_EXACT_BINDING_FIELDS;
+const EXACT_NESTED_SLICE_BINDING_FIELDS = Object.freeze([
+  ...COMPLETE_EXACT_BINDING_FIELDS,
+  "read_scope", "repo_paths", "selected_unit", "source_digest", "source_version",
+  "cone_dirs", "index_sparse"
+]);
+
+function assertExactNestedBindingFields(binding, expectedFields, label) {
+  const actual = binding && typeof binding === "object" ? Object.keys(binding).sort() : [];
+  const expected = [...expectedFields].sort();
+  const exact = actual.length === expected.length &&
+    actual.every((field, index) => field === expected[index]);
+  if (!exact) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      `restored managed provisioning carrier nested ${label} does not carry exactly its declared field set`,
+      { field: label, expected_fields: expected, actual_fields: actual }
+    );
+  }
+}
+
 function isPathWithinRoot(candidate, root) {
   return candidate !== root && candidate.startsWith(`${root}${path.sep}`);
 }
@@ -699,7 +713,8 @@ function assertCompleteManagedBinding({
   worktreeRoot,
   sparse,
   runGit = defaultRunGit,
-  allowAdvancedTip = false
+  allowAdvancedTip = false,
+  physical = true
 }) {
   const required = sparse ? COMPLETE_SPARSE_BINDING_FIELDS : COMPLETE_EXACT_BINDING_FIELDS;
   for (const field of required) {
@@ -757,7 +772,20 @@ function assertCompleteManagedBinding({
       (sparse && (binding.cone_dirs.length === 0 || binding.cone_dirs.some((entry) => typeof entry !== "string" || entry.length === 0)))) {
     fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "exact-unit binding carries invalid retry or scope fields");
   }
-  const worktree = canonicalizeContainedPath(binding.worktree_path, "binding.worktree_path", worktreeRoot);
+  let worktree;
+  if (physical) {
+    worktree = canonicalizeContainedPath(binding.worktree_path, "binding.worktree_path", worktreeRoot);
+  } else {
+
+    worktree = path.resolve(binding.worktree_path);
+    if (!isPathWithinRoot(worktree, worktreeRoot)) {
+      fail(
+        WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+        "binding.worktree_path escapes its launcher-owned canonical root",
+        { label: "binding.worktree_path", path: worktree, root: worktreeRoot }
+      );
+    }
+  }
   if (worktree === repo || worktree.startsWith(`${repo}${path.sep}`)) {
     fail(
       WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
@@ -765,6 +793,8 @@ function assertCompleteManagedBinding({
       { repo, worktree }
     );
   }
+
+  if (!physical) return;
   const head = runGit({ repo: worktree, args: ["rev-parse", "--verify", "HEAD^{commit}"] });
   const ref = runGit({ repo, args: ["rev-parse", "--verify", `${binding.output_branch}^{commit}`] });
   const headSha = head?.ok === true ? String(head.stdout ?? "").trim() : "";
@@ -778,23 +808,18 @@ function assertCompleteManagedBinding({
   }
 }
 
-function freezeManagedResult({ initiative, wkId, sliceId, wkBinding, sliceBinding, roots, cachePath, runAuthority, retryId }) {
-  const dependencySource = canonicalizeOwnedPath(roots.sharedDependencyRoot, "sharedDependencyRoot", { mustExist: true });
-  const dependencyTarget = canonicalizeContainedPath(
-    path.join(sliceBinding.worktree_path, "node_modules"),
-    "dependencyMountTarget",
-    roots.worktreeRoot,
-    { mustExist: false }
-  );
-  const canonicalCachePath = canonicalizeContainedPath(cachePath, "perWkCachePath", roots.cacheRoot);
-  const dependencyMount = Object.freeze({
-    source: dependencySource,
-    target: dependencyTarget,
-    mode: "read_only"
-  });
+const COMPLETE_MANAGED_PROVISIONING_FIELDS = Object.freeze([
+  "schema_version", "complete", "main_repo", "initiative", "record_id", "slice_id",
+  "unit_address", "retry_id", "run_authority", "wk_binding", "slice_binding",
+  "worktree_path", "output_branch", "base_ref", "base_sha", "write_scope", "cone_dirs",
+  "index_sparse", "validation_worktree_path", "shared_git_exposed"
+]);
+
+function freezeManagedResult({ mainRepo, initiative, wkId, sliceId, wkBinding, sliceBinding, runAuthority, retryId }) {
   return Object.freeze({
     schema_version: MANAGED_WORKTREE_BINDING_SCHEMA_VERSION,
     complete: true,
+    main_repo: mainRepo,
     initiative,
     record_id: wkId,
     slice_id: sliceId,
@@ -811,13 +836,11 @@ function freezeManagedResult({ initiative, wkId, sliceId, wkBinding, sliceBindin
     cone_dirs: Object.freeze([...(sliceBinding.cone_dirs ?? [])]),
     index_sparse: sliceBinding.index_sparse,
     validation_worktree_path: wkBinding.worktree_path,
-    dependency_mount: dependencyMount,
-    cache: Object.freeze({ path: canonicalCachePath, mode: "per_wk_writable" }),
     shared_git_exposed: false
   });
 }
 
-export function assertCompleteManagedProvisioningResult({
+function assertManagedProvisioningResultShape({
   provisioning,
   mainRepo,
   initiative,
@@ -826,52 +849,103 @@ export function assertCompleteManagedProvisioningResult({
   runId,
   retryId,
   worktreeRoot,
-  sharedDependencyRoot,
-  cacheRoot
-} = {}) {
-  const repo = canonicalizeOwnedPath(mainRepo, "mainRepo", { mustExist: true });
+  physical
+}) {
+  const repo = physical
+    ? canonicalizeOwnedPath(mainRepo, "mainRepo", { mustExist: true })
+    : path.resolve(assertAbsolutePath(mainRepo, "mainRepo"));
   const parsed = parseSubject(subject);
   if (parsed.sliceId === null) {
     fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "complete managed result requires an exact slice subject");
   }
   const roots = Object.freeze({
-    worktreeRoot: canonicalizeOwnedPath(worktreeRoot, "worktreeRoot", { mustExist: true }),
-    sharedDependencyRoot: canonicalizeOwnedPath(sharedDependencyRoot, "sharedDependencyRoot", { mustExist: true }),
-    cacheRoot: canonicalizeOwnedPath(cacheRoot, "cacheRoot", { mustExist: true })
+    worktreeRoot: physical
+      ? canonicalizeOwnedPath(worktreeRoot, "worktreeRoot", { mustExist: true })
+      : path.resolve(assertAbsolutePath(worktreeRoot, "worktreeRoot"))
   });
   assertDistinctOwnedRoots({ mainRepo: repo, ...roots });
   const unitAddress = `${initiative}/${parsed.wkId}/${parsed.sliceId}`;
-  const requiredTopLevel = [
-    "schema_version", "initiative", "record_id", "slice_id", "unit_address",
-    "retry_id", "run_authority", "wk_binding", "slice_binding", "worktree_path",
-    "output_branch", "base_ref", "base_sha", "write_scope", "cone_dirs",
-    "index_sparse", "validation_worktree_path", "dependency_mount", "cache",
-    "shared_git_exposed"
-  ];
-  const missing = requiredTopLevel.find((field) => provisioning?.[field] === null || provisioning?.[field] === undefined);
-  if (provisioning?.complete !== true || missing) {
+  const actualFields = provisioning && typeof provisioning === "object"
+    ? Object.keys(provisioning).sort()
+    : [];
+  const expectedFields = [...COMPLETE_MANAGED_PROVISIONING_FIELDS].sort();
+  const exactFields = actualFields.length === expectedFields.length &&
+    actualFields.every((field, index) => field === expectedFields[index]);
+  const missing = COMPLETE_MANAGED_PROVISIONING_FIELDS.find(
+    (field) => provisioning?.[field] === null || provisioning?.[field] === undefined
+  );
+  if (provisioning?.complete !== true || missing || !exactFields) {
     fail(
       WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
-      `managed provisioning result is partial${missing ? ` at ${missing}` : ""}`,
-      { field: missing ?? "complete" }
+      `managed provisioning result is partial or inexact${missing ? ` at ${missing}` : ""}`,
+      { field: missing ?? "complete", expected_fields: expectedFields, actual_fields: actualFields }
     );
   }
   if (provisioning.schema_version !== MANAGED_WORKTREE_BINDING_SCHEMA_VERSION ||
+      provisioning.main_repo !== repo ||
       provisioning.initiative !== initiative || provisioning.record_id !== parsed.wkId ||
       provisioning.slice_id !== parsed.sliceId || provisioning.unit_address !== unitAddress ||
       provisioning.retry_id !== retryId || typeof provisioning.run_authority !== "string" ||
       provisioning.run_authority.length === 0) {
     fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "managed provisioning result identity is mismatched");
   }
+
+  if (physical === false) {
+
+    assertExactNestedBindingFields(provisioning.wk_binding, EXACT_NESTED_WK_BINDING_FIELDS, "wk_binding");
+    assertExactNestedBindingFields(provisioning.slice_binding, EXACT_NESTED_SLICE_BINDING_FIELDS, "slice_binding");
+
+    const frozenTargets = [
+      ["result", provisioning],
+      ["wk_binding", provisioning.wk_binding],
+      ["slice_binding", provisioning.slice_binding],
+      ["write_scope", provisioning.write_scope],
+      ["cone_dirs", provisioning.cone_dirs]
+    ];
+    for (const nested of ["wk_binding", "slice_binding"]) {
+      const nestedBinding = provisioning[nested];
+      if (nestedBinding && typeof nestedBinding === "object") {
+        for (const [key, value] of Object.entries(nestedBinding)) {
+          if (Array.isArray(value)) frozenTargets.push([`${nested}.${key}`, value]);
+        }
+      }
+    }
+    for (const [label, value] of frozenTargets) {
+      if (!Object.isFrozen(value)) {
+        fail(
+          WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+          `restored managed provisioning carrier is not deeply frozen at ${label}`,
+          { field: label }
+        );
+      }
+    }
+
+    const wkBinding = provisioning.wk_binding;
+    const sliceBinding = provisioning.slice_binding;
+    if (wkBinding.base_sha !== sliceBinding.base_sha ||
+        wkBinding.output_branch === sliceBinding.output_branch ||
+        wkBinding.worktree_path === sliceBinding.worktree_path) {
+      fail(
+        WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+        "structural carrier WK and slice bindings do not share one captured base_sha or collide in output_branch/worktree_path",
+        {
+          wk_base_sha: wkBinding.base_sha ?? null,
+          slice_base_sha: sliceBinding.base_sha ?? null,
+          wk_output_branch: wkBinding.output_branch ?? null,
+          slice_output_branch: sliceBinding.output_branch ?? null
+        }
+      );
+    }
+  }
   assertCompleteManagedBinding({
     binding: provisioning.wk_binding, repo, unitAddress: `${initiative}/${parsed.wkId}`,
     launchRef, runId: bindingIdentity(runId, "wk"), retryId,
-    worktreeRoot: roots.worktreeRoot, sparse: false
+    worktreeRoot: roots.worktreeRoot, sparse: false, physical
   });
   assertCompleteManagedBinding({
     binding: provisioning.slice_binding, repo, unitAddress, launchRef,
     runId: bindingIdentity(runId, "slice"), retryId,
-    worktreeRoot: roots.worktreeRoot, sparse: true
+    worktreeRoot: roots.worktreeRoot, sparse: true, physical
   });
   const slice = provisioning.slice_binding;
   const mirroredFields = ["worktree_path", "output_branch", "base_ref", "base_sha", "index_sparse"];
@@ -883,22 +957,39 @@ export function assertCompleteManagedProvisioningResult({
       provisioning.shared_git_exposed !== false) {
     fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "managed provisioning result aliases do not exactly mirror the selected sparse binding");
   }
-  const dependencySource = canonicalizeOwnedPath(provisioning.dependency_mount?.source, "dependencyMountSource", { mustExist: true });
-  const dependencyTarget = canonicalizeContainedPath(
-    provisioning.dependency_mount?.target,
-    "dependencyMountTarget",
-    roots.worktreeRoot,
-    { mustExist: false }
-  );
-  const cachePath = canonicalizeContainedPath(provisioning.cache?.path, "cache.path", roots.cacheRoot);
-  if (dependencySource !== roots.sharedDependencyRoot ||
-      dependencyTarget !== path.join(slice.worktree_path, "node_modules") ||
-      provisioning.dependency_mount?.mode !== "read_only" ||
-      cachePath !== path.join(roots.cacheRoot, parsed.wkId) ||
-      provisioning.cache?.mode !== "per_wk_writable") {
-    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "dependency or cache binding is aliased, escaped, or mismatched");
-  }
   return provisioning;
+}
+
+export function assertCompleteManagedProvisioningResult({
+  provisioning,
+  mainRepo,
+  initiative,
+  subject,
+  launchRef,
+  runId,
+  retryId,
+  worktreeRoot
+} = {}) {
+  return assertManagedProvisioningResultShape({
+    provisioning, mainRepo, initiative, subject, launchRef, runId, retryId, worktreeRoot,
+    physical: true
+  });
+}
+
+export function assertStructuralManagedProvisioningResult({
+  provisioning,
+  mainRepo,
+  initiative,
+  subject,
+  launchRef,
+  runId,
+  retryId,
+  worktreeRoot
+} = {}) {
+  return assertManagedProvisioningResultShape({
+    provisioning, mainRepo, initiative, subject, launchRef, runId, retryId, worktreeRoot,
+    physical: false
+  });
 }
 
 function reissueManagedWorktrees({ repo, initiative, wkId, sliceId, launchRef, runId, retryId, priorIdentity, roots, deps }) {
@@ -950,7 +1041,6 @@ function reissueManagedWorktrees({ repo, initiative, wkId, sliceId, launchRef, r
       String(head.stdout ?? "").trim() !== String(ref.stdout ?? "").trim()) {
     fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.REISSUE_REFUSED, "retained slice binding is dirty, missing, live, or mismatched");
   }
-  const cachePath = canonicalizeOwnedPath(path.join(roots.cacheRoot, wkId), "perWkCachePath", { mustExist: true });
   const runAuthority = randomUUID();
   const writer = deps.writeBindingFile ?? defaultWriteBindingFile;
   const reboundBindings = {};
@@ -980,13 +1070,12 @@ function reissueManagedWorktrees({ repo, initiative, wkId, sliceId, launchRef, r
     throw error;
   }
   return freezeManagedResult({
+    mainRepo: repo,
     initiative,
     wkId,
     sliceId,
     wkBinding: reboundBindings.wk,
     sliceBinding: reboundBindings.slice,
-    roots,
-    cachePath,
     runAuthority,
     retryId
   });
@@ -1000,8 +1089,6 @@ export function provisionManagedWorktreesAtDispatch({
   runId,
   retryId = 0,
   worktreeRoot,
-  sharedDependencyRoot,
-  cacheRoot,
   priorIdentity = null,
   deps = {}
 } = {}) {
@@ -1015,9 +1102,7 @@ export function provisionManagedWorktreesAtDispatch({
     fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.INVALID_ARG, "retryId must be a non-negative integer");
   }
   const roots = Object.freeze({
-    worktreeRoot: canonicalizeOwnedPath(worktreeRoot, "worktreeRoot"),
-    sharedDependencyRoot: canonicalizeOwnedPath(sharedDependencyRoot, "sharedDependencyRoot", { mustExist: true }),
-    cacheRoot: canonicalizeOwnedPath(cacheRoot, "cacheRoot")
+    worktreeRoot: canonicalizeOwnedPath(worktreeRoot, "worktreeRoot")
   });
   assertDistinctOwnedRoots({ mainRepo: repo, ...roots });
   if (retryId > 0) {
@@ -1028,19 +1113,11 @@ export function provisionManagedWorktreesAtDispatch({
   const allocateWk = deps.allocateExactUnitWorktree ?? defaultAllocateExactUnitWorktree;
   const allocateSlice = deps.allocateSparseExactUnitWorktree ?? defaultAllocateSparseExactUnitWorktree;
   const bindings = { wk: null, slice: null };
-  const cachePath = path.join(roots.cacheRoot, wkId);
-  let cacheCreated = false;
   const createdRoots = [];
   try {
-    for (const root of [roots.worktreeRoot, roots.cacheRoot]) {
-      if (!existsSync(root)) {
-        mkdirSync(root, { recursive: true, mode: 0o700 });
-        createdRoots.unshift(root);
-      }
-    }
-    const canonicalCachePath = canonicalizeOwnedPath(cachePath, "perWkCachePath");
-    if (canonicalCachePath !== cachePath) {
-      fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.ROOT_REFUSED, "per-WK cache path aliases or escapes its launcher-owned root");
+    if (!existsSync(roots.worktreeRoot)) {
+      mkdirSync(roots.worktreeRoot, { recursive: true, mode: 0o700 });
+      createdRoots.unshift(roots.worktreeRoot);
     }
     bindings.wk = allocateWk({
       mainRepo: repo,
@@ -1075,21 +1152,10 @@ export function provisionManagedWorktreesAtDispatch({
         bindings.wk.worktree_path === bindings.slice.worktree_path) {
       fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "WK and slice bindings do not share one immutable captured WK-tip identity or collide");
     }
-    if (!existsSync(cachePath)) {
-      const prepareCache = deps.prepareCache ?? ((target) => mkdirSync(target, { recursive: false, mode: 0o700 }));
-      try {
-        prepareCache(cachePath);
-      } finally {
-        cacheCreated = existsSync(cachePath);
-      }
-      if (!cacheCreated || !lstatSync(cachePath).isDirectory()) {
-        fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE, "per-WK writable cache preparation returned without creating the cache");
-      }
-    }
     const runAuthority = randomUUID();
-    return freezeManagedResult({ initiative, wkId, sliceId, wkBinding: bindings.wk, sliceBinding: bindings.slice, roots, cachePath, runAuthority, retryId });
+    return freezeManagedResult({ mainRepo: repo, initiative, wkId, sliceId, wkBinding: bindings.wk, sliceBinding: bindings.slice, runAuthority, retryId });
   } catch (error) {
-    compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, bindings, cachePath, cacheCreated, createdRoots, cause: error });
+    compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, bindings, createdRoots, cause: error });
     throw error;
   }
 }
