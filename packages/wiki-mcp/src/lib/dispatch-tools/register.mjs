@@ -34,7 +34,8 @@ import {
   AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD_SLICE,
   AGENT_DISPATCH_TOOL_NAME,
   DISPATCH_BLOCKER_CODES,
-  GRAPH_IMPACT_PERSISTENCE_TOOL_NAME
+  GRAPH_IMPACT_PERSISTENCE_TOOL_NAME,
+  WK_FORGE_HANDOFF_TOOL_NAME
 } from "../dispatch-tool-constants.mjs";
 import {
   buildBlockedDispatchResult,
@@ -67,6 +68,14 @@ const RECOVERABLE_DISPATCH_STATES = new Set([
   "recoverable_outdated"
 ]);
 
+function isRecoverableGraphState(state) {
+  return RECOVERABLE_DISPATCH_STATES.has(state);
+}
+
+function graphDerivationRequiredForDispatch(state) {
+  return state === "fresh" || isRecoverableGraphState(state);
+}
+
 const CALLER_NODE_ENGINE_AUTHORITY_FIELDS = Object.freeze([
   "node_engine",
   "node_engine_admissibility",
@@ -83,7 +92,9 @@ function graphBlockerCodeForReadiness(readiness) {
   }
   if (
     readiness?.recovery?.graph_impact === "not_required" ||
-    readiness?.recovery?.graph_impact === "fresh"
+    readiness?.recovery?.graph_impact === "fresh" ||
+
+    readiness?.recovery?.graph_impact === "nonrecoverable_missing_paths"
   ) {
     return null;
   }
@@ -185,6 +196,8 @@ export function registerDispatchTools({
   resolveWorkspaceRepo,
   dispatchBackend,
   dispatchSessionIdentity,
+
+  wkForgeHandoffAdapter = null,
   validateDispatch = validateWorkRecordDispatch,
   validateLaunchIntent = validateWorkRecordDispatchLaunchIntentById,
   revalidatePrivateHandoff = revalidateWorkRecordDispatchPrivateHandoffById,
@@ -274,7 +287,7 @@ export function registerDispatchTools({
     AGENT_DISPATCH_TOOL_NAME,
     {
       description:
-        "Dispatch a worker, reviewer, or redteam role through MCP across the supported Codex, Claude, and Agy families. Explicit worker launch intent alone may derive typed recoverable graph/admission evidence; validate_dispatch and findings-only roles remain read-only, and fresh worker dispatch writes nothing. Recovery, canonical reloads, Node Engine or launcher-confirmed no-Node-Engine posture, and final private freshness/integrity revalidation all complete before provisioning or backend handoff. No standalone carrier-preparation API exists. The normal agent call supplies only `role` and `subject`; launcher-owned configuration selects Node Engine posture and the role model. Caller-supplied identity or Node Engine authority fields are rejected. There is no shell or wrapper fallback; with no launch backend configured, dispatch fails closed with backend_unavailable.",
+        "Dispatch a worker, reviewer, or redteam role through MCP across the supported Codex, Claude, and Agy families. Explicit worker launch intent alone may derive typed recoverable graph/admission evidence; validate_dispatch and findings-only roles remain read-only, and fresh worker dispatch writes nothing. Ordinary reviewer/redteam admission requires empty write_scope; the backend-owned exact-slice exception remains read-only. Stdio MCP is not an authentication boundary. Recovery, canonical reloads, Node Engine or launcher-confirmed no-Node-Engine posture, and final private freshness/integrity revalidation all complete before provisioning or backend handoff. No standalone carrier-preparation API exists. The normal agent call supplies `role` and `subject`; an optional app/model hint must agree with launcher policy. Caller-supplied identity or Node Engine authority fields are rejected. There is no shell or wrapper fallback; with no launch backend configured, dispatch fails closed with backend_unavailable.",
       inputSchema: z.object({
         repo: z.string().optional(),
         app: z.string().optional(),
@@ -346,7 +359,9 @@ export function registerDispatchTools({
             dir: workspace.dir,
             unitAddress: args.subject,
             dispatch_role: readinessDispatchRole,
-            mode: "strict"
+            mode: "strict",
+
+            suppress_live_graph_resolution: args.role === "worker"
           });
 
           if (args.role === "worker") {
@@ -360,16 +375,25 @@ export function registerDispatchTools({
             }
 
             if (
-              readiness.recovery?.graph_impact !== "recoverable_stale" &&
+              !graphDerivationRequiredForDispatch(readiness.recovery?.graph_impact) &&
               !readiness.dispatchable
             ) {
               const graphCode = graphBlockerCodeForReadiness(readiness);
+
+              const readinessDecisionCode = readiness.decision_code;
+              const nextAction = isPaidTier
+                ? nextActionForDecisionCode(readinessDecisionCode, readiness.dispatch_role ?? readinessDispatchRole, false)
+                : nextActionForFreeLocalDecisionCode(readinessDecisionCode, readiness.dispatch_role ?? readinessDispatchRole, false);
               return jsonContent(buildBlockedDispatchResult({
                 blockerCode: graphCode ?? DISPATCH_BLOCKER_CODES.WORK_RECORD_READINESS_FAILURE,
                 reason: graphCode ?? "work_record_not_dispatchable",
                 detail: boundedRecoveryDetail(readiness, {
-                  readiness_reasons: readiness.reasons ?? []
-                })
+                  readiness_reasons: readiness.reasons ?? [],
+                  ...(isPaidTier && Array.isArray(readiness.validation_hints) && readiness.validation_hints.length > 0
+                    ? { readiness_validation_hints: readiness.validation_hints }
+                    : {})
+                }),
+                nextAction
               }));
             }
 
@@ -385,14 +409,8 @@ export function registerDispatchTools({
               }));
             }
 
-            if (readiness.recovery?.graph_impact === "recoverable_stale") {
-              if (!graphImpactPersistenceAvailable()) {
-                return jsonContent(buildBlockedDispatchResult({
-                  blockerCode: DISPATCH_BLOCKER_CODES.WORK_RECORD_READINESS_FAILURE,
-                  reason: "graph_impact_persistence_unavailable",
-                  detail: boundedRecoveryDetail(readiness, { missing_tool: GRAPH_IMPACT_PERSISTENCE_TOOL_NAME })
-                }));
-              }
+            let recoveredGraphImpact = null;
+            if (graphDerivationRequiredForDispatch(readiness.recovery?.graph_impact)) {
               let generated;
               try {
                 generated = await generateGraphImpactEvidence({
@@ -400,13 +418,24 @@ export function registerDispatchTools({
                   unitAddress: args.subject
                 });
               } catch {
+
                 return jsonContent(buildBlockedDispatchResult({
                   blockerCode: RUNTIME_BLOCKER_CODES.GRAPH_IMPACT_QUERY_ERROR,
                   reason: "graph_impact_query_error",
                   detail: boundedRecoveryDetail(readiness, { issue: "graph_generation_failed" })
                 }));
               }
-              if (generated?.written !== true) {
+              if (generated?.graph_available !== true) {
+
+                return jsonContent(buildBlockedDispatchResult({
+                  blockerCode: RUNTIME_BLOCKER_CODES.GRAPH_IMPACT_QUERY_ERROR,
+                  reason: "graph_head_unbuildable",
+                  detail: boundedRecoveryDetail(readiness, { outcome: generated?.outcome ?? "graph_unavailable" })
+                }));
+              }
+
+              recoveredGraphImpact = generated.graph_impact_envelope ?? null;
+              if (!recoveredGraphImpact) {
                 return jsonContent(buildBlockedDispatchResult({
                   blockerCode: DISPATCH_BLOCKER_CODES.WORK_RECORD_READINESS_FAILURE,
                   reason: "graph_impact_recovery_failed",
@@ -419,7 +448,8 @@ export function registerDispatchTools({
               dir: workspace.dir,
               unitAddress: args.subject,
               dispatch_role: readinessDispatchRole,
-              mode: "strict"
+              mode: "strict",
+              graph_impact: recoveredGraphImpact
             });
 
             if (Object.values(readiness.recovery ?? {}).includes("nonrecoverable_integrity_failure")) {
@@ -499,7 +529,8 @@ export function registerDispatchTools({
               dir: workspace.dir,
               unitAddress: args.subject,
               dispatch_role: readinessDispatchRole,
-              mode: "strict"
+              mode: "strict",
+              graph_impact: recoveredGraphImpact
             });
             readiness = launchIntent.readiness;
             privateHandoff = launchIntent.private_handoff;
@@ -545,7 +576,8 @@ export function registerDispatchTools({
               unitAddress: args.subject,
               dispatch_role: readinessDispatchRole,
               mode: "strict",
-              node_engine_admissibility: true
+              node_engine_admissibility: true,
+              graph_impact: recoveredGraphImpact
             });
             const neRefusal = nodeEngineRefusal(readiness);
             if (neRefusal) {
@@ -615,6 +647,14 @@ export function registerDispatchTools({
             );
           }
           if (findingsOnlySubject.write_scope.length > 0) {
+            const launcherOwnedExactSliceReview = args.role === "reviewer" &&
+              dispatchBackend?.isLauncherOwnedExactSliceReviewAdmission?.({
+                subject: args.subject,
+                workspace_dir: workspace.dir
+              }) === true;
+            if (launcherOwnedExactSliceReview) {
+
+            } else {
             return jsonContent(
               buildBlockedDispatchResult({
                 blockerCode: DISPATCH_BLOCKER_CODES.ROLE_POLICY_VIOLATION,
@@ -657,6 +697,7 @@ export function registerDispatchTools({
                 }
               })
             );
+            }
           }
         }
 
@@ -740,6 +781,73 @@ export function registerDispatchTools({
             blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
             reason: "dispatch_tool_exception",
             detail: buildDispatchToolExceptionDetail(AGENT_DISPATCH_TOOL_NAME, error)
+          })
+        );
+      }
+    }
+  );
+
+  registerTool(
+    WK_FORGE_HANDOFF_TOOL_NAME,
+    {
+      description:
+        "Hand a completed work record's accumulated change to the consuming repository's forge: reuse the exact accumulated WK tip tree as one deterministic one-parent squash commit, create one handoff branch by compare-and-swap (create-if-absent only), and create or recover exactly one pull request against the launcher-configured landing branch. Orchestrator/operator only. Input is closed: an optional workspace `repo` alias and a canonical record-level `assigned_unit` (WK-####); a slice address is refused. Repository owner/name/host derive from the launcher-owned canonical remote and bind both Git and REST; landing branch derives from launcher configuration; initiative derives from the canonical WK assignment. All Git, gh, and credential execution happens host-side outside bwrap; credentials never appear in requests, results, argv, remote URLs, logs, or diagnostics. The WK must be terminal and quiescent with no integration still eligible to advance its persistent ref, which is re-read before every success; any movement refuses. Existing exact branches and pull requests are recovered, never duplicated or overwritten. This adds NO review, approval, CI, branch-protection, merge, merge-queue, rebase, or cleanup authority — the forge and organization policy own all of those. Missing backend, remote, initiative, or configuration returns a typed refusal rather than an absent route.",
+      inputSchema: z.object({
+        repo: z.string().optional(),
+        assigned_unit: z.string()
+      }).strict()
+    },
+    async (args) => {
+      try {
+        const assignedUnit = args?.assigned_unit;
+        if (typeof assignedUnit !== "string" || !/^WK-\d{4}$/u.test(assignedUnit)) {
+          return jsonContent(
+            buildBlockedDispatchResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+              reason: "wk_forge_handoff_subject_invalid",
+              detail: { assigned_unit: typeof assignedUnit === "string" ? assignedUnit : null }
+            })
+          );
+        }
+
+        resolveWorkspaceRepo(workspaceRepos, args?.repo);
+        if (typeof wkForgeHandoffAdapter !== "function") {
+          return jsonContent(
+            buildBlockedDispatchResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
+              reason: "host_write_authority_substrate_unavailable",
+              detail: { missing_backend: "wk_forge_handoff_adapter" }
+            })
+          );
+        }
+        const outcome = await wkForgeHandoffAdapter({ assigned_unit: assignedUnit });
+        if (outcome && outcome.accepted === true) {
+          return jsonContent({
+            schema_version: "workspace-wk-forge-handoff.v1",
+            assigned_unit: assignedUnit,
+            forge_handoff: outcome.forge_handoff,
+            blocker: null
+          });
+        }
+        const refusal = (outcome && typeof outcome.refusal === "object" && outcome.refusal !== null)
+          ? outcome.refusal
+          : {};
+        const blockerCode =
+          mapBackendRefusalToDispatchCode(refusal.code) ??
+          DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED;
+        return jsonContent(
+          buildBlockedDispatchResult({
+            blockerCode,
+            reason: typeof refusal.reason === "string" ? refusal.reason : "wk_forge_handoff_refused",
+            detail: refusal.detail ?? null
+          })
+        );
+      } catch (error) {
+        return jsonContent(
+          buildBlockedDispatchResult({
+            blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+            reason: "dispatch_tool_exception",
+            detail: buildDispatchToolExceptionDetail(WK_FORGE_HANDOFF_TOOL_NAME, error)
           })
         );
       }

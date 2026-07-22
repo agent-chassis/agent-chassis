@@ -1,5 +1,4 @@
 import {
-  classifyExistingCodeSurfaceCount,
   cloneJson,
   computeNormalizedInputDigest,
   isNonEmptyString,
@@ -376,59 +375,16 @@ function projectCleanCarrierSuccessForStoredReplay(result) {
   };
 }
 
-function collectStoredReplayTargetPlanSignal({
-  normalizedRequest,
-  metricSummary,
-  policyProfile
-}) {
+function collectStoredReplayTargetPlanSignal({ normalizedRequest, metricSummary }) {
   const fileStats = Array.isArray(normalizedRequest.file_stats)
     ? normalizedRequest.file_stats
     : Array.isArray(normalizedRequest.evidence?.source_inputs?.file_stats)
       ? normalizedRequest.evidence.source_inputs.file_stats
       : [];
-  const targetPlanSignal = detectMissingTargetPlanReviewSignal({
+  return detectMissingTargetPlanReviewSignal({
     structuralTargetMetrics: metricSummary.structural_target_metrics,
     fileStats
   });
-  if (targetPlanSignal) {
-    return targetPlanSignal;
-  }
-
-  const structuralTargetMetrics = isObject(metricSummary.structural_target_metrics)
-    ? metricSummary.structural_target_metrics
-    : null;
-  if (!structuralTargetMetrics) {
-    return null;
-  }
-
-  if (classifyExistingCodeSurfaceCount(fileStats) === 0) {
-    return null;
-  }
-
-  const unresolvedTargetCount = toNonNegativeInteger(structuralTargetMetrics.write_scope_without_resolved_targets) ?? 0;
-  if (unresolvedTargetCount === 0) {
-    return null;
-  }
-
-  const validationCommandCount = toNonNegativeInteger(metricSummary.validation_command_count) ?? 0;
-  const validationCommandReviewThreshold = toNonNegativeInteger(
-    policyProfile?.thresholds?.review_when_validation_command_count_above
-  );
-  const validationCommandThresholdExceeded =
-    validationCommandReviewThreshold !== null && validationCommandCount > validationCommandReviewThreshold;
-
-  const explicitUnknownMetricCount = toNonNegativeInteger(metricSummary.unknown_metric_count) ?? 0;
-
-  if (explicitUnknownMetricCount <= 0 && !validationCommandThresholdExceeded) {
-    return null;
-  }
-
-  return {
-    reason_code: "worker_admission.work_unit_atomicity.target_plan_missing_requires_review.v1",
-    reason:
-      "expected_edit_targets evidence is absent and the unit touches an existing code surface; supply a target plan before launch",
-    rule: "target_plan_missing_for_code_surface"
-  };
 }
 
 function createWorkUnitAtomicityDecisionFromStoredDerivedEvidence({
@@ -444,8 +400,7 @@ function createWorkUnitAtomicityDecisionFromStoredDerivedEvidence({
   const storedUnknownMetricCount = countStoredReplayUnknownMetrics(normalizedMetricSummary, provenance);
   const storedTargetPlanSignal = collectStoredReplayTargetPlanSignal({
     normalizedRequest,
-    metricSummary: normalizedMetricSummary,
-    policyProfile: normalizedProfile
+    metricSummary: normalizedMetricSummary
   });
   const normalizedRequestContext = isObject(normalizedRequest.context) ? normalizedRequest.context : {};
   const requestMode = normalizeStringEntry(mode ?? normalizedRequestContext.mode) ?? "local";

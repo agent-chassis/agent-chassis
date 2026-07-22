@@ -4,6 +4,44 @@
 
 This repository exists to make a shared wiki operating model portable across many codebases without centralizing the actual content.
 
+## Security scope
+
+The local tooling in this repository is **correctness, provenance, and
+honest-agent workflow machinery — not same-user security infrastructure**. Read
+the rest of this document, and the enforcement model it feeds, through that
+scope. Its local mechanisms exist to:
+
+- **enforce product contracts** — `write_scope` confinement, dispatch-readiness
+  shape checks, and the launcher's controlled-execution boundary keep an honest
+  managed agent inside the lane its coordinator authored;
+- **detect accidental drift and corruption** — CAS/digest integrity, sidecar
+  fail-loud checks, declared-versus-landed verification, and freshness/expiry
+  checks catch an unintended, stale, or corrupted change, not a forged one;
+- **protect credentials from external disclosure** — the launcher masks its own
+  secrets off the worker mount and redacts private carriers so a credential is
+  not leaked outward through a run's inputs, outputs, or model egress;
+- **constrain confined managed execution** — a managed worker sees exactly its
+  `R ∪ W` namespace and mutates only `write_scope`, so its blast radius is
+  bounded to what it was dispatched to touch.
+
+It does **not** claim security against a **malicious same-user actor or a
+compromised host process**. A party that already holds the operator's shell, host
+filesystem, and credentials can defeat every local mechanism here; containing
+that party is outside the mandate. The realistic baseline is *"the operator runs
+the agent with full host privileges and no tooling at all,"* and the job is to be
+honestly better than that baseline for an **honest** agent, not to make a hostile
+one harmless.
+
+This framing weakens no real boundary. External service authentication, the
+Chassis Control Engine's signing authority as the sole minter of enforcement
+authorization, kernel write confinement, CAS/digest integrity, and the
+credential/private-carrier disclosure boundaries above all still hold exactly as
+before; they are simply described as contract-enforcement, provenance, and
+disclosure controls rather than as a same-user security guarantee. This mandate
+was established by the work record audit; work record first applied it, making
+target-resolution evidence advisory to dispatch rather than a file-type
+permission.
+
 ## Model Boundary
 
 Shared here:

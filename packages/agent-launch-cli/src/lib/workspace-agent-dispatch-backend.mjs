@@ -18,7 +18,12 @@ import {
   BACKEND_WRITEBACK_KINDS,
   normalizeFinalResult
 } from "@agent-chassis/agent-launch-core";
-import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+
+import {
+  AGENT_ROLE_RESULT_COUNT_FIELDS,
+  parseAgentRoleResult
+} from "@agent-chassis/agent-launch-core/src/lib/agent-role-result.mjs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 export {
@@ -55,1161 +60,99 @@ import {
   defaultRunIdFactory,
   defaultMonitorHandleFactory
 } from "./workspace-agent-dispatch-refusal.mjs";
-
 import { createDispatchRunLifecycle } from "./workspace-agent-dispatch-run-lifecycle.mjs";
+import { deriveBackendReviewResult } from "./workspace-agent-dispatch-review-result.mjs";
+import {
+  createExactSliceReviewReceipt,
+  createExactSliceReviewReceiptStore,
+  digestTrustedExactReviewEvidence,
+  reviseExactSliceReviewReceipt
+} from "./workspace-agent-dispatch-run-receipt.mjs";
+
+import {
+  mintAndPersistSliceReviewAcceptanceProof,
+  resolveHistoricalSliceReviewAcceptanceProof,
+  resolveSliceReviewAcceptanceProof
+} from "@agent-chassis/wiki-core/src/operations/work-record-slice-review-acceptance.mjs";
 import { AGENT_LAUNCH_ROLE_CONFIG_FILENAME } from "./agent-launch-role-config.mjs";
-import {
-  assertCompleteManagedProvisioningResult,
-  assertStructuralManagedProvisioningResult,
-  MANAGED_WORKTREE_BINDING_SCHEMA_VERSION,
-  provisionManagedWorktreesAtDispatch,
-  WORKTREE_PROVISIONING_DISPATCH_SCHEMA_VERSION
-} from "./worktree-provisioning-dispatch.mjs";
-import {
-  AGENT_CHILD_TOOL_SURFACE_SCHEMA_VERSION
-} from "./agent-child-tool-surface.mjs";
-import {
-  allocateSparseExactUnitWorktree,
-  defaultRunGit,
-  perWkBranchRef,
-  resolveVerifiedSparseExactUnitBinding,
-  sliceBranchRef
-} from "./worktree-substrate.mjs";
+import { defaultRunGit } from "./worktree-substrate.mjs";
 import {
   resolveUniqueManagedLifecycleBindingPairForRecovery
 } from "./worktree-substrate-identity.mjs";
+
 import {
-  FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION
-} from "./workspace-agent-findings-role-context.mjs";
+  WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER,
+  CALLER_SCOPE_CARRIERS,
+  CALLER_MANAGED_LIFECYCLE_CARRIERS,
+  CALLER_REVIEW_CONTEXT_CARRIERS,
+  CONFIG_ATTEMPT_STATE_CARRIERS,
+  FROZEN_REVIEW_CONTEXT_STATES,
+  EXACT_IMPLEMENTATION_SLICE_RE
+} from "./backend-constants.mjs";
+import {
+  hasExactClosedInputCommitComposition,
+  isPlainObject,
+  createRetainedReviewerLaunchIdentity,
+  assertRetainedReviewerLaunchIdentityMatchesContext,
+  createTrustedFrozenReviewContract,
+  createTrustedFrozenSliceReviewContract,
+  createRetainedSliceReviewerLaunchIdentity,
+  assertRetainedSliceReviewerLaunchIdentityMatchesContext,
+  hasManagedConfinementActivation
+} from "./backend-review-identity.mjs";
+import {
+  scopeAuthorityRefusal,
+  firstOwnField,
+  deepFreezeCanonicalSnapshot,
+  resolveFrozenWorkerScopeAuthority,
+  readCanonicalWorkRecord,
+  assertFrozenReviewTarget,
+  resolveCanonicalFindingsOnlyReviewUnit,
+  verifyFrozenWkReviewTargetAgainstObjectStore,
+  assertFrozenSliceReviewTarget,
+  verifyFrozenSliceReviewTargetAgainstObjectStore,
+  resolveCanonicalSliceReviewUnit,
+  resolveFrozenSliceReviewReceiptContract,
+  resolveCanonicalIntegratedSliceState,
+  verifyFrozenReceiptObjectsAgainstObjectStore
+} from "./backend-scope-authority.mjs";
+import { reconcileIntegratedSliceRecord } from "./slice-integration.mjs";
+import {
+  normalizeProvisioningConfig,
+  createLauncherOwnedManagedAttemptStateAuthority,
+  managedRefusal,
+  MANAGED_PROVISIONING_UNAVAILABLE,
+  MANAGED_LIFECYCLE_REQUIRED,
+  resolveExactSliceDependencies
+} from "./backend-provisioning-state.mjs";
+import {
+  maybeWrapExecutorWithWorktreeProvisioning,
+  maybeWrapRegistryEntryWithWorktreeProvisioning,
+  managedLifecycleCapabilityFact
+} from "./backend-worktree-binding.mjs";
 
 export const BACKEND_FORBIDDEN_ENVELOPE_TOKENS = HOST_WRITE_AUTHORITY_FORBIDDEN_TOKENS;
 
-const WK_SUBJECT_RE = /^(WK-\d{4})(?:#[A-Za-z0-9._-]+)?$/;
-const EXACT_IMPLEMENTATION_SLICE_RE = /^(WK-\d{4})#(SLICE-\d{3})$/;
+export {
+  WORKSPACE_AGENT_FROZEN_SCOPE_AUTHORITY_SCHEMA_VERSION,
+  MANAGED_WORKER_CONFINEMENT_ACTIVATION_SCHEMA_VERSION,
+  MANAGED_WORKER_ATTEMPT_STATE_SCHEMA_VERSION,
+  WORKER_READ_BOUNDARY_UNSUPPORTED_BLOCKER
+} from "./backend-constants.mjs";
+export { createManagedWorkerConfinementActivationBinding } from "./backend-review-identity.mjs";
 
-export const WORKSPACE_AGENT_FROZEN_SCOPE_AUTHORITY_SCHEMA_VERSION =
-  "workspace-agent-frozen-scope-authority.v1";
-const WORKSPACE_AGENT_LAUNCH_CORE_SCHEMA_VERSION = "workspace-agent-launch-core.v1";
-export const MANAGED_WORKER_CONFINEMENT_ACTIVATION_SCHEMA_VERSION =
-  "managed-worker-confinement-activation.v1";
-export const MANAGED_WORKER_ATTEMPT_STATE_SCHEMA_VERSION =
-  "managed-worker-attempt-state.v1";
-export const WORKER_READ_BOUNDARY_UNSUPPORTED_BLOCKER =
-  "worker_read_boundary_unsupported";
-const WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER = "worker_scope_authority_invalid";
-const SUPPORTED_WORKER_READ_BOUNDARY_FAMILIES = Object.freeze(["codex"]);
-const SUPPORTED_WORKER_READ_BOUNDARY_BACKENDS = Object.freeze(["bwrap"]);
-const CALLER_SCOPE_CARRIERS = Object.freeze([
-  "readScope", "read_scope", "repoPaths", "repo_paths", "writeScope", "write_scope",
-  "readableScope", "readable_scope", "selectedUnit", "selected_unit", "sourceDigest",
-  "source_digest", "sourceVersion", "source_version", "workerScopeAuthority",
-  "worker_scope_authority"
-]);
-const CALLER_MANAGED_LIFECYCLE_CARRIERS = Object.freeze([
-  "retryId", "retry_id", "priorIdentity", "prior_identity", "livenessDeps",
-  "liveness_deps", "attemptState", "attempt_state", "resolveAttemptState",
-  "resolve_attempt_state", "mainRepo", "main_repo", "worktreeRoot",
-  "worktree_root", "sharedDependencyRoot", "shared_dependency_root",
-  "cacheRoot", "cache_root", "confinementAvailable", "confinement_available",
-  "managedConfinementActivation", "managed_confinement_activation", "env", "argv",
-  "claimedIdentity", "claimed_identity"
-]);
-const CALLER_REVIEW_CONTEXT_CARRIERS = Object.freeze([
-  "ref", "sha", "wkRef", "wk_ref", "wkSha", "wk_sha", "worktreePath",
-  "worktree_path", "diffRange", "diff_range", "diffBaseSha", "diff_base_sha",
-  "diffHeadSha", "diff_head_sha", "reviewContext", "review_context",
-  "frozenReviewContext", "frozen_review_context", "prompt", "request", "env",
-  "argv", "claimedIdentity", "claimed_identity", "trustedFrozenReviewContract",
-  "trusted_frozen_review_contract", "canonicalParentWkContract",
-  "canonical_parent_wk_contract", "reviewUnitContract", "review_unit_contract",
-  "reviewerLaunchIdentity", "reviewer_launch_identity",
-  "acceptanceCriteria", "acceptance_criteria", "acceptanceValidation", "acceptance_validation"
-]);
-const CONFIG_ATTEMPT_STATE_CARRIERS = Object.freeze([
-  "resolveAttemptState", "resolveProvisioningAttemptState", "getAttemptState",
-  "getProvisioningAttemptState", "attemptState", "attempt_state", "retryId",
-  "retry_id", "priorIdentity", "prior_identity", "livenessDeps", "liveness_deps"
-]);
-const REMOVED_MANAGED_PROVISIONING_ROOT_FIELDS = Object.freeze([
-  "sharedDependencyRoot", "shared_dependency_root", "cacheRoot", "cache_root"
-]);
-
-const EXPECTED_MANAGED_CONFINEMENT_ACTIVATION = Object.freeze({
-  schema_version: MANAGED_WORKER_CONFINEMENT_ACTIVATION_SCHEMA_VERSION,
-  available: true,
-  family: "codex",
-  backend: "bwrap",
-  frozen_scope_authority_schema_version: WORKSPACE_AGENT_FROZEN_SCOPE_AUTHORITY_SCHEMA_VERSION,
-  launch_core_schema_version: WORKSPACE_AGENT_LAUNCH_CORE_SCHEMA_VERSION,
-  child_tool_surface_schema_version: AGENT_CHILD_TOOL_SURFACE_SCHEMA_VERSION,
-  provisioning_dispatch_schema_version: WORKTREE_PROVISIONING_DISPATCH_SCHEMA_VERSION,
-  managed_worktree_binding_schema_version: MANAGED_WORKTREE_BINDING_SCHEMA_VERSION,
-  exact_unit_binding: "WK-1518",
-  managed_provisioning_binding: "WK-1469"
-});
-
-const EXPECTED_CLOSED_INPUT_COMMIT_COMPOSITION = Object.freeze({
-  schema_version: "workspace-closed-input-commit-composition.v1",
-  installed: true,
-  tool_name: "commit",
-  input_contract: "closed",
-  binding_authority: "server_resolved"
-});
-
-const FROZEN_REVIEW_CONTEXT_STATES = Object.freeze({
-  AVAILABLE: "available",
-  RESERVED: "reserved",
-  CONSUMED: "consumed"
-});
-const RETAINED_REVIEWER_LAUNCH_IDENTITY_FIELDS = Object.freeze([
-  "diff_head_sha",
-  "initiative",
-  "main_repo",
-  "record_id",
-  "review_slice_id",
-  "review_subject",
-  "trusted_frozen_review_contract",
-  "wk_ref",
-  "wk_sha",
-  "worktree_path"
-]);
-const FROZEN_REVIEW_CONTRACT_IDENTITY_FIELDS = Object.freeze([
-  "canonical_parent_wk_contract",
-  "review_subject",
-  "review_unit_contract",
-  "schema_version"
-]);
-
-export function createManagedWorkerConfinementActivationBinding() {
-  return Object.freeze({ ...EXPECTED_MANAGED_CONFINEMENT_ACTIVATION });
-}
-
-function hasExactManagedConfinementActivation(binding) {
-  if (!isPlainObject(binding)) return false;
-  const actualKeys = Object.keys(binding).sort();
-  const expectedKeys = Object.keys(EXPECTED_MANAGED_CONFINEMENT_ACTIVATION).sort();
-  return sameStringArray(actualKeys, expectedKeys) && expectedKeys.every(
-    (field) => binding[field] === EXPECTED_MANAGED_CONFINEMENT_ACTIVATION[field]
-  );
-}
-
-function hasExactClosedInputCommitComposition(binding) {
-  if (!isPlainObject(binding) || !Object.isFrozen(binding)) return false;
-  const actualKeys = Object.keys(binding).sort();
-  const expectedKeys = Object.keys(EXPECTED_CLOSED_INPUT_COMMIT_COMPOSITION).sort();
-  return sameStringArray(actualKeys, expectedKeys) && expectedKeys.every(
-    (field) => binding[field] === EXPECTED_CLOSED_INPUT_COMMIT_COMPOSITION[field]
-  );
-}
-
-function hasManagedConfinementActivation(config) {
-  if (!isPlainObject(config)) return false;
-  const explicit = config.managedConfinementActivation
-    ?? config.managed_confinement_activation
-    ?? null;
-  if (explicit !== null) return hasExactManagedConfinementActivation(explicit);
-
-  return config.confinementAvailable === true;
-}
-
-function isPlainObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function createRetainedReviewerLaunchIdentity(context) {
-  return Object.freeze({
-    main_repo: context.main_repo,
-    review_subject: context.review_subject,
-    record_id: context.record_id,
-    review_slice_id: context.review_slice_id,
-    initiative: context.initiative,
-    wk_ref: context.wk_ref,
-    worktree_path: context.worktree_path,
-    wk_sha: context.wk_sha,
-    diff_head_sha: context.diff_head_sha,
-    trusted_frozen_review_contract: context.trusted_frozen_review_contract
-  });
-}
-
-function createTrustedFrozenReviewContract(reviewUnit) {
-  return Object.freeze({
-    schema_version: FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
-    review_subject: reviewUnit.subject,
-    canonical_parent_wk_contract: reviewUnit.canonical_parent_wk_contract,
-    review_unit_contract: reviewUnit.review_unit_contract
-  });
-}
-
-function isStructurallyCompleteRetainedReviewerLaunchIdentity(identity) {
-  if (!isPlainObject(identity) || !Object.isFrozen(identity) ||
-      !sameStringArray(Object.keys(identity).sort(), RETAINED_REVIEWER_LAUNCH_IDENTITY_FIELDS)) {
-    return false;
-  }
-  const contract = identity.trusted_frozen_review_contract;
-  return typeof identity.main_repo === "string" && path.isAbsolute(identity.main_repo) &&
-    typeof identity.review_subject === "string" && /^WK-\d{4}#SLICE-\d{3}$/u.test(identity.review_subject) &&
-    typeof identity.record_id === "string" && /^WK-\d{4}$/u.test(identity.record_id) &&
-    typeof identity.review_slice_id === "string" && /^SLICE-\d{3}$/u.test(identity.review_slice_id) &&
-    typeof identity.initiative === "string" && /^IN-\d{4}$/u.test(identity.initiative) &&
-    typeof identity.wk_ref === "string" && /^refs\/heads\/wk\/IN-\d{4}\/WK-\d{4}$/u.test(identity.wk_ref) &&
-    typeof identity.worktree_path === "string" && path.isAbsolute(identity.worktree_path) &&
-    typeof identity.wk_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.wk_sha) &&
-    typeof identity.diff_head_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.diff_head_sha) &&
-    isPlainObject(contract) && Object.isFrozen(contract) &&
-    sameStringArray(Object.keys(contract).sort(), FROZEN_REVIEW_CONTRACT_IDENTITY_FIELDS) &&
-    contract.schema_version === FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION &&
-    typeof contract.review_subject === "string" &&
-    typeof contract.canonical_parent_wk_contract === "string" &&
-    typeof contract.review_unit_contract === "string";
-}
-
-function assertRetainedReviewerLaunchIdentityMatchesContext(identity, context) {
-  if (!isStructurallyCompleteRetainedReviewerLaunchIdentity(identity)) {
-    throw new Error("consumed frozen whole-WK review context has no structurally complete retained reviewer launch identity");
-  }
-  const expected = createRetainedReviewerLaunchIdentity(context);
-  const flatFields = RETAINED_REVIEWER_LAUNCH_IDENTITY_FIELDS.filter(
-    (field) => field !== "trusted_frozen_review_contract"
-  );
-  if (flatFields.some((field) => identity[field] !== expected[field]) ||
-      FROZEN_REVIEW_CONTRACT_IDENTITY_FIELDS.some(
-        (field) => identity.trusted_frozen_review_contract[field] !==
-          expected.trusted_frozen_review_contract[field]
-      )) {
-    throw new Error("retained reviewer launch identity does not match the consumed frozen whole-WK review context");
-  }
-}
-
-function scopeAuthorityRefusal(blocker, detail = null) {
-  return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, { blocker, ...detail });
-}
-
-function firstOwnField(source, fields) {
-  if (!isPlainObject(source)) return null;
-  return fields.find((field) => Object.prototype.hasOwnProperty.call(source, field)) ?? null;
-}
-
-function normalizeCanonicalScope(entries, label, recordPath, { required = true } = {}) {
-  if (!Array.isArray(entries)) {
-    if (!required && entries === undefined) return Object.freeze([]);
-    throw new Error(`${label} for the exact selected unit must be an array in ${recordPath}`);
-  }
-  const normalized = [];
-  for (const entry of entries) {
-    if (typeof entry !== "string" || entry.length === 0 || entry !== entry.trim() ||
-        path.posix.isAbsolute(entry) || entry.startsWith("-") || entry.includes("\\") ||
-        /[\x00-\x1f\x7f]/.test(entry) || path.posix.normalize(entry) !== entry ||
-        entry === "." || entry.split("/").some((part) => part === "" || part === "." || part === "..")) {
-      throw new Error(`${label} contains a non-canonical repository-relative path in ${recordPath}: ${JSON.stringify(entry)}`);
-    }
-    if (entry.split("/").includes(".git")) {
-      throw new Error(`${label} contains a forbidden Git metadata path in ${recordPath}: ${JSON.stringify(entry)}`);
-    }
-    normalized.push(entry);
-  }
-  return Object.freeze([...new Set(normalized)].sort());
-}
-
-function assertPathWithin(root, candidate, label) {
-  const relative = path.relative(root, candidate);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`${label} escapes or aliases the canonical repository root`);
-  }
-}
-
-function validateScopePathType(mainRepo, scopePath, label, { writable = false } = {}) {
-  const wildcardIndex = scopePath.split("/").findIndex((part) => /[*?[]/.test(part));
-  if (wildcardIndex === 0) {
-    throw new Error(`${label} root-wide wildcard scope is unsupported: ${JSON.stringify(scopePath)}`);
-  }
-  if (writable && wildcardIndex !== -1) {
-    throw new Error(`${label} wildcard write targets are unsupported: ${JSON.stringify(scopePath)}`);
-  }
-  const parts = wildcardIndex === -1 ? scopePath.split("/") : scopePath.split("/").slice(0, wildcardIndex);
-  let current = mainRepo;
-  for (let index = 0; index < parts.length; index += 1) {
-    current = path.join(current, parts[index]);
-    const final = index === parts.length - 1;
-    if (!existsSync(current)) {
-      if (writable && final && wildcardIndex === -1) return;
-      throw new Error(`${label} is incomplete at ${JSON.stringify(scopePath)}; missing ${JSON.stringify(current)}`);
-    }
-    const stat = lstatSync(current);
-    if (stat.isSymbolicLink()) {
-      throw new Error(`${label} crosses a symlink at ${JSON.stringify(current)}`);
-    }
-    if (!final && !stat.isDirectory()) {
-      throw new Error(`${label} has a path-type conflict at non-directory ${JSON.stringify(current)}`);
-    }
-  }
-  if (parts.length > 0) {
-    assertPathWithin(mainRepo, realpathSync(current), label);
-  }
-}
-
-function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, slice }) {
-  const match = typeof subject === "string" ? subject.match(EXACT_IMPLEMENTATION_SLICE_RE) : null;
-  if (!match || record?.id !== match[1] || slice?.id !== match[2] || slice.work_kind !== "implementation") {
-    throw new Error("exact canonical implementation slice identity is unresolved or mismatched");
-  }
-  const requestedRepo = path.resolve(mainRepo);
-  const repo = realpathSync(requestedRepo);
-  if (requestedRepo !== repo) {
-    throw new Error("launcher-provisioned mainRepo must not contain a symlink or path alias");
-  }
-  const recordPath = path.join(repo, "wiki", "work-records", `${match[1]}.json`);
-  validateScopePathType(repo, `wiki/work-records/${match[1]}.json`, "canonical work-record source");
-  const recordRealPath = realpathSync(recordPath);
-  assertPathWithin(repo, recordRealPath, "canonical work-record source");
-  const readScope = normalizeCanonicalScope(slice.read_scope, "read_scope", recordPath, { required: false });
-  const repoPaths = normalizeCanonicalScope(slice.repo_paths, "repo_paths", recordPath, { required: false });
-  const writeScope = normalizeCanonicalScope(slice.write_scope, "write_scope", recordPath);
-  for (const entry of readScope) validateScopePathType(repo, entry, "read_scope");
-  for (const entry of repoPaths) validateScopePathType(repo, entry, "repo_paths");
-  for (const entry of writeScope) validateScopePathType(repo, entry, "write_scope", { writable: true });
-  if (record.schema_version !== undefined &&
-      (typeof record.schema_version !== "string" || record.schema_version.length === 0)) {
-    throw new Error("canonical work-record schema_version is incompatible");
-  }
-  const selectedUnit = Object.freeze({
-    kind: "slice",
-    address: subject,
-    record_id: match[1],
-    slice_id: match[2],
-    repo: record.repo ?? null
-  });
-  return Object.freeze({
-    schema_version: WORKSPACE_AGENT_FROZEN_SCOPE_AUTHORITY_SCHEMA_VERSION,
-    unit_address: `${record.initiative}/${match[1]}/${match[2]}`,
-    selected_unit: selectedUnit,
-    source: `wiki/work-records/${match[1]}.json#${match[2]}`,
-    source_digest: computeWorkRecordSourceDigest(record),
-    source_version: record.schema_version ?? null,
-    read_scope: readScope,
-    repo_paths: repoPaths,
-    readable_scope: Object.freeze([...new Set([...readScope, ...repoPaths])].sort()),
-    write_scope: writeScope
-  });
-}
-
-function deepFreezeCanonicalSnapshot(value) {
-  if (!isPlainObject(value) && !Array.isArray(value)) return value;
-  for (const child of Object.values(value)) deepFreezeCanonicalSnapshot(child);
-  return Object.freeze(value);
-}
-
-function sameStringArray(actual, expected) {
-  return Array.isArray(actual) && actual.length === expected.length &&
-    actual.every((entry, index) => entry === expected[index]);
-}
-
-function assertProvisionedScopeAuthority(binding, authority) {
-  if (!isPlainObject(binding)) throw new Error("launcher-provisioned sparse exact-unit binding is absent");
-  const selected = binding.selected_unit;
-  const expectedSelected = authority.selected_unit;
-  const scalarMismatch = [
-    ["unit_address", binding.unit_address, authority.unit_address],
-    ["write_scope_source", binding.write_scope_source, authority.source],
-    ["source_digest", binding.source_digest, authority.source_digest],
-    ["source_version", binding.source_version, authority.source_version]
-  ].find(([, actual, expected]) => actual !== expected);
-  if (scalarMismatch) {
-    throw new Error(`launcher-provisioned sparse authority mismatch at ${scalarMismatch[0]}`);
-  }
-  for (const [field, expected] of [
-    ["read_scope", authority.read_scope],
-    ["repo_paths", authority.repo_paths],
-    ["write_scope", authority.write_scope]
-  ]) {
-    if (!sameStringArray(binding[field], expected)) {
-      throw new Error(`launcher-provisioned sparse authority mismatch at ${field}`);
-    }
-  }
-  if (!isPlainObject(selected) || ["kind", "address", "record_id", "slice_id", "repo"]
-    .some((field) => selected[field] !== expectedSelected[field])) {
-    throw new Error("launcher-provisioned sparse authority selected-unit identity mismatch");
-  }
-  if (binding.index_sparse !== false || !Array.isArray(binding.cone_dirs) || binding.cone_dirs.length === 0) {
-    throw new Error("launcher-provisioned sparse authority binding is incomplete");
-  }
-  return binding;
-}
-
-function readCanonicalWorkRecord(mainRepo, subject) {
-  const match = typeof subject === "string" ? subject.match(WK_SUBJECT_RE) : null;
-  if (!match) return null;
-  try {
-    const requestedRepo = path.resolve(mainRepo);
-    const repo = realpathSync(requestedRepo);
-    if (requestedRepo !== repo) return null;
-    const relativeRecordPath = `wiki/work-records/${match[1]}.json`;
-    validateScopePathType(repo, relativeRecordPath, "canonical work-record source");
-    return JSON.parse(readFileSync(path.join(repo, relativeRecordPath), "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function isCanonicalFindingsOnlyReviewSlice(slice) {
-  if (!isPlainObject(slice) || slice.work_kind !== "review" ||
-      !Array.isArray(slice.write_scope) || slice.write_scope.length !== 0 ||
-      slice.dispatch_intent?.intended_agent_role !== "reviewer" ||
-      slice.dispatch_intent?.target_unit !== "slice" ||
-      slice.status === "done" || slice.status === "cancelled") {
-    return false;
-  }
-  const reviewContract = [
-    slice.title,
-    slice.summary,
-    slice.sections?.summary,
-    ...(Array.isArray(slice.acceptance?.criteria) ? slice.acceptance.criteria : [])
-  ].filter((value) => typeof value === "string").join("\n");
-  return /findings-only/iu.test(reviewContract);
-}
-
-function resolveCanonicalFindingsOnlyReviewUnit(mainRepo, wkId) {
-  const record = readCanonicalWorkRecord(mainRepo, wkId);
-  if (!record || record.id !== wkId || !/^IN-\d{4}$/u.test(record.initiative ?? "") ||
-      !Array.isArray(record.slices)) {
-    throw new Error(`canonical ${wkId} record is unavailable for whole-WK review`);
-  }
-  const eligible = record.slices.filter(isCanonicalFindingsOnlyReviewSlice);
-  if (eligible.length !== 1) {
-    throw new Error(`canonical ${wkId} record must contain exactly one eligible findings-only review slice; found ${eligible.length}`);
-  }
-  const slice = eligible[0];
-  return Object.freeze({
-    record_id: wkId,
-    slice_id: slice.id,
-    subject: `${wkId}#${slice.id}`,
-    initiative: record.initiative,
-    parent_status: record.status ?? null,
-    canonical_parent_wk_contract: JSON.stringify(record),
-    review_unit_contract: JSON.stringify(slice)
-  });
-}
-
-function assertFrozenReviewTarget(target) {
-  if (!isPlainObject(target) ||
-      typeof target.ref !== "string" || !/^refs\/heads\/wk\/IN-\d{4}\/WK-\d{4}$/u.test(target.ref) ||
-      typeof target.sha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(target.sha) ||
-      target.diff_head_sha !== target.sha ||
-      typeof target.diff_base_sha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(target.diff_base_sha) ||
-      target.diff_range !== `${target.diff_base_sha}..${target.sha}` ||
-      target.complete_parent_wk_contract !== true || target.accumulated_wk_diff !== true) {
-    throw new Error("frozen whole-WK review target is incomplete or incompatible");
-  }
-  return target;
-}
-
-function verifyFrozenWkReviewTargetAgainstObjectStore({ mainRepo, context, runGit = defaultRunGit }) {
-  const probes = [
-    { name: "wk_ref_resolves_to_frozen_sha", rev: `${context.wk_ref}^{commit}`, expect: context.wk_sha },
-    { name: "frozen_commit_object_present", rev: `${context.wk_sha}^{commit}`, expect: context.wk_sha },
-    { name: "frozen_diff_base_object_present", rev: `${context.diff_base_sha}^{commit}`, expect: context.diff_base_sha }
-  ];
-  for (const probe of probes) {
-    const result = runGit({ repo: mainRepo, args: ["rev-parse", "--verify", probe.rev] });
-    if (!result || result.ok !== true) {
-
-      if (result && result.error != null && result.status == null) {
-        return {
-          ok: false,
-          kind: "transport",
-          detail: { probe: probe.name, rev: probe.rev, error: String(result.error) }
-        };
-      }
-      return {
-        ok: false,
-        kind: "disagreement",
-        detail: {
-          probe: probe.name,
-          rev: probe.rev,
-          status: result?.status ?? null,
-          stderr: result?.stderr ?? null
-        }
-      };
-    }
-    const actual = String(result.stdout ?? "").trim();
-    if (actual !== probe.expect) {
-      return {
-        ok: false,
-        kind: "disagreement",
-        detail: { probe: probe.name, rev: probe.rev, expected: probe.expect, actual }
-      };
-    }
-  }
-  return { ok: true };
-}
-
-function resolveProvisioningInitiative({ readiness, mainRepo, subject }) {
-  const readinessCandidates = [
-    readiness?.initiative,
-    readiness?.unit?.initiative,
-    readiness?.record?.initiative,
-    readiness?.work_record?.initiative
-  ];
-  for (const candidate of readinessCandidates) {
-    if (typeof candidate === "string" && /^IN-\d{4}$/.test(candidate)) {
-      return candidate;
-    }
-  }
-  const record = readCanonicalWorkRecord(mainRepo, subject);
-  return typeof record?.initiative === "string" && /^IN-\d{4}$/.test(record.initiative)
-    ? record.initiative
-    : null;
-}
-
-function normalizeProvisioningConfig(config) {
-  if (!config || config.enabled === false) return null;
-  if (!isPlainObject(config)) return null;
-  if (REMOVED_MANAGED_PROVISIONING_ROOT_FIELDS.some(
-    (field) => Object.prototype.hasOwnProperty.call(config, field)
-  )) return null;
-  if (typeof config.mainRepo !== "string" || config.mainRepo.length === 0) return null;
-  if (typeof config.worktreeRoot !== "string" || config.worktreeRoot.length === 0) return null;
-  return config;
-}
-
-const MANAGED_LIFECYCLE_REQUIRED = RUNTIME_BLOCKER_CODES.MANAGED_LIFECYCLE_REQUIRED;
-const MANAGED_PROVISIONING_UNAVAILABLE = RUNTIME_BLOCKER_CODES.MANAGED_WORKTREE_PROVISIONING_UNAVAILABLE;
-if (typeof MANAGED_LIFECYCLE_REQUIRED !== "string" || typeof MANAGED_PROVISIONING_UNAVAILABLE !== "string") {
-  throw new Error("WK-1471 managed-lifecycle blocker interface is absent or incompatible");
-}
-
-function managedRefusal(reason, detail = null) {
-  return {
-    accepted: false,
-    refusal: {
-      code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-      reason,
-      detail
-    }
-  };
-}
-
-function resolveRefCommit(runGit, mainRepo, ref) {
-  const result = runGit({ repo: mainRepo, args: ["rev-parse", "--verify", `${ref}^{commit}`] });
-  const sha = result?.ok === true ? String(result.stdout ?? "").trim() : "";
-  return sha || null;
-}
-
-function dependencyDescriptor(mainRepo, record, dependency) {
-  const localSlice = typeof dependency === "string" ? dependency.match(/^SLICE-(\d{3})$/) : null;
-  const qualified = typeof dependency === "string"
-    ? dependency.match(/^(WK-\d{4})(?:#(SLICE-\d{3}))?$/)
-    : null;
-  const dependencyWkId = localSlice ? record.id : qualified?.[1] ?? null;
-  const dependencySliceId = localSlice ? `SLICE-${localSlice[1]}` : qualified?.[2] ?? null;
-  if (dependencyWkId === null) return null;
-  const dependencyRecord = dependencyWkId === record.id
-    ? record
-    : readCanonicalWorkRecord(mainRepo, dependencyWkId);
-  if (!dependencyRecord || !/^IN-\d{4}$/.test(dependencyRecord.initiative ?? "")) return null;
-  const dependencySlice = dependencySliceId === null
-    ? null
-    : dependencyRecord.slices?.find((candidate) => candidate?.id === dependencySliceId) ?? null;
-  return { dependencyRecord, dependencySlice, dependencyWkId, dependencySliceId };
-}
-
-function resolveExactSliceDependencies(mainRepo, subject, deps = {}) {
-  const match = typeof subject === "string" ? subject.match(/^(WK-\d{4})#(SLICE-\d{3})$/) : null;
-  if (!match) return { ok: false, reason: "exact_slice_required" };
-  const record = readCanonicalWorkRecord(mainRepo, subject);
-  const slice = Array.isArray(record?.slices) ? record.slices.find((candidate) => candidate?.id === match[2]) : null;
-  if (!record || !/^IN-\d{4}$/.test(record.initiative ?? "") || !slice || slice.work_kind !== "implementation") {
-    return { ok: false, reason: "exact_implementation_slice_unresolved" };
-  }
-  const dependencies = Array.isArray(slice.depends_on) ? slice.depends_on : [];
-  if (dependencies.length === 0) return { ok: true, record, slice };
-  const runGit = deps.runGit ?? defaultRunGit;
-  const wkRef = perWkBranchRef(record.initiative, record.id);
-  const wkTip = resolveRefCommit(runGit, mainRepo, wkRef);
-  const unmet = [];
-  for (const dependency of dependencies) {
-    const descriptor = dependencyDescriptor(mainRepo, record, dependency);
-    if (!descriptor) {
-      unmet.push({ dependency, reason: "dependency_identity_unresolved" });
-      continue;
-    }
-    const { dependencyRecord, dependencySlice, dependencyWkId, dependencySliceId } = descriptor;
-    const accepted = dependencySliceId === null
-      ? dependencyRecord.status === "done"
-      : dependencySlice?.status === "done";
-    if (!accepted) {
-      unmet.push({ dependency, reason: "wk_context_review_not_accepted" });
-      continue;
-    }
-    const dependencyRef = dependencySliceId === null
-      ? perWkBranchRef(dependencyRecord.initiative, dependencyWkId)
-      : sliceBranchRef(dependencyRecord.initiative, dependencyWkId, dependencySliceId);
-    const dependencyTip = resolveRefCommit(runGit, mainRepo, dependencyRef);
-    if (wkTip === null || dependencyTip === null) {
-      unmet.push({ dependency, reason: "dependency_not_present_on_wk_branch", wk_ref: wkRef, dependency_ref: dependencyRef });
-      continue;
-    }
-    const present = runGit({ repo: mainRepo, args: ["merge-base", "--is-ancestor", dependencyTip, wkTip] });
-    if (present?.ok !== true) {
-      unmet.push({ dependency, reason: "dependency_not_present_on_wk_branch", wk_ref: wkRef, dependency_ref: dependencyRef });
-    }
-  }
-  return unmet.length === 0 ? { ok: true, record, slice } : {
-    ok: false,
-    reason: "unit_dependencies_unmet",
-    unmet: unmet.map((entry) => entry.dependency),
-    dependency_diagnostics: unmet
-  };
-}
-
-function provisioningRefusal(error) {
-  return {
-    accepted: false,
-    refusal: {
-      code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-      reason: MANAGED_PROVISIONING_UNAVAILABLE,
-      detail: {
-        source_code: error?.code ?? null,
-        message: error?.message ?? String(error),
-        detail: error?.detail ?? null
-      }
-    }
-  };
-}
-
-function invalidProvisioningStateRefusal(reason, detail = null) {
-  return {
-    accepted: false,
-    refusal: {
-      code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-      reason,
-      detail
-    }
-  };
-}
-
-function normalizeProvisioningRetryId(value) {
-  if (!Number.isInteger(value) || value < 0) {
-    return null;
-  }
-  return value;
-}
-
-async function resolveProvisioningAttemptState({ attemptStateAuthority, input, initiative }) {
-  let resolved;
-  try {
-    resolved = await attemptStateAuthority.resolve({
-      role: input.role,
-      subject: input.subject,
-      initiative,
-      launchRef: input.monitor_handle,
-      runId: input.run_id
-    });
-  } catch (error) {
-    return {
-      ok: false,
-      refusal: invalidProvisioningStateRefusal(
-        "worktree_provisioning_attempt_state_threw",
-        { message: error?.message ?? String(error) }
-      )
-    };
-  }
-
-  if (resolved === null || resolved === undefined) {
-    return {
-      ok: false,
-      refusal: invalidProvisioningStateRefusal(
-        "worktree_provisioning_attempt_state_invalid",
-        { reason: "launcher_owned_attempt_state_required" }
-      )
-    };
-  }
-  if (!isPlainObject(resolved)) {
-    return {
-      ok: false,
-      refusal: invalidProvisioningStateRefusal(
-        "worktree_provisioning_attempt_state_invalid",
-        { reason: "resolver_must_return_plain_object" }
-      )
-    };
-  }
-  const retryId = normalizeProvisioningRetryId(resolved.retryId ?? resolved.retry_id);
-  if (retryId === null) {
-    return {
-      ok: false,
-      refusal: invalidProvisioningStateRefusal(
-        "worktree_provisioning_attempt_state_invalid",
-        { reason: "retry_id_must_be_non_negative_integer" }
-      )
-    };
-  }
-  const disposition = resolved.disposition;
-  const priorIdentity = resolved.priorIdentity ?? resolved.prior_identity ?? null;
-  const livenessDeps = resolved.livenessDeps ?? resolved.liveness_deps ?? null;
-  if (resolved.schema_version !== MANAGED_WORKER_ATTEMPT_STATE_SCHEMA_VERSION ||
-      resolved.unit_address !== `${initiative}/${input.subject.replace("#", "/")}` ||
-      (disposition !== "initial" && disposition !== "reissue") ||
-      (disposition === "initial" && (retryId !== 0 || priorIdentity !== null)) ||
-      (disposition === "reissue" && (retryId === 0 || !isPlainObject(priorIdentity) ||
-        typeof livenessDeps?.confirmPriorWorkerTerminated !== "function"))) {
-    return {
-      ok: false,
-      refusal: invalidProvisioningStateRefusal(
-        "worktree_provisioning_attempt_state_invalid",
-        { reason: "launcher_owned_attempt_state_identity_mismatch" }
-      )
-    };
-  }
-  return {
-    ok: true,
-    state: {
-      schemaVersion: resolved.schema_version,
-      disposition,
-      retryId,
-      priorIdentity,
-      livenessDeps
-    }
-  };
-}
-
-function isTerminalRunStatus(status) {
-  return status === "succeeded" || status === "failed" || status === "cancelled";
-}
-
-function createLauncherOwnedManagedAttemptStateAuthority() {
-  const attempts = new Map();
-
-  async function refreshPriorLiveness(prior) {
-    if (prior.terminated === true) return true;
-    if (typeof prior.probe !== "function") return false;
-    try {
-      const outcome = await prior.probe();
-      if (isTerminalRunStatus(outcome?.status)) {
-        prior.terminated = true;
-      }
-    } catch {
-      return false;
-    }
-    return prior.terminated === true;
-  }
-
-  return Object.freeze({
-    async resolve({ role, subject, initiative, launchRef, runId }) {
-      if (role !== "worker" || !EXACT_IMPLEMENTATION_SLICE_RE.test(subject ?? "") ||
-          typeof launchRef !== "string" || launchRef.length === 0 ||
-          typeof runId !== "string" || runId.length === 0) {
-        return null;
-      }
-      const unitAddress = `${initiative}/${subject.replace("#", "/")}`;
-      const prior = attempts.get(unitAddress) ?? null;
-      if (prior === null) {
-        return Object.freeze({
-          schema_version: MANAGED_WORKER_ATTEMPT_STATE_SCHEMA_VERSION,
-          disposition: "initial",
-          unit_address: unitAddress,
-          retryId: 0,
-          priorIdentity: null,
-          livenessDeps: null
-        });
-      }
-      const terminated = await refreshPriorLiveness(prior);
-      const priorIdentity = Object.freeze({
-        launchRef: prior.launchRef,
-        runId: prior.runId,
-        retryId: prior.retryId
-      });
-      const livenessDeps = Object.freeze({
-        confirmPriorWorkerTerminated(candidate) {
-          const identity = candidate?.priorIdentity;
-          return terminated === true && candidate?.unitAddress === unitAddress &&
-            candidate?.launchRef === launchRef && candidate?.runId === runId &&
-            candidate?.retryId === prior.retryId + 1 &&
-            identity?.launchRef === prior.launchRef && identity?.runId === prior.runId &&
-            identity?.retryId === prior.retryId;
-        }
-      });
-      return Object.freeze({
-        schema_version: MANAGED_WORKER_ATTEMPT_STATE_SCHEMA_VERSION,
-        disposition: "reissue",
-        unit_address: unitAddress,
-        retryId: prior.retryId + 1,
-        priorIdentity,
-        livenessDeps
-      });
-    },
-    recordProvisioned({ unitAddress, launchRef, runId, retryId }) {
-      attempts.set(unitAddress, {
-        unitAddress,
-        launchRef,
-        runId,
-        retryId,
-        provisioning: null,
-        terminated: false,
-        probe: null
-      });
-    },
-    recordProvisioningBinding({ unitAddress, launchRef, runId, retryId, provisioning }) {
-      const current = attempts.get(unitAddress);
-      if (!current || current.launchRef !== launchRef || current.runId !== runId ||
-          current.retryId !== retryId || !isPlainObject(provisioning)) {
-        throw new Error("launcher-owned managed attempt identity changed before provisioning binding recording");
-      }
-      current.provisioning = provisioning;
-    },
-    resolveProvisioningBinding(status) {
-      for (const current of attempts.values()) {
-        if (current.runId === status?.run_id && current.launchRef === status?.monitor_handle &&
-            current.provisioning && current.provisioning.record_id &&
-            status?.subject === `${current.provisioning.record_id}#${current.provisioning.slice_id}`) {
-          return current.provisioning;
-        }
-      }
-      throw new Error("terminal worker run has no exact launcher-owned provisioning binding");
-    },
-    recordExecutorResult({ unitAddress, launchRef, runId, retryId, result, threw = false }) {
-      const current = attempts.get(unitAddress);
-      if (!current || current.launchRef !== launchRef || current.runId !== runId || current.retryId !== retryId) {
-        throw new Error("launcher-owned managed attempt identity changed before executor result recording");
-      }
-      current.probe = typeof result?.probe === "function" ? result.probe : null;
-      current.terminated = threw === true || result?.accepted === false || isTerminalRunStatus(result?.status);
-    }
-  });
-}
-
-function firstStringField(source, names) {
-  for (const name of names) {
-    const value = source?.[name];
-    if (typeof value === "string" && value.length > 0) return value;
-  }
-  return null;
-}
-
-function deriveProvisionedWorktreeGitBinding(provisioning) {
-  if (!isPlainObject(provisioning)) return null;
-  const direct = provisioning.provisionedWorktreeGitBinding
-    ?? provisioning.provisioned_worktree_git_binding
-    ?? provisioning.provisionedWorktreeGitIdentity
-    ?? provisioning.provisioned_worktree_git_identity
-    ?? provisioning.git_binding
-    ?? provisioning.git_identity
-    ?? null;
-  if (isPlainObject(direct)) {
-    return Object.freeze({ ...direct });
-  }
-
-  const worktreePath = firstStringField(provisioning, ["worktree_path", "worktreePath"]);
-  const gitDir = firstStringField(provisioning, [
-    "git_dir",
-    "gitDir",
-    "worktree_git_dir",
-    "worktreeGitDir"
-  ]);
-  const mainGitDir = firstStringField(provisioning, [
-    "main_git_dir",
-    "mainGitDir",
-    "shared_git_dir",
-    "sharedGitDir"
-  ]);
-  if (worktreePath === null || gitDir === null || mainGitDir === null) {
-    return null;
-  }
-
-  const gitPointerFile = firstStringField(provisioning, [
-    "git_pointer_file",
-    "gitPointerFile",
-    "worktree_git_pointer_file",
-    "worktreeGitPointerFile"
-  ]) ?? path.join(worktreePath, ".git");
-
-  return Object.freeze({
-    worktreePath,
-    gitDir,
-    mainGitDir,
-    gitPointerFile
-  });
-}
-
-function maybeWrapExecutorWithWorktreeProvisioning(
-  executor,
-  app,
-  provisioningConfig,
-  requireManagedProvisioning,
-  attemptStateAuthority,
-  validateWorkerScopeSnapshot
-) {
-  if (typeof executor !== "function") return executor;
-  if (provisioningConfig === null && requireManagedProvisioning !== true) return executor;
-  return async function provisionedWorkspaceAgentExecutor(input = {}) {
-    if (input.role !== "worker") {
-      return executor(input);
-    }
-
-    if (provisioningConfig === null) {
-      return managedRefusal(MANAGED_PROVISIONING_UNAVAILABLE, { capability: "managed_worktree_provisioning" });
-    }
-    const callerCarrier = firstOwnField(input, CALLER_SCOPE_CARRIERS);
-    const lifecycleCarrier = firstOwnField(input, CALLER_MANAGED_LIFECYCLE_CARRIERS);
-    const configCarrier = firstOwnField(provisioningConfig, CALLER_SCOPE_CARRIERS);
-    const configAttemptCarrier = firstOwnField(provisioningConfig, CONFIG_ATTEMPT_STATE_CARRIERS);
-    if (callerCarrier !== null || lifecycleCarrier !== null || configCarrier !== null || configAttemptCarrier !== null) {
-      return scopeAuthorityRefusal(WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER, {
-        reason: lifecycleCarrier !== null || configAttemptCarrier !== null
-          ? "caller_carried_managed_lifecycle_forbidden"
-          : "caller_carried_scope_forbidden",
-        field: callerCarrier ?? lifecycleCarrier ?? configCarrier ?? configAttemptCarrier,
-        carrier: callerCarrier !== null || lifecycleCarrier !== null ? "dispatch_input" : "provisioning_config"
-      });
-    }
-    if (!SUPPORTED_WORKER_READ_BOUNDARY_FAMILIES.includes(app)) {
-      return scopeAuthorityRefusal(WORKER_READ_BOUNDARY_UNSUPPORTED_BLOCKER, {
-        reason: "unsupported_family",
-        family: app,
-        supported_families: SUPPORTED_WORKER_READ_BOUNDARY_FAMILIES
-      });
-    }
-    const boundaryBackend = provisioningConfig.readBoundaryBackend
-      ?? provisioningConfig.read_boundary_backend
-      ?? provisioningConfig.isolationBackend
-      ?? provisioningConfig.isolation_backend
-      ?? "bwrap";
-    if (!SUPPORTED_WORKER_READ_BOUNDARY_BACKENDS.includes(boundaryBackend)) {
-      return scopeAuthorityRefusal(WORKER_READ_BOUNDARY_UNSUPPORTED_BLOCKER, {
-        reason: "unsupported_backend",
-        backend: boundaryBackend,
-        supported_backends: SUPPORTED_WORKER_READ_BOUNDARY_BACKENDS
-      });
-    }
-    const frozenScopeSnapshot = input.frozen_worker_scope_snapshot ?? null;
-    const snapshotValidation = typeof validateWorkerScopeSnapshot === "function"
-      ? await validateWorkerScopeSnapshot({
-          snapshot: frozenScopeSnapshot,
-          consumer: "provisioning",
-          result: null
-        })
-      : null;
-    if (!snapshotValidation?.ok) {
-      return {
-        accepted: false,
-        refusal: snapshotValidation?.refusal ?? scopeAuthorityRefusal(
-          WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER,
-          { reason: "frozen_scope_snapshot_unavailable" }
-        ).refusal
-      };
-    }
-    const frozenScopeAuthority = frozenScopeSnapshot.authority;
-    if (!hasManagedConfinementActivation(provisioningConfig)) {
-      return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
-        capability: "repository_read_boundary",
-        dependency: "WK-1455",
-        message: "managed worker spawn remains disabled until the exact confinement/provisioning capability binding is available"
-      });
-    }
-
-    let provisioning;
-    let initiative;
-    let provisioningRetryId;
-
-    let provisionedViaBroker = false;
-    try {
-      initiative = resolveProvisioningInitiative({
-        readiness: input.readiness ?? null,
-        mainRepo: provisioningConfig.mainRepo,
-        subject: input.subject
-      });
-      if (initiative === null) {
-        return {
-          accepted: false,
-          refusal: {
-            code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-            reason: "worktree_provisioning_initiative_unresolved",
-            detail: { subject: input.subject ?? null }
-          }
-        };
-      }
-      const attempt = await resolveProvisioningAttemptState({
-        attemptStateAuthority,
-        input,
-        initiative
-      });
-      if (!attempt.ok) {
-        return attempt.refusal;
-      }
-      provisioningRetryId = attempt.state.retryId;
-      const hostProvisioningAdapter = provisioningConfig.hostProvisioningAdapter ?? null;
-      if (hostProvisioningAdapter !== null && provisioningRetryId === 0) {
-
-        const brokered = await hostProvisioningAdapter({
-          role: input.role,
-          subject: input.subject,
-          initiative,
-          launch_ref: input.monitor_handle,
-          run_id: input.run_id,
-          retry_id: provisioningRetryId
-        });
-        if (!isPlainObject(brokered) || brokered.accepted !== true ||
-            !isPlainObject(brokered.provisioning)) {
-          return isPlainObject(brokered) && isPlainObject(brokered.refusal)
-            ? { accepted: false, refusal: brokered.refusal }
-            : provisioningRefusal(new Error("host managed worktree provisioning is unavailable"));
-        }
-        provisioning = brokered.provisioning;
-        provisionedViaBroker = true;
-      } else {
-        const configuredAllocateSparse = provisioningConfig.deps?.allocateSparseExactUnitWorktree
-          ?? allocateSparseExactUnitWorktree;
-        provisioning = provisionManagedWorktreesAtDispatch({
-          mainRepo: provisioningConfig.mainRepo,
-          initiative,
-          subject: input.subject,
-          launchRef: input.monitor_handle,
-          runId: input.run_id,
-          retryId: provisioningRetryId,
-          worktreeRoot: provisioningConfig.worktreeRoot,
-          priorIdentity: attempt.state.priorIdentity,
-          deps: {
-            ...(provisioningConfig.deps ?? {}),
-            ...(attempt.state.livenessDeps ?? {}),
-            allocateSparseExactUnitWorktree: (args) => {
-              const configuredVerifyBinding = args.deps?.verifyBinding
-                ?? resolveVerifiedSparseExactUnitBinding;
-              const binding = configuredAllocateSparse({
-                ...args,
-                deps: {
-                  ...(args.deps ?? {}),
-                  verifyBinding: (verifyArgs) => {
-                    const verified = configuredVerifyBinding(verifyArgs);
-                    assertProvisionedScopeAuthority(verified, frozenScopeAuthority);
-                    return verified;
-                  }
-                }
-              });
-              assertProvisionedScopeAuthority(binding, frozenScopeAuthority);
-              return binding;
-            }
-          }
-        });
-      }
-    } catch (error) {
-      return provisioningRefusal(error);
-    }
-
-    try {
-
-      const assertProvisioningResult = provisionedViaBroker
-        ? assertStructuralManagedProvisioningResult
-        : assertCompleteManagedProvisioningResult;
-      assertProvisioningResult({
-        provisioning,
-        mainRepo: provisioningConfig.mainRepo,
-        initiative,
-        subject: input.subject,
-        launchRef: input.monitor_handle,
-        runId: input.run_id,
-        retryId: provisioningRetryId,
-        worktreeRoot: provisioningConfig.worktreeRoot
-      });
-    } catch (error) {
-      return provisioningRefusal(error);
-    }
-    try {
-      assertProvisionedScopeAuthority(provisioning.slice_binding, frozenScopeAuthority);
-      if (provisioning.unit_address !== frozenScopeAuthority.unit_address ||
-          provisioning.record_id !== frozenScopeAuthority.selected_unit.record_id ||
-          provisioning.slice_id !== frozenScopeAuthority.selected_unit.slice_id) {
-        throw new Error("managed provisioning identity does not match the frozen exact selected unit");
-      }
-    } catch (error) {
-      return scopeAuthorityRefusal(WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER, {
-        reason: "provisioning_authority_mismatch",
-        message: error?.message ?? String(error)
-      });
-    }
-
-    attemptStateAuthority.recordProvisioned({
-      unitAddress: frozenScopeAuthority.unit_address,
-      launchRef: input.monitor_handle,
-      runId: input.run_id,
-      retryId: provisioningRetryId
-    });
-    attemptStateAuthority.recordProvisioningBinding({
-      unitAddress: frozenScopeAuthority.unit_address,
-      launchRef: input.monitor_handle,
-      runId: input.run_id,
-      retryId: provisioningRetryId,
-      provisioning
-    });
-    const provisionedWorktreeGitBinding = deriveProvisionedWorktreeGitBinding(provisioning);
-    let executorResult;
-    try {
-      const {
-        frozen_worker_scope_snapshot: _frozenWorkerScopeSnapshot,
-        ...executorInput
-      } = input;
-      executorResult = await executor({
-        ...executorInput,
-        workspace_dir: provisioning.worktree_path,
-        worktree_provisioning: provisioning,
-        worker_scope_authority: frozenScopeAuthority,
-        ...(provisionedWorktreeGitBinding
-          ? {
-              provisionedWorktreeGitBinding,
-              provisioned_worktree_git_binding: provisionedWorktreeGitBinding
-            }
-          : {})
-      });
-      attemptStateAuthority.recordExecutorResult({
-        unitAddress: frozenScopeAuthority.unit_address,
-        launchRef: input.monitor_handle,
-        runId: input.run_id,
-        retryId: provisioningRetryId,
-        result: executorResult
-      });
-      return executorResult;
-    } catch (error) {
-      attemptStateAuthority.recordExecutorResult({
-        unitAddress: frozenScopeAuthority.unit_address,
-        launchRef: input.monitor_handle,
-        runId: input.run_id,
-        retryId: provisioningRetryId,
-        result: null,
-        threw: true
-      });
-      throw error;
-    }
-  };
-}
-
-function maybeWrapRegistryEntryWithWorktreeProvisioning(
-  entry,
-  app,
-  provisioningConfig,
-  requireManagedProvisioning,
-  attemptStateAuthority,
-  validateWorkerScopeSnapshot
-) {
-  if (!entry || typeof entry !== "object" || typeof entry.executor !== "function") {
-    return entry;
-  }
-  return {
-    ...entry,
-    executor: maybeWrapExecutorWithWorktreeProvisioning(
-      entry.executor,
-      app,
-      provisioningConfig,
-      requireManagedProvisioning,
-      attemptStateAuthority,
-      validateWorkerScopeSnapshot
-    )
-  };
-}
-
-function managedLifecycleCapabilityFact(available, source) {
-  return Object.freeze({
-    available: available === true,
-    source,
-    freshness: Object.freeze({ state: "fresh", basis: "current_backend_instance" })
-  });
-}
+export {
+  createTrustedFrozenSliceReviewContract,
+  createRetainedSliceReviewerLaunchIdentity
+} from "./backend-review-identity.mjs";
+export {
+  assertFrozenSliceReviewTarget,
+  verifyFrozenSliceReviewTargetAgainstObjectStore,
+  resolveCanonicalSliceReviewUnit
+} from "./backend-scope-authority.mjs";
+export {
+  FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION
+} from "./workspace-agent-findings-role-context.mjs";
 
 export function createWorkspaceAgentDispatchBackend(options = {}) {
   const {
@@ -1233,7 +176,16 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
   const attemptStateAuthority = createLauncherOwnedManagedAttemptStateAuthority();
   const registeredWorkerScopeSnapshots = new WeakSet();
   const frozenReviewContexts = new Map();
+
+  const frozenSliceReviewContexts = new Map();
   const recoveredIntegratedRuns = new Map();
+  const exactSliceReviewReceiptStore = options.exactSliceReviewReceiptStore ??
+    (requireManagedProvisioning && worktreeProvisioningConfig?.mainRepo
+      ? createExactSliceReviewReceiptStore({
+          workspaceDir: worktreeProvisioningConfig.mainRepo,
+          env: options.env
+        })
+      : null);
   const postWorkerSliceLifecycle = typeof options.postWorkerSliceLifecycle === "function"
     ? options.postWorkerSliceLifecycle
     : null;
@@ -1400,6 +352,15 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
 
   function deriveReviewerLaunchIdentity({ role, subject, workspace_dir: workspaceDir }) {
     if (role !== "reviewer") return null;
+
+    const sliceContext = frozenSliceReviewContexts.get(subject) ?? null;
+    if (sliceContext !== null) {
+      if (sliceContext.reservation_state !== FROZEN_REVIEW_CONTEXT_STATES.RESERVED ||
+          workspaceDir !== sliceContext.worktree_path) {
+        throw new Error("backend-owned frozen slice reviewer launch identity is not reserved for this exact slice worktree");
+      }
+      return createRetainedSliceReviewerLaunchIdentity(sliceContext);
+    }
     const context = frozenReviewContexts.get(subject) ?? null;
     if (context === null) return null;
     if (context.reservation_state !== FROZEN_REVIEW_CONTEXT_STATES.RESERVED ||
@@ -1407,6 +368,276 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
       throw new Error("backend-owned frozen reviewer launch identity is not reserved for this exact worktree");
     }
     return createRetainedReviewerLaunchIdentity(context);
+  }
+
+  const sliceReviewAcceptanceMints = new Map();
+
+  function sliceReviewAcceptanceMintRefusal(reason, detail = null) {
+    return Object.freeze({
+      ok: false,
+      decision_code: "agent_launch.slice_integration.review_acceptance_proof_not_minted.v1",
+      reasons: detail === null ? [reason] : [reason, detail]
+    });
+  }
+
+  async function resolveSliceReviewAcceptanceMint({ record, reviewResult }) {
+    const context = frozenSliceReviewContexts.get(record.subject) ?? null;
+    if (context === null || context.slice_level_review !== true) {
+      return sliceReviewAcceptanceMintRefusal("no_frozen_slice_review_context");
+    }
+
+    if (context.reservation_state !== FROZEN_REVIEW_CONTEXT_STATES.CONSUMED ||
+        context.consumed_by_run_id !== record.run_id ||
+        context.review_subject !== record.subject) {
+      return sliceReviewAcceptanceMintRefusal("frozen_slice_review_context_not_consumed_by_this_run");
+    }
+    try {
+
+      assertRetainedSliceReviewerLaunchIdentityMatchesContext(
+        record.reviewer_launch_identity,
+        context
+      );
+    } catch (error) {
+      return sliceReviewAcceptanceMintRefusal(
+        "retained_slice_reviewer_launch_identity_mismatch",
+        error?.message ?? String(error)
+      );
+    }
+
+    let currentUnit;
+    try {
+      currentUnit = resolveCanonicalSliceReviewUnit(context.main_repo, context.review_subject);
+    } catch (error) {
+      return sliceReviewAcceptanceMintRefusal(
+        "canonical_slice_review_unit_unresolvable",
+        error?.message ?? String(error)
+      );
+    }
+    if (currentUnit.subject !== context.review_subject ||
+        currentUnit.record_id !== context.record_id ||
+        currentUnit.slice_id !== context.review_slice_id ||
+        currentUnit.initiative !== context.initiative ||
+        currentUnit.canonical_parent_wk_contract !== context.canonical_parent_wk_contract ||
+        currentUnit.review_unit_contract !== context.review_unit_contract) {
+      return sliceReviewAcceptanceMintRefusal("canonical_slice_review_unit_changed_after_freeze");
+    }
+    const targetVerification = verifyFrozenSliceReviewTargetAgainstObjectStore({
+      mainRepo: context.main_repo,
+      context,
+      runGit: reviewContextRunGit
+    });
+    if (targetVerification.ok !== true) {
+      return sliceReviewAcceptanceMintRefusal(
+        "frozen_slice_review_target_object_store_verification_failed",
+        JSON.stringify(targetVerification.detail ?? null)
+      );
+    }
+
+    return mintAndPersistSliceReviewAcceptanceProof({
+      dir: context.main_repo,
+      unit_address: context.review_subject,
+      review_result: reviewResult,
+      reviewed_at: new Date(clock()).toISOString(),
+      binding: {
+        initiative: context.initiative,
+        slice_ref: context.slice_ref,
+        reviewed_sha: context.reviewed_sha,
+        diff_base_sha: context.diff_base_sha,
+        source_worker_run_id: context.source_worker_run_id,
+        review_run_id: record.run_id,
+        review_monitor_handle: record.monitor_handle,
+        reviewer_role: record.role
+      }
+    });
+  }
+
+  async function mintSliceReviewAcceptance({ record, review_result: reviewResult }) {
+    if (!isPlainObject(record) || record.role !== "reviewer" || record.terminal !== true) {
+      return null;
+    }
+    const existing = sliceReviewAcceptanceMints.get(record.run_id);
+    if (existing !== undefined) return existing;
+    const pending = resolveSliceReviewAcceptanceMint({ record, reviewResult }).catch((error) =>
+      sliceReviewAcceptanceMintRefusal(
+        "slice_review_acceptance_mint_threw",
+        error?.message ?? String(error)
+      )
+    );
+    sliceReviewAcceptanceMints.set(record.run_id, pending);
+    const outcome = await pending;
+
+    if (outcome?.ok !== true) {
+      sliceReviewAcceptanceMints.delete(record.run_id);
+    }
+
+    record.slice_review_acceptance_mint = Object.freeze({
+      ok: outcome?.ok === true,
+      decision_code: outcome?.decision_code ?? null,
+      reasons: Object.freeze([...(Array.isArray(outcome?.reasons) ? outcome.reasons : [])])
+    });
+    return outcome;
+  }
+
+  function structuredReceiptOutcome(record) {
+    const evidence = record?.final_result?.structured_role_result;
+    if (evidence?.valid !== true || evidence?.claims?.reported_role !== "reviewer" ||
+        evidence?.claims?.reported_subject !== record.subject) return null;
+    if (record.terminal !== true || record.status !== "succeeded") return null;
+
+    const clean = deriveBackendReviewResult(record);
+    if (clean) {
+      return Object.freeze({
+        outcome: "clean",
+        clean_review: true,
+        review_result: deepFreezeCanonicalSnapshot(clean)
+      });
+    }
+
+    if (evidence.claims.reported_outcome !== "changes_requested") return null;
+    const parsed = parseAgentRoleResult(record?.final_result?.full_response?.text);
+    if (parsed?.valid !== true || !isPlainObject(parsed.result)) return null;
+    const result = parsed.result;
+    if (result.reported_role !== "reviewer" || result.reported_subject !== record.subject ||
+        result.reported_outcome !== "changes_requested") return null;
+    if (!Array.isArray(result.findings) || result.findings.length === 0) return null;
+
+    const counts = result.recomputed_finding_counts;
+    const projected = evidence.finding_counts;
+    if (!isPlainObject(counts) || !isPlainObject(projected)) return null;
+    if (counts.total !== result.findings.length) return null;
+    for (const field of AGENT_ROLE_RESULT_COUNT_FIELDS) {
+      if (!Number.isInteger(counts[field]) || counts[field] !== projected[field]) return null;
+    }
+    return Object.freeze({
+      outcome: "changes_requested",
+      clean_review: false,
+      findings: deepFreezeCanonicalSnapshot(result.findings),
+      finding_counts: deepFreezeCanonicalSnapshot(counts)
+    });
+  }
+
+  async function resolveTerminalMintedReplayReceipt(context, record, outcome) {
+    if (outcome?.outcome !== "clean" || outcome.clean_review !== true) return null;
+    if (record.terminal !== true || record.status !== "succeeded") return null;
+    if (context.reservation_state !== FROZEN_REVIEW_CONTEXT_STATES.CONSUMED) return null;
+
+    const existing = await exactSliceReviewReceiptStore.load({
+      unit_address: context.review_subject,
+      review_run_id: record.run_id
+    });
+    if (existing === null) return null;
+    const terminalClean = existing.frozen_context_state === FROZEN_REVIEW_CONTEXT_STATES.CONSUMED &&
+      existing.terminal_run_status === "succeeded" &&
+      existing.proof_state === "minted" &&
+      existing.structured_outcome?.outcome === "clean" &&
+      existing.structured_outcome.clean_review === true;
+    if (!terminalClean) return null;
+    const boundToCurrentUnit = existing.unit_address === context.review_subject &&
+      existing.record_id === context.record_id &&
+      existing.slice_id === context.review_slice_id &&
+      existing.initiative === context.initiative &&
+      existing.review_run_id === record.run_id &&
+      existing.review_monitor_handle === record.monitor_handle &&
+      existing.reviewer_role === record.role &&
+      existing.source_worker_run_id === context.source_worker_run_id &&
+      existing.source_worker_monitor_handle === context.source_worker_monitor_handle &&
+      existing.slice_ref === context.slice_ref &&
+      existing.worktree_path === context.worktree_path &&
+      existing.worktree_identity_digest === context.worktree_identity_digest &&
+      existing.reviewed_sha === context.reviewed_sha &&
+      existing.diff_base_sha === context.diff_base_sha;
+    if (!boundToCurrentUnit) return null;
+
+    if (digestTrustedExactReviewEvidence(existing.structured_outcome) !==
+        digestTrustedExactReviewEvidence(outcome)) return null;
+    return existing;
+  }
+
+  async function persistExactSliceReviewReceipt(context, record) {
+    if (exactSliceReviewReceiptStore === null) return null;
+    const minted = record.slice_review_acceptance_mint?.ok === true;
+    const structuredOutcome = structuredReceiptOutcome(record);
+    if (minted) {
+
+      const replay = await resolveTerminalMintedReplayReceipt(context, record, structuredOutcome);
+      if (replay !== null) return replay;
+    }
+
+    const receiptContract = minted
+      ? resolveCanonicalSliceReviewUnit(context.main_repo, context.review_subject)
+      : context;
+    const receipt = createExactSliceReviewReceipt({
+      unit_address: context.review_subject,
+      record_id: context.record_id,
+      slice_id: context.review_slice_id,
+      initiative: context.initiative,
+      canonical_parent_wk_contract: receiptContract.canonical_parent_wk_contract,
+      canonical_parent_contract_digest:
+        digestTrustedExactReviewEvidence(receiptContract.canonical_parent_wk_contract),
+      slice_review_contract: receiptContract.review_unit_contract,
+      slice_review_contract_digest:
+        digestTrustedExactReviewEvidence(receiptContract.review_unit_contract),
+      source_worker_run_id: context.source_worker_run_id,
+      source_worker_monitor_handle: context.source_worker_monitor_handle,
+      review_run_id: record.run_id,
+      review_monitor_handle: record.monitor_handle,
+      reviewer_role: record.role,
+      slice_ref: context.slice_ref,
+      worktree_path: context.worktree_path,
+      worktree_identity: context.worktree_identity,
+      worktree_identity_digest: context.worktree_identity_digest,
+      reviewed_sha: context.reviewed_sha,
+      diff_base_sha: context.diff_base_sha,
+      frozen_context_state: context.reservation_state,
+      terminal_run_status: record.status,
+      structured_outcome: structuredOutcome,
+      proof_state: minted ? "minted" : "unminted"
+    });
+    return exactSliceReviewReceiptStore.persist(receipt);
+  }
+
+  async function captureSliceReviewTerminalResult({ record }) {
+    const context = frozenSliceReviewContexts.get(record?.subject) ?? null;
+    if (context === null || context.slice_level_review !== true ||
+        context.consumed_by_run_id !== record.run_id || record.role !== "reviewer") return null;
+    return persistExactSliceReviewReceipt(context, record);
+  }
+
+  async function resolveCorrectiveFindingsContext({ subject, workspace_dir: workspaceDir }) {
+    if (exactSliceReviewReceiptStore === null ||
+        path.resolve(workspaceDir ?? "") !== worktreeProvisioningConfig?.mainRepo ||
+        !EXACT_IMPLEMENTATION_SLICE_RE.test(subject ?? "")) return null;
+    const receipt = await exactSliceReviewReceiptStore.loadLatest(subject);
+    if (receipt === null || receipt.frozen_context_state !== FROZEN_REVIEW_CONTEXT_STATES.CONSUMED ||
+        receipt.terminal_run_status !== "succeeded" ||
+        receipt.structured_outcome?.outcome !== "changes_requested") return null;
+    const current = resolveCanonicalSliceReviewUnit(worktreeProvisioningConfig.mainRepo, subject);
+    if (digestTrustedExactReviewEvidence(current.canonical_parent_wk_contract) !== receipt.canonical_parent_contract_digest ||
+        digestTrustedExactReviewEvidence(current.review_unit_contract) !== receipt.slice_review_contract_digest) return null;
+    const context = {
+      slice_ref: receipt.slice_ref,
+      reviewed_sha: receipt.reviewed_sha,
+      diff_base_sha: receipt.diff_base_sha
+    };
+    if (verifyFrozenSliceReviewTargetAgainstObjectStore({
+      mainRepo: worktreeProvisioningConfig.mainRepo,
+      context,
+      runGit: reviewContextRunGit
+    }).ok !== true) return null;
+    return deepFreezeCanonicalSnapshot({
+      schema_version: "workspace-agent-trusted-corrective-findings-context.v1",
+      authority: "launcher_exact_review_receipt",
+      unit_address: subject,
+      source_worker_run_id: receipt.source_worker_run_id,
+      source_worker_monitor_handle: receipt.source_worker_monitor_handle,
+      review_run_id: receipt.review_run_id,
+      review_monitor_handle: receipt.review_monitor_handle,
+      reviewed_sha: receipt.reviewed_sha,
+      diff_base_sha: receipt.diff_base_sha,
+      findings: receipt.structured_outcome.findings,
+      finding_counts: receipt.structured_outcome.finding_counts,
+      trusted_evidence_digest: receipt.trusted_evidence_digest
+    });
   }
 
   const lifecycle = createDispatchRunLifecycle({
@@ -1424,7 +655,11 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     freezeWorkerScopeSnapshot,
     validateWorkerScopeSnapshot,
     deriveReviewerLaunchIdentity,
-    proveAssignedSourceReadable
+    proveAssignedSourceReadable,
+
+    mintSliceReviewAcceptance
+    ,captureSliceReviewTerminalResult
+    ,resolveCorrectiveFindingsContext
   });
 
   function resolveManagedRunBinding(status) {
@@ -1486,6 +721,10 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
         status?.subject !== `${reviewUnit.record_id}#${provisioning?.slice_id}`) {
       throw new Error("backend-owned frozen review context does not match managed provisioning and canonical review identity");
     }
+
+    if (frozenSliceReviewContexts.has(reviewUnit.subject)) {
+      throw new Error("subject already bound to a slice-level review context; a whole-WK review context cannot coexist");
+    }
     const existing = frozenReviewContexts.get(reviewUnit.subject) ?? null;
     if (existing !== null) {
       assertConsumedReviewContextMayRotate({
@@ -1525,6 +764,126 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     return context;
   }
 
+  function assertConsumedSliceReviewContextMayRotate({ existing, reviewUnit, sliceTarget, worktreePath }) {
+    if (existing.reservation_state !== FROZEN_REVIEW_CONTEXT_STATES.CONSUMED) {
+      throw new Error("an available or reserved frozen slice review context cannot be replaced");
+    }
+    const priorReviewerRun = typeof existing.consumed_by_run_id === "string"
+      ? runs.get(existing.consumed_by_run_id)
+      : null;
+    if (!priorReviewerRun || priorReviewerRun.run_id !== existing.consumed_by_run_id ||
+        priorReviewerRun.role !== "reviewer" || priorReviewerRun.subject !== existing.review_subject ||
+        priorReviewerRun.terminal !== true) {
+      throw new Error("consumed frozen slice review context has no exact terminal backend-owned reviewer run");
+    }
+
+    assertRetainedSliceReviewerLaunchIdentityMatchesContext(
+      priorReviewerRun.reviewer_launch_identity,
+      existing
+    );
+    if (existing.main_repo !== worktreeProvisioningConfig?.mainRepo ||
+        existing.review_subject !== reviewUnit.subject ||
+        existing.record_id !== reviewUnit.record_id ||
+        existing.review_slice_id !== reviewUnit.slice_id ||
+        existing.initiative !== reviewUnit.initiative ||
+        existing.slice_ref !== sliceTarget.ref ||
+        existing.worktree_path !== worktreePath ||
+        existing.canonical_parent_wk_contract !== reviewUnit.canonical_parent_wk_contract ||
+        existing.review_unit_contract !== reviewUnit.review_unit_contract) {
+      throw new Error("corrective frozen slice review context changed canonical repository, subject, unit, initiative, slice ref, worktree, or contract identity");
+    }
+    if (sliceTarget.sha === existing.reviewed_sha) {
+      throw new Error("corrective frozen slice review context replays the consumed reviewed slice SHA");
+    }
+  }
+
+  function bindFrozenSliceReviewContext({ status, provisioning, sliceTarget, reviewUnit }) {
+    const target = assertFrozenSliceReviewTarget(sliceTarget);
+    const sliceBinding = provisioning?.slice_binding;
+
+    const worktreePath = provisioning?.slice_worktree_path ?? sliceBinding?.worktree_path;
+    const expectedSliceRef = sliceBinding?.output_branch?.startsWith("refs/heads/")
+      ? sliceBinding.output_branch
+      : `refs/heads/${sliceBinding?.output_branch ?? ""}`;
+    if (!isPlainObject(reviewUnit) || typeof reviewUnit.subject !== "string" ||
+        typeof reviewUnit.canonical_parent_wk_contract !== "string" ||
+        typeof reviewUnit.review_unit_contract !== "string" ||
+        reviewUnit.parent_status === "review" ||
+        typeof reviewUnit.initiative !== "string" || !/^IN-\d{4}$/u.test(reviewUnit.initiative) ||
+        target.ref !== `refs/heads/slice/${reviewUnit.initiative}/${reviewUnit.record_id}/${reviewUnit.slice_id}` ||
+        !path.isAbsolute(worktreePath ?? "") ||
+        worktreePath !== sliceBinding?.worktree_path || expectedSliceRef !== target.ref ||
+        provisioning?.record_id !== reviewUnit.record_id ||
+        provisioning?.slice_id !== reviewUnit.slice_id ||
+        status?.subject !== reviewUnit.subject) {
+      throw new Error("backend-owned frozen slice review context does not match managed provisioning and canonical slice-review identity");
+    }
+
+    if (frozenReviewContexts.has(reviewUnit.subject)) {
+      throw new Error("subject already bound to a whole-WK review context; a slice-level review context cannot coexist");
+    }
+    const existing = frozenSliceReviewContexts.get(reviewUnit.subject) ?? null;
+    if (existing !== null) {
+      if (existing.reservation_state === FROZEN_REVIEW_CONTEXT_STATES.CONSUMED &&
+          existing.reviewed_sha === target.sha &&
+          existing.diff_base_sha === target.diff_base_sha &&
+          existing.source_worker_run_id === status.run_id) {
+        return existing;
+      }
+      assertConsumedSliceReviewContextMayRotate({ existing, reviewUnit, sliceTarget: target, worktreePath });
+    }
+    const trustedFrozenReviewContract = createTrustedFrozenSliceReviewContract(reviewUnit);
+    const context = Object.freeze({
+      schema_version: "workspace-agent-frozen-slice-review-context.v1",
+      review_subject: reviewUnit.subject,
+      record_id: reviewUnit.record_id,
+      review_slice_id: reviewUnit.slice_id,
+      initiative: reviewUnit.initiative,
+      canonical_parent_wk_contract: reviewUnit.canonical_parent_wk_contract,
+      review_unit_contract: reviewUnit.review_unit_contract,
+      trusted_frozen_review_contract: trustedFrozenReviewContract,
+      main_repo: worktreeProvisioningConfig.mainRepo,
+      worktree_path: worktreePath,
+      slice_ref: target.ref,
+      reviewed_sha: target.sha,
+      diff_base_sha: target.diff_base_sha,
+      diff_head_sha: target.diff_head_sha,
+      diff_range: target.diff_range,
+      slice_level_review: true,
+      source_worker_run_id: status.run_id,
+      source_worker_monitor_handle: status.monitor_handle ?? status.run_id,
+      source_worker_subject: status.subject,
+      worktree_identity: deepFreezeCanonicalSnapshot(sliceBinding),
+      worktree_identity_digest: digestTrustedExactReviewEvidence(sliceBinding),
+      reservation_state: FROZEN_REVIEW_CONTEXT_STATES.AVAILABLE,
+      consumed: false,
+      consumed_by_run_id: null
+    });
+    frozenSliceReviewContexts.set(reviewUnit.subject, context);
+    return context;
+  }
+
+  function resolveSliceReviewAcceptanceBinding({ subject } = {}) {
+    const context = frozenSliceReviewContexts.get(subject) ?? null;
+    if (context === null || context.slice_level_review !== true) return null;
+
+    if (context.reservation_state !== FROZEN_REVIEW_CONTEXT_STATES.CONSUMED ||
+        typeof context.consumed_by_run_id !== "string" ||
+        context.consumed_by_run_id.length === 0) {
+      return null;
+    }
+    return Object.freeze({
+      schema_version: "workspace-agent-slice-review-binding.v1",
+      unit_address: context.review_subject,
+      initiative: context.initiative,
+      slice_ref: context.slice_ref,
+      reviewed_sha: context.reviewed_sha,
+      diff_base_sha: context.diff_base_sha,
+      source_worker_run_id: context.source_worker_run_id,
+      review_run_id: context.consumed_by_run_id
+    });
+  }
+
   const runPostWorkerSliceLifecycle = postWorkerSliceLifecycle === null
     ? null
     : async ({ workspace, status }) => postWorkerSliceLifecycle({
@@ -1534,11 +893,181 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
           resolveManagedRunBinding,
           resolveCanonicalReviewUnit: ({ mainRepo, wkId }) =>
             resolveCanonicalFindingsOnlyReviewUnit(mainRepo, wkId),
-          bindFrozenReviewContext
+          bindFrozenReviewContext,
+
+          resolveCanonicalSliceReviewUnit: ({ mainRepo, subject }) =>
+            resolveCanonicalSliceReviewUnit(mainRepo, subject),
+          bindFrozenSliceReviewContext,
+
+          resolveSliceReviewAcceptanceBinding
         }
       });
 
+  const startSliceReviewLaunch = async (input, context) => {
+    if (context.reservation_state === FROZEN_REVIEW_CONTEXT_STATES.CONSUMED) {
+      return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
+        capability: "slice_context_review",
+        reason: "frozen_slice_review_context_already_consumed",
+        subject: input.subject
+      });
+    }
+    if (context.reservation_state === FROZEN_REVIEW_CONTEXT_STATES.RESERVED) {
+      return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
+        capability: "slice_context_review",
+        reason: "frozen_slice_review_context_reserved",
+        subject: input.subject
+      });
+    }
+    if (path.resolve(input.workspace_dir ?? "") !== context.main_repo) {
+      return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
+        capability: "slice_context_review",
+        reason: "frozen_slice_review_context_workspace_mismatch"
+      });
+    }
+    try {
+      const currentUnit = resolveCanonicalSliceReviewUnit(context.main_repo, context.review_subject);
+      if (currentUnit.subject !== context.review_subject ||
+          currentUnit.record_id !== context.record_id ||
+          currentUnit.slice_id !== context.review_slice_id ||
+          currentUnit.initiative !== context.initiative ||
+          currentUnit.parent_status === "review" ||
+          currentUnit.canonical_parent_wk_contract !== context.canonical_parent_wk_contract ||
+          currentUnit.review_unit_contract !== context.review_unit_contract) {
+        throw new Error("canonical parent WK or implementation review unit changed after the slice target was frozen");
+      }
+    } catch (error) {
+      return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
+        capability: "slice_context_review",
+        reason: "frozen_slice_review_context_stale_or_mismatched",
+        message: error?.message ?? String(error)
+      });
+    }
+    const targetVerification = verifyFrozenSliceReviewTargetAgainstObjectStore({
+      mainRepo: context.main_repo,
+      context,
+      runGit: reviewContextRunGit
+    });
+    if (targetVerification.ok !== true) {
+      if (targetVerification.kind === "transport") {
+        return managedRefusal(RUNTIME_BLOCKER_CODES.REVIEW_TRANSPORT_RUNTIME_FAILURE, {
+          capability: "slice_context_review",
+          reason: "frozen_slice_review_context_probe_transport_failure",
+          detail: targetVerification.detail
+        });
+      }
+      return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
+        capability: "slice_context_review",
+        reason: "frozen_slice_review_context_stale_or_mismatched",
+        detail: targetVerification.detail
+      });
+    }
+
+    frozenSliceReviewContexts.set(input.subject, Object.freeze({
+      ...context,
+      reservation_state: FROZEN_REVIEW_CONTEXT_STATES.RESERVED
+    }));
+    let launch;
+    try {
+      launch = await lifecycle.startLaunch({
+        ...input,
+
+        workspace_dir: context.worktree_path,
+
+        config_root_dir: context.main_repo,
+        trusted_frozen_review_contract: context.trusted_frozen_review_contract,
+        readiness: Object.freeze({
+          ...(isPlainObject(input.readiness) ? input.readiness : {}),
+          frozen_slice_review_target: Object.freeze({
+            ref: context.slice_ref,
+            sha: context.reviewed_sha,
+            diff_base_sha: context.diff_base_sha,
+            diff_head_sha: context.diff_head_sha,
+            diff_range: context.diff_range,
+            slice_level_review: true
+          })
+        })
+      });
+    } catch (error) {
+      frozenSliceReviewContexts.set(input.subject, context);
+      throw error;
+    }
+    if (launch?.accepted === true) {
+      const consumedContext = Object.freeze({
+        ...context,
+        reservation_state: FROZEN_REVIEW_CONTEXT_STATES.CONSUMED,
+        consumed: true,
+        consumed_by_run_id: launch.run_id
+      });
+      frozenSliceReviewContexts.set(input.subject, consumedContext);
+      const launchedRecord = runs.get(launch.run_id) ?? null;
+      if (launchedRecord !== null) {
+
+        if (launchedRecord.terminal === true) {
+          const launchReviewResult = deriveBackendReviewResult(launchedRecord);
+          if (launchReviewResult !== null) {
+            await mintSliceReviewAcceptance({
+              record: launchedRecord,
+              review_result: launchReviewResult
+            });
+          }
+        }
+        await persistExactSliceReviewReceipt(consumedContext, launchedRecord);
+      }
+    } else {
+      frozenSliceReviewContexts.set(input.subject, context);
+
+      if (launch?.refusal?.reason === "reviewer_model_unset" &&
+          !existsSync(path.join(context.main_repo, AGENT_LAUNCH_ROLE_CONFIG_FILENAME))) {
+        return managedRefusal(RUNTIME_BLOCKER_CODES.REVIEW_TRANSPORT_RUNTIME_FAILURE, {
+          capability: "slice_context_review",
+          reason: "reviewer_role_config_root_unreadable",
+          detail: {
+            config_root: context.main_repo,
+            config_file: AGENT_LAUNCH_ROLE_CONFIG_FILENAME
+          }
+        });
+      }
+    }
+    return launch;
+  };
+
+  const isLauncherOwnedExactSliceReviewAdmission = ({ subject, workspace_dir: workspaceDir } = {}) => {
+    const context = frozenSliceReviewContexts.get(subject) ?? null;
+    if (context === null || context.slice_level_review !== true ||
+        context.reservation_state !== FROZEN_REVIEW_CONTEXT_STATES.AVAILABLE ||
+        path.resolve(workspaceDir ?? "") !== context.main_repo) return false;
+    try {
+      const current = resolveCanonicalSliceReviewUnit(context.main_repo, subject);
+      if (current.canonical_parent_wk_contract !== context.canonical_parent_wk_contract ||
+          current.review_unit_contract !== context.review_unit_contract) return false;
+      return verifyFrozenSliceReviewTargetAgainstObjectStore({
+        mainRepo: context.main_repo,
+        context,
+        runGit: reviewContextRunGit
+      }).ok === true;
+    } catch {
+      return false;
+    }
+  };
+
   const startLaunch = async (input = {}) => {
+    const correctiveCarrier = firstOwnField(input, [
+      "trusted_corrective_findings_context",
+      "corrective_findings_context",
+      "review_findings_context"
+    ]);
+    const nestedCorrectiveCarrier = firstOwnField(input?.readiness, [
+      "trusted_corrective_findings_context",
+      "corrective_findings_context",
+      "review_findings_context"
+    ]);
+    if (correctiveCarrier !== null || nestedCorrectiveCarrier !== null) {
+      return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
+        capability: "trusted_corrective_findings",
+        reason: "caller_carried_corrective_findings_forbidden",
+        field: correctiveCarrier ?? `readiness.${nestedCorrectiveCarrier}`
+      });
+    }
     if (input?.role === "worker") {
       const callerCarrier = firstOwnField(input, CALLER_SCOPE_CARRIERS);
       const lifecycleCarrier = firstOwnField(input, CALLER_MANAGED_LIFECYCLE_CARRIERS);
@@ -1562,12 +1091,18 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     }
 
     const contextCarrier = firstOwnField(input, CALLER_REVIEW_CONTEXT_CARRIERS);
-    if (contextCarrier !== null) {
+    const nestedContextCarrier = firstOwnField(input?.readiness, CALLER_REVIEW_CONTEXT_CARRIERS);
+    if (contextCarrier !== null || nestedContextCarrier !== null) {
       return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
         capability: "wk_context_review",
         reason: "caller_carried_review_context_forbidden",
-        field: contextCarrier
+        field: contextCarrier ?? `readiness.${nestedContextCarrier}`
       });
+    }
+
+    const sliceContext = frozenSliceReviewContexts.get(input.subject);
+    if (sliceContext) {
+      return startSliceReviewLaunch(input, sliceContext);
     }
     const context = frozenReviewContexts.get(input.subject);
     if (!context) {
@@ -1727,23 +1262,30 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     return launch;
   };
 
-  const recoverIntegratedWorkerRun = async ({ workspace, monitor_handle, subject } = {}) => {
+  const recoverIntegratedWorkerRunInternal = async ({
+    workspace,
+    monitor_handle,
+    subject,
+    allowMissingSliceWorktree = false
+  } = {}) => {
     if (postWorkerSliceLifecycle === null || !worktreeProvisioningConfig ||
         !workspace || path.resolve(workspace.dir ?? "") !== worktreeProvisioningConfig.mainRepo ||
         typeof monitor_handle !== "string" || typeof subject !== "string" ||
         !EXACT_IMPLEMENTATION_SLICE_RE.test(subject)) {
       return null;
     }
-    const key = JSON.stringify([monitor_handle, subject]);
+    const key = JSON.stringify([monitor_handle, subject, allowMissingSliceWorktree]);
     if (!recoveredIntegratedRuns.has(key)) {
       const recovery = (async () => {
         try {
           const pair = resolveUniqueManagedLifecycleBindingPairForRecovery({
             mainRepo: worktreeProvisioningConfig.mainRepo,
             launchRef: monitor_handle,
-            expectedSubject: subject
+            expectedSubject: subject,
+            allowMissingSliceWorktree
           });
           if (!pair) return null;
+
           const status = Object.freeze({
             accepted: true,
             recovered: true,
@@ -1759,6 +1301,7 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
             exit: null,
             final_result: null
           });
+
           const lifecycleResult = await postWorkerSliceLifecycle({
             workspace,
             status,
@@ -1775,19 +1318,300 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
             return null;
           }
           return Object.freeze({ status, lifecycle: lifecycleResult });
-        } catch {
-          return null;
+        } catch (error) {
+
+          return Object.freeze({
+            recovery_failure: Object.freeze({
+              code: typeof error?.code === "string"
+                ? error.code
+                : "agent_launch.slice_lifecycle.recovery_failed.v1",
+              message: error?.message ?? String(error),
+              detail: error?.detail ?? null
+            })
+          });
         }
       })();
       recoveredIntegratedRuns.set(key, recovery);
     }
     const pending = recoveredIntegratedRuns.get(key);
     const result = await pending;
-    if (result === null && recoveredIntegratedRuns.get(key) === pending) {
+    if ((result === null || result.recovery_failure != null) &&
+        recoveredIntegratedRuns.get(key) === pending) {
 
       recoveredIntegratedRuns.delete(key);
     }
     return result;
+  };
+
+  const recoverIntegratedWorkerRun = (input = {}) =>
+    recoverIntegratedWorkerRunInternal({ ...input, allowMissingSliceWorktree: true });
+
+  const recoveredExactReviewRuns = new Map();
+  const recoverExactSliceReviewRun = async ({ workspace, monitor_handle, subject } = {}) => {
+    if (postWorkerSliceLifecycle === null || exactSliceReviewReceiptStore === null ||
+        !workspace || path.resolve(workspace.dir ?? "") !== worktreeProvisioningConfig?.mainRepo ||
+        typeof monitor_handle !== "string" || typeof subject !== "string" ||
+        !EXACT_IMPLEMENTATION_SLICE_RE.test(subject)) return null;
+    const key = JSON.stringify([subject, monitor_handle]);
+    if (!recoveredExactReviewRuns.has(key)) {
+      recoveredExactReviewRuns.set(key, (async () => {
+        const receipt = await exactSliceReviewReceiptStore.load({
+          unit_address: subject,
+          monitor_handle
+        });
+        if (receipt === null) return null;
+        if (receipt.frozen_context_state !== FROZEN_REVIEW_CONTEXT_STATES.CONSUMED ||
+            receipt.terminal_run_status !== "succeeded" ||
+            receipt.structured_outcome?.outcome !== "clean" ||
+            receipt.structured_outcome.clean_review !== true ||
+            receipt.proof_state !== "minted") return null;
+
+        const frozen = resolveFrozenSliceReviewReceiptContract(receipt);
+        const pair = resolveUniqueManagedLifecycleBindingPairForRecovery({
+          mainRepo: worktreeProvisioningConfig.mainRepo,
+          launchRef: receipt.source_worker_monitor_handle,
+          expectedSubject: subject,
+          allowMissingSliceWorktree: true
+        });
+        const sliceBinding = pair?.provisioning?.slice_binding;
+        if (!pair || pair.run_id !== receipt.source_worker_run_id ||
+            sliceBinding?.worktree_path !== receipt.worktree_path ||
+            sliceBinding?.base_sha !== receipt.diff_base_sha ||
+            sliceBinding?.unit_address !== `${receipt.initiative}/${receipt.record_id}/${receipt.slice_id}` ||
+            sliceBinding?.launch_ref !== receipt.source_worker_monitor_handle ||
+            sliceBinding?.run_id !== `${receipt.source_worker_run_id}.slice` ||
+            digestTrustedExactReviewEvidence(sliceBinding) !== receipt.worktree_identity_digest) {
+          throw new Error("exact slice review receipt retained identity no longer matches");
+        }
+        const sliceRef = sliceBinding.output_branch.startsWith("refs/heads/")
+          ? sliceBinding.output_branch
+          : `refs/heads/${sliceBinding.output_branch}`;
+        if (sliceRef !== receipt.slice_ref) {
+          throw new Error("exact slice review receipt retained slice ref no longer matches");
+        }
+
+        let currentReview = null;
+        try {
+          currentReview = resolveCanonicalSliceReviewUnit(worktreeProvisioningConfig.mainRepo, subject);
+        } catch {
+          currentReview = null;
+        }
+        let recoveredIntegration = null;
+        if (currentReview !== null) {
+          if (digestTrustedExactReviewEvidence(currentReview.canonical_parent_wk_contract) !==
+                receipt.canonical_parent_contract_digest ||
+              digestTrustedExactReviewEvidence(currentReview.review_unit_contract) !==
+                receipt.slice_review_contract_digest ||
+              currentReview.initiative !== receipt.initiative) {
+            throw new Error("exact slice review receipt no longer matches the canonical pre-integration contract");
+          }
+        } else {
+          const integratedState = resolveCanonicalIntegratedSliceState(
+            worktreeProvisioningConfig.mainRepo,
+            subject,
+            frozen
+          );
+          const wkRef = `refs/heads/wk/${receipt.initiative}/${receipt.record_id}`;
+          recoveredIntegration = reconcileIntegratedSliceRecord({
+            mainRepo: worktreeProvisioningConfig.mainRepo,
+            unitAddress: sliceBinding.unit_address,
+            sliceRef: receipt.slice_ref,
+            wkRef,
+            deps: { runGit: reviewContextRunGit }
+          });
+          if (recoveredIntegration === null || recoveredIntegration.integrated !== true ||
+              recoveredIntegration.recovered !== true || recoveredIntegration.wk_ref !== wkRef ||
+              recoveredIntegration.slice_ref !== receipt.slice_ref ||
+              recoveredIntegration.integrated_state !== (integratedState.final ? "final" : "non_final") ||
+              (integratedState.final !== (recoveredIntegration.review_target !== null))) {
+            throw new Error("exact slice review receipt current integrated state is missing or mismatched");
+          }
+          const historicalObjects = verifyFrozenReceiptObjectsAgainstObjectStore({
+            mainRepo: worktreeProvisioningConfig.mainRepo,
+            receipt,
+            runGit: reviewContextRunGit
+          });
+          if (historicalObjects.ok !== true) {
+            throw new Error("exact slice review receipt reviewed objects are missing or mismatched");
+          }
+        }
+        const context = Object.freeze({
+          schema_version: "workspace-agent-frozen-slice-review-context.v1",
+          review_subject: subject,
+          record_id: receipt.record_id,
+          review_slice_id: receipt.slice_id,
+          initiative: receipt.initiative,
+          canonical_parent_wk_contract: frozen.canonical_parent_wk_contract,
+          review_unit_contract: frozen.review_unit_contract,
+          trusted_frozen_review_contract: createTrustedFrozenSliceReviewContract(frozen),
+          main_repo: worktreeProvisioningConfig.mainRepo,
+          worktree_path: receipt.worktree_path,
+          slice_ref: receipt.slice_ref,
+          reviewed_sha: receipt.reviewed_sha,
+          diff_base_sha: receipt.diff_base_sha,
+          diff_head_sha: receipt.reviewed_sha,
+          diff_range: `${receipt.diff_base_sha}..${receipt.reviewed_sha}`,
+          slice_level_review: true,
+          source_worker_run_id: receipt.source_worker_run_id,
+          source_worker_monitor_handle: receipt.source_worker_monitor_handle,
+          source_worker_subject: subject,
+          worktree_identity: receipt.worktree_identity,
+          worktree_identity_digest: receipt.worktree_identity_digest,
+          reservation_state: FROZEN_REVIEW_CONTEXT_STATES.CONSUMED,
+          consumed: true,
+          consumed_by_run_id: receipt.review_run_id
+        });
+        if (recoveredIntegration === null) {
+          const targetVerification = verifyFrozenSliceReviewTargetAgainstObjectStore({
+            mainRepo: context.main_repo,
+            context,
+            runGit: reviewContextRunGit
+          });
+          if (targetVerification.ok !== true) {
+            throw new Error("exact slice review receipt target is missing or mismatched");
+          }
+        }
+        frozenSliceReviewContexts.set(subject, context);
+        const reviewerRecord = {
+          run_id: receipt.review_run_id,
+          monitor_handle: receipt.review_monitor_handle,
+          role: "reviewer",
+          subject,
+          status: "succeeded",
+          terminal: true,
+          reviewer_launch_identity: createRetainedSliceReviewerLaunchIdentity(context)
+        };
+        const expectation = {
+          unit_address: subject,
+          initiative: context.initiative,
+          slice_ref: context.slice_ref,
+          reviewed_sha: context.reviewed_sha,
+          diff_base_sha: context.diff_base_sha,
+          source_worker_run_id: context.source_worker_run_id,
+          review_run_id: receipt.review_run_id,
+          review_monitor_handle: receipt.review_monitor_handle,
+          reviewer_role: "reviewer",
+          current_slice_sha: context.reviewed_sha
+        };
+        if (recoveredIntegration === null) {
+          let proof = await resolveSliceReviewAcceptanceProof({
+            dir: context.main_repo,
+            unit_address: subject,
+            expectation
+          });
+          if (proof?.ok !== true) {
+            proof = await resolveSliceReviewAcceptanceMint({
+              record: reviewerRecord,
+              reviewResult: receipt.structured_outcome.review_result
+            });
+          }
+          if (proof?.ok !== true) return null;
+          await exactSliceReviewReceiptStore.persist(
+            reviseExactSliceReviewReceipt(receipt, { proof_state: "minted" })
+          );
+        } else {
+          const proof = await resolveHistoricalSliceReviewAcceptanceProof({
+            dir: context.main_repo,
+            unit_address: subject,
+            expectation,
+            historical_contract: {
+              canonical_parent_wk_contract: receipt.canonical_parent_wk_contract,
+              canonical_parent_contract_digest: receipt.canonical_parent_contract_digest,
+              slice_review_contract: receipt.slice_review_contract,
+              slice_review_contract_digest: receipt.slice_review_contract_digest
+            },
+            review_result: receipt.structured_outcome.review_result
+          });
+          if (proof?.ok !== true) {
+            throw new Error(
+              `exact slice review historical Proof A is missing or mismatched: ${
+                Array.isArray(proof?.reasons) ? proof.reasons.join("; ") : "unknown refusal"
+              }`
+            );
+          }
+        }
+
+        if (recoveredIntegration !== null) {
+          const alreadyIntegrated = await recoverIntegratedWorkerRunInternal({
+            workspace,
+            monitor_handle: receipt.source_worker_monitor_handle,
+            subject,
+            allowMissingSliceWorktree: true
+          });
+          if (alreadyIntegrated?.status?.accepted !== true || !alreadyIntegrated.lifecycle) {
+            throw new Error(
+              alreadyIntegrated?.recovery_failure?.message ??
+              "exact slice review receipt integrated lifecycle could not be recovered"
+            );
+          }
+          return Object.freeze({
+            status: Object.freeze({
+              accepted: true,
+              recovered: true,
+              run_id: receipt.review_run_id,
+              monitor_handle: receipt.review_monitor_handle,
+              role: "reviewer",
+              subject,
+              status: "succeeded",
+              terminal: true,
+              review_result: receipt.structured_outcome.review_result,
+              final_result: null
+            }),
+            lifecycle: alreadyIntegrated.lifecycle
+          });
+        }
+        const workerStatus = Object.freeze({
+          accepted: true,
+          recovered: true,
+          run_id: receipt.source_worker_run_id,
+          monitor_handle: receipt.source_worker_monitor_handle,
+          role: "worker",
+          subject,
+          status: "succeeded",
+          terminal: true
+        });
+        const lifecycleResult = await postWorkerSliceLifecycle({
+          workspace,
+          status: workerStatus,
+          deps: {
+            resolveManagedRunBinding: () => pair.provisioning,
+            resolveCanonicalReviewUnit: ({ mainRepo, wkId }) =>
+              resolveCanonicalFindingsOnlyReviewUnit(mainRepo, wkId),
+            bindFrozenReviewContext,
+            resolveCanonicalSliceReviewUnit: ({ mainRepo, subject: unit }) =>
+              resolveCanonicalSliceReviewUnit(mainRepo, unit),
+            bindFrozenSliceReviewContext,
+            resolveSliceReviewAcceptanceBinding
+          }
+        });
+        return Object.freeze({
+          status: Object.freeze({
+            accepted: true,
+            recovered: true,
+            run_id: receipt.review_run_id,
+            monitor_handle: receipt.review_monitor_handle,
+            role: "reviewer",
+            subject,
+            status: "succeeded",
+            terminal: true,
+            review_result: receipt.structured_outcome.review_result,
+            final_result: null
+          }),
+          lifecycle: lifecycleResult
+        });
+      })());
+    }
+    try {
+      const result = await recoveredExactReviewRuns.get(key);
+      if (result === null) recoveredExactReviewRuns.delete(key);
+      return result;
+    } catch (error) {
+      recoveredExactReviewRuns.delete(key);
+      return Object.freeze({ recovery_failure: Object.freeze({
+        code: "agent_launch.exact_slice_review_receipt_recovery_failed.v1",
+        message: error?.message ?? String(error)
+      }) });
+    }
   };
 
   const getManagedLifecycleCapabilityAuthorityFacts = async () => Object.freeze({
@@ -1815,6 +1639,11 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
       postWorkerSliceLifecycle !== null && worktreeProvisioningConfig !== null && requireManagedProvisioning,
       "agent_launch.dispatch_backend.frozen_wk_review_context"
     ),
+
+    slice_context_review: managedLifecycleCapabilityFact(
+      postWorkerSliceLifecycle !== null && worktreeProvisioningConfig !== null && requireManagedProvisioning,
+      "agent_launch.dispatch_backend.frozen_slice_review_context"
+    ),
     automatic_main_promotion: managedLifecycleCapabilityFact(
       false,
       "agent_launch.dispatch_backend.main_promotion_unwired"
@@ -1828,12 +1657,16 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     waitForRunStatus: lifecycle.waitForRunStatus,
     planLaunch: lifecycle.planLaunch,
     getManagedLifecycleCapabilityAuthorityFacts,
+    isLauncherOwnedExactSliceReviewAdmission,
+
+    resolveSliceReviewAcceptanceBinding,
     ...(runPostWorkerSliceLifecycle !== null
-      ? { runPostWorkerSliceLifecycle, recoverIntegratedWorkerRun }
+      ? { runPostWorkerSliceLifecycle, recoverIntegratedWorkerRun, recoverExactSliceReviewRun }
       : {}),
 
     __snapshotRuns: lifecycle.snapshotRuns,
     __snapshotFrozenReviewContexts: () => [...frozenReviewContexts.values()],
+    __snapshotFrozenSliceReviewContexts: () => [...frozenSliceReviewContexts.values()],
 
     ...(options.__testHooks === true
       ? {

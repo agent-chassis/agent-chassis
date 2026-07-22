@@ -26,7 +26,9 @@ export const HOST_WRITE_AUTHORITY_OPS = Object.freeze({
   PROBE_RUN: "probe_run",
   PROVISION_WORKTREE: "provision_worktree",
   COMMIT_SLICE: "commit_slice",
-  INTEGRATE_SLICE: "integrate_slice"
+  PREPARE_SLICE_REVIEW_SURFACE: "prepare_slice_review_surface",
+  INTEGRATE_SLICE: "integrate_slice",
+  WK_FORGE_HANDOFF: "wk_forge_handoff"
 });
 
 export const HOST_WRITE_AUTHORITY_RESPONSE_KINDS = Object.freeze({
@@ -36,7 +38,11 @@ export const HOST_WRITE_AUTHORITY_RESPONSE_KINDS = Object.freeze({
 
   SLICE_COMMITTED: "slice_committed",
 
+  SLICE_REVIEW_SURFACE_PREPARED: "slice_review_surface_prepared",
+
   SLICE_INTEGRATED: "slice_integrated",
+
+  WK_FORGE_HANDOFF_COMPLETED: "wk_forge_handoff_completed",
   REFUSAL: "refusal"
 });
 
@@ -83,7 +89,12 @@ export const HOST_WRITE_AUTHORITY_REFUSAL_REASONS = Object.freeze({
     "host_write_authority_commit_result_invalid",
 
   INTEGRATION_RESULT_INVALID:
-    "host_write_authority_integration_result_invalid"
+    "host_write_authority_integration_result_invalid",
+  SLICE_REVIEW_PREPARATION_RESULT_INVALID:
+    "host_write_authority_slice_review_preparation_result_invalid",
+
+  FORGE_HANDOFF_RESULT_INVALID:
+    "host_write_authority_forge_handoff_result_invalid"
 });
 
 export const REFUSAL_REASON_TO_BACKEND_CODE = Object.freeze({
@@ -104,8 +115,28 @@ export const REFUSAL_REASON_TO_BACKEND_CODE = Object.freeze({
   [HOST_WRITE_AUTHORITY_REFUSAL_REASONS.COMMIT_RESULT_INVALID]:
     BACKEND_CODE_LAUNCH_FAILED_BEFORE_START,
   [HOST_WRITE_AUTHORITY_REFUSAL_REASONS.INTEGRATION_RESULT_INVALID]:
+    BACKEND_CODE_LAUNCH_FAILED_BEFORE_START,
+  [HOST_WRITE_AUTHORITY_REFUSAL_REASONS.SLICE_REVIEW_PREPARATION_RESULT_INVALID]:
+    BACKEND_CODE_LAUNCH_FAILED_BEFORE_START,
+  [HOST_WRITE_AUTHORITY_REFUSAL_REASONS.FORGE_HANDOFF_RESULT_INVALID]:
     BACKEND_CODE_LAUNCH_FAILED_BEFORE_START
 });
+
+export const SLICE_REVIEW_SURFACE_PREPARATION_SCHEMA_VERSION =
+  "slice-review-surface-preparation.v1";
+
+export const SLICE_REVIEW_SURFACE_PREPARATION_VERIFIED_PARTS = Object.freeze([
+  "launcher_tuple_and_v2_full_binding",
+  "canonical_worktree_registration",
+  "reviewed_commit_parent_and_tree",
+  "symbolic_head_and_slice_ref",
+  "physical_tree_from_isolated_index",
+  "ordinary_index_allowed_prestate",
+  "ordinary_index_reviewed_tree",
+  "empty_cached_worktree_and_status",
+  "no_sparse_or_hidden_index_entries",
+  "refs_registration_and_physical_tree_unchanged"
+]);
 
 export const WORKER_GATE_REFUSAL_DETAIL_KIND = "worker_gate_refusal";
 

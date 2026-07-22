@@ -41,7 +41,7 @@
     },
     {
       "file": "launcher-tools.json",
-      "tool_count": 5,
+      "tool_count": 6,
       "summary": "Dispatch, run-status, coordination preflight, and runtime-blocker-taxonomy tools."
     },
     {
@@ -60,7 +60,7 @@
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 100,
+  "expected_tool_count": 101,
   "uniqueness": {
     "key": "tool_name",
     "scope": "assembled_corpus",

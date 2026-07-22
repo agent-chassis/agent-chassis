@@ -730,40 +730,32 @@ test("WK-1309 MCP needs_review budget and target-plan recovery guidance are both
       }
     ])
   );
-  const { compact, verbose, recovery } = assertNeedsReviewPublicResponse(
-    readiness,
-    "review_threshold_exceeded"
-  );
 
-  assert.equal(recovery.taxonomy_code, "worker_admission_review_threshold_exceeded");
-  assert.equal(recovery.pack_reason_count, 3);
-  assert.equal(recovery.recognized_reason_count, 2);
-  assert.equal(recovery.unrecognized_reason_count, 1);
-  assert.equal(recovery.dropped_reason_count, 1);
+  assertNeedsReviewPublicOverlay(readiness);
+  const compact = createCompactValidateDispatchResponse(WORKSPACE_REPO, readiness);
+  const verbose = verboseValidateDispatchEnvelope(WORKSPACE_REPO, readiness);
+  assert.equal(compact.admissibility.status, "needs_review");
+  assert.equal(compact.admissibility.diagnostic_code, "node_engine_needs_review");
+  const recovery = compact.admissibility.needs_review_recovery;
+  assert.ok(
+    recovery,
+    "compact workspace_validate_dispatch must carry MCP-facing needs_review recovery guidance"
+  );
+  assert.equal(recovery.projection_mode, "bounded_current_decision_recovery");
+  assert.equal(
+    verbose.readiness.admissibility.needs_review_recovery.projection_mode,
+    "bounded_current_decision_recovery",
+    "verbose workspace_validate_dispatch must carry the same needs_review recovery projection"
+  );
   assert.deepEqual(
-    [...recovery.review_threshold_controls].sort(),
+    [...recovery.actions[0].controls].sort(),
     ["expected_changed_line_budget", "expected_edit_targets"]
   );
+  assert.match(recovery.actions[0].next_action, /expected_changed_line_budget/);
+  assert.match(recovery.actions[0].next_action, /expected_edit_targets/);
   assert.ok(
-    recovery.reason_facts.some((fact) => fact.control === "expected_changed_line_budget"),
-    "bounded-budget guidance must include expected_changed_line_budget as its own repair target"
-  );
-  assert.ok(
-    recovery.reason_facts.some((fact) => fact.control === "expected_edit_targets"),
-    "target-plan guidance must include expected_edit_targets as its own repair target"
-  );
-
-  const reduceSplitNarrow = recovery.reduce_split_narrow_actions.join(" ");
-  const structuredRepairs = recovery.structured_wk_repair_actions.join(" ");
-  assert.match(reduceSplitNarrow, /expected_changed_line_budget/);
-  assert.match(reduceSplitNarrow, /expected_edit_targets/);
-  assert.match(structuredRepairs, /expected_changed_line_budget/);
-  assert.match(structuredRepairs, /expected_edit_targets/);
-  assert.match(recovery.review_attestation_actions.join(" "), /record accepted review-attestation evidence/i);
-  assert.notDeepEqual(
-    recovery.next_actions,
-    recovery.review_attestation_actions,
-    "budget and target-plan guidance must not collapse to only review-attestation actions"
+    recovery.actions[0].remedy_guidance,
+    "bounded budget/target-plan guidance must expose structured remedy guidance"
   );
 
   assertNoRawValueLeakAnywhere(

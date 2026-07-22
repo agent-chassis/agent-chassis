@@ -220,6 +220,24 @@ test('MCP split source_files anchor on the manifest and owning fragments', async
   }
 });
 
+test('workspace_validate_dispatch advertises only bounded ignored graph-cache writes', async () => {
+  const fragment = await readFragment('mcp-launcher-tools.json');
+  const tool = findTool(fragment, 'workspace_validate_dispatch');
+  assert.deepEqual(tool.side_effects, ['workspace_write']);
+  for (const text of [tool.notes, tool.tier_text.paid_cce.notes]) {
+    assert.match(text, /ignored code-index graph artifacts/);
+    assert.match(text, /sibling atomic temporary files/);
+    assert.match(text, /advisory build-lock file/);
+    assert.match(text, /eight exclusively claimed candidate slots/);
+    assert.match(text, /\.index\.json\.build-lock\.json\.slot-00\.candidate/);
+    assert.match(text, /\.index\.json\.build-lock\.json\.slot-07\.candidate/);
+    assert.match(text, /initial absent-lock race/);
+    assert.match(text, /exhaustion falls back to an independent atomic build/);
+    assert.match(text, /never mutates canonical WK\/evidence/);
+    assert.match(text, /never launches an agent/);
+  }
+});
+
 test('workspace_tool_router_recommend is exposed as advisory read-only routing only', async () => {
   const fragment = await readFragment('mcp-tools.json');
   const routerEntry = findTool(fragment, 'workspace_tool_router_recommend');

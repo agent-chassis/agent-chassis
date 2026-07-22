@@ -204,6 +204,10 @@ export function buildCodexWorkspaceMcpEnvOverrides({
   return overrides;
 }
 
+const WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V1 = "worktree-identity-binding.v1";
+const WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2 = "worktree-identity-binding.v2";
+const WORKTREE_SLICE_CHECKOUT_MODE_FULL = "full";
+
 function invalidManagedCommitBinding(message) {
   const error = new Error(`managed worker commit credential is invalid: ${message}`);
   error.code = "managed_worker_commit_credential_invalid";
@@ -263,7 +267,13 @@ function resolveManagedWorkerCommitTuple({
   if (sliceBinding.initiative !== initiative) {
     throw invalidManagedCommitBinding("initiative mismatches the selected subject");
   }
-  if (sliceBinding.schema_version !== "worktree-identity-binding.v1") {
+  const bindingMode =
+    sliceBinding.schema_version === WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V1
+      ? "sparse"
+      : sliceBinding.schema_version === WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2
+        ? "full"
+        : null;
+  if (bindingMode === null) {
     throw invalidManagedCommitBinding("slice_binding schema is unsupported");
   }
 
@@ -276,22 +286,37 @@ function resolveManagedWorkerCommitTuple({
   if (!Number.isInteger(retryId) || retryId < 0 || worktreeProvisioning.retry_id !== retryId) {
     throw invalidManagedCommitBinding("retry_id is malformed or stale");
   }
-  assertExactString(worktreeProvisioning.run_authority, "provisioning.run_authority");
 
-  for (const field of [
-    "worktree_path",
-    "output_branch",
-    "base_ref",
-    "base_sha",
-    "index_sparse"
-  ]) {
+  const scalarAliases = bindingMode === "full"
+    ? ["worktree_path", "output_branch", "base_ref", "base_sha", "checkout_mode"]
+    : ["worktree_path", "output_branch", "base_ref", "base_sha", "index_sparse"];
+  for (const field of scalarAliases) {
     if (worktreeProvisioning[field] !== sliceBinding[field]) {
       throw invalidManagedCommitBinding(`provisioning alias ${field} is stale or mismatched`);
     }
   }
-  for (const field of ["write_scope", "cone_dirs"]) {
+  const arrayAliases = bindingMode === "full" ? ["write_scope"] : ["write_scope", "cone_dirs"];
+  for (const field of arrayAliases) {
     if (!sameStringArray(worktreeProvisioning[field], sliceBinding[field])) {
       throw invalidManagedCommitBinding(`provisioning alias ${field} is stale or mismatched`);
+    }
+  }
+  if (bindingMode === "full") {
+    if (sliceBinding.checkout_mode !== WORKTREE_SLICE_CHECKOUT_MODE_FULL) {
+      throw invalidManagedCommitBinding("v2 slice_binding checkout_mode must be \"full\"");
+    }
+    for (const [label, carrier] of [["slice_binding", sliceBinding], ["provisioning", worktreeProvisioning]]) {
+      for (const forbidden of ["cone_dirs", "index_sparse"]) {
+        if (Object.prototype.hasOwnProperty.call(carrier, forbidden)) {
+          throw invalidManagedCommitBinding(`v2 full ${label} must not carry sparse field ${forbidden}`);
+        }
+      }
+    }
+  } else {
+    for (const [label, carrier] of [["slice_binding", sliceBinding], ["provisioning", worktreeProvisioning]]) {
+      if (Object.prototype.hasOwnProperty.call(carrier, "checkout_mode")) {
+        throw invalidManagedCommitBinding(`v1 sparse ${label} must not carry checkout_mode`);
+      }
     }
   }
 

@@ -252,6 +252,7 @@ export function registerWorkRecordReadTools({
   errorContent,
   resolveWorkspaceRepo,
   createCompactValidateDispatchResponse,
+  validateDispatch = validateWorkRecordDispatch,
 
   registeredTier = "paid_cce"
 }) {
@@ -365,8 +366,8 @@ export function registerWorkRecordReadTools({
     "workspace_validate_dispatch",
     {
       description: isPaidTier
-        ? "Validate dispatch readiness for a WK or slice in a configured workspace repository. Read-only: returns the structured dispatch-readiness envelope without touching the record. Compact by default; pass verbose:true for the full readiness envelope under the 'readiness' key. Set node_engine_admissibility:true to evaluate Chassis Control Engine-exclusive implementation admissibility for a structurally dispatchable implementation unit; the allow/deny decision is sourced only from the Chassis Control Engine pack path using launcher-minted env. A confirmed no-Chassis-Control-Engine config (no service URL / API key -> deterministic local_only_fail_open) no-ops the Chassis-Control-Engine-exclusive admissibility axis, so a structurally dispatchable unit stays dispatchable (records local_only / enforced=false), including an over-threshold large existing file because large-file/LOC admission is Chassis-Control-Engine-only. A configured-but-not-granting posture (down/unreachable, unratified, needs_review, reject) and a genuinely unprocessable enforcement signal stay non-launchable; only the Chassis Control Engine pack can return an admit when configured; there is no local admit fallback. The paid admissibility detail is reported as Node-Engine-returned judgments over the raw measured carrier facts; the local layer renders no threshold verdict of its own (DEC-0125)."
-        : "Validate dispatch readiness for a WK or slice in a configured workspace repository. Read-only: returns the structured dispatch-readiness envelope without touching the record. Compact by default; pass verbose:true for the full readiness envelope under the 'readiness' key. Free/local readiness covers only the structural runnability floor (write_scope, acceptance, validation present, a supported role, a resolvable subject, a fresh source digest). Per DEC-0123/DEC-0125 a confirmed no-Node-Engine posture renders no local admissibility judgment, so admissibility threshold analysis is not part of free-tier readiness guidance.",
+        ? "Validate dispatch readiness for a WK or slice in a configured workspace repository. When required graph impact is stale or missing, validation refreshes the canonical current-HEAD graph and may write only ignored code-index graph artifacts, sibling atomic temporary files, the advisory build-lock file, and eight exclusively claimed candidate slots named .index.json.build-lock.json.slot-00.candidate through .index.json.build-lock.json.slot-07.candidate. Candidates are attempted only during the initial absent-lock race, retained but never reused or authoritative, and prevented by an existing persistent shared lock; exhaustion falls back to an independent atomic build. It never mutates canonical WK/evidence, admission sidecars, lifecycle or runtime state, dispatch/backend state, or result evidence, and never launches an agent. A bounded current-HEAD resolver failure preserves its safe typed code in verbose graph_impact_failure and compact graph_impact_failure_code output, with a fixed remediation and no raw cause data. Compact by default; pass verbose:true for the full readiness envelope under the 'readiness' key. Set node_engine_admissibility:true to evaluate Chassis Control Engine-exclusive implementation admissibility for a structurally dispatchable implementation unit; the allow/deny decision is sourced only from the Chassis Control Engine pack path using launcher-minted env. A confirmed no-Chassis-Control-Engine config (no service URL / API key -> deterministic local_only_fail_open) no-ops the Chassis-Control-Engine-exclusive admissibility axis, so a structurally dispatchable unit stays dispatchable (records local_only / enforced=false), including an over-threshold large existing file because large-file/LOC admission is Chassis-Control-Engine-only. A configured-but-not-granting posture (down/unreachable, unratified, needs_review, reject) and a genuinely unprocessable enforcement signal stay non-launchable; only the Chassis Control Engine pack can return an admit when configured; there is no local admit fallback. The paid admissibility detail is reported as Node-Engine-returned judgments over the raw measured carrier facts; the local layer renders no threshold verdict of its own (DEC-0125)."
+        : "Validate dispatch readiness for a WK or slice in a configured workspace repository. When required graph impact is stale or missing, validation refreshes the canonical current-HEAD graph and may write only ignored code-index graph artifacts, sibling atomic temporary files, the advisory build-lock file, and eight exclusively claimed candidate slots named .index.json.build-lock.json.slot-00.candidate through .index.json.build-lock.json.slot-07.candidate. Candidates are attempted only during the initial absent-lock race, retained but never reused or authoritative, and prevented by an existing persistent shared lock; exhaustion falls back to an independent atomic build. It never mutates canonical WK/evidence, admission sidecars, lifecycle or runtime state, dispatch/backend state, or result evidence, and never launches an agent. A bounded current-HEAD resolver failure preserves its safe typed code in verbose graph_impact_failure and compact graph_impact_failure_code output, with a fixed remediation and no raw cause data. Compact by default; pass verbose:true for the full readiness envelope under the 'readiness' key. Free/local readiness covers only the structural runnability floor (write_scope, acceptance, validation present, a supported role, a resolvable subject, a fresh source digest). Per DEC-0123/DEC-0125 a confirmed no-Node-Engine posture renders no local admissibility judgment, so admissibility threshold analysis is not part of free-tier readiness guidance.",
       inputSchema: {
         repo: z.string().optional(),
         unit: z.string(),
@@ -379,7 +380,8 @@ export function registerWorkRecordReadTools({
     async (args) => {
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const result = await validateWorkRecordDispatch({
+
+        const result = await validateDispatch({
           dir: workspace.dir,
           unitAddress: args.unit,
           dispatch_role: args.dispatch_role ?? "implementation",
@@ -390,9 +392,16 @@ export function registerWorkRecordReadTools({
         if (args.verbose === true) {
           return jsonContent({ workspaceRepo: workspace.repo, readiness: result });
         }
-        return jsonContent(
-          createCompactValidateDispatchResponse(workspace.repo, result, registeredTier)
+        const compact = createCompactValidateDispatchResponse(
+          workspace.repo,
+          result,
+          registeredTier
         );
+        if (result.graph_impact_failure) {
+          compact.graph_impact_failure_code = result.graph_impact_failure.code;
+          compact.next_action = result.graph_impact_failure.remediation;
+        }
+        return jsonContent(compact);
       } catch (error) {
         return errorContent(error);
       }

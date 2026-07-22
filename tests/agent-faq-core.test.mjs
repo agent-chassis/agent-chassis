@@ -112,7 +112,11 @@ test("WK-1377: FAQ output is tier-projected — free/local omits paid remediatio
   const free = getAgentFaq({ registered_tier: "free_local" });
   const freeIds = free.entries.map((entry) => entry.id);
 
-  assert.deepEqual(freeIds, ["read-scope-missing-or-unfamiliar"]);
+  assert.deepEqual(freeIds, [
+    "read-scope-missing-or-unfamiliar",
+    "dispatch-readiness-multi-cluster-or-critical-blast-radius",
+    "run-validation-target-not-authorized"
+  ]);
 
   for (const paidId of [
     "graph-impact-required-unavailable",

@@ -60,3 +60,5 @@ export const DISPATCH_SUBJECT_KIND_TO_ROUTE_KIND = Object.freeze({
 export const GRAPH_IMPACT_PERSISTENCE_TOOL_NAME = "workspace_record_graph_impact_evidence";
 export const VALIDATE_DISPATCH_TOOL_NAME = "workspace_validate_dispatch";
 export const AGENT_DISPATCH_TOOL_NAME = "workspace_agent_dispatch";
+
+export const WK_FORGE_HANDOFF_TOOL_NAME = "workspace_wk_forge_handoff";

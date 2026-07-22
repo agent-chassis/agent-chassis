@@ -159,31 +159,46 @@ function importBindings(rootNode, text) {
     const source = statement.childForFieldName("source") ?? namedChildren(statement).find((node) => node.type === "string");
     const clause = namedChildren(statement).find((node) => node.type === "import_clause");
     if (!clause) continue;
-    const fromNodeTest = stringLiteralValue(text, source) === "node:test";
-    for (const child of namedChildren(clause)) {
-      if (child.type === "identifier") {
-        addImportLocal(allLocals, textForNode(text, child));
-        if (fromNodeTest) addImportLocal(supported, textForNode(text, child));
-        continue;
-      }
-      if (child.type === "named_imports") {
-        for (const specifier of namedChildren(child).filter((node) => node.type === "import_specifier")) {
-          const imported = specifier.childForFieldName("name");
-          const alias = specifier.childForFieldName("alias");
-          const local = alias ?? imported;
-          addImportLocal(allLocals, textForNode(text, local));
-          if (fromNodeTest && imported?.type === "identifier" && textForNode(text, imported) === "test" && local?.type === "identifier") {
-            addImportLocal(supported, textForNode(text, local));
-          }
-        }
-        continue;
-      }
-      if (child.type === "namespace_import") {
-        addImportLocal(allLocals, textForNode(text, namedChildren(child).find((node) => node.type === "identifier")));
-      }
-    }
+    const clauseChildren = namedChildren(clause);
+
+    for (const local of importClauseLocalNames(clauseChildren, text)) addImportLocal(allLocals, local);
+    if (stringLiteralValue(text, source) !== "node:test") continue;
+
+    const supportedLocal = supportedNodeTestBindingLocal(clauseChildren, text);
+    if (supportedLocal) addImportLocal(supported, supportedLocal);
   }
   return { allLocals, supported };
+}
+
+function importClauseLocalNames(clauseChildren, text) {
+  const locals = [];
+  for (const child of clauseChildren) {
+    if (child.type === "identifier") {
+      locals.push(textForNode(text, child));
+    } else if (child.type === "named_imports") {
+      for (const specifier of namedChildren(child).filter((node) => node.type === "import_specifier")) {
+        const local = specifier.childForFieldName("alias") ?? specifier.childForFieldName("name");
+        locals.push(textForNode(text, local));
+      }
+    } else if (child.type === "namespace_import") {
+      locals.push(textForNode(text, namedChildren(child).find((node) => node.type === "identifier")));
+    }
+  }
+  return locals;
+}
+
+function supportedNodeTestBindingLocal(clauseChildren, text) {
+  if (clauseChildren.length !== 1) return null;
+  const only = clauseChildren[0];
+  if (only.type === "identifier") return textForNode(text, only) || null;
+  if (only.type !== "named_imports") return null;
+  const specifiers = namedChildren(only).filter((node) => node.type === "import_specifier");
+  if (specifiers.length !== 1) return null;
+  const imported = specifiers[0].childForFieldName("name");
+  const alias = specifiers[0].childForFieldName("alias");
+  if (imported?.type !== "identifier" || textForNode(text, imported) !== "test") return null;
+  if (alias && alias.type !== "identifier") return null;
+  return textForNode(text, alias ?? imported) || null;
 }
 
 function addImportLocal(bindings, name) {
@@ -299,7 +314,13 @@ export function resolveBoundedJavaScriptTestCaseTargetFromSourceText(value = {})
   }
   if (!target.path) return evidence(target, "missing_path", "declared target path was unavailable to the provider", options);
   if (!sourceText || sourceText.trim().length === 0) return evidence(target, "provider_unavailable", "no bounded source text supplied for expected_edit_targets entry", options);
-  if (target.operation === "create") return evidence(target, "not_applicable", "create target; no pre-existing symbol expected", options);
+  if (target.operation === "create") {
+
+    if (!isSupportedRepositoryTestFilePath(rawTargetPath)) {
+      return evidence(target, "provider_unavailable", "target path is not a supported repository JavaScript test file", options);
+    }
+    return evidence(target, "not_applicable", "create target; no pre-existing symbol expected", options);
+  }
   if (!WORK_RECORD_TARGET_TEST_CASE_RESOLVER_SUPPORTED_KIND_VALUES.has(target.kind)) return evidence(target, "unsupported_kind", "provider does not support the declared target kind", options);
   if (!isSupportedRepositoryTestFilePath(rawTargetPath)) return evidence(target, "provider_unavailable", "target path is not a supported repository JavaScript test file", options);
   const parsed = parseCandidates(target, sourceText);

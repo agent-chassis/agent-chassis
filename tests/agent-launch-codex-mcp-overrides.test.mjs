@@ -56,7 +56,6 @@ function managedProvisioningFixture({
     slice_id: "SLICE-004",
     unit_address: "IN-0021/WK-1537/SLICE-004",
     retry_id: retryId,
-    run_authority: "launcher-run-authority-wk1537-slice004",
     slice_binding: sliceBinding,
     worktree_path: sliceBinding.worktree_path,
     output_branch: sliceBinding.output_branch,

@@ -5,9 +5,10 @@ import { createTestDispatchBackend } from './workspace-agent-dispatch-backend-sh
 const REVIEWER_ROLE = 'reviewer';
 const REDTEAM_ROLE = 'redteam';
 const WORKER_ROLE = 'worker';
-const SUBJECT = 'WK-0999#SLICE-046';
-const OTHER_SUBJECT = 'WK-0999#SLICE-999';
-const CALLER_SESSION_ID = 'sess-slice-046';
+
+const SUBJECT = 'WK-0999';
+const OTHER_SUBJECT = 'WK-0998';
+const CALLER_SESSION_ID = 'sess-wk-0999';
 
 const REVIEWER_OUTCOME_NO_FINDINGS = 'no_findings';
 const REVIEWER_OUTCOME_CLEAN_FINDINGS = 'passed_no_blocking_or_medium_findings';

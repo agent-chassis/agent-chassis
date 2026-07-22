@@ -1,6 +1,6 @@
 
 
-import { clone } from "./work-record-dispatch-shared.mjs";
+import { clone, isObject } from "./work-record-dispatch-shared.mjs";
 import { collectValidationHints } from "./work-record-dispatch-validation-hints.mjs";
 import { collectDerivedEvidence } from "./work-record-dispatch-evidence.mjs";
 
@@ -19,11 +19,28 @@ export const WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES = Object.freeze([
   "nonrecoverable_malformed"
 ]);
 
-const DEFAULT_RECOVERY = Object.freeze({
-  graph_impact: "not_required",
-  admission_metrics: "nonrecoverable_malformed",
-  target_resolution: "nonrecoverable_malformed"
-});
+const RECOVERY_AXES = Object.freeze([
+  "graph_impact",
+  "admission_metrics",
+  "target_resolution"
+]);
+
+function validateReadinessRecovery(recovery) {
+  if (!isObject(recovery)) {
+    throw new TypeError("createReadinessEnvelope recovery must be an object");
+  }
+  for (const axis of RECOVERY_AXES) {
+    if (!Object.hasOwn(recovery, axis)) {
+      throw new TypeError(`createReadinessEnvelope recovery.${axis} is required`);
+    }
+    if (!WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES.includes(recovery[axis])) {
+      throw new TypeError(
+        `createReadinessEnvelope recovery.${axis} must be one of the declared recovery states`
+      );
+    }
+  }
+  return recovery;
+}
 
 export function createDefaultReadinessState(graphState) {
   return {
@@ -55,10 +72,11 @@ export function createReadinessEnvelope({
   derivedEvidence,
   canonicalRefs,
   dispatchRole = "implementation",
-  recovery = DEFAULT_RECOVERY,
+  recovery,
 
   graphAutoRecoverable = false
 }) {
+  const validatedRecovery = validateReadinessRecovery(recovery);
   return {
     schema_version: WORK_RECORD_DISPATCH_SCHEMA_VERSION,
     record_id: recordId,
@@ -80,15 +98,9 @@ export function createReadinessEnvelope({
     derived_evidence: clone(derivedEvidence || []),
     validation_hints: clone(validationHints || []),
     recovery: {
-      graph_impact: WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES.includes(recovery?.graph_impact)
-        ? recovery.graph_impact
-        : DEFAULT_RECOVERY.graph_impact,
-      admission_metrics: WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES.includes(recovery?.admission_metrics)
-        ? recovery.admission_metrics
-        : DEFAULT_RECOVERY.admission_metrics,
-      target_resolution: WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES.includes(recovery?.target_resolution)
-        ? recovery.target_resolution
-        : DEFAULT_RECOVERY.target_resolution
+      graph_impact: validatedRecovery.graph_impact,
+      admission_metrics: validatedRecovery.admission_metrics,
+      target_resolution: validatedRecovery.target_resolution
     },
     state: {
       ...createDefaultReadinessState(state),
@@ -161,6 +173,11 @@ export function buildTerminalReadiness({
       reportOnly
     }),
     canonicalRefs: [],
-    dispatchRole
+    dispatchRole,
+    recovery: {
+      graph_impact: "not_required",
+      admission_metrics: "not_required",
+      target_resolution: "not_required"
+    }
   });
 }

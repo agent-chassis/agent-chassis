@@ -239,6 +239,9 @@ function formatSliceEntry(slice, { selected = false } = {}) {
   const details = [
     `${escapeInlineCode(slice?.id || "(missing)")}: ${String(slice?.title ?? "(missing)")}`,
     slice?.work_kind ? `work kind: ${escapeInlineCode(slice.work_kind)}` : null,
+    slice?.work_kind === "review"
+      ? `review purpose: ${escapeInlineCode(slice.review_purpose ?? "standalone")}`
+      : null,
     slice?.status ? `status: ${escapeInlineCode(slice.status)}` : null,
     dispatchUnit ? `dispatch unit: ${dispatchUnit}` : null,
     agentNotes !== "" ? "agent notes: yes" : null
@@ -619,6 +622,9 @@ function renderSlicesBrief(record, { sliceId = null } = {}) {
         ["id", escapeInlineCode(selected.id)],
         ["title", escapeInlineCode(selected.title)],
         ["work kind", escapeInlineCode(selected.work_kind)],
+        ...(selected.work_kind === "review"
+          ? [["review purpose", escapeInlineCode(selected.review_purpose ?? "standalone")]]
+          : []),
         ["status", escapeInlineCode(selected.status)],
         ["dispatch unit", escapeInlineCode(`${record.id}#${selected.id}`)]
       ]),

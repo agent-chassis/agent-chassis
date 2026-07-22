@@ -218,7 +218,7 @@ export function resolveWorktreeBinding({ mainRepo, launchRef, runId, retryId = 0
   return binding;
 }
 
-const MAX_RECOVERY_BINDING_FILES = 512;
+const EXACT_RECOVERY_BINDING_PAIR_SIZE = 2;
 const RECOVERY_BINDING_FILE_RE = /^binding-[0-9a-f]{64}\.json$/u;
 const RECOVERY_SUBJECT_RE = /^(WK-\d{4})#(SLICE-\d{3})$/u;
 const RECOVERY_COMMIT_ID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
@@ -243,12 +243,46 @@ const SPARSE_BINDING_FIELDS = Object.freeze([
   "selected_unit"
 ]);
 
+const WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V1 = WORKTREE_SUBSTRATE_SCHEMA_VERSION;
+const WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2 = "worktree-identity-binding.v2";
+const WORKTREE_SLICE_CHECKOUT_MODE_FULL = "full";
+const FULL_CHECKOUT_SLICE_BINDING_SCALAR_FIELDS = Object.freeze([
+  "schema_version", "launch_ref", "run_id", "retry_id", "unit_address",
+  "initiative", "record_id", "slice_id", "base_ref", "base_sha",
+  "output_branch", "worktree_path", "write_scope_source", "source_digest",
+  "source_version", "checkout_mode"
+]);
+const FULL_CHECKOUT_SLICE_BINDING_ARRAY_FIELDS = Object.freeze([
+  "read_scope", "repo_paths", "write_scope"
+]);
+const FULL_CHECKOUT_SLICE_BINDING_FIELDS = Object.freeze([
+  ...FULL_CHECKOUT_SLICE_BINDING_SCALAR_FIELDS,
+  ...FULL_CHECKOUT_SLICE_BINDING_ARRAY_FIELDS,
+  "selected_unit"
+]);
+
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function hasOwn(value, field) {
   return Object.prototype.hasOwnProperty.call(value, field);
+}
+
+function classifySliceCheckoutMode(binding) {
+  const hasCone = hasOwn(binding, "cone_dirs");
+  const hasIndexSparse = hasOwn(binding, "index_sparse");
+  const hasCheckoutMode = hasOwn(binding, "checkout_mode");
+  if (binding.schema_version === WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V1 &&
+      hasCone && hasIndexSparse && !hasCheckoutMode) {
+    return "v1-sparse";
+  }
+  if (binding.schema_version === WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2 &&
+      hasCheckoutMode && binding.checkout_mode === WORKTREE_SLICE_CHECKOUT_MODE_FULL &&
+      !hasCone && !hasIndexSparse) {
+    return "v2-full";
+  }
+  return null;
 }
 
 function isNormalizedRepoPath(value) {
@@ -274,17 +308,41 @@ function recoveryBindingFailure(filePath, message, detail = null) {
   );
 }
 
-function assertRecoveryBindingContract(binding, { filePath, mainRepo }) {
+function failRecoveryPairSelection(detail) {
+  fail(
+    WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
+    "integrated-state recovery requires one unique exact launcher WK/slice binding pair",
+    detail
+  );
+}
+
+function assertRecoveryBindingContract(binding, { filePath, mainRepo, allowMissingSliceWorktree = false }) {
   if (!isPlainObject(binding)) {
     recoveryBindingFailure(filePath, "binding must be an object");
   }
-  const sparse = typeof binding.unit_address === "string" && binding.unit_address.split("/").length === 3;
-  const requiredFields = sparse ? SPARSE_BINDING_FIELDS : FULL_WK_BINDING_FIELDS;
+  const unitIsSlice = typeof binding.unit_address === "string" && binding.unit_address.split("/").length === 3;
+
+  let sliceMode = null;
+  let requiredFields;
+  if (unitIsSlice) {
+    sliceMode = classifySliceCheckoutMode(binding);
+    if (sliceMode === null) {
+      recoveryBindingFailure(filePath, "slice checkout-mode discriminant is not an exact v1-sparse or v2-full shape", {
+        schema_version: binding.schema_version ?? null,
+        has_cone_dirs: hasOwn(binding, "cone_dirs"),
+        has_index_sparse: hasOwn(binding, "index_sparse"),
+        has_checkout_mode: hasOwn(binding, "checkout_mode")
+      });
+    }
+    requiredFields = sliceMode === "v1-sparse" ? SPARSE_BINDING_FIELDS : FULL_CHECKOUT_SLICE_BINDING_FIELDS;
+  } else {
+    requiredFields = FULL_WK_BINDING_FIELDS;
+  }
   const missing = requiredFields.find((field) => !hasOwn(binding, field));
   if (missing) {
     recoveryBindingFailure(filePath, `required authority field ${missing} is missing`, { field: missing });
   }
-  if (binding.schema_version !== WORKTREE_SUBSTRATE_SCHEMA_VERSION) {
+  if (!unitIsSlice && binding.schema_version !== WORKTREE_SUBSTRATE_SCHEMA_VERSION) {
     recoveryBindingFailure(filePath, "schema_version is not the canonical worktree identity schema", {
       expected: WORKTREE_SUBSTRATE_SCHEMA_VERSION,
       actual: binding.schema_version ?? null
@@ -332,12 +390,18 @@ function assertRecoveryBindingContract(binding, { filePath, mainRepo }) {
       /[*?[\]{}]/u.test(binding.worktree_path)) {
     recoveryBindingFailure(filePath, "worktree_path is not a normalized absolute path");
   }
+  let resolvedWorktreePath = null;
   try {
-    if (realpathSync(binding.worktree_path) !== binding.worktree_path) {
-      recoveryBindingFailure(filePath, "worktree_path is not canonical");
-    }
+    resolvedWorktreePath = realpathSync(binding.worktree_path);
   } catch (error) {
-    recoveryBindingFailure(filePath, "worktree_path is not readable", { message: error?.message ?? String(error) });
+    if (unitIsSlice && allowMissingSliceWorktree === true && error?.code === "ENOENT") {
+
+    } else {
+      recoveryBindingFailure(filePath, "worktree_path is not readable", { message: error?.message ?? String(error) });
+    }
+  }
+  if (resolvedWorktreePath !== null && resolvedWorktreePath !== binding.worktree_path) {
+    recoveryBindingFailure(filePath, "worktree_path is not canonical");
   }
   if (!isCanonicalRepoPathArray(binding.write_scope)) {
     recoveryBindingFailure(filePath, "write_scope is not a canonical repository-path array");
@@ -353,7 +417,11 @@ function assertRecoveryBindingContract(binding, { filePath, mainRepo }) {
     recoveryBindingFailure(filePath, "binding filename does not match the exact launch/run/retry tuple");
   }
   if (unit.kind === "slice") {
-    for (const field of SPARSE_BINDING_ARRAY_FIELDS) {
+
+    const arrayFields = sliceMode === "v1-sparse"
+      ? SPARSE_BINDING_ARRAY_FIELDS
+      : FULL_CHECKOUT_SLICE_BINDING_ARRAY_FIELDS;
+    for (const field of arrayFields) {
       if (!isCanonicalRepoPathArray(binding[field], { nonEmpty: field === "cone_dirs" })) {
         recoveryBindingFailure(filePath, `${field} is not a canonical repository-path array`, { field });
       }
@@ -363,34 +431,43 @@ function assertRecoveryBindingContract(binding, { filePath, mainRepo }) {
         selected.address !== `${unit.wkId}#${unit.sliceId}` || selected.record_id !== unit.wkId ||
         selected.slice_id !== unit.sliceId ||
         !(selected.repo === null || typeof selected.repo === "string" && selected.repo.length > 0)) {
-      recoveryBindingFailure(filePath, "selected_unit does not match the exact sparse unit");
+      recoveryBindingFailure(filePath, "selected_unit does not match the exact slice unit");
     }
+
     if (typeof binding.source_digest !== "string" || !RECOVERY_SOURCE_DIGEST_RE.test(binding.source_digest) ||
-        !(binding.source_version === null || typeof binding.source_version === "string" && binding.source_version.length > 0) ||
-        binding.index_sparse !== false) {
-      recoveryBindingFailure(filePath, "sparse source/index authority is incomplete or invalid");
+        !(binding.source_version === null || typeof binding.source_version === "string" && binding.source_version.length > 0)) {
+      recoveryBindingFailure(filePath, "slice source authority is incomplete or invalid");
     }
-    let expectedConeDirs;
-    try {
-      expectedConeDirs = deriveCanonicalSparseConeDirs(
-        defaultRunGit,
-        mainRepo,
-        binding.base_sha,
-        [...binding.read_scope, ...binding.repo_paths, ...binding.write_scope]
-      );
-    } catch (error) {
-      recoveryBindingFailure(filePath, "canonical sparse cone authority cannot be derived from the historical base tree", {
-        base_sha: binding.base_sha,
-        code: error?.code ?? null,
-        message: error?.message ?? String(error)
-      });
+    if (sliceMode === "v1-sparse") {
+
+      if (binding.index_sparse !== false) {
+        recoveryBindingFailure(filePath, "sparse index authority must pin index_sparse=false", {
+          actual: binding.index_sparse ?? null
+        });
+      }
+      let expectedConeDirs;
+      try {
+        expectedConeDirs = deriveCanonicalSparseConeDirs(
+          defaultRunGit,
+          mainRepo,
+          binding.base_sha,
+          [...binding.read_scope, ...binding.repo_paths, ...binding.write_scope]
+        );
+      } catch (error) {
+        recoveryBindingFailure(filePath, "canonical sparse cone authority cannot be derived from the historical base tree", {
+          base_sha: binding.base_sha,
+          code: error?.code ?? null,
+          message: error?.message ?? String(error)
+        });
+      }
+      if (!sameStringArray(binding.cone_dirs, expectedConeDirs)) {
+        recoveryBindingFailure(filePath, "cone_dirs does not exactly match the canonical historical sparse cone authority", {
+          expected: expectedConeDirs,
+          actual: binding.cone_dirs
+        });
+      }
     }
-    if (!sameStringArray(binding.cone_dirs, expectedConeDirs)) {
-      recoveryBindingFailure(filePath, "cone_dirs does not exactly match the canonical historical sparse cone authority", {
-        expected: expectedConeDirs,
-        actual: binding.cone_dirs
-      });
-    }
+
   }
   return binding;
 }
@@ -398,7 +475,8 @@ function assertRecoveryBindingContract(binding, { filePath, mainRepo }) {
 export function resolveUniqueManagedLifecycleBindingPairForRecovery({
   mainRepo,
   launchRef,
-  expectedSubject
+  expectedSubject,
+  allowMissingSliceWorktree = false
 } = {}) {
   const repo = assertAbsolutePath(mainRepo, "mainRepo");
   assertOpaqueId(launchRef, "launch_ref");
@@ -419,33 +497,56 @@ export function resolveUniqueManagedLifecycleBindingPairForRecovery({
       { errno: err?.code ?? null }
     );
   }
-  if (entries.length > MAX_RECOVERY_BINDING_FILES) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.BINDING_NOT_FOUND,
-      `identity binding recovery scan exceeds the bounded limit of ${MAX_RECOVERY_BINDING_FILES}`,
-      { binding_file_count: entries.length }
-    );
-  }
 
-  const matching = [];
+  const [expectedWkId, expectedSliceId] = subject.slice(1);
+  const candidates = [];
   for (const entry of entries) {
     const filePath = path.join(storeDir, entry.name);
+    let raw;
+    try {
+      raw = readFileSync(filePath, "utf8");
+    } catch (err) {
+      recoveryBindingFailure(filePath, "binding file is not readable", { errno: err?.code ?? null });
+    }
     let binding;
     try {
-      binding = JSON.parse(readFileSync(filePath, "utf8"));
+      binding = JSON.parse(raw);
     } catch (err) {
-      fail(
-        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.BINDING_NOT_FOUND,
-        `identity binding evidence is malformed during recovery: ${filePath}`,
-        { message: err?.message ?? null }
-      );
+      recoveryBindingFailure(filePath, "binding file is not valid JSON", { message: err?.message ?? null });
     }
-    assertRecoveryBindingContract(binding, { filePath, mainRepo: repo });
-    if (binding.launch_ref === launchRef) matching.push(binding);
-  }
-  if (matching.length === 0) return null;
+    if (!isPlainObject(binding)) {
+      recoveryBindingFailure(filePath, "binding must be an object");
+    }
+    try {
+      assertOpaqueId(binding.launch_ref, "launch_ref");
+    } catch (error) {
+      recoveryBindingFailure(filePath, "launch_ref is absent or noncanonical", {
+        message: error?.message ?? String(error)
+      });
+    }
 
-  const [wkId, sliceId] = subject.slice(1);
+    if (binding.launch_ref !== launchRef) continue;
+    candidates.push({ filePath, binding });
+  }
+  if (candidates.length === 0) return null;
+
+  if (candidates.length !== EXACT_RECOVERY_BINDING_PAIR_SIZE) {
+    failRecoveryPairSelection({ matching_binding_count: candidates.length });
+  }
+
+  const matching = candidates.map(({ filePath, binding }) => {
+    assertRecoveryBindingContract(binding, {
+      filePath,
+      mainRepo: repo,
+      allowMissingSliceWorktree:
+        allowMissingSliceWorktree === true &&
+        binding.record_id === expectedWkId &&
+        binding.slice_id === expectedSliceId
+    });
+    return binding;
+  });
+
+  const [wkId, sliceId] = [expectedWkId, expectedSliceId];
   const sliceCandidates = matching.filter((binding) =>
     binding.record_id === wkId && binding.slice_id === sliceId &&
     binding.unit_address === `${binding.initiative}/${wkId}/${sliceId}` &&
@@ -464,12 +565,11 @@ export function resolveUniqueManagedLifecycleBindingPairForRecovery({
     );
     for (const wk of wkCandidates) pairs.push({ runId: baseRunId, retryId: slice.retry_id, slice, wk });
   }
-  if (pairs.length !== 1 || matching.length !== 2) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
-      "integrated-state recovery requires one unique exact launcher WK/slice binding pair",
-      { matching_binding_count: matching.length, matching_pair_count: pairs.length }
-    );
+  if (pairs.length !== 1) {
+    failRecoveryPairSelection({
+      matching_binding_count: matching.length,
+      matching_pair_count: pairs.length
+    });
   }
   const pair = pairs[0];
   if (pair.slice.worktree_path === pair.wk.worktree_path) {
@@ -548,21 +648,41 @@ export function resolveVerifiedSparseExactUnitBinding({
   if (!expectedBinding || typeof expectedBinding !== "object" || Array.isArray(expectedBinding)) {
     fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, "expectedBinding must be an object");
   }
+  const expectedMode = classifySliceCheckoutMode(expectedBinding);
+  if (expectedMode === null) {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
+      "expectedBinding is not an exact v1-sparse or v2-full slice binding"
+    );
+  }
   const binding = resolveWorktreeBinding({ mainRepo, launchRef, runId, retryId });
-  for (const field of SPARSE_BINDING_SCALAR_FIELDS) {
+  if (classifySliceCheckoutMode(binding) !== expectedMode) {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
+      "persisted identity binding checkout mode does not match the server-minted mode",
+      { expected_mode: expectedMode }
+    );
+  }
+  const scalarFields = expectedMode === "v1-sparse"
+    ? SPARSE_BINDING_SCALAR_FIELDS
+    : FULL_CHECKOUT_SLICE_BINDING_SCALAR_FIELDS;
+  const arrayFields = expectedMode === "v1-sparse"
+    ? SPARSE_BINDING_ARRAY_FIELDS
+    : FULL_CHECKOUT_SLICE_BINDING_ARRAY_FIELDS;
+  for (const field of scalarFields) {
     if (binding[field] !== expectedBinding[field]) {
       fail(
         WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
-        `sparse identity binding field ${field} does not match the server-minted value`,
+        `exact-slice identity binding field ${field} does not match the server-minted value`,
         { field, expected: expectedBinding[field] ?? null, actual: binding[field] ?? null }
       );
     }
   }
-  for (const field of ["read_scope", "repo_paths", "write_scope", "cone_dirs"]) {
+  for (const field of arrayFields) {
     if (!sameStringArray(binding[field], expectedBinding[field])) {
       fail(
         WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
-        `sparse identity binding field ${field} does not match the server-minted value`,
+        `exact-slice identity binding field ${field} does not match the server-minted value`,
         { field, expected: expectedBinding[field] ?? null, actual: binding[field] ?? null }
       );
     }
@@ -570,17 +690,21 @@ export function resolveVerifiedSparseExactUnitBinding({
   if (!sameSelectedUnit(binding.selected_unit, expectedBinding.selected_unit)) {
     fail(
       WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
-      "sparse identity binding selected_unit does not match the server-minted value",
+      "exact-slice identity binding selected_unit does not match the server-minted value",
       { expected: expectedBinding.selected_unit ?? null, actual: binding.selected_unit ?? null }
     );
   }
-  if (binding.index_sparse !== false) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
-      "sparse identity binding must pin index_sparse=false",
-      { actual: binding.index_sparse ?? null }
-    );
+  if (expectedMode === "v1-sparse") {
+
+    if (binding.index_sparse !== false) {
+      fail(
+        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
+        "sparse identity binding must pin index_sparse=false",
+        { actual: binding.index_sparse ?? null }
+      );
+    }
   }
+
   const parsed = parseUnitAddress(binding.unit_address);
   const current = canonicalUnitScopes(mainRepo, parsed.wkId, parsed.sliceId, {
     expectedInitiative: parsed.initiative
@@ -594,7 +718,7 @@ export function resolveVerifiedSparseExactUnitBinding({
     if (!sameStringArray(binding[field], value)) {
       fail(
         WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
-        `sparse identity binding ${field} is stale against the canonical selected unit`,
+        `exact-slice identity binding ${field} is stale against the canonical selected unit`,
         { field, expected: value, actual: binding[field] ?? null }
       );
     }
@@ -603,7 +727,7 @@ export function resolveVerifiedSparseExactUnitBinding({
       binding.source_digest !== current.sourceDigest || binding.source_version !== current.sourceVersion) {
     fail(
       WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
-      "sparse identity binding selected-unit/source authority is stale against the canonical record",
+      "exact-slice identity binding selected-unit/source authority is stale against the canonical record",
       {
         expected_selected_unit: current.selectedUnit,
         actual_selected_unit: binding.selected_unit ?? null,

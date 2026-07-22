@@ -6,6 +6,116 @@ import {
   isObject,
   normalizeStringEntry
 } from "./work-record-admission-shared.mjs";
+import { normalizeStructuralTargetMetrics } from "./work-record-target-metrics.mjs";
+import { resolveStructuralTargetResolverEvidenceFromExpectedEditTarget } from "./work-record-target-resolver.mjs";
+
+const WORK_RECORD_LOCAL_TARGET_FUNCTION_RESOLVER_PROVIDER = Object.freeze({
+  id: "portfolio-local.target-function-resolver",
+  version: "0.1.0",
+  mode: "local"
+});
+
+const WORK_RECORD_LOCAL_AGGREGATE_TARGET_RESOLVER_PRODUCER = Object.freeze({
+  id: "portfolio-local.target-resolver",
+  version: "0.1.0",
+  mode: "local"
+});
+
+function normalizeRepoPathKey(value) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim().replaceAll("\\", "/").replace(/^\.\//u, "")
+    : null;
+}
+
+function buildLocalTargetResolutionEvidence({
+  expectedEditTargets,
+  sourceTexts,
+  selectedUnit,
+  sourceRecordDigest
+}) {
+  const targetSourceTexts = isObject(sourceTexts) ? sourceTexts : {};
+  const entries = expectedEditTargets.map((target) => {
+    const repoPath = isObject(target) ? normalizeRepoPathKey(target.path) : null;
+    const sourceText =
+      repoPath && typeof targetSourceTexts[repoPath] === "string" ? targetSourceTexts[repoPath] : null;
+    return resolveStructuralTargetResolverEvidenceFromExpectedEditTarget(
+      {
+        target,
+        source_text: sourceText,
+        source_record_digest: sourceRecordDigest,
+        selected_unit: selectedUnit,
+        provider: WORK_RECORD_LOCAL_TARGET_FUNCTION_RESOLVER_PROVIDER
+      },
+      { hasExpectedEditTargets: true }
+    );
+  });
+
+  const allTargetsEvaluated =
+    entries.length > 0 &&
+    entries.every((entry) => entry.target_resolution_status !== "provider_unavailable");
+
+  return {
+    status: allTargetsEvaluated ? "present" : "degraded",
+    source_record_digest: sourceRecordDigest,
+    selected_unit: selectedUnit,
+
+    ...(allTargetsEvaluated ? { producer: WORK_RECORD_LOCAL_AGGREGATE_TARGET_RESOLVER_PRODUCER } : {}),
+    targets: entries
+  };
+}
+
+export function createContextualizedStructuralTargetMetrics(
+  subject,
+  localInputs,
+  selectedUnit,
+  sourceRecordDigest
+) {
+
+  const hasOwnExpectedEditTargets =
+    isObject(subject) && Object.prototype.hasOwnProperty.call(subject, "expected_edit_targets");
+  const expectedEditTargets = hasOwnExpectedEditTargets
+    ? Array.isArray(subject.expected_edit_targets)
+      ? subject.expected_edit_targets
+      : []
+    : Array.isArray(localInputs?.effective_expected_edit_targets)
+      ? localInputs.effective_expected_edit_targets
+      : [];
+
+  const planDeclared = hasOwnExpectedEditTargets
+    ? Array.isArray(subject.expected_edit_targets)
+    : expectedEditTargets.length > 0;
+
+  const hasExpectedEditTargets = expectedEditTargets.length > 0;
+
+  const bindingSourceRecordDigest =
+    isObject(localInputs) &&
+    typeof localInputs.source_record_digest === "string" &&
+    localInputs.source_record_digest.trim().length > 0
+      ? localInputs.source_record_digest
+      : sourceRecordDigest;
+
+  const localTargetResolutionEvidence = hasExpectedEditTargets
+    ? buildLocalTargetResolutionEvidence({
+        expectedEditTargets,
+        sourceTexts: localInputs?.expected_edit_target_source_texts,
+        selectedUnit,
+        sourceRecordDigest: bindingSourceRecordDigest
+      })
+    : undefined;
+
+  return normalizeStructuralTargetMetrics({
+
+    expected_edit_targets: planDeclared ? expectedEditTargets : undefined,
+    target_resolution_evidence: localTargetResolutionEvidence,
+    write_scope: Array.isArray(subject?.write_scope) ? subject.write_scope : [],
+    file_stats: Array.isArray(localInputs?.file_stats) ? localInputs.file_stats : [],
+    metric_source_provenance: isObject(localInputs?.metric_source_provenance)
+      ? localInputs.metric_source_provenance
+      : undefined,
+    unit: selectedUnit,
+    source_record_digest: bindingSourceRecordDigest
+  });
+}
 
 export function createBoundTargetResolutionEvidence(structuralTargetMetrics, { selectedUnit, sourceRecordDigest } = {}) {
   if (!isObject(structuralTargetMetrics)) {

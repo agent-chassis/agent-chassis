@@ -23,9 +23,13 @@ import {
 } from "./codex-role-mcp-env.mjs";
 import {
   buildCodexWikiMcpServerOverrides,
-  collectManagedWorkerWikiMcpRuntimeClosureRoots,
   rebuildCodexPlanIsolationWithReadOnlyRoot
 } from "./codex-role-wiki-mcp-override.mjs";
+import {
+  composeManagedRoleWikiMcpRuntimeManifest,
+  preflightManagedRoleWikiMcpRuntime,
+  rewriteManagedRoleLauncherArtifactArgs
+} from "./managed-role-wiki-mcp-runtime-snapshot.mjs";
 
 import { resolveDispatchedRoleModel } from "./agent-launch-profiles.mjs";
 import {
@@ -244,16 +248,52 @@ export async function buildAdmittedCodexWorkerPlan({
   if (!wikiMcpServerPath) {
     throw new Error("codex-worker: failed to resolve @agent-chassis/wiki-mcp server entrypoint");
   }
-  const workerWikiMcpOverrides = [
-    ...buildCodexWikiMcpServerOverrides({ serverPath: wikiMcpServerPath, repo })
-  ];
-  if (Array.isArray(headlessPlan.args)) {
-    injectCodexConfigOverridesBeforeFinalPositional(headlessPlan.args, workerWikiMcpOverrides);
-  }
 
-  if (managedWorkerCommitRequired && headlessPlan && headlessPlan.isolation) {
-    const runtimeClosureRoots = collectManagedWorkerWikiMcpRuntimeClosureRoots(wikiMcpServerPath);
-    rebuildCodexPlanIsolationWithReadOnlyRoot(headlessPlan, runtimeClosureRoots);
+  const managedRuntimeManifest = await composeManagedRoleWikiMcpRuntimeManifest({
+    confined: managedWorkerCommitRequired === true
+      && Boolean(headlessPlan && headlessPlan.isolation)
+      && Array.isArray(headlessPlan.args),
+    role: "worker",
+    serverPath: wikiMcpServerPath,
+    buildServerOverrides: (entrypoint) =>
+      buildCodexWikiMcpServerOverrides({ serverPath: entrypoint, repo })
+  });
+  if (managedRuntimeManifest !== null) {
+    injectCodexConfigOverridesBeforeFinalPositional(
+      headlessPlan.args,
+      managedRuntimeManifest.config_overrides
+    );
+    rebuildCodexPlanIsolationWithReadOnlyRoot(
+      headlessPlan,
+      managedRuntimeManifest.read_only_roots
+    );
+
+    const artifactRouting = rewriteManagedRoleLauncherArtifactArgs({
+      plan: headlessPlan,
+      manifest: managedRuntimeManifest
+    });
+
+    const preflight = await preflightManagedRoleWikiMcpRuntime({
+      plan: headlessPlan,
+      manifest: managedRuntimeManifest,
+      role: "worker",
+      assignedUnit: wk
+    });
+    headlessPlan.managed_wiki_mcp_runtime = Object.freeze({
+      schema_version: managedRuntimeManifest.schema_version,
+      commit: managedRuntimeManifest.commit,
+      digest: managedRuntimeManifest.digest,
+      staged_root: managedRuntimeManifest.snapshot.staged_root,
+      entrypoint: managedRuntimeManifest.snapshot.entrypoint,
+      artifact_routing: artifactRouting,
+      preflight
+    });
+  } else if (Array.isArray(headlessPlan.args)) {
+
+    injectCodexConfigOverridesBeforeFinalPositional(
+      headlessPlan.args,
+      buildCodexWikiMcpServerOverrides({ serverPath: wikiMcpServerPath, repo })
+    );
   }
   if (remoteAdmissionProvenance) {
     headlessPlan.workerAdmissionRemote = remoteAdmissionProvenance;

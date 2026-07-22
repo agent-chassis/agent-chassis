@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { runReview } from "../packages/agent-launch-cli/src/commands/review.mjs";
 import { runRedteam } from "../packages/agent-launch-cli/src/commands/redteam.mjs";
+import { resolveClaudeLauncherWriteScope } from "../packages/agent-launch-cli/src/lib/workspace-agent-claude-launch-support.mjs";
 
 function createRecordingBackend(records) {
   return {
@@ -69,4 +70,18 @@ test("WK-0753 shared backend: Claude redteam live route uses the shared dispatch
   assert.deepEqual(records.startLaunch[0].app, "claude");
   assert.deepEqual(records.startLaunch[0].role, "redteam");
   assert.deepEqual(records.startLaunch[0].subject, "WK-0001");
+});
+
+test("Claude exact-slice reviewer planning matches the launcher-owned read-only exception", () => {
+  assert.equal(resolveClaudeLauncherWriteScope({
+    role: "reviewer",
+    writeScope: ["packages/implementation.mjs"]
+  }).ok, false);
+  const exact = resolveClaudeLauncherWriteScope({
+    role: "reviewer",
+    writeScope: ["packages/implementation.mjs"],
+    launcherOwnedExactSliceReview: true
+  });
+  assert.equal(exact.ok, true);
+  assert.deepEqual(exact.writeScope, []);
 });

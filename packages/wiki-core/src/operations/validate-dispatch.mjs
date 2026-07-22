@@ -1,5 +1,7 @@
 import path from "node:path";
 import {
+  sanitizeWorkRecordDispatchOptions,
+  WorkRecordDispatchInvalidOptionError,
   validateWorkRecordDispatchById,
   validateWorkRecordDispatchReportById
 } from "../lib/work-record-dispatch.mjs";
@@ -19,16 +21,26 @@ const DISPATCH_REPORT_OPTION_KEYS = Object.freeze([
   "now"
 ]);
 
-const DISPATCH_STRICT_OPTION_KEYS = Object.freeze([...DISPATCH_REPORT_OPTION_KEYS, "mode"]);
+const DISPATCH_STRICT_OPTION_KEYS = Object.freeze([
+  ...DISPATCH_REPORT_OPTION_KEYS,
+  "mode",
+  "suppress_live_graph_resolution"
+]);
 
 function pickDispatchOptions(input, allowedKeys, callerName) {
-  const source = input == null ? {} : input;
-  const allowed = new Set(allowedKeys);
-  const unknown = Object.keys(source).filter((key) => !allowed.has(key));
-  if (unknown.length) {
-    unknown.sort();
-    throw new Error(
-      `${callerName} does not accept option(s): ${unknown.join(", ")}`
+  const source = sanitizeWorkRecordDispatchOptions(input, allowedKeys, callerName);
+
+  if (
+    source.mode === "report-only" &&
+    Object.prototype.hasOwnProperty.call(source, "suppress_live_graph_resolution")
+  ) {
+    throw new WorkRecordDispatchInvalidOptionError(
+      callerName,
+      ["suppress_live_graph_resolution"],
+      {
+        message:
+          `${callerName} does not accept suppress_live_graph_resolution in report-only mode (strict-mode only)`
+      }
     );
   }
 
@@ -49,6 +61,8 @@ function pickDispatchOptions(input, allowedKeys, callerName) {
 
     node_engine_admissibility:
       source.node_engine_admissibility === undefined ? null : source.node_engine_admissibility,
+
+    suppress_live_graph_resolution: source.suppress_live_graph_resolution === true,
     now
   };
 }

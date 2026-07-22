@@ -249,7 +249,8 @@ async function registerTools(server) {
   const mcpToolTierRegistrationPolicy = await loadMcpToolTierRegistrationPolicy();
   const registeredToolNames = new Set();
 
-  const { dispatchBackend, dispatchSessionIdentity } = buildDispatchRuntime();
+  const { dispatchBackend, dispatchSessionIdentity, wkForgeHandoffAdapter } =
+    buildDispatchRuntime(process.env, { registeredTier });
   const toolUsageAuditBoundary = createToolUsageAuditBoundaryRecorder({
     origin: () => createProductionToolUsageAuditOrigin({ toolProfile, dispatchSessionIdentity }),
     selected: () => createProductionToolUsageAuditSelectedContext({
@@ -336,6 +337,8 @@ async function registerTools(server) {
     resolveWorkspaceRepo,
     dispatchBackend,
     dispatchSessionIdentity,
+
+    wkForgeHandoffAdapter,
 
     registeredTier
   });

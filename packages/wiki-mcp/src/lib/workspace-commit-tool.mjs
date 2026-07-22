@@ -38,6 +38,22 @@ const COMMIT_TOOL_EXPOSURE_GUARD_MODULE = "../../../agent-launch-cli/src/lib/com
 const EXACT_SLICE_UNIT_ADDRESS_RE = /^(IN-\d{4})\/(WK-\d{4})\/(SLICE-\d{3})$/u;
 const EXACT_SLICE_ASSIGNED_UNIT_RE = /^(WK-\d{4})#(SLICE-\d{3})$/u;
 
+const WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION_V1 = "worktree-identity-binding.v1";
+const WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION_V2 = "worktree-identity-binding.v2";
+const FULL_CHECKOUT_MODE = "full";
+
+const EXACT_SPARSE_SLICE_BINDING_FIELDS = Object.freeze([
+  "schema_version", "launch_ref", "run_id", "retry_id", "unit_address", "initiative",
+  "record_id", "slice_id", "base_ref", "base_sha", "output_branch", "worktree_path",
+  "read_scope", "repo_paths", "write_scope", "write_scope_source", "selected_unit",
+  "source_digest", "source_version", "cone_dirs", "index_sparse"
+]);
+const EXACT_FULL_SLICE_BINDING_FIELDS = Object.freeze([
+  "schema_version", "launch_ref", "run_id", "retry_id", "unit_address", "initiative",
+  "record_id", "slice_id", "base_ref", "base_sha", "output_branch", "worktree_path",
+  "read_scope", "repo_paths", "write_scope", "write_scope_source", "selected_unit",
+  "source_digest", "source_version", "checkout_mode"
+]);
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -127,10 +143,61 @@ function resolveCommitCredentialFromEnv(env) {
   });
 }
 
+function classifyCommitBindingCheckoutMode(binding) {
+  const hasCone = Object.prototype.hasOwnProperty.call(binding, "cone_dirs");
+  const hasIndexSparse = Object.prototype.hasOwnProperty.call(binding, "index_sparse");
+  const hasCheckoutMode = Object.prototype.hasOwnProperty.call(binding, "checkout_mode");
+  if (binding.schema_version === WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION_V1 &&
+      hasCone && hasIndexSparse && !hasCheckoutMode) {
+    return "v1-sparse";
+  }
+  if (binding.schema_version === WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION_V2 &&
+      hasCheckoutMode && binding.checkout_mode === FULL_CHECKOUT_MODE &&
+      !hasCone && !hasIndexSparse) {
+    return "v2-full";
+  }
+  return null;
+}
+
+function assertExactCommitBindingFieldSet(binding, mode) {
+  const expectedFields = mode === "v1-sparse"
+    ? EXACT_SPARSE_SLICE_BINDING_FIELDS
+    : EXACT_FULL_SLICE_BINDING_FIELDS;
+  const missing = expectedFields.filter(
+    (field) => !Object.prototype.hasOwnProperty.call(binding, field)
+  );
+  const extra = Object.keys(binding).filter(
+    (key) => !expectedFields.includes(key)
+  );
+  if (missing.length > 0 || extra.length > 0) {
+    throw new Error(
+      `identity-store commit binding is not the exact canonical ${mode === "v1-sparse" ? "sparse" : "full"}-slice schema` +
+      (missing.length > 0 ? `; missing ${JSON.stringify(missing)}` : "") +
+      (extra.length > 0 ? `; unexpected ${JSON.stringify(extra)}` : "")
+    );
+  }
+}
+
+function assertDiscriminatedCheckoutBindingShape(binding) {
+  const mode = classifyCommitBindingCheckoutMode(binding);
+  if (mode === null) {
+    throw new Error(
+      "identity-store commit binding is neither exact discriminated checkout shape " +
+      "(v1: schema_version \"worktree-identity-binding.v1\" + cone_dirs + index_sparse; " +
+      "v2: schema_version \"worktree-identity-binding.v2\" + checkout_mode \"full\", no cone_dirs/index_sparse)"
+    );
+  }
+  assertExactCommitBindingFieldSet(binding, mode);
+  if (mode === "v1-sparse" && binding.index_sparse !== false) {
+    throw new Error("identity-store commit binding v1 sparse index_sparse must be false");
+  }
+}
+
 function projectVerifiedExactSliceSubject(binding, assignedUnit) {
   if (!isPlainObject(binding)) {
     throw new Error("identity-store commit binding must be an object");
   }
+  assertDiscriminatedCheckoutBindingShape(binding);
 
   const unitMatch = typeof binding.unit_address === "string"
     ? EXACT_SLICE_UNIT_ADDRESS_RE.exec(binding.unit_address)
@@ -251,6 +318,11 @@ function resolveExpectedEnvelope(binding) {
 }
 
 function resolveSparseBinding(binding) {
+
+  if (binding.schema_version === WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION_V2 ||
+      binding.checkout_mode === FULL_CHECKOUT_MODE) {
+    return null;
+  }
   const hasSparseAuthority =
     Object.prototype.hasOwnProperty.call(binding, "cone_dirs") ||
     Object.prototype.hasOwnProperty.call(binding, "index_sparse");

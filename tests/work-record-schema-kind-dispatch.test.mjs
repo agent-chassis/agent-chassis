@@ -159,3 +159,33 @@ test("validateWorkRecord still diagnoses a work_item with a bad status", () => {
     "status message must enumerate the work-item status vocabulary"
   );
 });
+
+test("review_purpose defaults structurally and rejects unknown or incompatible values", () => {
+  const reviewSlice = {
+    id: "SLICE-001",
+    title: "Terminal review",
+    work_kind: "review",
+    status: "todo",
+    write_scope: [],
+    repo_paths: ["packages/wiki-core"],
+    read_scope: ["AGENTS.md"],
+    depends_on: [],
+    acceptance: { criteria: ["Review"], validation: ["Report findings"] },
+    dispatch_intent: {
+      intended_agent_role: "reviewer",
+      target_unit: "slice",
+      requires_graph_impact: false,
+      requires_escalation: false
+    }
+  };
+  assert.deepEqual(validateWorkRecord(validWorkItem({ slices: [reviewSlice] })), []);
+  assert.deepEqual(validateWorkRecord(validWorkItem({
+    slices: [{ ...reviewSlice, review_purpose: "terminal_whole_wk" }]
+  })), []);
+  assert.ok(validateWorkRecord(validWorkItem({
+    slices: [{ ...reviewSlice, review_purpose: "unknown" }]
+  })).some((entry) => entry.path === "slices[0].review_purpose"));
+  assert.ok(validateWorkRecord(validWorkItem({
+    slices: [{ ...reviewSlice, work_kind: "implementation", review_purpose: "standalone" }]
+  })).some((entry) => entry.path === "slices[0].review_purpose"));
+});

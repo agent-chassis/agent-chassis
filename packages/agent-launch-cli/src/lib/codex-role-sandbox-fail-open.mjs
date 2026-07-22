@@ -9,6 +9,7 @@ import {
   WORKSPACE_AGENT_BACKEND_AVAILABILITY_STATES,
   WORKSPACE_AGENT_FAIL_OPEN_CLOSED_REASONS,
   WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS,
+  WORKSPACE_AGENT_MANAGED_PLAIN_SPAWN_BLOCKER,
   buildWorkspaceAgentFailOpenPlan
 } from "./launch-isolation-failopen.mjs";
 import {
@@ -147,6 +148,8 @@ export function buildCodexRoleSandboxFailOpenPlan(plan, error, {
     role: plan.role,
     subject: plan.subject,
     workspaceDir: plan.repo,
+    workerScopeAuthority:
+      plan.worker_scope_authority ?? plan.isolation?.worker_scope_authority ?? null,
     classifyIsolationBackendAvailability: () =>
       backendAvailabilityFromCodexRoleBwrapError(error),
     ...(resolveEnforcementPosture ? { resolveEnforcementPosture } : {}),
@@ -218,8 +221,12 @@ export function formatCodexRoleSandboxFailOpenRefusal(plan, decision, error) {
   const diagnosticText = error?.code
     ? `: ${error.code}: ${error.message ?? "isolation backend unavailable or unusable"}`
     : "";
+
+  const cause = refusal?.detail?.blocker === WORKSPACE_AGENT_MANAGED_PLAIN_SPAWN_BLOCKER
+    ? refusal.detail.message
+    : "a paid enforcement key requires an enforced isolation backend";
   return [
-    `codex-${plan.role}: structured role launch refused: a paid enforcement key requires an enforced isolation backend${diagnosticText} (${reason})`,
+    `codex-${plan.role}: structured role launch refused: ${cause}${diagnosticText} (${reason})`,
     `Remediation: ${remediation.join("; ")}.`
   ].join("\n");
 }

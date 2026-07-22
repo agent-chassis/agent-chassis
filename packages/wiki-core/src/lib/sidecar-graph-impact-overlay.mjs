@@ -13,6 +13,7 @@ import {
   graphProvenance,
   isGraphOverlaySourcePath,
   isGraphTextSource,
+  isParsedGraphPath,
   provenance,
   uniqueStrings
 } from "./sidecar-graph-impact-shared.mjs";
@@ -59,7 +60,13 @@ function mapDirtyStatusPaths(statusText) {
   return states;
 }
 
-export async function collectDirtyGraphOverlay({ repoRoot, status }) {
+export async function collectDirtyGraphOverlay({
+  repoRoot,
+  status,
+
+  readOverlaySource = (absolutePath) => readFile(absolutePath, "utf8"),
+  extractGraph = extractSidecarGraph
+} = {}) {
   if (status.dirty_state !== "dirty_worktree") {
     return {
       overlayState: "not_applicable",
@@ -150,6 +157,7 @@ export async function collectDirtyGraphOverlay({ repoRoot, status }) {
       };
     }
 
+    const readFailures = [];
     for (const sourcePath of sourcePaths) {
       if (!isGraphTextSource(sourcePath)) {
         unavailable.push(unavailablePath(sourcePath, "unsupported"));
@@ -158,22 +166,23 @@ export async function collectDirtyGraphOverlay({ repoRoot, status }) {
       try {
         sources.push({
           path: sourcePath,
-          content: await readFile(path.join(repoRoot, sourcePath), "utf8"),
+          content: await readOverlaySource(path.join(repoRoot, sourcePath), sourcePath),
           worktree_overlay: true,
           dirty_state: dirtyPathStates.get(sourcePath) || "unchanged_worktree"
         });
       } catch (error) {
+        readFailures.push(sourcePath);
         unavailable.push(
           unavailablePath(
             sourcePath,
-            "unparsed",
+            "unread",
             error instanceof Error ? error.message : String(error)
           )
         );
       }
     }
 
-    const graph = await extractSidecarGraph({
+    const graph = await extractGraph({
       edgeSource: "dirty_overlay",
       dirtyGraphMode: "overlay_parsed",
       sources
@@ -186,6 +195,34 @@ export async function collectDirtyGraphOverlay({ repoRoot, status }) {
     }
     for (const deletedPath of overlayDeletedPaths) {
       unavailable.push(unavailablePath(deletedPath, "deleted"));
+    }
+
+    const parseFailures = uniqueStrings(graph.graph_metadata.unavailable_paths || []).filter(
+      isParsedGraphPath
+    );
+    if (readFailures.length > 0 || parseFailures.length > 0) {
+      return {
+        overlayState: "unavailable",
+        graph: null,
+        sourcePaths: [],
+        dirtyPathStates,
+        unavailable: dedupeUnavailable(unavailable),
+        evidence: {
+          kind: "sidecar_dirty_worktree_overlay",
+          overlay_state: "unavailable",
+          dirty_graph_mode: "unavailable",
+          overlay_failure: "partial_overlay_discarded",
+          unread_source_count: readFailures.length,
+          unparsed_source_count: parseFailures.length,
+          source_path_count: sourcePaths.length,
+          dirty_path_count: dirtyPaths.length,
+          dirty_source_path_count: 0,
+          dirty_paths: dirtyPaths.slice(0, 100),
+          dirty_source_paths: [],
+          rejected_source_count: sourceFilter.rejected.length,
+          provenance: provenance({ evidenceBasis: "git_tree" })
+        }
+      };
     }
 
     const sourcePathSet = new Set(sourcePaths);
@@ -250,20 +287,6 @@ function dedupeUnavailable(entries) {
 export function selectGraph({ status, artifact, overlay }) {
   if (overlay.graph) {
     return mergeBaseAndOverlayGraph({ artifact, overlay });
-  }
-
-  if (
-    status.dirty_state === "dirty_worktree" &&
-    overlay.overlayState !== "not_applicable" &&
-    overlay.overlayState !== "not_included"
-  ) {
-    return {
-      graph: null,
-      graphState: createSidecarGraphState({
-        status_reason: "dirty_overlay_graph_unavailable"
-      }),
-      reason: "dirty_overlay_graph_unavailable"
-    };
   }
 
   return classifyBaseGraphSelection({ artifact });

@@ -37,6 +37,66 @@ export function classifyTestSource(sourceText) {
     : "unit";
 }
 
+const INTEGRATION_FILE_PREFIXES = ["interface-smoke"];
+const INTEGRATION_FILE_NAMES = new Set([
+
+  "publish-smoke.test.mjs",
+  "work-record-write-cas-process.test.mjs",
+  "mcp-startup-regression.test.mjs",
+  "filesystem-mcp-backend-spawn-stdout.test.mjs",
+  "wiki-mcp-tool-discovery-workspace-resolution.test.mjs",
+  "wiki-mcp-tool-discovery-descriptor-parity.test.mjs",
+  "work-record-admission-mcp-compact.test.mjs",
+
+  "agent-launch-initiative.test.mjs",
+  "agent-launch-isolation-home-writable-files.test.mjs",
+  "agent-launch-isolation-input-validation.test.mjs",
+  "core-package-artifact-smoke.test.mjs",
+  "roadmap-eligibility-audit.test.mjs",
+  "wiki-adoption-verify.test.mjs",
+  "wiki-bootstrap-adoption-cache.test.mjs",
+  "wiki-cli-entrypoint.test.mjs",
+  "work-record-write-lock-recovery.test.mjs",
+
+  "code-index-context-ergonomics.test.mjs",
+  "code-index-context-mcp-ergonomics.test.mjs",
+  "dispatch-tools-ergonomics.test.mjs",
+  "work-record-dispatch-node-engine-operation-mcp-forwarding.test.mjs",
+  "work-record-graph-impact-dirty-safe.test.mjs",
+  "work-record-graph-impact-generate.test.mjs",
+  "wiki-core-sidecar-build.test.mjs",
+  "wiki-core-sidecar-diff-context.test.mjs",
+  "wiki-core-sidecar-impact.test.mjs",
+  "wiki-core-sidecar-impact-extractors.test.mjs",
+  "wiki-core-sidecar-impact-path-state.test.mjs",
+  "wiki-core-sidecar-impact-rebuild.test.mjs",
+  "wiki-core-sidecar-impact-selection.test.mjs",
+  "wiki-core-sidecar-impact-summary.test.mjs",
+  "wiki-core-sidecar-scip.test.mjs",
+  "wiki-core-sidecar-status-paths.test.mjs",
+  "wiki-core-sidecar-validation.test.mjs",
+
+  "in0012-deepswe-agent-chassis-execute.test.mjs",
+  "in0012-sweatlas-refactor-smoke-known-easy.test.mjs",
+  "in0012-sweatlas-refactor-smoke-review-fix3.test.mjs",
+  "in0012-sweatlas-refactor-smoke-review-fix4.test.mjs",
+  "in0012-sweatlas-refactor-smoke-run-one.test.mjs",
+  "in0012-swebench-pro-smoke-review-fixes.test.mjs",
+  "in0012-swebench-pro-smoke-run-one.test.mjs",
+  "in0012-swebench-smoke-container.test.mjs",
+  "in0012-swebench-smoke-failure-classification.test.mjs",
+  "in0012-swebench-smoke-harness-snapshot.test.mjs",
+  "in0012-swebench-smoke-packaging.test.mjs",
+  "in0012-swebench-smoke-plan-orchestrator.test.mjs",
+  "in0012-swebench-smoke-score-resolver.test.mjs",
+  "in0012-swebench-smoke-scoring.test.mjs",
+]);
+
+export function isDeclaredIntegration(name) {
+  return INTEGRATION_FILE_PREFIXES.some((p) => name.startsWith(p))
+    || INTEGRATION_FILE_NAMES.has(name);
+}
+
 const CREDENTIAL_ENV_KEYS = [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_AUTH_TOKEN",
@@ -64,7 +124,10 @@ function classify() {
   const integration = [];
   for (const name of files) {
     const source = readFileSync(path.join(TESTS_DIR, name), "utf8");
-    const category = classifyTestSource(source);
+    const category =
+      isDeclaredIntegration(name) || classifyTestSource(source) === "integration"
+        ? "integration"
+        : "unit";
     (category === "integration" ? integration : unit).push(
       path.join("tests", name)
     );

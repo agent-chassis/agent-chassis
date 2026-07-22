@@ -42,6 +42,7 @@ import {
 
 import {
   createOrchestratorDispatchSidecarAdapter,
+  resolveLauncherRegisteredTier,
   startOrchestratorDispatchSidecar
 } from "./orchestrator-dispatch-sidecar.mjs";
 import {
@@ -435,6 +436,7 @@ export async function buildClaudeOrchestratorPlan({
       kind: "host_write_authority_localhost",
       host: "127.0.0.1",
       envVar: HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR,
+      registeredTier: resolveLauncherRegisteredTier(env),
       mcpServerName: "wiki"
     }
   };
@@ -567,6 +569,7 @@ function claudeOrchestratorIsolationProfile({
     homeReadOnlyFiles: [path.join(hostHome, ".claude.json")],
     familyRuntimeReadOnlyRoots: [runtimeFacts.readOnlyRoot],
     familyRuntimePolicyProfile: runtimeFacts.familyRuntimePolicyProfile,
+    dispatchWorktreeRoot: plan.dispatchWorktreeRoot ?? null,
     resolveExecutable
   };
 }

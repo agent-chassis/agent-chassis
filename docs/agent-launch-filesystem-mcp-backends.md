@@ -30,46 +30,76 @@ All supported family/backend paths must preserve this contract. Unsupported
 families, backends, scope shapes, and confinement capabilities fail closed; they
 must not route to a broader plain-spawn, source surface, or repository mount. The
 initial bootstrap deliberately retains readable launcher-provided Codex
-auth/sourceHome, `shareNet=true` model-API egress, and (decision) a read-only,
-launcher-derived wiki-MCP runtime closure under prompt governance. Those are
-explicitly operator-accepted residual risks, not a digest-bound or per-dispatch
-mechanical risk-acceptance mechanism.
+auth/sourceHome, `shareNet=true` model-API egress, and (decision, as amended by
+work record) a read-only, launcher-owned STAGED wiki-MCP runtime under
+prompt governance. Those are explicitly operator-accepted residual risks, not a
+digest-bound or per-dispatch mechanical risk-acceptance mechanism. Managed Claude
+and Agy are not supported confined implementation-worker families: the typed
+managed-read-boundary gate refuses them before any executor or plain-launch path.
 
-### decision wiki-MCP runtime closure
+### decision staged wiki-MCP runtime
 
 A managed Git-less worker delivers its slice through the closed-input `commit`
-tool served by a stdio wiki-MCP child. That server cannot start unless its
-runtime is present in the sparse `R union W` namespace, which otherwise mounts
-none of it — the work record live canary (run `wkdb_345a805426cd0a64`) proved the
-server never started and the sole delivery surface was unreachable. decision
-authorizes exactly one additional, read-only, launcher-derived closure in a
-managed worker's namespace:
+tool served by a stdio wiki-MCP child; a confined findings-only reviewer or
+redteam reaches its findings tools the same way. That server cannot start unless
+its runtime is present in the `R union W` namespace, which otherwise mounts none
+of it — the work record live canary (run `wkdb_345a805426cd0a64`) proved the server
+never started and the sole delivery surface was unreachable.
 
-- the node interpreter directory;
-- the repository-root `node_modules` directory, wholesale (vendored third-party
-  code; enumerating its transitive import graph is brittle against dependency
-  changes with no security gain);
-- for each workspace package in the wiki-MCP server's real import graph
-  (`@agent-chassis/wiki-mcp`, `wiki-core`, `agent-launch-cli`,
-  `agent-launch-core`), ONLY its git-tracked source/data/contract/package files.
+decision's original in-repo closure is RETIRED. It enumerated members from the
+Git INDEX (`git ls-files`) but bound the LIVE working-tree bytes at those paths,
+so a managed role could execute a runtime that mixed two different states of the
+repository and never existed as a coherent revision (the work record incident shape),
+and a member tracked in the index but absent on disk was silently skipped. The
+adopted successor is a STAGED runtime built from one committed Git snapshot:
 
-Whole-workspace-package-directory binds are forbidden: a package directory can
-contain ignored runtime state (for example
-`packages/agent-launch-cli/bin/.agent-runs`) carrying live credential aliases,
-so the launcher enumerates tracked files (`git ls-files`) instead, and the
-implementation negatively asserts that ignored state, credentials, and
-credential aliases are absent. The closure is derived exclusively from
-launcher-owned paths (the resolved server module plus Node module resolution);
-no caller input, prompt, environment, or argv can add, remove, or retarget a
-member, and an unresolved member fails closed with a structured pre-spawn
-refusal. Every closure root resolves under the launcher-authority root, which
-managed provisioning holds distinct from the worker-execution worktree, so no
-mounted content can ever appear as the worker's commit content. The closure is
-read-only delivery infrastructure only: the worker's repository write surface
-stays exactly `W`, and the worker-facing wiki-MCP tool profile stays
-commit-only. A staged self-contained runtime (the closure copied to a
-launcher-owned directory outside the repository) is the tracked hardening
-successor; adopting it supersedes this in-repo closure permission.
+- **Source of truth.** One immutable Git object snapshot of a launcher-owned
+  COMMITTED revision of the repository owning the resolved server entrypoint.
+  Membership (`git ls-tree` at the commit) and bytes (`git cat-file`) come from
+  that same revision, so unstaged, staged-only, untracked, deleted, or
+  concurrently changing working-tree bytes never participate, and a launcher
+  runtime source change is eligible only once committed.
+- **Contents.** The full tracked four-package superset (`@agent-chassis/wiki-mcp`,
+  `wiki-core`, `agent-launch-cli`, `agent-launch-core`) at that commit — all
+  tracked source, data, contract, schema, and package artifacts. Import-graph
+  analysis walks the graph reachable from the staged entrypoint purely as a
+  completeness DETECTOR (it refuses an unresolvable committed import) and never
+  minimizes the superset, since runtime path reads are invisible to it.
+- **Location and mounts.** Staged in a launcher-owned directory outside the
+  repository and outside every managed task worktree, keyed by a digest over the
+  commit and every member's mode/object-id/path, and exposed at one stable
+  in-namespace path. Exactly three read-only roots — node interpreter directory,
+  staged root, canonical `node_modules` — replace the former per-file binds. The
+  wiki-MCP command is configured to the exact staged entrypoint.
+- **Dependencies.** One link to the owning repository's canonical `node_modules`,
+  verified first (present, a directory, not redirected, npm installed-tree marker,
+  expected workspace aliases resolving back into that repository's `packages/`,
+  and every dependency the snapshot's committed manifests declare). bwrap binds it
+  read-only. The staged tree's own `@agent-chassis` scope resolves to the STAGED
+  packages, so staged code cannot resolve back into the live working tree. This is
+  only the trusted runtime's link — the consuming worktree's own `node_modules`
+  symlink belongs to agent-chassis:work record.
+
+Ignored runtime state such as `packages/agent-launch-cli/bin/.agent-runs`, which
+can carry live credential aliases, cannot be staged by construction: a commit tree
+contains no ignored files. Whole-workspace-package-directory binds remain
+forbidden, and the implementation negatively asserts that ignored state,
+credentials, and credential aliases are absent. Nothing is derived from caller
+input, prompt, environment, or argv. Failures are typed pre-spawn refusals in the
+canonical taxonomy (`managed_wiki_mcp_runtime_snapshot_incomplete`,
+`managed_wiki_mcp_runtime_dependency_unavailable`) with bounded, repository-relative
+member diagnostics — never a silent skip and never optional-MCP degradation.
+Before a managed confined role plan is returned, the launcher also runs a bounded
+real MCP `initialize`/`tools/list` against the staged runtime inside that role's
+final bwrap topology; any error, timeout, or tool-surface mismatch refuses the
+launch and prevents model spawn. It proves the staged runtime and the role's exact
+surface — not the later Codex-owned client instance.
+Because the staged root lies outside every worktree and no staged path is
+writable, mounted content can never appear as the worker's commit content. The
+staged runtime is read-only delivery infrastructure only: each role's repository
+write surface stays exactly `W` (empty for findings-only roles), and role-specific
+wiki-MCP tool authority is unchanged — commit-only for the worker, the read-only
+findings profile for reviewers and redteams.
 
 ## Launcher-authority root versus worker-execution root
 

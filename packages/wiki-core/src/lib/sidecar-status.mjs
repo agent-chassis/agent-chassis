@@ -16,6 +16,7 @@ import {
   createSidecarGraphState
 } from "./sidecar-graph-schema.mjs";
 import { normalizeSidecarRepoPath } from "./sidecar-paths.mjs";
+import { readSidecarArtifactBytes } from "./sidecar-artifact-bytes.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -181,9 +182,10 @@ async function readArtifact(artifactPath) {
   }
 
   try {
+    const { artifact } = await readSidecarArtifactBytes(artifactPath);
     return {
       exists: true,
-      data: JSON.parse(await readFile(artifactPath, "utf8")),
+      data: artifact,
       read_error: null
     };
   } catch (error) {

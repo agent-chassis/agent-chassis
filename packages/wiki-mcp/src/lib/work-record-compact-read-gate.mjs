@@ -1,4 +1,3 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import { types as utilTypes } from "node:util";
 import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
@@ -11,7 +10,8 @@ const COMPACT_READ_TOKEN_ACCEPTED = "compact_read_token_accepted";
 const COMPACT_READ_NOT_REQUIRED = "compact_read_not_required";
 
 const COMPACT_READ_SCHEMA_VERSION = "work-record-compact-read-gate.v1";
-const COMPACT_READ_TOKEN_SCHEMA_VERSION = "work-record-compact-read-token.v1";
+
+const COMPACT_READ_ACK_SCHEMA_VERSION = "work-record-compact-read-ack.v1";
 const SUMMARY_TOOL_FAMILY = "workspace_work_record_summary";
 const GET_RECORD_TOOL_FAMILY = "workspace_get_record";
 const READ_PAGE_TOOL_FAMILY = "workspace_read_page";
@@ -43,8 +43,21 @@ const SELECTOR_REFUSAL_CODES = Object.freeze({
 });
 const LARGE_RECORD_SLICE_THRESHOLD = 8;
 const LARGE_RECORD_BYTE_THRESHOLD = 32768;
-const TOKEN_TTL_MS = 15 * 60 * 1000;
-const TOKEN_SIGNING_SECRET = randomBytes(32);
+
+const COMPACT_READ_ACK_LIFETIME_MS = 15 * 60 * 1000;
+
+const MAX_COMPACT_READ_ACK_ENCODED_LENGTH = 4096;
+const COMPACT_READ_ACK_FIELDS = Object.freeze([
+  "schema_version",
+  "tool_family",
+  "workspace_repo",
+  "record_id",
+  "selector",
+  "source_digest",
+  "issued_at_ms",
+  "expires_at_ms"
+]);
+const BASE64URL_SEGMENT_PATTERN = /^[A-Za-z0-9_-]+$/;
 const SUMMARY_ARGUMENT_FIELDS = new Set([
   "repo",
   "id",
@@ -222,32 +235,16 @@ function base64UrlDecodeJson(value) {
   }
 }
 
-function signTokenPayload(encodedPayload) {
-  return createHmac("sha256", TOKEN_SIGNING_SECRET).update(encodedPayload).digest("base64url");
+function encodeCompactReadAck(payload) {
+  return base64UrlEncode(payload);
 }
 
-function signatureMatches(actualSignature, expectedSignature) {
-  if (typeof actualSignature !== "string" || typeof expectedSignature !== "string") {
-    return false;
-  }
-  const actual = Buffer.from(actualSignature, "base64url");
-  const expected = Buffer.from(expectedSignature, "base64url");
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
-
-function encodeSignedToken(payload) {
-  const encodedPayload = base64UrlEncode(payload);
-  return `${encodedPayload}.${signTokenPayload(encodedPayload)}`;
-}
-
-function decodeSignedToken(token) {
+function decodeCompactReadAck(token) {
   if (typeof token !== "string") return null;
-  const parts = token.split(".");
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
-  const [encodedPayload, signature] = parts;
-  const expectedSignature = signTokenPayload(encodedPayload);
-  if (!signatureMatches(signature, expectedSignature)) return null;
-  return base64UrlDecodeJson(encodedPayload);
+  if (token.length === 0 || token.length > MAX_COMPACT_READ_ACK_ENCODED_LENGTH) return null;
+  if (!BASE64URL_SEGMENT_PATTERN.test(token)) return null;
+  const decoded = base64UrlDecodeJson(token);
+  return isObject(decoded) ? decoded : null;
 }
 
 export function getSummarySelectorValidationIssues(args) {
@@ -681,16 +678,35 @@ function createToken({
   toolFamily = SUMMARY_TOOL_FAMILY,
   now = Date.now()
 }) {
-  return encodeSignedToken({
-    schema_version: COMPACT_READ_TOKEN_SCHEMA_VERSION,
+  return encodeCompactReadAck({
+    schema_version: COMPACT_READ_ACK_SCHEMA_VERSION,
     tool_family: toolFamily,
     workspace_repo: workspaceRepo,
     record_id: recordId,
     selector,
     source_digest: sourceDigest,
-    issued_at: new Date(now).toISOString(),
-    expires_at_ms: now + TOKEN_TTL_MS
+    issued_at_ms: now,
+    expires_at_ms: now + COMPACT_READ_ACK_LIFETIME_MS
   });
+}
+
+function malformedAck() {
+  return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MALFORMED };
+}
+
+function ackShapeIsWellFormed(decoded) {
+  const keys = Object.keys(decoded);
+  if (keys.length !== COMPACT_READ_ACK_FIELDS.length) return false;
+  for (const field of COMPACT_READ_ACK_FIELDS) {
+    if (!Object.hasOwn(decoded, field)) return false;
+  }
+  for (const field of ["schema_version", "tool_family", "workspace_repo", "record_id", "selector"]) {
+    if (typeof decoded[field] !== "string") return false;
+  }
+  if (decoded.source_digest !== null && typeof decoded.source_digest !== "string") return false;
+  if (!Number.isInteger(decoded.issued_at_ms) || !Number.isInteger(decoded.expires_at_ms)) return false;
+  if (decoded.expires_at_ms - decoded.issued_at_ms !== COMPACT_READ_ACK_LIFETIME_MS) return false;
+  return true;
 }
 
 function validateToken({
@@ -705,11 +721,11 @@ function validateToken({
   if (!token) {
     return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MISSING };
   }
-  const decoded = decodeSignedToken(token);
-  if (!isObject(decoded)) {
-    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MALFORMED };
+  const decoded = decodeCompactReadAck(token);
+  if (!decoded || !ackShapeIsWellFormed(decoded)) {
+    return malformedAck();
   }
-  if (decoded.schema_version !== COMPACT_READ_TOKEN_SCHEMA_VERSION) {
+  if (decoded.schema_version !== COMPACT_READ_ACK_SCHEMA_VERSION) {
     return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_WRONG_SCHEMA };
   }
   if (decoded.tool_family !== toolFamily) {
@@ -724,7 +740,11 @@ function validateToken({
   if (decoded.source_digest !== sourceDigest) {
     return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_STALE_SOURCE_DIGEST };
   }
-  if (typeof decoded.expires_at_ms !== "number" || decoded.expires_at_ms < now) {
+
+  if (decoded.issued_at_ms > now) {
+    return malformedAck();
+  }
+  if (now > decoded.expires_at_ms) {
     return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_EXPIRED };
   }
   return { accepted: true, reason_code: COMPACT_READ_TOKEN_ACCEPTED };

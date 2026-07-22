@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
@@ -7,6 +6,7 @@ import {
   getSidecarIndexStatus,
   resolveSidecarArtifactPath
 } from "./sidecar-status.mjs";
+import { readSidecarArtifactBytes } from "./sidecar-artifact-bytes.mjs";
 
 const SCIP_STATUS_NOT_CONFIGURED = "scip_not_configured";
 const SCIP_CALL_GRAPH_UNAVAILABLE = "scip_call_graph_unavailable";
@@ -85,7 +85,7 @@ async function readArtifactFromStatus({ repoRoot, status, cacheDir }) {
     artifactFile: path.posix.basename(status.artifact_path || "index.json")
   });
   try {
-    return JSON.parse(await readFile(artifactPaths.artifactPath, "utf8"));
+    return (await readSidecarArtifactBytes(artifactPaths.artifactPath)).artifact;
   } catch {
     return null;
   }

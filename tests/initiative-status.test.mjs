@@ -114,6 +114,7 @@ const initiativeStatus = (overrides = {}) =>
 test('initiative-status taxonomy keeps the closed local reason vocabulary', () => {
   const taxonomy = loadInitiativeStatusTaxonomy({ repoRoot });
   const codes = (taxonomy.local_reason_codes ?? []).map((entry) => entry.code).filter(Boolean);
+  const actions = taxonomy.action_kinds ?? [];
 
   assert.equal(codes.length, 20);
 
@@ -138,6 +139,13 @@ test('initiative-status taxonomy keeps the closed local reason vocabulary', () =
   ]) {
     assert.ok(codes.includes(code), `taxonomy should reserve ${code}`);
   }
+
+  const admissionReason = taxonomy.local_reason_codes.find(
+    (entry) => entry.code === 'admission_metrics_stale_or_missing',
+  );
+  assert.equal(admissionReason.default_action, 'validate_dispatch');
+  assert.ok(actions.some((action) => action.kind === 'validate_dispatch'));
+  assert.ok(!actions.some((action) => action.kind === 'refresh_admission_metrics'));
 });
 
 test('initiative default output stays compact and truncated', () => {
@@ -269,9 +277,10 @@ test('selected-unit graph-required evidence emits the grounded graph reason code
   assert.equal(nextAction.blocking, true);
 });
 
-test('selected-unit stale admission metric evidence emits the grounded admission reason code', () => {
+test('missing or stale admission hints rank read-only validation without recovery or dispatchability claims', () => {
   const result = workspaceInitiativeStatus({
     repoRoot,
+    initiative: testInitiative,
     records: [
       {
         id: 'WK-9720',
@@ -284,15 +293,37 @@ test('selected-unit stale admission metric evidence emits the grounded admission
           },
         ],
       },
+      {
+        id: 'WK-9721',
+        initiative: testInitiative,
+        status: 'active',
+        derived_evidence: [
+          {
+            selected_unit: 'WK-9721',
+            admission_metrics: { missing_metrics: ['write_scope_count'] },
+          },
+        ],
+      },
     ],
-    unit: 'WK-9720',
+    top_action_limit: 50,
   });
-  const nextAction = result.next_action;
 
-  assert.equal(reasonCodeOf(nextAction), 'admission_metrics_stale_or_missing');
-  assert.equal(kindOf(nextAction), 'refresh_admission_metrics');
-  assert.equal(nextAction.suggested_tool, 'workspace_work_record_refresh_admission_metrics');
-  assert.equal(nextAction.blocking, true);
+  for (const targetUnit of ['WK-9720', 'WK-9721']) {
+    const action = result.top_actions.find((candidate) => candidate.target_unit === targetUnit);
+    assert.ok(action, `expected an admission-hint action for ${targetUnit}`);
+    assert.equal(reasonCodeOf(action), 'admission_metrics_stale_or_missing');
+    assert.equal(kindOf(action), 'validate_dispatch');
+    assert.equal(action.suggested_tool, 'workspace_validate_dispatch');
+    assert.equal(action.target_unit, targetUnit);
+    assert.equal(action.blocking, true);
+    assert.equal('recovery' in action, false);
+    assert.equal('dispatchable' in action, false);
+    assert.doesNotMatch(JSON.stringify(action), /recoverable|dispatchable/i);
+  }
+
+  const rendered = JSON.stringify(result);
+  assert.doesNotMatch(rendered, /workspace_work_record_refresh_admission_metrics/);
+  assert.doesNotMatch(rendered, /workspace_work_record_refresh_target_resolution_evidence/);
 });
 
 test('ordinary blocked units without runtime taxonomy evidence stay ordinary blocked actions', () => {
@@ -433,7 +464,7 @@ test('selected slice body and closure fields do not trigger reserved evidence ac
   assert.notEqual(reasonCodeOf(nextAction), 'admission_metrics_stale_or_missing');
   assert.notEqual(kindOf(nextAction), 'resolve_runtime_blocker');
   assert.notEqual(kindOf(nextAction), 'record_graph_impact_evidence');
-  assert.notEqual(kindOf(nextAction), 'refresh_admission_metrics');
+  assert.notEqual(kindOf(nextAction), 'validate_dispatch');
 });
 
 test('repo-wide lint evidence is not synthesized as a selected-WK blocker', () => {

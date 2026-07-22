@@ -71,7 +71,7 @@
     "validate_record",
     "split_work",
     "record_graph_impact_evidence",
-    "refresh_admission_metrics",
+    "validate_dispatch",
     "dispatch_redteam",
     "dispatch_worker",
     "create_remediation_slice",
@@ -197,13 +197,13 @@
       "verbose_description": "Use for read-only validation when generated views do not need refresh. The initiative-status surface must not run lint itself or absorb unrelated repo-wide findings into the selected WK."
     },
     {
-      "kind": "refresh_admission_metrics",
-      "label": "Refresh admission metrics",
-      "suggested_tool": "workspace_work_record_refresh_admission_metrics",
+      "kind": "validate_dispatch",
+      "label": "Validate dispatch readiness",
+      "suggested_tool": "workspace_validate_dispatch",
       "priority": "high",
       "advisory_only": true,
-      "default_description": "Worker-admission derived evidence appears stale or missing.",
-      "verbose_description": "Use when dispatch readiness or Node Engine admission evidence is absent, stale, or target metrics need rematerialization. Refreshing metrics is a separate structured write-capable operation."
+      "default_description": "Read-only dispatch-readiness validation is the next step for the selected unit.",
+      "verbose_description": "Use when a non-authoritative initiative-status scan hints that admission evidence may be absent, stale, or incomplete. Validate the exact selected unit through the read-only dispatch-readiness envelope; this action does not classify recovery, authenticate carriers or sidecars, or decide dispatchability."
     },
     {
       "kind": "record_graph_impact_evidence",
@@ -336,10 +336,10 @@
     },
     {
       "code": "admission_metrics_stale_or_missing",
-      "label": "Admission metrics needed",
-      "default_action": "refresh_admission_metrics",
+      "label": "Admission evidence validation needed",
+      "default_action": "validate_dispatch",
       "blocking": true,
-      "description": "Worker-admission derived evidence appears stale, absent, or incomplete for the selected unit."
+      "description": "A non-authoritative scan hints that worker-admission derived evidence may be stale, absent, or incomplete; the read-only structured dispatch-readiness envelope must evaluate the exact selected unit."
     },
     {
       "code": "graph_impact_evidence_needed",

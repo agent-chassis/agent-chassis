@@ -35,6 +35,10 @@ import { deriveBackendReviewResult } from "./workspace-agent-dispatch-review-res
 import { resolveWorkerSourceToolSurface } from "./workspace-agent-dispatch-source-access.mjs";
 import { WRITE_SCOPE_VERIFICATION_SCHEMA_VERSION } from "./workspace-agent-write-scope-verification.mjs";
 
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function attachWriteScopeVerification(envelope, rawFinalResult) {
   if (!envelope || typeof envelope !== "object") return envelope;
   const candidate = rawFinalResult?.write_scope_verification;
@@ -124,7 +128,11 @@ export function createDispatchRunLifecycle(ctx = {}) {
 
     deriveReviewerLaunchIdentity = null,
 
-    proveAssignedSourceReadable = null
+    proveAssignedSourceReadable = null,
+
+    mintSliceReviewAcceptance = null,
+    captureSliceReviewTerminalResult = null
+    ,resolveCorrectiveFindingsContext = null
   } = ctx;
 
   async function startLaunch(input = {}) {
@@ -354,6 +362,26 @@ export function createDispatchRunLifecycle(ctx = {}) {
     const reviewerLaunchIdentity = typeof deriveReviewerLaunchIdentity === "function"
       ? deriveReviewerLaunchIdentity({ role, subject, workspace_dir })
       : null;
+    const correctiveFindingsContext = role === "worker" &&
+        typeof resolveCorrectiveFindingsContext === "function"
+      ? await resolveCorrectiveFindingsContext({ subject, workspace_dir })
+      : null;
+    const executorReadiness = isPlainObject(readiness)
+      ? { ...readiness }
+      : readiness;
+    if (isPlainObject(executorReadiness)) {
+      delete executorReadiness.trusted_corrective_findings_context;
+      delete executorReadiness.config_root_dir;
+      delete executorReadiness.trusted_frozen_review_contract;
+      if (role === "worker" && correctiveFindingsContext !== null) {
+        executorReadiness.trusted_corrective_findings_context = correctiveFindingsContext;
+      }
+      if (role === "reviewer" && typeof config_root_dir === "string" &&
+          trusted_frozen_review_contract !== null) {
+        executorReadiness.config_root_dir = config_root_dir;
+        executorReadiness.trusted_frozen_review_contract = trusted_frozen_review_contract;
+      }
+    }
 
     const run_id = runIdFactory();
     const monitor_handle = monitorHandleFactory();
@@ -371,7 +399,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
         subject,
         workspace_alias: workspace_alias ?? null,
         workspace_dir: workspace_dir ?? null,
-        readiness: readiness ?? null,
+        readiness: executorReadiness ?? null,
         run_id,
         monitor_handle,
         app,
@@ -384,7 +412,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
 
         config_root_dir: role === "reviewer" ? (config_root_dir ?? null) : null,
         trusted_frozen_review_contract:
-          role === "reviewer" ? (trusted_frozen_review_contract ?? null) : null
+          role === "reviewer" ? (trusted_frozen_review_contract ?? null) : null,
       });
     } catch (error) {
       return dispatchRefusal(
@@ -463,6 +491,9 @@ export function createDispatchRunLifecycle(ctx = {}) {
           );
     }
     runs.set(run_id, record);
+    if (record.terminal && typeof captureSliceReviewTerminalResult === "function") {
+      await captureSliceReviewTerminalResult({ record });
+    }
 
     const startReviewResult = deriveBackendReviewResult(record);
     return {
@@ -580,6 +611,32 @@ export function createDispatchRunLifecycle(ctx = {}) {
     }
 
     const reviewResult = deriveBackendReviewResult(record);
+
+    if (record.terminal && reviewResult === null &&
+        typeof captureSliceReviewTerminalResult === "function") {
+      await captureSliceReviewTerminalResult({ record });
+    }
+
+    if (reviewResult && typeof mintSliceReviewAcceptance === "function") {
+      try {
+        await mintSliceReviewAcceptance({ record, review_result: reviewResult });
+      } catch (error) {
+
+        record.slice_review_acceptance_mint = Object.freeze({
+          ok: false,
+          decision_code: "agent_launch.slice_integration.review_acceptance_proof_not_minted.v1",
+          reasons: Object.freeze([
+            "slice_review_acceptance_mint_hook_threw",
+            error?.message ?? String(error)
+          ])
+        });
+      }
+    }
+
+    if (record.terminal && reviewResult !== null &&
+        typeof captureSliceReviewTerminalResult === "function") {
+      await captureSliceReviewTerminalResult({ record });
+    }
     return {
       schema_version: WORKSPACE_AGENT_DISPATCH_RUN_STATUS_SCHEMA_VERSION,
       accepted: true,
@@ -753,6 +810,10 @@ export function createDispatchRunLifecycle(ctx = {}) {
       caller_session_id: r.caller_session_id,
       ...(r.reviewer_launch_identity
         ? { reviewer_launch_identity: r.reviewer_launch_identity }
+        : {}),
+
+      ...(r.slice_review_acceptance_mint
+        ? { slice_review_acceptance_mint: r.slice_review_acceptance_mint }
         : {})
     }));
   }

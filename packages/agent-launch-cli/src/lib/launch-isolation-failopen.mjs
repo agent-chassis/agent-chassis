@@ -1,3 +1,5 @@
+
+
 import { probeLauncherCanonicalBwrapAvailability } from "./launch-isolation-bwrap.mjs";
 import {
   WORKSPACE_AGENT_RUN_ENFORCEMENT_REASONS,
@@ -379,6 +381,15 @@ function compatibilityResultFromSandboxDecision({ decision, role, subject }) {
   return buildClosedCompatibilityResult(decision);
 }
 
+export const WORKSPACE_AGENT_MANAGED_PLAIN_SPAWN_BLOCKER =
+  "worker_sparse_namespace_plain_spawn_forbidden";
+
+const MANAGED_PLAIN_SPAWN_REMEDIATION = freeze([
+  "install or repair the configured isolation backend (bubblewrap) on the launcher host",
+  "re-dispatch the unit once the isolation backend is healthy",
+  "note that the unsandboxed opt-out and removing the paid enforcement key CANNOT clear this refusal: a managed worker's confinement is what bounds its repository mutation to its declared write scope"
+]);
+
 function buildSparseWorkerPlainSpawnRefusal(decision) {
   return freeze({
     schema_version: WORKSPACE_AGENT_FAIL_OPEN_SCHEMA_VERSION,
@@ -391,8 +402,9 @@ function buildSparseWorkerPlainSpawnRefusal(decision) {
     refusal: freeze({
       reason: WORKSPACE_AGENT_FAIL_OPEN_CLOSED_REASONS.ENFORCEMENT_REQUIRED,
       detail: freeze({
-        blocker: "worker_sparse_namespace_plain_spawn_forbidden",
-        message: "a managed worker scope authority may not fall back to plain spawn"
+        blocker: WORKSPACE_AGENT_MANAGED_PLAIN_SPAWN_BLOCKER,
+        message: "a managed worker scope authority may not fall back to plain spawn",
+        remediation: MANAGED_PLAIN_SPAWN_REMEDIATION
       })
     }),
     sandbox_decision: decision

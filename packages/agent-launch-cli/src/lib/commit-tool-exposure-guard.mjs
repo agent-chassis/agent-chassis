@@ -216,6 +216,17 @@ export function resolveServerBinding({ credential, deps = {} } = {}) {
   return sanitizeBinding(binding);
 }
 
+export const WK_SLICE_MARKER_TRAILER_KEY = "Wk-Slice";
+
+const MANAGED_SLICE_SUBJECT_RE = /^WK-\d{4}#SLICE-\d{3}$/u;
+
+export function buildWkSliceMarkerTrailer(subject) {
+  if (typeof subject !== "string" || !MANAGED_SLICE_SUBJECT_RE.test(subject)) {
+    return null;
+  }
+  return `${WK_SLICE_MARKER_TRAILER_KEY}: ${subject}`;
+}
+
 export function buildServerGeneratedCommitMessage(binding) {
   const subject = typeof binding?.subject === "string" ? binding.subject : "";
   const baseSha = typeof binding?.base_sha === "string" ? binding.base_sha : "";
@@ -226,7 +237,10 @@ export function buildServerGeneratedCommitMessage(binding) {
     );
   }
   const shortBase = baseSha.slice(0, 12);
-  return `agent-launch worker delivery: ${subject} (base ${shortBase})`;
+  const subjectLine = `agent-launch worker delivery: ${subject} (base ${shortBase})`;
+  const marker = buildWkSliceMarkerTrailer(subject);
+
+  return marker === null ? subjectLine : `${subjectLine}\n\n${marker}`;
 }
 
 export function constructWorkerCommitToolSurface({

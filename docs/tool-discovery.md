@@ -298,6 +298,28 @@ to:
 - work-record setter routes for status, closure, task, contract, acceptance, or
   slice writes
 
+Discovery classifies `workspace_validate_dispatch` as `workspace_write` only
+because a graph-required validation may refresh the ignored current-HEAD graph
+cache. Its write boundary is exactly the graph artifact, its sibling atomic
+temporary file, the advisory build-lock file, and the eight exclusively claimed
+candidate slots `.index.json.build-lock.json.slot-00.candidate` through
+`.index.json.build-lock.json.slot-07.candidate`. Candidate slots are attempted
+only during the initial absent-lock race, are never reused or authority, and
+remain untouched; an existing shared lock prevents further claims and slot
+exhaustion uses an independent atomic build. Concurrent refreshes coalesce only
+within one process and only between equivalent base builds; SCIP builds and all
+cross-process callers perform independent atomic builds. A follower resolves only
+on its captured leader's successful publication, so no pre-existing artifact and
+no failed leader can produce a coalesced result. It never writes canonical work
+records or evidence sidecars, lifecycle/runtime/dispatch/backend state, or result
+evidence, and it never launches an agent. Its existing
+orchestrator/operator-only role exposure is unchanged in both free-local and
+paid-CCE registrations.
+If bounded current-HEAD graph production fails, verbose readiness preserves the
+safe `graph_impact_failure` code and remediation; compact readiness preserves
+`graph_impact_failure_code` and uses that remediation as `next_action`, without
+forwarding raw causes.
+
 Initiative status is read-only and advisory: it does not dispatch, write
 records, set statuses, run lint, refresh metrics, write graph evidence,
 reinterpret policy, or parse closure prose as authority. Discovery must not
@@ -635,6 +657,8 @@ rather than falling through to CCE text.
   basic dispatch-readiness and launch flow, but their free/local discovery and
   default output must not expose CCE LOC/threshold/blast-radius/multicluster,
   CCE-recovery, structural-admissibility, or structured review-artifact detail.
+  Validation may refresh only the ignored current-HEAD graph cache described
+  above; this cache write does not confer CCE authority or mutate the carrier.
 
 ### `agent-safe` / `agent-authoritative` are not tier labels
 

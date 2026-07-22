@@ -1,6 +1,7 @@
 
 
 import path from "node:path";
+import { resolveClientConfig } from "@agent-chassis/wiki-core/src/lib/node-engine-api-client.mjs";
 import {
   HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR,
   HostWriteAuthorityBrokerError,
@@ -9,6 +10,8 @@ import {
   defaultCommitManagedWorkerSlice,
   defaultIntegrateManagedWorkerSlice
 } from "./host-write-authority-substrate.mjs";
+
+import { defaultWkForgeHandoff } from "./host-write-authority-substrate/broker-wk-forge-handoff.mjs";
 
 import { provisionManagedWorktreesAtDispatch } from "./worktree-provisioning-dispatch.mjs";
 
@@ -19,6 +22,17 @@ export const ORCHESTRATOR_IDENTITY_CARRIER_ENV_KEYS = Object.freeze([
   "AGENT_WK",
   "AGENT_OPERATOR_WRITE_SCOPE"
 ]);
+
+export function resolveLauncherRegisteredTier(env = process.env) {
+  return resolveClientConfig(env)?.apiKey ? "paid_cce" : "free_local";
+}
+
+function integrationEnforcementModeForRegisteredTier(registeredTier) {
+  if (registeredTier === "paid_cce") return "enforced_cce";
+  if (registeredTier === "free_local") return "policy_only";
+  if (registeredTier == null) return "enforced_cce";
+  throw new Error(`orchestrator dispatch sidecar refuses unknown registered tier: ${registeredTier}`);
+}
 
 export function buildHostWriteAuthorityBrokerPlanningEnv({
   env,
@@ -57,7 +71,10 @@ export async function startOrchestratorDispatchSidecar({
 
   commitManagedWorkerSlice = defaultCommitManagedWorkerSlice,
 
-  integrateManagedWorkerSlice = defaultIntegrateManagedWorkerSlice
+  integrateManagedWorkerSlice = defaultIntegrateManagedWorkerSlice,
+
+  wkForgeHandoff = defaultWkForgeHandoff,
+  wkForgeHandoffDeps = {}
 } = {}) {
   if (!plan || typeof plan !== "object") return null;
   const descriptor = plan.dispatchSidecar;
@@ -100,6 +117,10 @@ export async function startOrchestratorDispatchSidecar({
     endpointEnvVar: envVar
   });
 
+  const integrationReviewEnforcementMode = integrationEnforcementModeForRegisteredTier(
+    descriptor.registeredTier
+  );
+
   const planLaunch = adapter.createBrokerPlanLaunch({
     env: planningEnv,
     cwd: plan.repo ?? process.cwd(),
@@ -141,7 +162,12 @@ export async function startOrchestratorDispatchSidecar({
           resolveWorkerMcpHostWriteEndpoint: () => boundWorkerMcpEndpointValue,
 
           integrateManagedWorkerSlice,
-          integrationMainRepo: provisioningRoots.mainRepo
+          integrationMainRepo: provisioningRoots.mainRepo,
+          integrationReviewEnforcementMode,
+
+          wkForgeHandoff,
+          forgeHandoffMainRepo: provisioningRoots.mainRepo,
+          forgeHandoffDeps: wkForgeHandoffDeps
         }
       : {})
   });
@@ -172,14 +198,50 @@ export async function startOrchestratorDispatchSidecar({
   boundWorkerMcpEndpointValue = endpointValue;
 
   let applyContext = null;
-  if (typeof adapter.applyEndpointToPlan === "function") {
-    applyContext = adapter.applyEndpointToPlan({
-      plan,
-      descriptor,
-      endpoint,
-      endpointValue,
-      envVar
-    }) ?? null;
+  try {
+    if (typeof adapter.applyEndpointToPlan === "function") {
+      applyContext = adapter.applyEndpointToPlan({
+        plan,
+        descriptor,
+        endpoint,
+        endpointValue,
+        envVar
+      }) ?? null;
+    }
+  } catch (applyError) {
+    const cleanupErrors = [];
+    try {
+      await server.stop();
+    } catch (stopError) {
+      cleanupErrors.push(stopError);
+    } finally {
+
+      boundWorkerMcpEndpointValue = null;
+      if (plan.env[envVar] === endpointValue) {
+        delete plan.env[envVar];
+      }
+      if (typeof adapter.removeEndpointFromPlan === "function") {
+        try {
+          adapter.removeEndpointFromPlan({
+            plan,
+            descriptor,
+            endpoint,
+            endpointValue,
+            envVar,
+            applyContext
+          });
+        } catch (removeError) {
+          cleanupErrors.push(removeError);
+        }
+      }
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        [applyError, ...cleanupErrors],
+        "orchestrator dispatch sidecar endpoint application and rollback failed"
+      );
+    }
+    throw applyError;
   }
 
   return {

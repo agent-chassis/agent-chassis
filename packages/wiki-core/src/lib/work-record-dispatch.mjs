@@ -1,6 +1,7 @@
 
 
 import path from "node:path";
+import { types as utilTypes } from "node:util";
 
 import {
   CLIENT_DISPOSITIONS,
@@ -11,7 +12,10 @@ import { getSidecarIndexStatus } from "./sidecar-status.mjs";
 import { SLICE_ID_PATTERN } from "./work-record-schema-constants.mjs";
 import { evaluateWorkRecordPolicy } from "./work-record-policy.mjs";
 import { isMigrationReviewAcknowledged } from "./work-record-schema.mjs";
-import { resolveCurrentGraphForImpact } from "./sidecar-graph-impact.mjs";
+import {
+  deriveDirectImportAdjacencyFromGraph,
+  resolveCurrentGraphForImpact
+} from "./sidecar-graph-impact.mjs";
 import { SidecarGraphIndexUnbuildableError } from "./sidecar-graph-impact-artifact.mjs";
 import {
   foldNodeEngineAdmissibilityIntoReadiness,
@@ -185,38 +189,7 @@ function selectGraphBearingImplementationPaths(paths) {
 }
 
 export function deriveDirectImportAdjacency(mergedGraph, graphBearingPaths) {
-  const bearing = new Set(Array.isArray(graphBearingPaths) ? graphBearingPaths : []);
-  if (bearing.size === 0 || !isObject(mergedGraph)) {
-    return [];
-  }
-
-  const moduleNodePathById = new Map();
-  for (const node of Array.isArray(mergedGraph.graph_nodes) ? mergedGraph.graph_nodes : []) {
-    if (isObject(node) && node.kind === "module" && typeof node.path === "string") {
-      moduleNodePathById.set(node.id, node.path);
-    }
-  }
-
-  const pairKeys = new Set();
-  for (const edge of Array.isArray(mergedGraph.graph_edges) ? mergedGraph.graph_edges : []) {
-    if (!isObject(edge) || edge.kind !== "imports_module") {
-      continue;
-    }
-    const fromPath = moduleNodePathById.get(edge.from_node_id);
-    const toPath = moduleNodePathById.get(edge.to_node_id);
-    if (!fromPath || !toPath || fromPath === toPath) {
-      continue;
-    }
-    if (!bearing.has(fromPath) || !bearing.has(toPath)) {
-      continue;
-    }
-    const [a, b] = [fromPath, toPath].sort((left, right) => left.localeCompare(right));
-    pairKeys.add(`${a}\t${b}`);
-  }
-
-  return [...pairKeys]
-    .sort((left, right) => left.localeCompare(right))
-    .map((key) => key.split("\t"));
+  return deriveDirectImportAdjacencyFromGraph(mergedGraph, graphBearingPaths);
 }
 
 function normalizeSuppliedDirectImportAdjacency(value) {
@@ -376,6 +349,29 @@ function foldConfirmedNoNodeEngineIntoReadiness(readiness, configReadiness) {
   };
 }
 
+const GRAPH_IMPACT_FAILURE_CODES = new Set([
+  "graph_index_unbuildable",
+  "graph_head_moved_unstable"
+]);
+
+function boundedGraphImpactFailure(error) {
+  const code = GRAPH_IMPACT_FAILURE_CODES.has(error?.code)
+    ? error.code
+    : "graph_index_unbuildable";
+  const statusReason =
+    typeof error?.envelope?.status_reason === "string" &&
+    /^[a-z0-9_]{1,80}$/.test(error.envelope.status_reason)
+      ? error.envelope.status_reason
+      : null;
+  return {
+    kind: "sidecar_graph_index_unbuildable",
+    code,
+    remediation:
+      "build or fix the repo code index (run `code-index build` / `code-index rebuild`) before requesting graph impact",
+    ...(statusReason ? { status_reason: statusReason } : {})
+  };
+}
+
 function buildReadinessFromRecord({
   record,
   unit,
@@ -394,6 +390,7 @@ function buildReadinessFromRecord({
   graphBearingWriteScope = [],
   graphBearingImplementationWriteScope = [],
   graphImpactUnbuildable = false,
+  graphImpactFailure = null,
   liveGraphState = null,
   admissionRecovery = null
 }) {
@@ -482,6 +479,14 @@ function buildReadinessFromRecord({
       effectiveGraphState.staleness
     );
 
+  const graphImpactEvidenceConsumable =
+    structuredGraphImpactMatches &&
+    effectiveGraphState.graph_available === true &&
+    !graphImpactOperatorBlocked &&
+    !effectiveGraphStateHasUnavailableSubjectPaths &&
+    (dirtyOverlayDegradedGraphImpact ||
+      !["stale", "rebuild_required", "missing"].includes(effectiveGraphState.staleness));
+
   const graphAutoRecoverable =
     requiresGraphImpact &&
     !structuredGraphImpactMatches &&
@@ -490,19 +495,26 @@ function buildReadinessFromRecord({
     effectiveGraphState.staleness === "stale" &&
     isDirtyOverlayCompatibleGraphState(effectiveGraphState) &&
     !effectiveGraphStateHasUnavailableSubjectPaths;
+
+  const storedEvidenceFresh =
+    structuredGraphImpactMatches &&
+    !graphImpactOperatorBlocked &&
+    (dirtyOverlayDegradedGraphImpact ||
+      !["stale", "rebuild_required", "missing", "unknown"].includes(
+        effectiveGraphState.staleness
+      ));
+  const effectiveStateFresh =
+    effectiveGraphState.staleness === "fresh" &&
+    effectiveGraphState.graph_available === true &&
+    !graphImpactOperatorBlocked &&
+    !effectiveGraphStateHasUnavailableSubjectPaths;
   const graphRecovery = !requiresGraphImpact
     ? "not_required"
-    : structuredGraphImpactMatches && !graphImpactOperatorBlocked
+    : storedEvidenceFresh || effectiveStateFresh
       ? "fresh"
-      : graphAutoRecoverable
-      ? "recoverable_stale"
       : graphBearingSubjectPaths.length === 0 || effectiveGraphStateHasUnavailableSubjectPaths
         ? "nonrecoverable_missing_paths"
-        : graphImpactOperatorBlocked || effectiveGraphState.graph_available !== true
-          ? "nonrecoverable_provider_unavailable"
-          : effectiveGraphState.staleness === "fresh"
-            ? "fresh"
-            : "nonrecoverable_provider_unavailable";
+        : "recoverable_stale";
   if (
     requiresGraphImpact &&
     graphImpactSubjectPaths.length === 0
@@ -608,7 +620,10 @@ function buildReadinessFromRecord({
     });
   }
 
-  if (graphImpactUnbuildable && graphBearingImplementationWriteScope.length >= 2) {
+  if (
+    (graphImpactUnbuildable || graphImpactFailure) &&
+    (requiresGraphImpact || graphBearingImplementationWriteScope.length >= 2)
+  ) {
     blockers.push({
       code: "missing_graph_impact",
       reason:
@@ -696,7 +711,10 @@ function buildReadinessFromRecord({
     preparationAuditEnvelope,
     missingSlice: unit.kind === "slice" && !selectedUnit ? unit.slice_id : null,
     reportOnly
-  }).concat(collectGraphImpactEvidence(structuredGraphImpactMatches ? graphImpact : null));
+
+  }).concat(
+    collectGraphImpactEvidence(graphImpactEvidenceConsumable ? graphImpact : null)
+  );
 
   const canonicalRefs = uniqueBy(
     [
@@ -733,6 +751,7 @@ function buildReadinessFromRecord({
   });
   return {
     ...readiness,
+    ...(graphImpactFailure ? { graph_impact_failure: graphImpactFailure } : {}),
     state: {
       ...readiness.state,
       graph_state: {
@@ -760,23 +779,111 @@ async function resolveDispatchGraphState(dir, graphState) {
   };
 }
 
-export async function validateWorkRecordDispatchById({
-  dir = ".",
-  unitAddress,
-  mode = "strict",
-  dispatch_role = "implementation",
-  recordStore = null,
-  graph_state = null,
-  graph_impact = null,
-  graph_import_adjacency = null,
-  dependency_statuses = null,
-  preparation_audit = null,
-  policy_result = null,
-  node_engine_admissibility = null,
+const VALIDATE_WORK_RECORD_DISPATCH_OPTION_KEYS = new Set([
+  "dir",
+  "unitAddress",
+  "mode",
+  "dispatch_role",
+  "recordStore",
+  "graph_state",
+  "graph_impact",
+  "graph_import_adjacency",
+  "dependency_statuses",
+  "preparation_audit",
+  "policy_result",
+  "node_engine_admissibility",
+  "graph_resolver",
+  "suppress_live_graph_resolution",
+  "now"
+]);
 
-  graph_resolver = resolveCurrentGraphForImpact,
-  now = new Date().toISOString()
-} = {}) {
+const REVALIDATE_WORK_RECORD_DISPATCH_HANDOFF_OPTION_KEYS = new Set([
+  "dir",
+  "unitAddress",
+  "recordStore",
+  "private_handoff",
+  "now"
+]);
+
+export class WorkRecordDispatchInvalidOptionError extends Error {
+  constructor(callerName, optionNames, { message = null } = {}) {
+    const sorted = [...optionNames].sort();
+    super(message ?? `${callerName} does not accept option(s): ${sorted.join(", ")}`);
+    this.name = "WorkRecordDispatchInvalidOptionError";
+    this.code = "invalid_dispatch_option";
+    this.options = sorted;
+  }
+}
+
+export function sanitizeWorkRecordDispatchOptions(options, allowedKeys, callerName) {
+  const source = options === undefined ? {} : options;
+  const sourceType = typeof source;
+  if (
+    source === null ||
+    (sourceType !== "object" && sourceType !== "function") ||
+    utilTypes.isProxy(source)
+  ) {
+    throw new WorkRecordDispatchInvalidOptionError(callerName, ["<options>"]);
+  }
+  if (
+    sourceType !== "object" ||
+    Array.isArray(source) ||
+    Object.getPrototypeOf(source) !== Object.prototype
+  ) {
+    throw new WorkRecordDispatchInvalidOptionError(callerName, ["<options>"]);
+  }
+
+  const allowed = allowedKeys instanceof Set ? allowedKeys : new Set(allowedKeys);
+  const descriptors = Object.getOwnPropertyDescriptors(source);
+  const invalid = [];
+  const sanitized = {};
+  for (const key of Reflect.ownKeys(descriptors)) {
+    if (typeof key !== "string") {
+      invalid.push("<symbol>");
+      continue;
+    }
+    const descriptor = descriptors[key];
+    if (!allowed.has(key) || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+      invalid.push(key);
+      continue;
+    }
+    sanitized[key] = descriptor.value;
+  }
+  if (invalid.length > 0) {
+    throw new WorkRecordDispatchInvalidOptionError(callerName, invalid);
+  }
+  return sanitized;
+}
+
+export function assertValidateWorkRecordDispatchOptions(options, callerName) {
+  return sanitizeWorkRecordDispatchOptions(
+    options,
+    VALIDATE_WORK_RECORD_DISPATCH_OPTION_KEYS,
+    callerName
+  );
+}
+
+export async function validateWorkRecordDispatchById(options = {}) {
+  const {
+    dir = ".",
+    unitAddress,
+    mode = "strict",
+    dispatch_role = "implementation",
+    recordStore = null,
+    graph_state = null,
+    graph_impact = null,
+    graph_import_adjacency = null,
+    dependency_statuses = null,
+    preparation_audit = null,
+    policy_result = null,
+    node_engine_admissibility = null,
+
+    graph_resolver = null,
+
+    suppress_live_graph_resolution = false,
+    now = new Date().toISOString()
+  } = assertValidateWorkRecordDispatchOptions(options, "validateWorkRecordDispatchById");
+  const effectiveGraphResolver = graph_resolver ?? resolveCurrentGraphForImpact;
   const parsedUnit = parseUnitAddress(unitAddress);
   const reportOnly = mode === "report-only";
   const readOnly = dispatch_role === "read_only";
@@ -840,14 +947,25 @@ export async function validateWorkRecordDispatchById({
   const subjectGraphCandidatePaths = [...subjectWriteScope, ...subjectRepoPaths];
   const graphBearingWriteScope = selectGraphBearingPaths(subjectGraphCandidatePaths);
   const graphBearingImplementationWriteScope = selectGraphBearingImplementationPaths(subjectGraphCandidatePaths);
-  const suppliedAdjacency = normalizeSuppliedDirectImportAdjacency(graph_import_adjacency);
+
+  const suppliedAdjacency =
+    normalizeSuppliedDirectImportAdjacency(graph_import_adjacency) ??
+    normalizeSuppliedDirectImportAdjacency(
+      isObject(graph_impact) ? graph_impact.graph_import_adjacency : null
+    );
   const callerSuppliedGraphEvidence =
     (graph_state !== null && graph_state !== undefined) ||
     (graph_impact !== null && graph_impact !== undefined);
+
+  const suppressInitialLiveGraphResolution =
+    suppress_live_graph_resolution === true &&
+    Boolean(subject?.dispatch_intent?.requires_graph_impact);
+  const requiresGraphImpact = Boolean(subject?.dispatch_intent?.requires_graph_impact);
   const shouldResolveLiveGraph =
     !readOnly &&
+    !suppressInitialLiveGraphResolution &&
     subject?.work_kind === "implementation" &&
-    graphBearingImplementationWriteScope.length >= 2 &&
+    (requiresGraphImpact || graphBearingImplementationWriteScope.length >= 2) &&
     suppliedAdjacency === null &&
     !callerSuppliedGraphEvidence;
 
@@ -855,6 +973,7 @@ export async function validateWorkRecordDispatchById({
     graphBearingImplementationWriteScope.length <= 1 ? [] : null
   );
   let graphImpactUnbuildable = false;
+  let graphImpactFailure = null;
   let liveGraphState = null;
   let resolvedGraphState = null;
 
@@ -867,7 +986,7 @@ export async function validateWorkRecordDispatchById({
     resolvedGraphState = (await resolveDispatchGraphState(dir, graph_state)).graphState;
   } else {
     try {
-      const live = await graph_resolver({ targetDir: path.resolve(String(dir ?? ".")) });
+      const live = await effectiveGraphResolver({ targetDir: path.resolve(String(dir ?? ".")) });
       const selection = live?.graphSelection;
       if (selection?.graphState?.graph_available === true && isObject(selection.graph)) {
         directImportAdjacency = deriveDirectImportAdjacency(
@@ -885,8 +1004,16 @@ export async function validateWorkRecordDispatchById({
       });
     } catch (error) {
       if (error instanceof SidecarGraphIndexUnbuildableError) {
-        graphImpactUnbuildable = true;
-        resolvedGraphState = (await resolveDispatchGraphState(dir, graph_state)).graphState;
+        graphImpactFailure = boundedGraphImpactFailure(error);
+        resolvedGraphState = normalizeDispatchGraphState({
+          graph_available: false,
+          graph_state: "unavailable",
+          overlay_state: "unavailable",
+          staleness: "rebuild_required",
+          status_reason: graphImpactFailure.code,
+          edge_source: "unavailable",
+          dirty_graph_mode: "unavailable"
+        });
       } else {
         throw error;
       }
@@ -936,6 +1063,7 @@ export async function validateWorkRecordDispatchById({
     graphBearingWriteScope,
     graphBearingImplementationWriteScope,
     graphImpactUnbuildable,
+    graphImpactFailure,
     liveGraphState,
     admissionRecovery,
     now,
@@ -995,14 +1123,18 @@ async function loadPrivateDispatchSnapshot({ dir, unitAddress, recordStore = nul
 }
 
 export async function validateWorkRecordDispatchLaunchIntentById(options = {}) {
+  const sanitized = assertValidateWorkRecordDispatchOptions(
+    options,
+    "validateWorkRecordDispatchLaunchIntentById"
+  );
   const readiness = await validateWorkRecordDispatchById({
-    ...options,
+    ...sanitized,
     node_engine_admissibility: null
   });
   if (!readiness.dispatchable) {
     return { readiness, private_handoff: null };
   }
-  const snapshot = await loadPrivateDispatchSnapshot(options);
+  const snapshot = await loadPrivateDispatchSnapshot(sanitized);
   return {
     readiness,
     private_handoff: snapshot
@@ -1015,13 +1147,18 @@ export async function validateWorkRecordDispatchLaunchIntentById(options = {}) {
   };
 }
 
-export async function revalidateWorkRecordDispatchPrivateHandoffById({
-  dir = ".",
-  unitAddress,
-  recordStore = null,
-  private_handoff,
-  now = new Date().toISOString()
-} = {}) {
+export async function revalidateWorkRecordDispatchPrivateHandoffById(options = {}) {
+  const {
+    dir = ".",
+    unitAddress,
+    recordStore = null,
+    private_handoff,
+    now = new Date().toISOString()
+  } = sanitizeWorkRecordDispatchOptions(
+    options,
+    REVALIDATE_WORK_RECORD_DISPATCH_HANDOFF_OPTION_KEYS,
+    "revalidateWorkRecordDispatchPrivateHandoffById"
+  );
   if (!isObject(private_handoff)) {
     return { valid: false, reason: "canonical_carrier_revalidation_failed", issue: "private_handoff_missing" };
   }
@@ -1103,8 +1240,12 @@ export async function revalidateWorkRecordDispatchPrivateHandoffById({
 }
 
 export async function validateWorkRecordDispatchReportById(options = {}) {
+  const sanitized = assertValidateWorkRecordDispatchOptions(
+    options,
+    "validateWorkRecordDispatchReportById"
+  );
   const readiness = await validateWorkRecordDispatchById({
-    ...options,
+    ...sanitized,
     mode: "report-only"
   });
 
@@ -1115,8 +1256,12 @@ export async function validateWorkRecordDispatchReportById(options = {}) {
 }
 
 export async function validateWorkRecordDispatchReadOnlyById(options = {}) {
+  const sanitized = assertValidateWorkRecordDispatchOptions(
+    options,
+    "validateWorkRecordDispatchReadOnlyById"
+  );
   return validateWorkRecordDispatchById({
-    ...options,
+    ...sanitized,
     dispatch_role: "read_only"
   });
 }

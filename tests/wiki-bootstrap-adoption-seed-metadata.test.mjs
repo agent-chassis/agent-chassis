@@ -85,7 +85,7 @@ test("static IN-0001 adoption seed is cloned on read and safe to mutate locally"
   const reread = getStaticIn0001AdoptionSeed();
 
   assert.equal(reread.target_surfaces[0].path, "AGENTS.md");
-  assert.equal(reread.owned_work[0].title, "Add repo-local AGENTS guidance");
+  assert.equal(reread.owned_work[0].title, "Document local adoption choices");
   assert.deepEqual(reread.required_checks, TEMPLATE_DATA.required_checks);
   assert.deepEqual(reread.non_goals, TEMPLATE_DATA.non_goals);
 });
@@ -94,10 +94,10 @@ test("rendered adoption markdown contains required sections and MCP guidance", (
   const markdown = renderStaticIn0001AdoptionSeedMarkdown();
   assert.match(markdown, /# Adopt the shared wiki contract and agent workflow/);
   assert.match(markdown, /## Target Surfaces/);
-  assert.match(markdown, /`AGENTS\.md` \(create_if_missing\): repo-local agent guidance/);
+  assert.match(markdown, /`AGENTS\.md` \(create_if_missing\): the repo-local operating contract this adoption initiative exists to produce/);
   assert.match(markdown, /`wiki\/initiatives\/IN-0001\.md` \(create_if_missing\): owned adoption plan/);
   assert.match(markdown, /## Owned Work/);
-  assert.match(markdown, /Add repo-local AGENTS guidance/);
+  assert.match(markdown, /Document local adoption choices/);
 
   assert.doesNotMatch(markdown, /wiki-mcp-workspace\.v1/);
   assert.match(markdown, /## Required Checks/);
@@ -127,7 +127,7 @@ test("rendered adoption markdown references the seeded executable WK-0001 work r
   assert.match(markdown, /## Executable Work Records/);
 
   assert.match(markdown, /`WK-0001`/);
-  assert.match(markdown, /`WK-0001#repo-local-agents`/);
+  assert.match(markdown, /`WK-0001#SLICE-001`/);
 
   assert.match(markdown, /seeded canonical work record/i);
 });
@@ -136,7 +136,7 @@ test("rendered adoption markdown marks owned work as summary-only and not dispat
   const markdown = renderStaticIn0001AdoptionSeedMarkdown();
 
   assert.match(markdown, /## Owned Work/);
-  assert.match(markdown, /Add repo-local AGENTS guidance/);
+  assert.match(markdown, /Document local adoption choices/);
 
   assert.match(markdown, /not dispatchable by itself/i);
 

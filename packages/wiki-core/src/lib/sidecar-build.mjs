@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -18,6 +18,17 @@ import {
   discoverSidecarGitState,
   runSidecarGit
 } from "./sidecar-status.mjs";
+import {
+  SIDECAR_BUILD_LOCK_SUFFIX,
+  acquireSidecarBuildLock,
+  appendSidecarBuildLockDiagnostics,
+  claimSidecarBuildLeadership,
+  releaseSidecarBuildLeadership,
+  releaseSidecarBuildLock,
+  settleSidecarBuildLeadershipFailed,
+  settleSidecarBuildLeadershipPublished,
+  waitForCoalescedSidecarArtifact
+} from "./sidecar-build-lock.mjs";
 
 export class SidecarBuildRefusalError extends Error {
   constructor(message, { code, envelope } = {}) {
@@ -317,133 +328,71 @@ function createBuildEnvelope({ gitState, artifactPaths, artifact, action }) {
   });
 }
 
-const SIDECAR_BUILD_LOCK_SUFFIX = ".build-lock.json";
-const SIDECAR_BUILD_LOCK_TTL_MS = 60_000;
-const SIDECAR_BUILD_LOCK_MAX_ACQUIRE_ATTEMPTS = 100;
+const ALLOWED_BUILD_HOOK_KEYS = new Set(["beforeGraphExtraction", "artifactOperations"]);
 
-function isProcessAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) {
-    return false;
+function assertSupportedBuildHooks(buildHooks) {
+  if (buildHooks === null || buildHooks === undefined) {
+    return;
   }
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-
-    return error.code === "EPERM";
+  if (typeof buildHooks !== "object" || Array.isArray(buildHooks)) {
+    throw new TypeError("sidecar build buildHooks must be an object");
+  }
+  const unsupported = Reflect.ownKeys(buildHooks)
+    .filter((key) => !ALLOWED_BUILD_HOOK_KEYS.has(key))
+    .map((key) => String(key))
+    .sort();
+  if (unsupported.length > 0) {
+    throw new TypeError(
+      `sidecar build does not support buildHooks key(s): ${unsupported.join(", ")}`
+    );
   }
 }
 
-async function readBuildLock(lockPath) {
-  try {
-    const parsed = JSON.parse(await readFile(lockPath, "utf8"));
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
+function resolveArtifactPublicationOperations(buildHooks) {
+  const injected = buildHooks?.artifactOperations ?? {};
+  return {
+    writeTemp: injected.writeTemp ?? writeFile,
+    renameTemp: injected.renameTemp ?? rename,
+    removeTemp: injected.removeTemp ?? ((tempPath) => rm(tempPath, { force: true }))
+  };
 }
 
-function isBuildLockStale(lock, ttlMs) {
-  if (!lock) {
-    return true;
+function attachArtifactCleanupDiagnostic(error) {
+  if ((typeof error !== "object" || error === null) && typeof error !== "function") {
+    return;
   }
-  const startedAt = Date.parse(lock.started_at);
-  if (!Number.isFinite(startedAt)) {
-    return true;
-  }
-  if (Date.now() - startedAt > ttlMs) {
-    return true;
-  }
-  return !isProcessAlive(lock.pid);
+  error.artifactPublicationDiagnostics = [
+    { code: "artifact_temp_cleanup_failed" }
+  ];
 }
 
-async function acquireBuildLock(
-  lockPath,
-  anchorCommit,
-  { ttlMs = SIDECAR_BUILD_LOCK_TTL_MS, maxAttempts = SIDECAR_BUILD_LOCK_MAX_ACQUIRE_ATTEMPTS } = {}
-) {
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    let handle;
-    try {
-      handle = await open(lockPath, "wx");
-    } catch (error) {
-      if (error.code !== "EEXIST") {
-
-        return { owned: false, lockPath };
-      }
-      const existing = await readBuildLock(lockPath);
-      if (isBuildLockStale(existing, ttlMs)) {
-        await rm(lockPath, { force: true });
-        continue;
-      }
-      return { owned: false, lockPath };
-    }
-    try {
-      await handle.writeFile(
-        `${JSON.stringify({
-          pid: process.pid,
-          anchor: anchorCommit ?? null,
-          started_at: new Date().toISOString()
-        })}\n`,
-        "utf8"
-      );
-    } finally {
-      await handle.close();
-    }
-    return { owned: true, lockPath };
-  }
-  return { owned: false, lockPath };
-}
-
-async function releaseBuildLock(lock) {
-  if (lock?.owned && lock.lockPath) {
-    await rm(lock.lockPath, { force: true });
-  }
-}
-
-async function readFreshArtifactForAnchor(artifactPath, anchorCommit, { scip = false } = {}) {
-  if (!anchorCommit) {
-    return null;
-  }
-  let raw;
-  try {
-    raw = await readFile(artifactPath, "utf8");
-  } catch {
-    return null;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== "object") {
-    return null;
-  }
-  if (parsed.schema_version !== SIDECAR_ARTIFACT_SCHEMA_VERSION) {
-    return null;
-  }
-  if (parsed.index_head !== anchorCommit) {
-    return null;
-  }
-  if (Object.prototype.hasOwnProperty.call(parsed, "scip_overlay") !== Boolean(scip)) {
-    return null;
-  }
-  return parsed;
-}
-
-async function publishArtifactAtomically({ artifactDirPath, artifactPath, artifactFile, artifact }) {
+async function publishArtifactAtomically({
+  artifactDirPath,
+  artifactPath,
+  artifactFile,
+  artifact,
+  operations
+}) {
   const serialized = `${JSON.stringify(artifact, null, 2)}\n`;
   const tempPath = path.join(
     artifactDirPath,
     `.${artifactFile}.${process.pid}.${randomUUID()}.tmp`
   );
   try {
-    await writeFile(tempPath, serialized, "utf8");
-    await rename(tempPath, artifactPath);
-  } catch (error) {
-    await rm(tempPath, { force: true });
-    throw error;
+    await operations.writeTemp(tempPath, serialized, "utf8");
+    await operations.renameTemp(tempPath, artifactPath);
+  } catch (publicationError) {
+    try {
+      await operations.removeTemp(tempPath);
+    } catch {
+      try {
+        attachArtifactCleanupDiagnostic(publicationError);
+      } finally {
+
+        throw publicationError;
+      }
+    }
+    throw publicationError;
   }
 }
 
@@ -454,8 +403,11 @@ export async function buildSidecarIndex({
   rebuild = false,
 
   scip = false,
-  scipOptions = {}
+  scipOptions = {},
+  buildHooks = null
 } = {}) {
+
+  assertSupportedBuildHooks(buildHooks);
   const gitState = await discoverSidecarGitState(path.resolve(dir));
   const artifactPaths = resolveBuildArtifactPath({
     repoRoot: gitState.repoRoot,
@@ -472,28 +424,36 @@ export async function buildSidecarIndex({
   await mkdir(artifactPaths.artifactDirPath, { recursive: true });
 
   const lockPath = `${artifactPaths.artifactPath}${SIDECAR_BUILD_LOCK_SUFFIX}`;
-  const lock = await acquireBuildLock(lockPath, gitState.index_head);
+  const artifactOperations = resolveArtifactPublicationOperations(buildHooks);
 
-  if (!lock.owned) {
-    const existing = await readFreshArtifactForAnchor(
-      artifactPaths.artifactPath,
-      gitState.index_head,
-      { scip }
-    );
-    if (existing) {
-      return createBuildEnvelope({
-        gitState,
-        artifactPaths,
-        artifact: existing,
-        action: "coalesced"
-      });
-    }
-  }
+  const coalescible = scip === false;
+
+  const leadership = claimSidecarBuildLeadership(lockPath, gitState.index_head, { coalescible });
+
+  let completedEnvelope = null;
+  let lock = null;
 
   try {
 
+    if (leadership.follow) {
+      const coalesced = await waitForCoalescedSidecarArtifact({ follow: leadership.follow });
+      if (coalesced) {
+        return createBuildEnvelope({
+          gitState,
+          artifactPaths,
+          artifact: coalesced,
+          action: "coalesced"
+        });
+      }
+    }
+
+    lock = await acquireSidecarBuildLock(lockPath, gitState.index_head);
+
     const sources = await collectTrackedSources(gitState.repoRoot, gitState.index_head || "HEAD");
     const graphSources = await collectGraphSources({ repoRoot: gitState.repoRoot, sources });
+    if (typeof buildHooks?.beforeGraphExtraction === "function") {
+      await buildHooks.beforeGraphExtraction();
+    }
     const graph = await extractSidecarGraph({
       sources: graphSources,
       edgeSource: "base_index",
@@ -518,16 +478,30 @@ export async function buildSidecarIndex({
       artifactDirPath: artifactPaths.artifactDirPath,
       artifactPath: artifactPaths.artifactPath,
       artifactFile: artifactPaths.artifactFile,
-      artifact
+      artifact,
+      operations: artifactOperations
     });
 
-    return createBuildEnvelope({
+    settleSidecarBuildLeadershipPublished(leadership.entry, artifact);
+
+    completedEnvelope = createBuildEnvelope({
       gitState,
       artifactPaths,
       artifact,
       action: rebuild ? "rebuild" : "build"
     });
+    return completedEnvelope;
   } finally {
-    await releaseBuildLock(lock);
+
+    settleSidecarBuildLeadershipFailed(leadership.entry);
+
+    releaseSidecarBuildLeadership(leadership.entry);
+    const releaseDiagnostics = await releaseSidecarBuildLock(lock);
+    if (completedEnvelope) {
+      appendSidecarBuildLockDiagnostics(completedEnvelope, [
+        ...(lock?.diagnostics ?? []),
+        ...releaseDiagnostics
+      ]);
+    }
   }
 }

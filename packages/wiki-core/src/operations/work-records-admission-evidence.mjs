@@ -290,7 +290,7 @@ async function createLiveWorkerAdmissionDerivedEvidence({
   const contextualStructuralTargetMetrics = createContextualizedStructuralTargetMetrics(
     materializationSubject,
     recordLocalInputs,
-    requestedUnit.unit,
+    requestedUnit,
     sourceRecordDigest
   );
   const dispatchReadiness =
@@ -423,9 +423,9 @@ function classifyTargetResolutionRecovery(evidence, inheritedState = null) {
   }
 
   if (status === "degraded") {
-    return providerAbsent
-      ? "nonrecoverable_provider_unavailable"
-      : "nonrecoverable_malformed";
+
+    if (providerPresent) return "nonrecoverable_malformed";
+    return inheritedState ?? "fresh";
   }
   if (status !== "present" && status !== "partial") {
     return "nonrecoverable_malformed";
@@ -434,8 +434,7 @@ function classifyTargetResolutionRecovery(evidence, inheritedState = null) {
   if (status === "partial" && unresolvedCount === 0 && ambiguousCount === 0) {
     return "nonrecoverable_malformed";
   }
-  if (ambiguousCount > 0 || status === "partial") return "nonrecoverable_ambiguous";
-  if (unresolvedCount > 0) return "nonrecoverable_missing_paths";
+
   return inheritedState ?? "fresh";
 }
 

@@ -13,6 +13,44 @@ Ratification surface: `decision` / `decision` (enforcement posture + recording) 
 authorization from controlled execution) are the accepted boundaries
 this model underlies.
 
+## Security scope
+
+The local tooling in this repository is **correctness, provenance, and
+honest-agent workflow machinery — not same-user security infrastructure**. This
+scope frames every mechanism below; the threat-model baseline section that
+follows is its elaboration. The local mechanisms exist to:
+
+- **enforce product contracts** — `write_scope` confinement, dispatch-readiness
+  shape checks, and the launcher's controlled-execution boundary keep an honest
+  managed agent inside the lane its coordinator authored;
+- **detect accidental drift and corruption** — CAS/digest integrity, sidecar
+  fail-loud checks, declared-versus-landed verification, and freshness/expiry
+  checks catch an unintended, stale, or corrupted change, not a forged one;
+- **protect credentials from external disclosure** — the launcher masks its own
+  secrets off the worker mount and redacts private carriers so a credential is
+  not leaked outward through a run's inputs, outputs, or model egress;
+- **constrain confined managed execution** — a managed worker sees exactly its
+  `R ∪ W` namespace and mutates only `write_scope`, so its blast radius is
+  bounded to what it was dispatched to touch.
+
+It does **not** claim security against a **malicious same-user actor or a
+compromised host process**. A party that already holds the operator's shell, host
+filesystem, and credentials can defeat every local mechanism here; containing
+that party is outside the mandate. The realistic baseline is *"the operator runs
+the agent with full host privileges and no tooling at all,"* and the job is to be
+honestly better than that baseline for an **honest** agent, not to make a hostile
+one harmless.
+
+This framing weakens no real boundary. External service authentication, the
+Chassis Control Engine's signing authority as the sole minter of enforcement
+authorization, kernel write confinement, CAS/digest integrity, and the
+credential/private-carrier disclosure boundaries above all still hold exactly as
+before; they are simply described as contract-enforcement, provenance, and
+disclosure controls rather than as a same-user security guarantee. This mandate
+was established by the work record audit; work record first applied it, making
+target-resolution evidence advisory to dispatch rather than a file-type
+permission.
+
 ## Threat-model baseline: better than full privileges, not perfect
 
 The comparison this model is measured against is **"run the agent with full host
@@ -352,11 +390,12 @@ launcher-minted durable config surface at `<workspace>/.agent-launch`. That
 source is canonical; the subject, request payload, or ambient process
 environment do not get to declare the profile.
 
-The profile is all-or-nothing: it is a complete 8-control / 19-key baseline, not
-a partial override file. If the declared profile is unreadable, empty,
-malformed, schema-invalid, or over the structural bound, the CCE path fails
-closed. On a confirmed free/local-only install, the same malformed declaration
-is inert: the carrier is omitted and the run stays usable as free.
+The profile is all-or-nothing: it supplies the complete parameter set required
+by the active ratified Node Engine pack, not a partial override file. If the
+declared profile is unreadable, empty, malformed, schema-invalid, or over the
+structural bound, the CCE path fails closed. On a confirmed free/local-only
+install, the same malformed declaration is inert: the carrier is omitted and
+the run stays usable as free.
 
 The loader owns the digest. It validates the profile, computes the digest once
 over the exact transmitted object, and the wire forwards that object and digest
@@ -376,13 +415,21 @@ Before any model call, dispatch-readiness applies structural
 checks to the selected work record. Non-read-only dispatch is blocked when
 `write_scope` is missing or empty, and when `acceptance.validation` has no
 validation command; the work-record schema also requires `acceptance.criteria`
-and `acceptance.validation` to be present arrays. The policy then
-applies bounded shape/size pressure: for example, more than one write-scope entry
-or more than 200 scoped LOC requires review, while more than four write-scope
-entries, more than 1200 scoped LOC, or more than one write cluster is denied /
-non-launchable. These are real gates, but they are not semantic proof:
-dispatch-readiness does not verify that the coordinator chose the minimal
-possible scope or that the validation commands are meaningful.
+and `acceptance.validation` to be present arrays. Portfolio then forwards the
+measured LOC, breadth, and bounded-edit facts. On the CCE-bound path, the active
+org policy / ratified Node Engine pack alone applies the review-band,
+hard-reject, and small-edit thresholds and returns the admissibility verdict;
+Portfolio renders no independent threshold judgment (`decision`, `decision`).
+
+For a file in the active org-policy review band, `decision` preserves two
+authorization paths: a bounded edit within the active small-edit budget may
+self-attest, while a larger edit requires trusted review-attestation. A file at
+or above the active hard-reject threshold must be refactored or split before it
+can be admitted. These policy judgments are real gates on the CCE-bound path,
+but they are not semantic proof: dispatch-readiness does not verify that the
+coordinator chose the minimal possible scope or that the validation commands
+are meaningful. On a confirmed free/local-only install, admissibility is inert
+and the measured facts remain evidence rather than a local verdict.
 
 Applying (0)/(0′) to the worker-admission remote gate, the two "no remote" codes
 are **opposite** and must not be lumped together:

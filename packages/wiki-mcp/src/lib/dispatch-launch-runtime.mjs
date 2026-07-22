@@ -1,21 +1,14 @@
 
 
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
-  BACKEND_REFUSAL_CODES,
   createManagedWorkerConfinementActivationBinding,
   createWorkspaceAgentDispatchBackend
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
 import {
-  WIKI_MCP_ASSIGNED_UNIT_ENV_VAR,
-  WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR,
-  WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR,
-  WIKI_MCP_COMMIT_RUN_ID_ENV_VAR,
   WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR,
-  WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
-  WIKI_MCP_TOOL_PROFILE_ENV_VAR,
-  WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
   WIKI_MCP_WORKSPACE_DIR_ENV_VAR
 } from "@agent-chassis/agent-launch-cli/src/lib/codex-role-mcp-env.mjs";
 import {
@@ -38,11 +31,23 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-launch-adapter-contract.mjs";
 import {
   createHostWriteAuthorityBrokerChannel,
+  buildHostWriteAuthorityPrepareSliceReviewSurfaceRequest,
   createHostWriteAuthorityProvisioningAdapter,
+  createHostWriteAuthoritySliceReviewPreparationAdapter,
   createHostWriteAuthorityIntegrationAdapter,
+  createHostWriteAuthorityWkForgeHandoffAdapter,
   createHostWriteAuthoritySubstrateAdapterIfBrokerReachable,
-  resolveHostWriteAuthoritySidecarEndpoint
+  resolveHostWriteAuthoritySidecarEndpoint,
+  isCompletePrepareSliceReviewSurfaceRequestIdentity,
+  validateSliceReviewSurfacePreparationResult,
+  isCompleteIntegrateSliceRequestIdentity,
+  buildHostWriteAuthorityIntegrateSliceRequest,
+  defaultIntegrateManagedWorkerSlice,
+  TERMINAL_REVIEW_EVIDENCE_COMPOSITIONS
 } from "@agent-chassis/agent-launch-cli/src/lib/host-write-authority-substrate.mjs";
+import {
+  prepareSliceReviewSurface
+} from "@agent-chassis/agent-launch-cli/src/lib/host-write-authority-substrate/slice-review-materialization.mjs";
 
 import {
   evaluateWorkerAdmissionForBackend
@@ -50,53 +55,30 @@ import {
 import {
   createLauncherOwnedSourceToolSurfacePreparer
 } from "@agent-chassis/agent-launch-cli/src/lib/agent-backend.mjs";
-import { runPostWorkerSliceLifecycle } from "./dispatch-run-monitor-routes.mjs";
+
+import {
+  materializeTerminalReviewWorktree
+} from "@agent-chassis/agent-launch-cli/src/lib/host-write-authority-substrate/terminal-review-materialization.mjs";
+import {
+  runPostWorkerSliceLifecycle,
+  TERMINAL_REVIEW_EVIDENCE_MODES
+} from "./dispatch-run-monitor-routes.mjs";
 import { WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION } from "./workspace-commit-tool.mjs";
+
+import {
+  buildAcceptSucceedCodexExecutorTestSeams,
+  consumeDispatchCodexTestSeamEvidence,
+  createAcceptStayRunningTestExecutor,
+  createAcceptThenSucceedTestExecutor,
+  createRefusingTestExecutor,
+  createThrowingTestExecutor
+} from "./dispatch-launch-test-seam-executors.mjs";
+
+export { consumeDispatchCodexTestSeamEvidence };
 
 const SESSION_IDENTITY_SCHEMA_VERSION = "workspace-agent-dispatch-session-identity.v1";
 const DISPATCH_CODEX_AUTHENTICATED_SMOKE_TIMEOUT_ENV_VAR =
   "WIKI_MCP_DISPATCH_CODEX_AUTHENTICATED_SMOKE_TIMEOUT_MS";
-const dispatchCodexTestSeamEvidence = [];
-const DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_PREFIX = "mcp_servers.wiki.env.";
-const DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_ALLOWLIST = new Set([
-  WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
-  WIKI_MCP_WORKSPACE_DIR_ENV_VAR,
-  WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR,
-  WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
-  WIKI_MCP_TOOL_PROFILE_ENV_VAR,
-  WIKI_MCP_ASSIGNED_UNIT_ENV_VAR,
-  WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR,
-  WIKI_MCP_COMMIT_RUN_ID_ENV_VAR,
-  WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR
-]);
-
-export function consumeDispatchCodexTestSeamEvidence() {
-  return dispatchCodexTestSeamEvidence.splice(0, dispatchCodexTestSeamEvidence.length);
-}
-
-function captureDispatchCodexTestWikiChildEnv(childArgs) {
-  const wikiChildEnv = {};
-  for (let index = 0; index < childArgs.length - 1; index += 1) {
-    if (childArgs[index] !== "-c") continue;
-    const override = childArgs[index + 1];
-    index += 1;
-    if (typeof override !== "string" ||
-        !override.startsWith(DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_PREFIX)) {
-      continue;
-    }
-    const separator = override.indexOf("=", DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_PREFIX.length);
-    if (separator < 0) continue;
-    const key = override.slice(DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_PREFIX.length, separator);
-    if (!DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_ALLOWLIST.has(key)) continue;
-    const value = JSON.parse(override.slice(separator + 1));
-    if (typeof value !== "string") {
-      throw new Error(`test seam wiki child environment ${key} must be a string`);
-    }
-
-    wikiChildEnv[key] = value;
-  }
-  return Object.freeze(wikiChildEnv);
-}
 
 function selectDispatchLaunchExecutor(env = process.env) {
   const fixture = String(env.WIKI_MCP_DISPATCH_BACKEND_TEST_FIXTURE ?? "").trim();
@@ -207,6 +189,72 @@ export function resolveHostWriteAuthorityIntegrationAdapter(env = process.env) {
   return createHostWriteAuthorityIntegrationAdapter({ channel });
 }
 
+export function resolveHostWriteAuthoritySliceReviewPreparationAdapter(env = process.env) {
+  const endpoint = resolveHostWriteAuthoritySidecarEndpoint(env);
+  if (endpoint === null) return null;
+  const channel = createHostWriteAuthorityBrokerChannel({ endpoint });
+  return createHostWriteAuthoritySliceReviewPreparationAdapter({ channel });
+}
+
+export function resolveHostWriteAuthorityWkForgeHandoffAdapter(env = process.env) {
+  const endpoint = resolveHostWriteAuthoritySidecarEndpoint(env);
+  if (endpoint === null) return null;
+  const channel = createHostWriteAuthorityBrokerChannel({ endpoint });
+  return createHostWriteAuthorityWkForgeHandoffAdapter({ channel });
+}
+
+function createDirectSliceReviewPreparationAdapter(mainRepo) {
+  return async (request) => {
+    if (!isCompletePrepareSliceReviewSurfaceRequestIdentity(request)) {
+      throw new Error("direct slice-review preparation requires the exact launcher tuple");
+    }
+    const boundRequest = buildHostWriteAuthorityPrepareSliceReviewSurfaceRequest(request);
+    const preparation = await prepareSliceReviewSurface({
+      mainRepo,
+      assignedUnit: boundRequest.assigned_unit,
+      launchRef: boundRequest.launch_ref,
+      runId: boundRequest.run_id,
+      retryId: boundRequest.retry_id
+    });
+    const result = validateSliceReviewSurfacePreparationResult(preparation, boundRequest);
+    if (!result.ok) {
+      throw new Error("direct slice-review preparation returned an invalid trusted result");
+    }
+    return { accepted: true, preparation };
+  };
+}
+
+function createDirectSliceIntegrationAdapter({ mainRepo, reviewEnforcementMode }) {
+  return async (request) => {
+    if (!isCompleteIntegrateSliceRequestIdentity(request)) {
+      throw new Error("direct slice integration requires the exact launcher tuple");
+    }
+    const boundRequest = buildHostWriteAuthorityIntegrateSliceRequest(request);
+
+    const integration = await defaultIntegrateManagedWorkerSlice({
+      mainRepo,
+      assignedUnit: boundRequest.assigned_unit,
+      launchRef: boundRequest.launch_ref,
+      runId: boundRequest.run_id,
+      retryId: boundRequest.retry_id,
+      reviewEnforcementMode,
+      terminalReviewEvidenceComposition:
+        TERMINAL_REVIEW_EVIDENCE_COMPOSITIONS.LIVE_MATERIALIZER
+    });
+    if (!integration || integration.integrated !== true) {
+      throw new Error("direct slice integration returned no successful trusted result");
+    }
+
+    return {
+      accepted: true,
+      integration: Object.freeze({
+        ...integration,
+        tuple: Object.freeze({ ...boundRequest })
+      })
+    };
+  };
+}
+
 export function buildDispatchLaunchExecutors(env = process.env) {
   const codexExecutor = selectDispatchLaunchExecutor(env);
 
@@ -228,89 +276,6 @@ export function buildDispatchLaunchExecutors(env = process.env) {
       sourceReadMode: AGY_FAMILY_SOURCE_READ_MODE,
       nativeReadCapability: AGY_FAMILY_NATIVE_READ_CAPABILITY
     })
-  };
-}
-
-function buildAcceptSucceedCodexExecutorTestSeams() {
-
-  return {
-
-    spawn: (plan) => {
-      const childArgs = Array.isArray(plan?.childArgs) ? plan.childArgs : [];
-      dispatchCodexTestSeamEvidence.push(Object.freeze({
-        repo: typeof plan?.repo === "string" ? plan.repo : null,
-        cwd: typeof plan?.cwd === "string" ? plan.cwd : null,
-        wiki_mcp_child_env: captureDispatchCodexTestWikiChildEnv(childArgs)
-      }));
-      return createCodexExecutorTestSeamChild();
-    }
-  };
-}
-
-function createCodexExecutorTestSeamChild() {
-  const listeners = { exit: [], error: [] };
-  setImmediate(() => {
-    for (const listener of listeners.exit) listener(0, null);
-  });
-  return {
-    pid: 0,
-    on(event, listener) {
-      if (event in listeners && typeof listener === "function") listeners[event].push(listener);
-    }
-  };
-}
-
-function createAcceptThenSucceedTestExecutor() {
-
-  return (input) => {
-    let probeCallCount = 0;
-    return {
-      accepted: true,
-      status: "launching",
-      probe() {
-        probeCallCount += 1;
-        if (probeCallCount === 1) {
-          return { status: "running" };
-        }
-        return {
-          status: "succeeded",
-          exit: { code: 0, signal: null, error: null }
-        };
-      },
-
-      __test_observed: {
-        caller_session_id: input?.caller_session_id ?? null,
-        role: input?.role ?? null,
-        subject: input?.subject ?? null
-      }
-    };
-  };
-}
-
-function createAcceptStayRunningTestExecutor() {
-  return () => ({
-    accepted: true,
-    status: "launching",
-    probe() {
-      return { status: "running" };
-    }
-  });
-}
-
-function createRefusingTestExecutor() {
-  return () => ({
-    accepted: false,
-    refusal: {
-      code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-      reason: "test_fixture_executor_refused",
-      detail: { fixture: "executor_refuses" }
-    }
-  });
-}
-
-function createThrowingTestExecutor() {
-  return () => {
-    throw new Error("test fixture executor threw");
   };
 }
 
@@ -350,7 +315,64 @@ export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
   });
 }
 
-export function buildDispatchRuntime(env = process.env) {
+export function resolveLauncherOwnedLifecycleDeps({
+  worktreeProvisioning,
+
+  hostSliceIntegrationAdapter,
+
+  directSliceIntegrationAdapter = null,
+  hostSliceReviewPreparationAdapter
+} = {}) {
+
+  if (worktreeProvisioning == null) {
+    return hostSliceIntegrationAdapter == null && hostSliceReviewPreparationAdapter == null
+      ? {}
+      : { hostSliceIntegrationAdapter, hostSliceReviewPreparationAdapter };
+  }
+
+  if (hostSliceIntegrationAdapter != null) {
+    return {
+      hostSliceIntegrationAdapter,
+      hostSliceReviewPreparationAdapter,
+      terminalReviewEvidenceMode: TERMINAL_REVIEW_EVIDENCE_MODES.TRANSPORTED_ATTESTATION
+    };
+  }
+
+  return {
+    ...(directSliceIntegrationAdapter != null
+      ? { hostSliceIntegrationAdapter: directSliceIntegrationAdapter }
+      : {}),
+    hostSliceReviewPreparationAdapter,
+    terminalReviewEvidenceMode: TERMINAL_REVIEW_EVIDENCE_MODES.LIVE_MATERIALIZER,
+    materializeTerminalReviewWorktree
+  };
+}
+
+export function composePostWorkerSliceLifecycle({
+  worktreeProvisioning,
+  hostSliceIntegrationAdapter,
+  directSliceIntegrationAdapter = null,
+  hostSliceReviewPreparationAdapter,
+  reviewEnforcementMode = "enforced_cce",
+  lifecycle = runPostWorkerSliceLifecycle
+} = {}) {
+  const launcherOwned = resolveLauncherOwnedLifecycleDeps({
+    worktreeProvisioning,
+    hostSliceIntegrationAdapter,
+    directSliceIntegrationAdapter,
+    hostSliceReviewPreparationAdapter
+  });
+  const tierOwned = Object.freeze({ reviewEnforcementMode });
+
+  return ({ workspace, status, deps = {} }) =>
+    lifecycle({ workspace, status, deps: { ...deps, ...launcherOwned, ...tierOwned } });
+}
+
+export function reviewEnforcementModeForRegisteredTier(registeredTier) {
+  return registeredTier === "paid_cce" ? "enforced_cce" : "policy_only";
+}
+
+export function buildDispatchRuntime(env = process.env, { registeredTier = "free_local" } = {}) {
   const dispatchSessionIdentity = mintDispatchSessionIdentity();
   const launchExecutors = buildDispatchLaunchExecutors(env);
 
@@ -365,13 +387,31 @@ export function buildDispatchRuntime(env = process.env) {
 
   const hostSliceIntegrationAdapter =
     worktreeProvisioning === null ? null : resolveHostWriteAuthorityIntegrationAdapter(env);
-  const composedPostWorkerSliceLifecycle = hostSliceIntegrationAdapter === null
-    ? runPostWorkerSliceLifecycle
-    : ({ workspace, status, deps = {} }) => runPostWorkerSliceLifecycle({
-        workspace,
-        status,
-        deps: { ...deps, hostSliceIntegrationAdapter }
-      });
+  const brokerSliceReviewPreparationAdapter = worktreeProvisioning === null
+    ? null
+    : resolveHostWriteAuthoritySliceReviewPreparationAdapter(env);
+  const hostSliceReviewPreparationAdapter = worktreeProvisioning === null
+    ? null
+    : brokerSliceReviewPreparationAdapter ??
+      createDirectSliceReviewPreparationAdapter(worktreeProvisioning.mainRepo);
+
+  const composedReviewEnforcementMode = reviewEnforcementModeForRegisteredTier(registeredTier);
+  const directSliceIntegrationAdapter =
+    worktreeProvisioning !== null && hostSliceIntegrationAdapter === null
+      ? createDirectSliceIntegrationAdapter({
+          mainRepo: worktreeProvisioning.mainRepo,
+          reviewEnforcementMode: composedReviewEnforcementMode
+        })
+      : null;
+  const composedPostWorkerSliceLifecycle = composePostWorkerSliceLifecycle({
+    worktreeProvisioning,
+    hostSliceIntegrationAdapter,
+    directSliceIntegrationAdapter,
+    hostSliceReviewPreparationAdapter,
+    reviewEnforcementMode: composedReviewEnforcementMode,
+
+    lifecycle: runPostWorkerSliceLifecycle
+  });
   const dispatchBackend =
     launchExecutors && launchExecutors.codex
       ? createWorkspaceAgentDispatchBackend({
@@ -387,5 +427,7 @@ export function buildDispatchRuntime(env = process.env) {
           })
         })
       : null;
-  return { dispatchBackend, dispatchSessionIdentity };
+
+  const wkForgeHandoffAdapter = resolveHostWriteAuthorityWkForgeHandoffAdapter(env);
+  return { dispatchBackend, dispatchSessionIdentity, wkForgeHandoffAdapter };
 }

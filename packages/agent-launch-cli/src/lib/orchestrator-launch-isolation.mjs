@@ -1,6 +1,7 @@
 
 
 import path from "node:path";
+import { lstatSync, mkdirSync, realpathSync } from "node:fs";
 
 import {
   assertBubblewrapAvailable,
@@ -21,6 +22,44 @@ function fail(code, message, detail = null) {
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
+}
+
+export function deriveLauncherOwnedDispatchWorktreeRoot(repo) {
+  if (!isNonEmptyString(repo)) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.REPO_INVALID,
+      `orchestrator managed-worktree root requires a repo path, got: ${typeof repo}`
+    );
+  }
+  const repoReal = realpathSync(path.resolve(repo));
+  return path.join(path.dirname(repoReal), ".agent-worktrees", path.basename(repoReal));
+}
+
+export function prepareLauncherOwnedDispatchWorktreeRoot({
+  repo,
+  dispatchWorktreeRoot = null
+} = {}) {
+  const derivedRoot = deriveLauncherOwnedDispatchWorktreeRoot(repo);
+  if (
+    dispatchWorktreeRoot !== null &&
+    (!isNonEmptyString(dispatchWorktreeRoot) || path.resolve(dispatchWorktreeRoot) !== derivedRoot)
+  ) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
+      `carried dispatchWorktreeRoot disagrees with launcher-derived root for ${realpathSync(path.resolve(repo))}`,
+      { carried: dispatchWorktreeRoot, derived: derivedRoot }
+    );
+  }
+
+  mkdirSync(derivedRoot, { recursive: true });
+  const rootStat = lstatSync(derivedRoot);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || realpathSync(derivedRoot) !== derivedRoot) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
+      `launcher-derived managed-worktree root must be an exact real directory: ${derivedRoot}`
+    );
+  }
+  return derivedRoot;
 }
 
 export const INTERACTIVE_ORCHESTRATOR_COORDINATION_WRITABLE_SUBPATHS = Object.freeze([
@@ -90,6 +129,7 @@ function buildOrchestratorBwrapPlanForPosture({
   homeReadOnlyFiles = [],
   familyRuntimeReadOnlyRoots = [],
   familyRuntimePolicyProfile = null,
+  dispatchWorktreeRoot = null,
   resolveExecutable = resolveFamilyRuntimeExecutable
 } = {}) {
   if (!isNonEmptyString(repo)) {
@@ -119,6 +159,10 @@ function buildOrchestratorBwrapPlanForPosture({
     resolved.readOnlyRoots
   );
   const commandResolution = buildFamilyRuntimeCommandResolution(resolved);
+  const managedWorktreeReadRoot = prepareLauncherOwnedDispatchWorktreeRoot({
+    repo,
+    dispatchWorktreeRoot
+  });
 
   const runtimeRoots = [runtimeDir];
   if (isNonEmptyString(appStateHomeDir)) {
@@ -142,6 +186,7 @@ function buildOrchestratorBwrapPlanForPosture({
       path.join(repo, subpath)
     ),
     mcpSandboxProfile: buildOrchestratorMcpSandboxProfileRequest(),
+    readOnlyRoots: [managedWorktreeReadRoot],
     runtimeRoots,
     homePolicy,
     familyRuntimeReadOnlyRoots: mergedFamilyRuntimeReadOnlyRoots,

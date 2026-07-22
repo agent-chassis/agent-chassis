@@ -5,6 +5,7 @@ import { mkdir } from "node:fs/promises";
 
 import { summarizeDispatchReadinessDependencies } from "@agent-chassis/agent-launch-core/src/lib/work-record-gate.mjs";
 import { HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR } from "./host-write-authority-substrate.mjs";
+import { resolveLauncherRegisteredTier } from "./orchestrator-dispatch-sidecar.mjs";
 import { assertFile } from "./codex-role-io.mjs";
 import { orchestratorPrompt } from "./codex-role-prompts.mjs";
 import {
@@ -129,6 +130,7 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
     kind: "host_write_authority_localhost",
     host: "127.0.0.1",
     envVar: HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR,
+    registeredTier: resolveLauncherRegisteredTier(env),
 
     mcpServerName: CODEX_WIKI_MCP_SERVER_NAME
   };

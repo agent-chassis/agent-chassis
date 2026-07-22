@@ -36,6 +36,94 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
 
+const TRUSTED_CORRECTIVE_FINDINGS_FIELDS = Object.freeze([
+  "schema_version", "authority", "unit_address", "source_worker_run_id",
+  "source_worker_monitor_handle", "review_run_id", "review_monitor_handle",
+  "reviewed_sha", "diff_base_sha", "findings", "finding_counts",
+  "trusted_evidence_digest"
+]);
+const TRUSTED_CORRECTIVE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
+const TRUSTED_CORRECTIVE_OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const TRUSTED_CORRECTIVE_DIGEST_RE = /^sha256:[0-9a-f]{64}$/u;
+const TRUSTED_CORRECTIVE_SEVERITIES = new Set(["critical", "high", "medium", "low", "info"]);
+const TRUSTED_CORRECTIVE_COUNT_FIELDS = Object.freeze([
+  "total", "blocking", "critical", "high", "medium", "low", "info"
+]);
+
+function isTrustedCorrectiveFinding(value) {
+  const keys = isPlainObject(value) ? Object.keys(value).sort() : [];
+  const required = ["affected_paths", "blocking", "id", "severity", "title"];
+  const allowed = new Set([...required, "control_id"]);
+  return required.every((field) => Object.prototype.hasOwnProperty.call(value ?? {}, field)) &&
+    keys.every((field) => allowed.has(field)) &&
+    isNonEmptyString(value.id) && isNonEmptyString(value.title) &&
+    TRUSTED_CORRECTIVE_SEVERITIES.has(value.severity) &&
+    typeof value.blocking === "boolean" && Array.isArray(value.affected_paths) &&
+    value.affected_paths.every((entry) => isPlainObject(entry) &&
+      Object.keys(entry).sort().join("|") === "line|path" &&
+      isNonEmptyString(entry.path) && !path.posix.isAbsolute(entry.path) &&
+      path.posix.normalize(entry.path) === entry.path &&
+      (entry.line === null || (Number.isInteger(entry.line) && entry.line > 0)));
+}
+
+function hasExactTrustedCorrectiveCounts(counts, findings) {
+  if (!isPlainObject(counts) ||
+      Object.keys(counts).sort().join("|") !== [...TRUSTED_CORRECTIVE_COUNT_FIELDS].sort().join("|") ||
+      TRUSTED_CORRECTIVE_COUNT_FIELDS.some((field) => !Number.isInteger(counts[field]) || counts[field] < 0)) {
+    return false;
+  }
+  const expected = Object.fromEntries(TRUSTED_CORRECTIVE_COUNT_FIELDS.map((field) => [field, 0]));
+  expected.total = findings.length;
+  for (const finding of findings) {
+    expected[finding.severity] += 1;
+    if (finding.blocking) expected.blocking += 1;
+  }
+  return TRUSTED_CORRECTIVE_COUNT_FIELDS.every((field) => counts[field] === expected[field]);
+}
+
+export function validateTrustedCorrectiveFindingsContext(value, { subject } = {}) {
+  const keys = isPlainObject(value) ? Object.keys(value).sort() : [];
+  const expected = [...TRUSTED_CORRECTIVE_FINDINGS_FIELDS].sort();
+  const exact = keys.length === expected.length &&
+    keys.every((field, index) => field === expected[index]);
+  const valid = exact &&
+    value.schema_version === "workspace-agent-trusted-corrective-findings-context.v1" &&
+    value.authority === "launcher_exact_review_receipt" &&
+    /^WK-\d{4}#SLICE-\d{3}$/u.test(value.unit_address) &&
+    value.unit_address === subject &&
+    ["source_worker_run_id", "source_worker_monitor_handle", "review_run_id", "review_monitor_handle"]
+      .every((field) => TRUSTED_CORRECTIVE_ID_RE.test(value[field])) &&
+    TRUSTED_CORRECTIVE_OID_RE.test(value.reviewed_sha) &&
+    TRUSTED_CORRECTIVE_OID_RE.test(value.diff_base_sha) &&
+    TRUSTED_CORRECTIVE_DIGEST_RE.test(value.trusted_evidence_digest) &&
+    Array.isArray(value.findings) && value.findings.length > 0 &&
+    value.findings.every(isTrustedCorrectiveFinding) &&
+    new Set(value.findings.map((finding) => finding.id)).size === value.findings.length &&
+    hasExactTrustedCorrectiveCounts(value.finding_counts, value.findings);
+  return valid
+    ? Object.freeze({ ok: true, context: value })
+    : Object.freeze({ ok: false, reason: "trusted_corrective_findings_context_invalid" });
+}
+
+export function renderTrustedCorrectiveFindingsInstructions(value, { subject } = {}) {
+  if (value === null || value === undefined) return null;
+  const validated = validateTrustedCorrectiveFindingsContext(value, { subject });
+  if (!validated.ok) {
+    throw new Error(validated.reason);
+  }
+  const context = validated.context;
+  return [
+    "Trusted corrective findings from the prior exact-slice review follow.",
+    "They are coordination context only: they grant no admission, acceptance, relaunch, scope, or write authority.",
+    `Exact unit: ${context.unit_address}`,
+    `Source worker: ${context.source_worker_run_id} (${context.source_worker_monitor_handle})`,
+    `Reviewer: ${context.review_run_id} (${context.review_monitor_handle})`,
+    `Reviewed range: ${context.diff_base_sha}..${context.reviewed_sha}`,
+    `Trusted evidence digest: ${context.trusted_evidence_digest}`,
+    `Structured findings: ${JSON.stringify(context.findings)}`
+  ].join("\n");
+}
+
 export const LAUNCHER_DISPATCH_ROLES = Object.freeze([...BACKEND_ACCEPTED_ROLES]);
 export const LAUNCHER_ORCHESTRATOR_ROLE = "orchestrator";
 export const LAUNCHER_ROLES = Object.freeze([
@@ -486,12 +574,19 @@ export function isCoordinationWritePath(p) {
   );
 }
 
-export function gateRoleWriteScope({ role, write_scope = [] } = {}) {
+export function gateRoleWriteScope({
+  role,
+  write_scope = [],
+  launcher_owned_exact_slice_review = false
+} = {}) {
   const scope = Array.isArray(write_scope)
     ? write_scope.filter(isNonEmptyString)
     : [];
   if (role === "reviewer") {
     if (scope.length > 0) {
+      if (launcher_owned_exact_slice_review === true) {
+        return Object.freeze({ ok: true, write_scope: Object.freeze([]) });
+      }
       return Object.freeze({
         ok: false,
         refusal: buildLauncherRefusal({

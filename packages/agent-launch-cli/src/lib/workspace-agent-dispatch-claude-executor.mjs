@@ -27,7 +27,10 @@ import {
 } from "./workspace-agent-launch-core.mjs";
 import { launchWorkspaceAgentFamilyLaunchLifecycle } from "./workspace-agent-family-launch-lifecycle.mjs";
 import { HOST_WRITE_AUTHORITY_SUBSTRATE_ID } from "./host-write-authority-substrate.mjs";
-import { resolveFindingsOnlyAcceptanceContract } from "./workspace-agent-findings-role-context.mjs";
+import {
+  FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
+  resolveFindingsOnlyAcceptanceContract
+} from "./workspace-agent-findings-role-context.mjs";
 import {
   LAUNCHER_WRITE_POSTURES
 } from "./workspace-agent-family-policy.mjs";
@@ -73,6 +76,12 @@ import {
   resolveClaudeLauncherWriteScope,
   resolveLauncherOwnedClaudeRuntimeFacts
 } from "./workspace-agent-claude-launch-support.mjs";
+import {
+  renderTrustedCorrectiveFindingsInstructions
+} from "./workspace-agent-launch-adapter-contract.mjs";
+
+export const CLAUDE_EXACT_SLICE_REVIEW_SANDBOX_REQUIRED_REASON =
+  "claude_exact_slice_review_sandbox_required";
 
 async function spawnPlainChildProcess(command, args, options) {
   const childProcess = await import("node:" + "child_process");
@@ -91,6 +100,29 @@ function buildClaudeChildRunProvenance({
     enforcement: effectiveEnforcement,
     artifacts: []
   });
+}
+
+function isLauncherOwnedExactSliceReview(input, { role, subject } = {}) {
+  const contract = input?.trusted_frozen_review_contract ??
+    input?.readiness?.trusted_frozen_review_contract;
+  const target = input?.readiness?.frozen_slice_review_target;
+  return role === "reviewer" &&
+    contract !== null && typeof contract === "object" && !Array.isArray(contract) &&
+    Object.keys(contract).sort().join("\0") === [
+      "canonical_parent_wk_contract", "review_subject", "review_unit_contract", "schema_version"
+    ].sort().join("\0") &&
+    contract.schema_version === FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION &&
+    contract.review_subject === subject &&
+    typeof contract.canonical_parent_wk_contract === "string" &&
+    typeof contract.review_unit_contract === "string" &&
+    target !== null && typeof target === "object" && !Array.isArray(target) &&
+    target.slice_level_review === true &&
+    typeof target.ref === "string" &&
+    typeof target.sha === "string" &&
+    typeof target.diff_base_sha === "string" &&
+    typeof (input?.config_root_dir ?? input?.readiness?.config_root_dir) === "string" &&
+    typeof input?.workspace_dir === "string" &&
+    (input.config_root_dir ?? input.readiness.config_root_dir) !== input.workspace_dir;
 }
 
 function buildClaudeSupervisedFinalResultWithProvenance(provenanceContext) {
@@ -357,9 +389,17 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
     const writePosture = resolveClaudeLauncherRoleWritePosture(role);
 
+    const launcherOwnedExactSliceReview = isLauncherOwnedExactSliceReview(input, { role, subject });
     const writeScopeGate = resolveClaudeLauncherWriteScope({
       role,
-      writeScope: await resolveCanonicalWriteScope({ subject, workspaceDir, loadWorkRecord })
+      writeScope: await resolveCanonicalWriteScope({
+        subject,
+        workspaceDir: launcherOwnedExactSliceReview
+          ? (input.config_root_dir ?? input.readiness.config_root_dir)
+          : workspaceDir,
+        loadWorkRecord
+      }),
+      launcherOwnedExactSliceReview
     });
     const wsr = writeScopeGate.refusal;
     if (wsr) return makeRefusal(wsr.code, wsr.reason, wsr.detail);
@@ -410,6 +450,12 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
     let commandLine;
     try {
+      const correctiveInstructions = role === "worker"
+        ? renderTrustedCorrectiveFindingsInstructions(
+            input?.readiness?.trusted_corrective_findings_context ?? null,
+            { subject }
+          )
+        : null;
 
       const findingsOnlyAcceptance = await resolveFindingsOnlyAcceptanceContract({
         role,
@@ -417,7 +463,8 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
         workspaceDir,
         loadWorkRecord,
 
-        frozenReviewContract: input?.trusted_frozen_review_contract ?? null
+        frozenReviewContract: input?.trusted_frozen_review_contract ??
+          input?.readiness?.trusted_frozen_review_contract ?? null
       });
       commandLine = buildCommandLine({
         claudePath: resolvedClaudePath,
@@ -430,7 +477,8 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
         acceptanceCriteria: findingsOnlyAcceptance?.acceptanceCriteria ?? [],
         acceptanceValidation: findingsOnlyAcceptance?.acceptanceValidation ?? [],
         claudeSettingsPath: claudeSettings?.settingsPath ?? null,
-        schemaConstrainedTerminalResult
+        schemaConstrainedTerminalResult,
+        supplementalInstructions: correctiveInstructions
       });
     } catch (err) {
       return makeRefusal(
@@ -503,6 +551,7 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
         runtimeRoots,
         readOnlyRoots,
+        credentialsWritable: launcherOwnedExactSliceReview !== true,
         stdio: ["ignore", "pipe", "pipe"]
       });
     } catch (err) {
@@ -511,6 +560,18 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
           BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
           "claude_executor_credentials_path_invalid",
           err.detail ?? null
+        );
+      }
+      if (launcherOwnedExactSliceReview === true) {
+        return makeRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          CLAUDE_EXACT_SLICE_REVIEW_SANDBOX_REQUIRED_REASON,
+          {
+            message: err?.message ?? String(err),
+            code: err?.code ?? null,
+            sandbox_required: true,
+            unenforced_fallback_permitted: false
+          }
         );
       }
       if (err instanceof BubblewrapIsolationError) {
@@ -751,18 +812,28 @@ export function createHostWriteAuthorityBrokerClaudePlanLaunch({
       steps: {
 
         write_scope: async (ctx) => {
+          const launcherOwnedExactSliceReview = isLauncherOwnedExactSliceReview(ctx.launchInput, {
+            role: ctx.role,
+            subject: ctx.subject
+          });
           const writeScopeGate = resolveClaudeLauncherWriteScope({
             role: ctx.role,
             writeScope: await resolveCanonicalWriteScope({
               subject: ctx.subject,
-              workspaceDir: ctx.workspaceDir,
+              workspaceDir: launcherOwnedExactSliceReview
+              ? (ctx.launchInput.config_root_dir ?? ctx.launchInput.readiness.config_root_dir)
+                : ctx.workspaceDir,
               loadWorkRecord
-            })
+            }),
+            launcherOwnedExactSliceReview
           });
           if (writeScopeGate.refusal) {
             return { refusal: { reason: writeScopeGate.refusal.reason, detail: writeScopeGate.refusal.detail } };
           }
-          return { writeScope: writeScopeGate.writeScope };
+          return {
+            writeScope: writeScopeGate.writeScope,
+            launcherOwnedExactSliceReview
+          };
         },
 
         probe: async () => {
@@ -856,8 +927,15 @@ export function createHostWriteAuthorityBrokerClaudePlanLaunch({
             workspaceDir: ctx.workspaceDir,
             loadWorkRecord,
 
-            frozenReviewContract: ctx?.launchInput?.trusted_frozen_review_contract ?? null
+            frozenReviewContract: ctx?.launchInput?.trusted_frozen_review_contract ??
+              ctx?.launchInput?.readiness?.trusted_frozen_review_contract ?? null
           });
+          const correctiveInstructions = ctx.role === "worker"
+            ? renderTrustedCorrectiveFindingsInstructions(
+                ctx?.launchInput?.readiness?.trusted_corrective_findings_context ?? null,
+                { subject: ctx.subject }
+              )
+            : null;
           const commandLine = buildCommandLine({
             claudePath: ctx.resolvedClaudePath,
             role: ctx.role,
@@ -868,7 +946,8 @@ export function createHostWriteAuthorityBrokerClaudePlanLaunch({
             acceptanceCriteria: findingsOnlyAcceptance?.acceptanceCriteria ?? [],
             acceptanceValidation: findingsOnlyAcceptance?.acceptanceValidation ?? [],
             claudeSettingsPath: claudeSettings?.settingsPath ?? null,
-            schemaConstrainedTerminalResult
+            schemaConstrainedTerminalResult,
+            supplementalInstructions: correctiveInstructions
           });
           return {
             command: commandLine.command,
@@ -878,20 +957,39 @@ export function createHostWriteAuthorityBrokerClaudePlanLaunch({
         },
 
         bwrap: (ctx) => {
-          const bwrapPlan = buildBwrapPlan({
-            command: ctx.command,
-            args: Array.isArray(ctx.args) ? ctx.args : [],
-            workspaceDir: ctx.workspaceDir,
-            env,
-            writeScope: ctx.writeScope,
-            runtimeRoots: Array.isArray(ctx.runtimeRoots) ? ctx.runtimeRoots : [],
-            readOnlyRoots: Array.isArray(ctx.readOnlyRoots) ? ctx.readOnlyRoots : [],
-            credentialsReadOnlyFile: effectiveCredentialsReadOnlyFile,
-            approvedCredentialsReadOnlyFiles: effectiveApprovedCredentialsReadOnlyFiles,
-            familyRuntimeReadOnlyRoots: [runtimeFacts.readOnlyRoot],
-            familyRuntimePolicyProfile: runtimeFacts.familyRuntimePolicyProfile
-          });
-          return { bwrapPlan };
+          try {
+            const bwrapPlan = buildBwrapPlan({
+              command: ctx.command,
+              args: Array.isArray(ctx.args) ? ctx.args : [],
+              workspaceDir: ctx.workspaceDir,
+              env,
+              writeScope: ctx.writeScope,
+              runtimeRoots: Array.isArray(ctx.runtimeRoots) ? ctx.runtimeRoots : [],
+              readOnlyRoots: Array.isArray(ctx.readOnlyRoots) ? ctx.readOnlyRoots : [],
+              credentialsReadOnlyFile: effectiveCredentialsReadOnlyFile,
+              approvedCredentialsReadOnlyFiles: effectiveApprovedCredentialsReadOnlyFiles,
+              credentialsWritable: ctx.launcherOwnedExactSliceReview !== true,
+              familyRuntimeReadOnlyRoots: [runtimeFacts.readOnlyRoot],
+              familyRuntimePolicyProfile: runtimeFacts.familyRuntimePolicyProfile
+            });
+            return { bwrapPlan };
+          } catch (error) {
+            if (ctx.launcherOwnedExactSliceReview === true) {
+              return {
+                refusal: {
+                  reason: CLAUDE_EXACT_SLICE_REVIEW_SANDBOX_REQUIRED_REASON,
+                  detail: {
+                    app: "claude",
+                    message: error?.message ?? String(error),
+                    code: error?.code ?? null,
+                    sandbox_required: true,
+                    unenforced_fallback_permitted: false
+                  }
+                }
+              };
+            }
+            throw error;
+          }
         }
       }
     });

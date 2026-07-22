@@ -142,11 +142,40 @@ export function canonicalizeWorkRecordJson(value) {
   return canonicalizeValue(value);
 }
 
+export function projectWorkRecordSourceContract(record) {
+  const { derived_evidence, projections, ...source } = record || {};
+  return source;
+}
+
 export function computeWorkRecordSourceDigest(record) {
-  const { derived_evidence, projections, ...digestInput } = record || {};
   const hash = createHash("sha256");
-  hash.update(canonicalizeWorkRecordJson(digestInput));
+  hash.update(canonicalizeWorkRecordJson(projectWorkRecordSourceContract(record)));
   return `sha256:${hash.digest("hex")}`;
+}
+
+export function projectWorkRecordReviewReceiptContract(record) {
+  if (!isObject(record)) {
+    return record;
+  }
+
+  const projected = projectWorkRecordSourceContract(
+    canonicalizeWorkRecordReadScope(structuredClone(record))
+  );
+  delete projected.updated;
+  return projected;
+}
+
+export function projectSliceReviewReceiptContracts(record, sliceId) {
+  const parent = projectWorkRecordReviewReceiptContract(record);
+  const slice = Array.isArray(parent?.slices)
+    ? parent.slices.find((entry) => entry?.id === sliceId) ?? null
+    : null;
+  return {
+    parent,
+    slice,
+    canonical_parent_wk_contract: canonicalizeWorkRecordJson(parent),
+    slice_review_contract: slice === null ? null : canonicalizeWorkRecordJson(slice)
+  };
 }
 
 export function createWorkRecordDiagnostic(code, message, options = {}) {

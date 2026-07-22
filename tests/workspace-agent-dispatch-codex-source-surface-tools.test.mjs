@@ -300,7 +300,8 @@ test("WK-1176 SLICE-017 codex worker: launcher-owned source surface exposes the 
   );
 });
 
-test("WK-1176 SLICE-017 codex worker: caller-supplied carriers cannot broaden source or write authority", async () => {
+test("WK-1176 SLICE-017 codex worker: caller-supplied scope/lifecycle carriers are refused outright", async () => {
+
   const forgedBroadSurface = {
     schema_version: LAUNCHER_OWNED_SOURCE_TOOL_SURFACE_SCHEMA_VERSION,
     backend_kind: "filesystem_mcp",
@@ -323,32 +324,21 @@ test("WK-1176 SLICE-017 codex worker: caller-supplied carriers cannot broaden so
     }
   });
 
-  assert.equal(result.accepted, true);
-  assert.equal(executorInputs.length, 1);
+  assert.equal(result.accepted, false, "caller-carried scope/lifecycle carriers must be refused outright");
+  assert.equal(result.refusal.reason, "managed_lifecycle_required");
+  assert.equal(result.refusal.detail.blocker, "worker_scope_authority_invalid");
+  assert.equal(result.refusal.detail.reason, "caller_carried_managed_lifecycle_forbidden");
+  assert.equal(result.refusal.detail.field, "read_scope");
+  assert.equal(result.refusal.detail.carrier, "dispatch_input");
 
-  assert.deepEqual(
-    uniqueSorted(capturedRequest.value.scope.read_scope),
-    EXPECTED_READ_AUTHORITY,
-    "read authority must come from the launcher-owned record, not caller carriers"
-  );
-  assert.deepEqual(
-    uniqueSorted(capturedRequest.value.scope.write_scope),
-    EXPECTED_WRITE_AUTHORITY,
-    "write authority must come from the launcher-owned record, not caller carriers"
-  );
+  assert.equal(capturedRequest.value, null, "no source-surface request may be computed for a refused dispatch");
+  assert.equal(executorInputs.length, 0, "the family executor must not be reached for a refused dispatch");
 
-  const surface = executorInputs[0].source_tool_surface;
+  const serialized = JSON.stringify(result);
   assert.equal(
-    surface.schema_version,
-    LAUNCHER_OWNED_SOURCE_TOOL_SURFACE_SCHEMA_VERSION,
-    "the executor must receive the launcher-owned surface"
-  );
-
-  const serializedSurface = JSON.stringify(surface);
-  assert.equal(
-    serializedSurface.includes("/etc"),
+    serialized.includes("/etc"),
     false,
-    "the forged caller-supplied surface must not reach the family executor"
+    "the forged caller-supplied surface must not leak into the refusal"
   );
   for (const sentinel of [
     "__caller_read_scope__",
@@ -361,15 +351,9 @@ test("WK-1176 SLICE-017 codex worker: caller-supplied carriers cannot broaden so
     "__caller_prompt__"
   ]) {
     assert.equal(
-      serializedSurface.includes(sentinel),
+      serialized.includes(sentinel),
       false,
-      `caller-supplied carrier must not leak into the launcher-owned surface: ${sentinel}`
+      `caller-supplied carrier must not leak into the refusal: ${sentinel}`
     );
   }
-
-  const runtime = surface.codex_child_runtime;
-  assert.ok(runtime, "the launcher-owned callable child runtime must still be mounted");
-  assert.equal(runtime.raw_exec_enabled, false);
-  assert.equal(runtime.child_mount.command, "node");
-  assert.equal(runtime.child_mount.mcp_server_name, CODEX_SOURCE_TOOL_SURFACE_MCP_SERVER_NAME);
 });

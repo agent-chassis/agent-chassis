@@ -19,7 +19,8 @@ import {
 } from "./adapter.mjs";
 
 import {
-  MANAGED_WORKTREE_BINDING_SCHEMA_VERSION
+  MANAGED_WORKTREE_BINDING_SCHEMA_VERSION,
+  MANAGED_SLICE_CHECKOUT_MODE_FULL
 } from "../worktree-provisioning-dispatch.mjs";
 
 const FROZEN_SCOPE_AUTHORITY_FIELDS = Object.freeze([
@@ -32,7 +33,7 @@ const FROZEN_SELECTED_UNIT_FIELDS = Object.freeze([
 
 const FROZEN_MANAGED_PROVISIONING_FIELDS = Object.freeze([
   "schema_version", "complete", "main_repo", "initiative", "record_id", "slice_id",
-  "unit_address", "retry_id", "run_authority", "wk_binding", "slice_binding",
+  "unit_address", "retry_id", "wk_binding", "slice_binding",
   "worktree_path", "output_branch", "base_ref", "base_sha", "write_scope", "cone_dirs",
   "index_sparse", "validation_worktree_path", "shared_git_exposed"
 ]);
@@ -47,10 +48,34 @@ const FROZEN_NESTED_SLICE_BINDING_FIELDS = Object.freeze([
   "read_scope", "repo_paths", "selected_unit", "source_digest", "source_version",
   "cone_dirs", "index_sparse"
 ]);
+
+const FROZEN_MANAGED_PROVISIONING_FIELDS_V2 = Object.freeze([
+  ...FROZEN_MANAGED_PROVISIONING_FIELDS.filter(
+    (field) => field !== "cone_dirs" && field !== "index_sparse"
+  ),
+  "checkout_mode"
+]);
+const FROZEN_NESTED_SLICE_BINDING_FIELDS_V2 = Object.freeze([
+  ...FROZEN_NESTED_WK_BINDING_FIELDS,
+  "read_scope", "repo_paths", "selected_unit", "source_digest", "source_version",
+  "checkout_mode"
+]);
 const LAUNCH_INPUT_FIELD_SET = new Set(HOST_WRITE_AUTHORITY_LAUNCH_INPUT_FIELDS);
 
 function hasOwn(value, field) {
   return Object.prototype.hasOwnProperty.call(value, field);
+}
+
+function managedCarrierCheckoutMode(value) {
+  if (!isPlainObject(value)) return null;
+  const hasCone = hasOwn(value, "cone_dirs");
+  const hasIndexSparse = hasOwn(value, "index_sparse");
+  const hasCheckoutMode = hasOwn(value, "checkout_mode");
+  if (hasCheckoutMode && !hasCone && !hasIndexSparse) {
+    return value.checkout_mode === MANAGED_SLICE_CHECKOUT_MODE_FULL ? "full" : null;
+  }
+  if (!hasCheckoutMode && hasCone && hasIndexSparse) return "sparse";
+  return null;
 }
 
 function hasExactFields(value, expected) {
@@ -113,10 +138,16 @@ function validateFrozenManagedProvisioningTransport(provisioning, { parsed }) {
   if (provisioning === null || provisioning === undefined) {
     return;
   }
+
+  const carrierMode = managedCarrierCheckoutMode(provisioning);
   if (!isPlainObject(provisioning) ||
       provisioning.schema_version !== MANAGED_WORKTREE_BINDING_SCHEMA_VERSION ||
       provisioning.complete !== true ||
-      !hasExactFields(provisioning, FROZEN_MANAGED_PROVISIONING_FIELDS)) {
+      carrierMode === null ||
+      !hasExactFields(
+        provisioning,
+        carrierMode === "full" ? FROZEN_MANAGED_PROVISIONING_FIELDS_V2 : FROZEN_MANAGED_PROVISIONING_FIELDS
+      )) {
     throw new Error("broker managed worktree provisioning carrier is incomplete or has an extended schema");
   }
   const sliceBinding = provisioning.slice_binding;
@@ -126,11 +157,13 @@ function validateFrozenManagedProvisioningTransport(provisioning, { parsed }) {
   }
 
   if (!hasExactFields(wkBinding, FROZEN_NESTED_WK_BINDING_FIELDS) ||
-      !hasExactFields(sliceBinding, FROZEN_NESTED_SLICE_BINDING_FIELDS)) {
+      !hasExactFields(
+        sliceBinding,
+        carrierMode === "full" ? FROZEN_NESTED_SLICE_BINDING_FIELDS_V2 : FROZEN_NESTED_SLICE_BINDING_FIELDS
+      )) {
     throw new Error("broker managed worktree provisioning carrier nested binding has an extended or truncated schema");
   }
   if (!isNonEmptyString(provisioning.main_repo) ||
-      !isNonEmptyString(provisioning.run_authority) ||
       provisioning.worktree_path !== sliceBinding.worktree_path ||
       provisioning.retry_id !== sliceBinding.retry_id ||
       provisioning.unit_address !== sliceBinding.unit_address) {

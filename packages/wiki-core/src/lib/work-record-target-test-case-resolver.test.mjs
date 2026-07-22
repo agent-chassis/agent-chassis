@@ -404,3 +404,75 @@ test("supported resolved and ambiguous outcomes keep their locally minted provid
   assert.deepEqual(ambiguous.target_resolution_provider, WORK_RECORD_TARGET_TEST_CASE_RESOLVER_PROVIDER);
   assert.equal(ambiguous.target_resolution_candidates.length, 2);
 });
+
+test("supported node:test import form and direct-create raw-path regressions", () => {
+
+  const acceptedForms = [
+    ['import test from "node:test";\ntest("selected test", () => {});\n', "default import"],
+    ['import { test } from "node:test";\ntest("selected test", () => {});\n', "named import"],
+    ['import { test as scenario } from "node:test";\nscenario("selected test", () => {});\n', "aliased named import"]
+  ];
+  for (const [sourceText, label] of acceptedForms) {
+    const result = resolve(sourceText);
+    assert.equal(result.target_resolution_status, "resolved", label);
+    assert.deepEqual(result.target_resolution_provider, WORK_RECORD_TARGET_TEST_CASE_RESOLVER_PROVIDER, label);
+  }
+
+  const rejectedForms = [
+    'import test, { other } from "node:test";\ntest("selected test", () => {});\n',
+    'import test, { test } from "node:test";\ntest("selected test", () => {});\n',
+    'import { test, other } from "node:test";\ntest("selected test", () => {});\n',
+    'import { test, test } from "node:test";\ntest("selected test", () => {});\n',
+    'import { test as scenario, other } from "node:test";\nscenario("selected test", () => {});\n',
+    'import * as test from "node:test";\ntest("selected test", () => {});\n',
+    'import test, * as namespaced from "node:test";\ntest("selected test", () => {});\n'
+  ];
+  for (const sourceText of rejectedForms) {
+    const result = resolve(sourceText);
+    assert.equal(result.target_resolution_status, "provider_unavailable", sourceText);
+    assert.deepEqual(result.target_resolution_provider, { id: null, version: null, mode: "unavailable" }, sourceText);
+    assertFailsClosed(result);
+  }
+
+  const supported = 'import test from "node:test";\ntest("selected test", () => {});\n';
+  const rejectedCreatePaths = [
+    "C:/repo/example.test.mjs",
+    "C:\\repo\\example.test.mjs",
+    "\\\\server\\share\\example.test.mjs",
+    "/absolute/example.test.mjs",
+    "../example.test.mjs",
+    "packages/../../example.test.mjs",
+    "packages/./example.test.mjs",
+    "packages//example.test.mjs",
+    "packages\\wiki-core\\example.test.mjs",
+    "  packages/wiki-core/example.test.mjs  ",
+    "\tpackages/wiki-core/example.test.mjs",
+    "packages/wiki-core/example.test.mjs\n",
+    `packages/wiki-core/name${String.fromCharCode(0)}.test.mjs`,
+    "packages/wiki-core/example.js",
+    "packages/wiki-core/example.mjs",
+    "packages/wiki-core/example.test.ts"
+  ];
+  for (const badPath of rejectedCreatePaths) {
+    const result = resolve(supported, { target: { path: badPath, operation: "create" } });
+    assert.equal(result.target_resolution_status, "provider_unavailable", JSON.stringify(badPath));
+    assert.deepEqual(result.target_resolution_provider, { id: null, version: null, mode: "unavailable" }, JSON.stringify(badPath));
+    assertFailsClosed(result);
+  }
+
+  for (const badPath of [42, true, {}, [], "", "   "]) {
+    const result = resolve(supported, { target: { path: badPath, operation: "create" } });
+    assertFailsClosed(result);
+    assert.notEqual(result.target_resolution_status, "not_applicable", JSON.stringify(badPath));
+  }
+
+  for (const goodPath of [
+    "packages/wiki-core/src/lib/example.test.mjs",
+    "packages/wiki-core/src/lib/example.test.js",
+    "example.test.mjs"
+  ]) {
+    const result = resolve(supported, { target: { path: goodPath, operation: "create" } });
+    assert.equal(result.target_resolution_status, "not_applicable", goodPath);
+    assert.equal(result.target_resolution_evidence_status, "present", goodPath);
+  }
+});

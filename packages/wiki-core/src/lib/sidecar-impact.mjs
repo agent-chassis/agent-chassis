@@ -20,6 +20,7 @@ import {
 } from "./sidecar-status.mjs";
 import { countUtf8Lines } from "./work-record-admission-shared.mjs";
 import { REPO_LOC_INVENTORY_DEFAULT_THRESHOLD } from "./repo-loc-inventory.mjs";
+import { readSidecarArtifactBytes } from "./sidecar-artifact-bytes.mjs";
 
 export const LARGE_FILE_CONTEXT_LOC_THRESHOLD = REPO_LOC_INVENTORY_DEFAULT_THRESHOLD;
 
@@ -185,7 +186,9 @@ async function readCompatibleArtifact({ repoRoot, status }) {
   }
 
   try {
-    const artifact = JSON.parse(await readFile(path.join(repoRoot, status.artifact_path), "utf8"));
+    const { artifact } = await readSidecarArtifactBytes(
+      path.join(repoRoot, status.artifact_path)
+    );
     if (!artifactIsCompatible(artifact)) {
       return {
         artifact: null,

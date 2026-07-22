@@ -60,7 +60,8 @@ test("workspace_tool_usage_audit route registers as read-only compact operator/c
   const tool = captureRegisteredAuditTool(recorder);
 
   assert.equal(tool.name, WORKSPACE_TOOL_USAGE_AUDIT_TOOL_NAME);
-  assert.match(tool.metadata.description, /Read-only compact aggregate telemetry/);
+  assert.match(tool.metadata.description, /Read-only compact aggregate of a NEUTRAL agent MCP tool-use catalog/);
+  assert.match(tool.metadata.description, /renders no misuse or adherence verdict/i);
   assert.match(tool.metadata.description, /does not dispatch, mutate work records, run lint\/generate/i);
 
   recorder.recordEvent({
@@ -88,13 +89,7 @@ test("workspace_tool_usage_audit route registers as read-only compact operator/c
         final: "CHILD_FINAL_PROSE_SHOULD_NOT_LEAK",
         file: "/home/user/agent-chassis/.agent-runs/run/final.txt"
       }
-    },
-    misuse: [
-      {
-        code: "high_output_option_without_compact_first",
-        replacement_family: "compact_or_summarized_output_first"
-      }
-    ]
+    }
   });
 
   const result = await tool.handler({});
@@ -115,14 +110,16 @@ test("workspace_tool_usage_audit route registers as read-only compact operator/c
   assert.equal(payload.aggregate.bounded.max_facts, 1000);
   assert.equal(payload.aggregate.bounded.max_buckets, 50);
   assert.equal(payload.aggregate.bounded.max_top_calls, 20);
-  assert.equal(payload.aggregate.bounded.max_guidance, 20);
+
+  assert.equal("max_guidance" in payload.aggregate.bounded, false);
   assert.equal(payload.aggregate.input.total_fact_count, 1);
   assert.equal(payload.aggregate.counts.by_tool.workspace_read_page, 1);
-  assert.equal(payload.aggregate.counts.by_misuse_code.high_output_option_without_compact_first, 1);
+
+  assert.equal("by_misuse_code" in payload.aggregate.counts, false);
+  assert.equal("guidance" in payload.aggregate, false);
   assert.equal(payload.aggregate.counts.by_source_kind.live_mcp_tool_event, 1);
   assert.equal(payload.aggregate.counts.by_confidence.high, 1);
   assert.equal(payload.aggregate.counts.by_source_group.live_mcp_runtime, 1);
-  assert.equal(payload.aggregate.guidance.high_output_option_without_compact_first.guidance_kind, "coarse_replacement_family");
   assert.equal(payload.recorder_diagnostics.dropped_event_count, 0);
   assertNoRawAuditMaterial(result);
 });
@@ -143,8 +140,7 @@ test("handler-boundary recorder preserves domain result while recording bounded 
       workspace_repo: "agent-chassis/agent-chassis",
       selected_unit: "WK-1437#SLICE-010",
       path: "/home/user/agent-chassis/packages/wiki-mcp/src/server.mjs"
-    },
-    classifyMisuse: () => ["high_output_option_without_compact_first"]
+    }
   });
   const domainResult = {
     ok: true,
@@ -179,7 +175,8 @@ test("handler-boundary recorder preserves domain result while recording bounded 
   assert.equal(fact.event.origin.client_origin, undefined);
   assert.equal(fact.event.selected.workspace_repo_digest.startsWith("sha256:"), true);
   assert.deepEqual(fact.event.selected.selected_unit.canonical_ids, ["WK-1437#SLICE-010"]);
-  assert.deepEqual(fact.event.misuse_classifications, [{ code: "high_output_option_without_compact_first" }]);
+
+  assert.equal("misuse_classifications" in fact.event, false);
   assert.equal(fact.event.response.outcome, "returned");
   assert.equal(fact.event.response.result.contains_path_like_text, true);
   assertNoRawAuditMaterial(fact);
@@ -210,8 +207,7 @@ test("handler-boundary recorder rethrows handler errors while recording bounded 
       workspace_repo: "agent-chassis/agent-chassis",
       selected_unit: "WK-1437#SLICE-010",
       path: "/home/user/agent-chassis/wiki/work-records/WK-1437.json"
-    },
-    classifyMisuse: () => ["ignored_required_next_action"]
+    }
   });
   const thrown = new Error("RAW_PROMPT_SHOULD_NOT_LEAK");
   const wrapped = boundary.wrapHandler("workspace_read_page", async (args) => {
@@ -237,14 +233,15 @@ test("handler-boundary recorder rethrows handler errors while recording bounded 
   assert.equal(fact.event.response.error.category, "object");
   assert.equal(fact.event.response.error.digest.startsWith("sha256:"), true);
   assert.equal(fact.event.response.error.message, undefined);
-  assert.deepEqual(fact.event.misuse_classifications, [{ code: "ignored_required_next_action" }]);
+
+  assert.equal("misuse_classifications" in fact.event, false);
   assertNoRawAuditMaterial(fact);
 
   const tool = captureRegisteredAuditTool(recorder);
   const routeResult = await tool.handler({ max_facts: 5, max_buckets: 5, max_top_calls: 5, max_guidance: 5 });
   const aggregate = routeResult.structuredContent.aggregate;
   assert.equal(aggregate.counts.by_tool.workspace_read_page, 1);
-  assert.equal(aggregate.counts.by_misuse_code.ignored_required_next_action, 1);
+  assert.equal("by_misuse_code" in aggregate.counts, false);
   assert.equal(aggregate.counts.by_confidence.high, 1);
   assertNoRawAuditMaterial(routeResult);
 });

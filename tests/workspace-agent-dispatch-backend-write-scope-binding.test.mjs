@@ -23,7 +23,6 @@ const CANONICAL_WRITE_SCOPE = [
   "tests/workspace-agent-dispatch-backend-write-scope-binding.test.mjs"
 ];
 const CALLER_WRITE_SCOPE_MARKER = "caller-write-scope-carrier";
-const CALLER_WRITE_BIND_MARKER = "caller-write-bind-carrier";
 const BACKEND_PROFILE = "filesystem-mcp-worker";
 
 function enforcedFilesystemMcpRegistry() {
@@ -144,7 +143,7 @@ function createSupportedExecutorShapes(executor) {
   ];
 }
 
-test("WK-1176 SLICE-007 codex worker: supported executor shapes keep the canonical write scope in the launcher-owned source request and return host_write_authority_substrate_unavailable", async () => {
+test("WK-1176 SLICE-007 codex worker: carrier-free supported executor shapes bind the canonical write scope in the launcher-owned source request and return host_write_authority_substrate_unavailable", async () => {
   const executorCalls = [];
   const executor = async (input) => {
     executorCalls.push(input);
@@ -157,16 +156,6 @@ test("WK-1176 SLICE-007 codex worker: supported executor shapes keep the canonic
       input.source_tool_surface.request.scope.write_scope,
       CANONICAL_WRITE_SCOPE,
       "launcher-owned source scope must stay bound to the canonical WK slice write_scope"
-    );
-    assert.equal(
-      input.source_tool_surface.request.scope.write_scope.includes(CALLER_WRITE_SCOPE_MARKER),
-      false,
-      "caller-supplied write_scope carrier must not leak into the launcher-owned request"
-    );
-    assert.equal(
-      input.source_tool_surface.request.scope.write_scope.includes(CALLER_WRITE_BIND_MARKER),
-      false,
-      "caller-supplied write_bind carrier must not leak into the launcher-owned request"
     );
 
     return {
@@ -184,7 +173,71 @@ test("WK-1176 SLICE-007 codex worker: supported executor shapes keep the canonic
 
   for (const { label, config } of createSupportedExecutorShapes(executor)) {
     executorCalls.length = 0;
-    const runtimeStateDir = mkdtempSync(join(tmpdir(), `wk1176-slice007-${label.replaceAll(/[^a-z0-9]+/gi, "-")}-`));
+    const runtimeStateDir = mkdtempSync(join(tmpdir(), `wk1176-slice007-free-${label.replaceAll(/[^a-z0-9]+/gi, "-")}-`));
+    const capturedRequest = { value: null };
+    const verifierNonceStore = {
+      checkAndMark: async () => true
+    };
+    const verifierCapability = await loadLauncherVerifierCapability({
+      secret: "wk1176-test-secret",
+      nonceStore: verifierNonceStore
+    });
+
+    const backend = createTestDispatchBackend({
+      ...config,
+      prepareSourceToolSurface: createCanonicalSourceSurfacePreparer({
+        runtimeStateDir,
+        capturedRequest,
+        verifierCapability,
+        verifierNonceStore
+      })
+    });
+
+    const result = await backend.startLaunch({
+      caller_session_id: "session-WK-1176-SLICE-007",
+      role: "worker",
+      app: "codex",
+      subject: "WK-1176#slice-007",
+      workspace_alias: "agent-chassis",
+      workspace_dir: runtimeStateDir,
+      readiness: { dispatchable: true, decision_code: "dispatchable_ready" }
+    });
+
+    assert.equal(result.accepted, false, `${label} must fail closed on the host-write substrate path`);
+    assert.equal(result.refusal.code, BACKEND_REFUSAL_CODES.BACKEND_UNAVAILABLE);
+    assert.equal(result.refusal.reason, HOST_WRITE_AUTHORITY_SUBSTRATE_UNAVAILABLE_REASON);
+    assert.ok(result.refusal.detail, `${label} must carry refusal detail for the host-write substrate path`);
+    assert.equal(
+      result.refusal.detail.substrate_id,
+      HOST_WRITE_AUTHORITY_SUBSTRATE_ID,
+      `${label} refusal must name the host-write authority substrate`
+    );
+    assert.equal(
+      result.refusal.detail.diagnostic_code,
+      "agent_launch.isolation.writable_file_namespace_read_only.v1",
+      `${label} refusal must preserve the host-write / canonical-write-scope seam diagnostic`
+    );
+
+    assert.ok(capturedRequest.value, `${label} must capture the launcher-owned source-surface request`);
+    assert.deepEqual(
+      capturedRequest.value.scope.write_scope,
+      CANONICAL_WRITE_SCOPE,
+      `${label} must bind the canonical WK slice write_scope in the launcher-owned request`
+    );
+    assert.equal(executorCalls.length, 1);
+  }
+});
+
+test("WK-1176 SLICE-007 codex worker: caller-supplied write_scope carriers are refused before the executor with worker_scope_authority_invalid / caller_carried_scope_forbidden", async () => {
+  const executorCalls = [];
+  const executor = async (input) => {
+    executorCalls.push(input);
+    return { accepted: true, status: "launching" };
+  };
+
+  for (const { label, config } of createSupportedExecutorShapes(executor)) {
+    executorCalls.length = 0;
+    const runtimeStateDir = mkdtempSync(join(tmpdir(), `wk1176-slice007-carrier-${label.replaceAll(/[^a-z0-9]+/gi, "-")}-`));
     const capturedRequest = { value: null };
     const verifierNonceStore = {
       checkAndMark: async () => true
@@ -213,43 +266,50 @@ test("WK-1176 SLICE-007 codex worker: supported executor shapes keep the canonic
       workspace_dir: runtimeStateDir,
       readiness: { dispatchable: true, decision_code: "dispatchable_ready" },
       write_scope: [CALLER_WRITE_SCOPE_MARKER],
-      writeScope: [CALLER_WRITE_SCOPE_MARKER],
-      write_bind: [CALLER_WRITE_BIND_MARKER],
-      writeBind: [CALLER_WRITE_BIND_MARKER]
+      writeScope: [CALLER_WRITE_SCOPE_MARKER]
     });
 
-    assert.equal(result.accepted, false, `${label} must fail closed on the host-write substrate path`);
-    assert.equal(result.refusal.code, BACKEND_REFUSAL_CODES.BACKEND_UNAVAILABLE);
-    assert.equal(result.refusal.reason, HOST_WRITE_AUTHORITY_SUBSTRATE_UNAVAILABLE_REASON);
-    assert.ok(result.refusal.detail, `${label} must carry refusal detail for the host-write substrate path`);
+    assert.equal(result.accepted, false, `${label} must fail closed when the caller carries write scope`);
     assert.equal(
-      result.refusal.detail.substrate_id,
-      HOST_WRITE_AUTHORITY_SUBSTRATE_ID,
-      `${label} refusal must name the host-write authority substrate`
+      result.refusal.code,
+      BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+      `${label} caller-carried scope must be refused as a validation failure`
     );
     assert.equal(
-      result.refusal.detail.diagnostic_code,
-      "agent_launch.isolation.writable_file_namespace_read_only.v1",
-      `${label} refusal must preserve the host-write / canonical-write-scope seam diagnostic`
+      result.refusal.reason,
+      "managed_lifecycle_required",
+      `${label} caller-carried scope refusal must name the managed lifecycle requirement`
     );
-
-    assert.ok(capturedRequest.value, `${label} must capture the launcher-owned source-surface request`);
-    assert.deepEqual(
-      capturedRequest.value.scope.write_scope,
-      CANONICAL_WRITE_SCOPE,
-      `${label} must bind the canonical WK slice write_scope in the launcher-owned request`
+    assert.ok(result.refusal.detail, `${label} must carry refusal detail for the caller-carried scope path`);
+    assert.equal(
+      result.refusal.detail.blocker,
+      "worker_scope_authority_invalid",
+      `${label} refusal must name the worker scope-authority blocker`
     );
     assert.equal(
-      capturedRequest.value.scope.write_scope.includes(CALLER_WRITE_SCOPE_MARKER),
-      false,
-      `${label} must ignore caller-supplied write_scope carriers`
+      result.refusal.detail.reason,
+      "caller_carried_scope_forbidden",
+      `${label} refusal must name the caller-carried-scope-forbidden reason`
     );
     assert.equal(
-      capturedRequest.value.scope.write_scope.includes(CALLER_WRITE_BIND_MARKER),
-      false,
-      `${label} must ignore caller-supplied write_bind carriers`
+      result.refusal.detail.carrier,
+      "dispatch_input",
+      `${label} refusal must attribute the carrier to the dispatch input`
     );
-    assert.equal(executorCalls.length, 1);
+    assert.ok(
+      ["writeScope", "write_scope"].includes(result.refusal.detail.field),
+      `${label} refusal must name the offending write-scope carrier field`
+    );
+    assert.equal(
+      executorCalls.length,
+      0,
+      `${label} must refuse before any executor runs so caller write_scope cannot leak`
+    );
+    assert.equal(
+      capturedRequest.value,
+      null,
+      `${label} must not prepare a launcher-owned source request for a rejected caller-carried dispatch`
+    );
   }
 });
 

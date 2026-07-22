@@ -93,7 +93,7 @@ test("bare commit call resolves full binding from server credential and generate
   assert.deepEqual(fake.calls, [CREDENTIAL]);
   assert.equal(admitted.schema_version, COMMIT_TOOL_EXPOSURE_GUARD_SCHEMA_VERSION);
   assert.equal(admitted.tool_name, WORKER_COMMIT_TOOL_NAME);
-  assert.equal(admitted.server_generated_message, `agent-launch worker delivery: WK-1430#SLICE-001 (base ${BASE_SHA.slice(0, 12)})`);
+  assert.equal(admitted.server_generated_message, `agent-launch worker delivery: WK-1430#SLICE-001 (base ${BASE_SHA.slice(0, 12)})\n\nWk-Slice: WK-1430#SLICE-001`);
   assert.deepEqual(admitted.binding, {
     launch_ref: "launch-WK-1430-SLICE-001",
     run_id: "wkdb_WK1430_SLICE001",
@@ -162,11 +162,12 @@ test("worker surface construction registers exactly commit and never instantiate
   assert.deepEqual(constructed, [], "disallowed fs/exec surface request must fail before commit construction");
 });
 
-test("production worker wiki MCP profile exposes exactly commit + submit-for-review and excludes the rest", () => {
+test("production worker wiki MCP profile exposes exactly commit and excludes the rest", () => {
 
   const profile = parseToolProfile({ WIKI_MCP_TOOL_PROFILE: "worker" });
-  const workerWikiTools = [WORKER_COMMIT_TOOL_NAME, "workspace_submit_for_review"];
+  const workerWikiTools = [WORKER_COMMIT_TOOL_NAME];
   const nonWorkerWikiTools = [
+    "workspace_submit_for_review",
     "workspace_read_page",
     "workspace_get_record",
     "workspace_search_repo",

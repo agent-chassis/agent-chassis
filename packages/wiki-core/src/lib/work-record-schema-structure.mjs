@@ -29,6 +29,7 @@ import {
   WORK_RECORD_AGENT_ROLE_VALUES,
   WORK_RECORD_TARGET_UNIT_VALUES,
   WORK_RECORD_WORK_KIND_VALUES,
+  WORK_RECORD_REVIEW_PURPOSE_VALUES,
   WORK_RECORD_STATUS_VALUES,
   WORK_RECORD_ESCALATION_KIND_VALUES,
   WORK_RECORD_ESCALATION_STATUS_VALUES,
@@ -382,6 +383,16 @@ function validateSlice(diagnostics, slice, path) {
   validateEnumField(diagnostics, slice, "work_kind", WORK_RECORD_WORK_KIND_VALUES, {
     path: `${path}.work_kind`
   });
+  if (hasOwn(slice, "review_purpose")) {
+    validateEnumField(diagnostics, slice, "review_purpose", WORK_RECORD_REVIEW_PURPOSE_VALUES, {
+      path: `${path}.review_purpose`, required: false
+    });
+    if (slice.work_kind !== "review") {
+      addDiagnostic(diagnostics, "invalid_record", `${path}.review_purpose is valid only for review work`, {
+        path: `${path}.review_purpose`
+      });
+    }
+  }
   if (slice.work_kind === "tracker") {
     addDiagnostic(diagnostics, "invalid_record", `${path}.work_kind cannot be tracker`, {
       path: `${path}.work_kind`

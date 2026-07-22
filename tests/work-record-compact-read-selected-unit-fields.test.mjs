@@ -24,6 +24,19 @@ const DIAGNOSTIC_SENTINEL = "WHOLE_RECORD_DIAGNOSTIC_CONTENT";
 const CONTINUATION_SENTINEL = "CONTINUATION_CONTENT";
 const UNKNOWN_ANNOTATION_SENTINEL = "UNKNOWN_ANNOTATION_CONTENT";
 
+test("selected-unit projection defaults and round-trips structural review_purpose", () => {
+  const base = { id: "SLICE-008", title: "Review", status: "todo", work_kind: "review" };
+  assert.equal(projectSelectedWorkRecordUnit(base).review_purpose, "standalone");
+  assert.equal(projectSelectedWorkRecordUnit({
+    ...base,
+    review_purpose: "terminal_whole_wk"
+  }).review_purpose, "terminal_whole_wk");
+  assert.equal(projectSelectedWorkRecordUnit({
+    ...base,
+    review_purpose: "unknown"
+  }), null);
+});
+
 function hostileProxy(target = {}) {
   let trapCount = 0;
   const trap = () => {

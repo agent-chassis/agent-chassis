@@ -25,6 +25,9 @@ import {
 import { buildBubblewrapLaunchPlan } from "./launch-isolation.mjs";
 import { CODEX_BWRAP_ENV_POLICY } from "./codex-role-isolation.mjs";
 import { buildWorkerSecretMaskInputs } from "./workspace-agent-family-bwrap-plan.mjs";
+import {
+  prepareLauncherOwnedDispatchWorktreeRoot
+} from "./orchestrator-launch-isolation.mjs";
 
 import {
   codexArgsWithSandboxRepoRealpath,
@@ -182,6 +185,12 @@ export function buildCodexRoleBubblewrapPlan(plan, {
   const workerSecretMaskInputs = isCodexOrchestratorRole(plan.role)
     ? { readOnlyRoots: [], maskTmpfsDirs: [] }
     : buildWorkerSecretMaskInputs({ workspaceDir: plan.repo });
+  const orchestratorManagedWorktreeReadRoots = isCodexOrchestratorRole(plan.role)
+    ? [prepareLauncherOwnedDispatchWorktreeRoot({
+        repo: plan.repo,
+        dispatchWorktreeRoot: plan.dispatchWorktreeRoot ?? null
+      })]
+    : [];
   const serverProvisionedWorktreeGitIdentity = plan.provisionedWorktreeGitIdentity
     ?? plan.provisionedWorktreeGitBinding
     ?? plan.provisioned_worktree_git_identity
@@ -200,8 +209,12 @@ export function buildCodexRoleBubblewrapPlan(plan, {
     runtimeRoots: [...plan.isolation.runtime_roots],
     mcpSandboxProfile: plan.isolation.mcp_sandbox_profile ?? null,
     readOnlyRoots: Array.isArray(plan.isolation.read_only_roots)
-      ? [...plan.isolation.read_only_roots, ...workerSecretMaskInputs.readOnlyRoots]
-      : [...workerSecretMaskInputs.readOnlyRoots],
+      ? [
+          ...plan.isolation.read_only_roots,
+          ...workerSecretMaskInputs.readOnlyRoots,
+          ...orchestratorManagedWorktreeReadRoots
+        ]
+      : [...workerSecretMaskInputs.readOnlyRoots, ...orchestratorManagedWorktreeReadRoots],
     maskTmpfsDirs: [...workerSecretMaskInputs.maskTmpfsDirs],
     workerScopeAuthority: plan.isolation.worker_scope_authority,
     ...(serverProvisionedWorktreeGitIdentity !== null

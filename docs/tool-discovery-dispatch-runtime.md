@@ -77,6 +77,34 @@ The enforceable current boundary is:
   dispatch-readiness refuses reviewer units whose canonical JSON write scope is
   non-empty with `role_policy_violation` and diagnostic reason
   `reviewer_write_scope_nonempty`
+- the sole non-empty canonical-scope exception is a launcher-owned frozen
+  exact-slice review; backend admission re-verifies its context and Git target,
+  while the reviewer still launches read-only, and no request field selects it
+- `review_purpose` defaults to `standalone`; only structural
+  `terminal_whole_wk` can participate in terminal lifecycle review, and it
+  carries no authority by itself
+- enforced CCE requires exact Proof A; free/local uses explicit non-audit
+  `policy_only` metadata and fabricates no reviewer, accepted binding, Proof A,
+  CCE verdict, or audit acceptance; mode consumes the tier frozen at launcher
+  plan registration and cannot change with later planning-env/API-key changes
+- trusted recovery uses locked append-only exact receipt events, re-resolves the
+  frozen contract/current lifecycle transition/identity/marker/refs/objects, and
+  on `enforced_cce` independently resolves persisted historical Proof A against
+  the frozen contract, structured result, exact runs, identity, and SHAs in both
+  backend and broker recovery; the broker reconstructs acceptance server-side for
+  the existing initial-integration gate, while `policy_only` fabricates no proof
+  or audit acceptance; readers share the publisher lock, live/stalled owners are
+  never displaced, and final/non-final already-integrated recovery is independent
+  of pre-integration admission; there is no integrate command,
+  raw-Git fallback, manual proof injection, request-carried proof, or caller
+  authority carrier
+- exact-slice Claude review binds credentials read-only and produces no writable
+  host file/root in direct or broker bwrap plans; sandbox construction is required
+  and fails closed before spawn with no unenforced exact-review fallback; normal
+  implementation workers retain their credential-refresh and fallback posture
+- exact `changes_requested` findings may reach an explicitly reissued same-slice
+  Codex or Claude worker prompt as launcher-owned corrective context; they grant
+  no admission, acceptance, relaunch, integration, or scope expansion
 - structured review-evidence routes are part of this boundary: no-findings
   review evidence is recorded through `workspace_record_review_attestation`,
   and changes-requested or other non-completion reviewer/redteam results are

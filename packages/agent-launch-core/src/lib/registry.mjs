@@ -29,13 +29,6 @@ const ENDPOINT_TO_HANDSHAKE_SOURCE = new Map([
 
 const DEFAULT_FILESYSTEM_MCP_BACKEND_KEY = "default";
 
-// The default registry endpoint argv intentionally names the repo-owned
-// `agent-launch-filesystem-mcp-backend` executable shipped under
-// `packages/agent-launch-cli/bin/`. The endpoint speaks the documented
-// `spawn_stdout` handshake protocol and reports `status: "unavailable"`
-// until an operator registers an enforced backend (see WK-0424 / IN-0015).
-// Exported so consumers and tests can pin the repo-owned default without
-// coupling to a literal.
 export const DEFAULT_FILESYSTEM_MCP_BACKEND_ENDPOINT_COMMAND =
   "agent-launch-filesystem-mcp-backend";
 
@@ -120,14 +113,6 @@ export async function initializeDefaultRegistry({ force = false, workspaceDir } 
   return registryPath;
 }
 
-// `loadRegistry` itself is path-driven and does not pick an authority source on
-// its own. Worker-family `agent-role` callers must resolve the path through
-// `resolveWorkerFamilyLauncherRegistryPath` before invoking this helper so
-// `--operator-config` cannot redirect the loaded registry. Both that helper and
-// the operator-only `resolveLauncherRegistryPath` now resolve to the
-// workspace-local `<workspace>/.agent-launch` root rather than a machine-global
-// `HOME`/`XDG` location, so launcher state survives launcher/session restarts
-// and ambient env cannot redirect authority.
 export async function loadRegistry({ registryPath: overridePath } = {}) {
   const registryPath = resolveLauncherRegistryPath(overridePath);
   if (!(await fileExists(registryPath))) {
@@ -299,7 +284,7 @@ function validateFilesystemMcpSupportedProfiles(where, supportedProfiles) {
       }
       roleSet.add(role);
     }
-    const dedupKey = `${row.agent_family} ${row.profile}`;
+    const dedupKey = `${row.agent_family}\0${row.profile}`;
     if (seen.has(dedupKey)) {
       throw new Error(`${where} has duplicate (agent_family, profile) tuple for ${row.agent_family}/${row.profile}`);
     }

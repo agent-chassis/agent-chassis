@@ -26,6 +26,9 @@ import {
 import {
   buildCodexDispatchWorkerPlanArgs
 } from "./workspace-agent-dispatch-codex-plan-args.mjs";
+import {
+  renderTrustedCorrectiveFindingsInstructions
+} from "./workspace-agent-launch-adapter-contract.mjs";
 
 export async function spawnPlainChildProcess(command, args, options) {
   const childProcess = await import("node:" + "child_process");
@@ -94,12 +97,29 @@ export async function launchCodexWorkspaceAgentInProcess({
   classifyIsolationBackendAvailability,
   probeCanonicalBwrapAvailability
 }) {
+  let correctiveInstructions = null;
+  try {
+    correctiveInstructions = role === "worker"
+      ? renderTrustedCorrectiveFindingsInstructions(
+          input?.readiness?.trusted_corrective_findings_context ?? null,
+          { subject }
+        )
+      : null;
+  } catch (error) {
+    return makeRefusal(
+      BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+      "trusted_corrective_findings_context_invalid",
+      { issue: error?.message ?? String(error) }
+    );
+  }
 
   const artifacts = await buildCodexLaunchArtifacts({
     planArgs: buildCodexDispatchWorkerPlanArgs({
       role: codexRole,
       subject,
-      promptArgs,
+      promptArgs: correctiveInstructions === null
+        ? promptArgs
+        : [...promptArgs, correctiveInstructions],
       env,
       cwd: planCwd,
 
@@ -118,8 +138,9 @@ export async function launchCodexWorkspaceAgentInProcess({
       worker_scope_authority: input?.worker_scope_authority ?? null,
       worktree_provisioning: input?.worktree_provisioning ?? null,
 
-      configRootDir: input?.config_root_dir ?? null,
-      trustedFrozenReviewContract: input?.trusted_frozen_review_contract ?? null
+      configRootDir: input?.config_root_dir ?? input?.readiness?.config_root_dir ?? null,
+      trustedFrozenReviewContract: input?.trusted_frozen_review_contract ??
+        input?.readiness?.trusted_frozen_review_contract ?? null
     }),
     buildPlan,
     buildBwrapPlan,

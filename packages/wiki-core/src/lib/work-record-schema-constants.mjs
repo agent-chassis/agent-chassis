@@ -50,6 +50,11 @@ export const WORK_RECORD_WORK_KIND_VALUES = Object.freeze([
   "migration"
 ]);
 
+export const WORK_RECORD_REVIEW_PURPOSE_VALUES = Object.freeze([
+  "standalone",
+  "terminal_whole_wk"
+]);
+
 export const WORK_RECORD_STATUS_VALUES = Object.freeze([
   "inbox",
   "todo",

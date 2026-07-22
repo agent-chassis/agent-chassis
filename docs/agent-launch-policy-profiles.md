@@ -9,10 +9,39 @@ file. The org profile is an authority-bearing CCE-path input. The local
 source-available file is inert for admissibility thresholds and verdicts after
 decision; it is retained only as local config/evidence hygiene.
 
+## Policy scope
+
+These policy inputs tune and record admissibility thresholds; they enforce
+product contracts and preserve provenance, and they do not claim security
+against a hostile same-user actor or a compromised host. The org policy profile
+is authority-bearing only on the CCE-bound path, where the Chassis Control
+Engine owns thresholds and verdicts; the local source-available override file is
+inert for admissibility. Both assume an honest operator and honest
+launcher-minted runtime: their job is to keep an honest dispatch's reviewability
+tuning correct and legible, not to withstand a local actor who already controls
+the account or the workspace.
+
+The following remain real boundaries and are unchanged by that scope framing:
+
+- **Node Engine / CCE admission authority.** On the CCE-bound path the Chassis
+  Control Engine is the sole admissibility authority; a declared-but-malformed
+  org profile fails closed rather than silently falling back to defaults.
+- **Launcher-owned, workspace-local config.** The profile is launcher/operator
+  config read from `<workspace>/.agent-launch/`, never selected by prompt,
+  request payload, argv, or agent-authored env.
+- **Fail-closed config hygiene.** A declared-but-malformed local override fails
+  closed with diagnostics to protect evidence integrity; that is corruption
+  detection, not a local admissibility verdict.
+
+For the durable audit and honest-scope mandate behind this framing, see
+agent-chassis:work record.
+
 ## Org policy profile (optional)
 
-By default the launcher transmits **no** org policy profile, so the Chassis Control Engine uses its built-in default thresholds. To use org-tuned
-thresholds, place a profile at `<workspace>/.agent-launch/org-policy-profile.json`.
+By default the launcher transmits **no** org policy profile, so the Chassis
+Control Engine uses the active ratified pack's built-in thresholds. To use
+org-tuned thresholds, place a profile at
+`<workspace>/.agent-launch/org-policy-profile.json`.
 Copy the committed `org-policy-profile.example.json` to that path, then tune the
 workspace-local copy.
 
@@ -24,42 +53,30 @@ local-only path it is inert. A *declared-but-malformed* profile **fails closed**
 on the CCE path (it never silently falls back to defaults).
 
 The profile is **all-or-nothing**: a single `{ "parameter_values": { … } }`
-object carrying the **complete** set of 19 dotted keys — for each of the 8
-controls a `<control>.review_threshold` and a `<control>.waiver_allowability`,
-plus a `<control>.deny_threshold` for `write_scope_count`, `write_scope_total_loc`,
-and the fixed `max_write_file_loc` non-launchable carrier value. A sparse or
-differently-shaped file is rejected; there is no partial-override form. Start
-from the Chassis Control Engine default baseline below and tune the reviewability thresholds
-from there (for example, raise `write_scope_total_loc.review_threshold` above 200
-so larger edits dispatch without review pressure). `max_write_file_loc.deny_threshold`
-is not a tuning knob; it remains fixed at the current worker-admission
-policy's 1200 LOC non-launchable threshold.
+object carrying the **complete** parameter set for the active ratified Node
+Engine pack. For each control that set includes a `<control>.review_threshold`
+and `<control>.waiver_allowability`; controls with a hard-reject band also carry
+`<control>.deny_threshold`. A sparse or differently-shaped file is rejected;
+there is no partial-override form.
 
-```json
-{
-  "parameter_values": {
-    "write_scope_count.review_threshold": 1,
-    "write_scope_count.deny_threshold": 4,
-    "write_scope_count.waiver_allowability": ["reviewer_attestation"],
-    "write_scope_total_loc.review_threshold": 200,
-    "write_scope_total_loc.deny_threshold": 1200,
-    "write_scope_total_loc.waiver_allowability": ["accepted_authority", "reviewer_attestation"],
-    "max_write_file_loc.review_threshold": 600,
-    "max_write_file_loc.deny_threshold": 1200,
-    "max_write_file_loc.waiver_allowability": ["accepted_authority", "reviewer_attestation"],
-    "acceptance_criteria_count.review_threshold": 10,
-    "acceptance_criteria_count.waiver_allowability": ["reviewer_attestation"],
-    "validation_command_count.review_threshold": 2,
-    "validation_command_count.waiver_allowability": ["reviewer_attestation"],
-    "expected_changed_line_budget.review_threshold": 200,
-    "expected_changed_line_budget.waiver_allowability": ["reviewer_attestation"],
-    "declared_runtime_mode_count.review_threshold": 1,
-    "declared_runtime_mode_count.waiver_allowability": ["reviewer_attestation"],
-    "artifact_kind_count.review_threshold": 1,
-    "artifact_kind_count.waiver_allowability": ["reviewer_attestation"]
-  }
-}
-```
+The LOC controls include:
+
+- `write_scope_total_loc.review_threshold`
+- `write_scope_total_loc.deny_threshold`
+- `max_write_file_loc.review_threshold`
+- `max_write_file_loc.deny_threshold`
+- `expected_changed_line_budget.review_threshold`, the current small-edit budget
+  control
+
+Every numerical value is supplied by the active org policy / ratified Node
+Engine pack. None is a Portfolio architecture constant. In particular,
+`max_write_file_loc.deny_threshold` is part of that complete authority-bearing
+parameter set; this page does not declare it permanently fixed or independently
+enforced by Portfolio. The committed `org-policy-profile.example.json` is a
+configuration-shape example and point-in-time input template, not authority for
+the active values. Before using a workspace-local copy, populate its complete
+parameter set from the active ratified pack rather than treating the example's
+numbers as universal defaults.
 
 See `docs/enforcement-model.md` → "Org policy-profile carrier" for the carrier
 contract and the per-tier (CCE fail-closed / free inert) posture.

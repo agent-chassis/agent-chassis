@@ -16,6 +16,7 @@ import {
 } from "./work-record-admission-decision-codes.mjs";
 import { carryReviewAttestations } from "./review-attestation-pack-carry.mjs";
 import { createWorkRecordAdmissionDerivedEvidence } from "./work-record-admission-derived-evidence-builder.mjs";
+import { createContextualizedStructuralTargetMetrics } from "./work-record-admission-derived-evidence-target-resolution.mjs";
 import { createWorkRecordAdmissionRecordLocalInputs } from "./work-record-admission-record-inputs.mjs";
 import { computeReviewedUnitSourceDigest } from "./work-record-review-attestation.mjs";
 import { loadOrgPolicyProfile } from "./org-policy-profile-loader.mjs";
@@ -36,95 +37,6 @@ export const WORKER_ADMISSION_DOMAIN_PACK_BOUND_IDENTIFIERS = Object.freeze({
 });
 
 export const NODE_ENGINE_UNRATIFIED_PLACEHOLDER = "node_engine_unratified_placeholder";
-
-const BOUNDED_EXTRACTION_REFACTOR_INTENT_SCHEMA_VERSION =
-  "bounded-large-file-extraction-refactor-intent.v1";
-const BOUNDED_EXTRACTION_REFACTOR_CHANGED_LINE_BUDGET_MAX = 200;
-
-function normalizeBoundedExtractionIntentCount(value) {
-  return Number.isInteger(value) && value >= 0 ? value : null;
-}
-
-function normalizeBoundedLargeFileExtractionRefactorIntent(value) {
-  if (!isObject(value)) {
-    return null;
-  }
-
-  const schemaVersion = normalizeStringEntry(value.schema_version ?? value.schemaVersion);
-  const intentKind = normalizeStringEntry(value.intent_kind ?? value.intentKind);
-  const evidenceBasis = normalizeStringEntry(value.evidence_basis ?? value.evidenceBasis);
-  const expectedChangedLineBudget = normalizeBoundedExtractionIntentCount(
-    value.expected_changed_line_budget ?? value.expectedChangedLineBudget
-  );
-  const operationCounts = isObject(value.operation_counts ?? value.operationCounts)
-    ? value.operation_counts ?? value.operationCounts
-    : null;
-  const source = isObject(value.source) ? value.source : null;
-  const destinations = isObject(value.destinations) ? value.destinations : null;
-  const validationCoverage = isObject(value.validation_coverage ?? value.validationCoverage)
-    ? value.validation_coverage ?? value.validationCoverage
-    : null;
-  const createCount = normalizeBoundedExtractionIntentCount(operationCounts?.create);
-  const modifyCount = normalizeBoundedExtractionIntentCount(operationCounts?.modify);
-  const deleteCount = normalizeBoundedExtractionIntentCount(operationCounts?.delete);
-  const inspectCount = normalizeBoundedExtractionIntentCount(operationCounts?.inspect);
-  const sourceTargetCount = normalizeBoundedExtractionIntentCount(
-    source?.existing_oversized_threshold_counted_target_count ??
-      source?.existingOversizedThresholdCountedTargetCount
-  );
-  const destinationTargetCount = normalizeBoundedExtractionIntentCount(
-    destinations?.verifiable_new_target_count ?? destinations?.verifiableNewTargetCount
-  );
-  const sourceOperation = normalizeStringEntry(source?.operation);
-  const destinationOperation = normalizeStringEntry(destinations?.operation);
-
-  if (
-    schemaVersion !== BOUNDED_EXTRACTION_REFACTOR_INTENT_SCHEMA_VERSION ||
-    intentKind !== "bounded_large_file_extraction_refactor" ||
-    evidenceBasis !== "structured_work_record_facts" ||
-    expectedChangedLineBudget === null ||
-    expectedChangedLineBudget > BOUNDED_EXTRACTION_REFACTOR_CHANGED_LINE_BUDGET_MAX ||
-    createCount === null ||
-    createCount < 1 ||
-    modifyCount !== 1 ||
-    deleteCount !== 0 ||
-    inspectCount !== 0 ||
-    sourceTargetCount !== 1 ||
-    destinationTargetCount === null ||
-    destinationTargetCount < 1 ||
-    sourceOperation !== "modify" ||
-    destinationOperation !== "create" ||
-    validationCoverage?.source_target_covered !== true ||
-    validationCoverage?.destination_targets_covered !== true
-  ) {
-    return null;
-  }
-
-  return {
-    schema_version: schemaVersion,
-    intent_kind: intentKind,
-    evidence_basis: evidenceBasis,
-    expected_changed_line_budget: expectedChangedLineBudget,
-    operation_counts: {
-      create: createCount,
-      modify: modifyCount,
-      delete: deleteCount,
-      inspect: inspectCount
-    },
-    source: {
-      existing_oversized_threshold_counted_target_count: sourceTargetCount,
-      operation: sourceOperation
-    },
-    destinations: {
-      verifiable_new_target_count: destinationTargetCount,
-      operation: destinationOperation
-    },
-    validation_coverage: {
-      source_target_covered: true,
-      destination_targets_covered: true
-    }
-  };
-}
 
 export function createWorkerAdmissionDomainPackInput(options = {}) {
   const suppliedEvidence = options.derived_evidence ?? options.derivedEvidence;
@@ -175,14 +87,6 @@ export function createWorkerAdmissionDomainPackInput(options = {}) {
     options.org_policy_profile ??
     (isObject(options.options) ? options.options.org_policy_profile : undefined) ??
     null;
-  const boundedLargeFileExtractionRefactorIntent = normalizeBoundedLargeFileExtractionRefactorIntent(
-    options.bounded_large_file_extraction_refactor_intent ??
-      options.boundedLargeFileExtractionRefactorIntent ??
-      normalizedRequest.evidence?.bounded_large_file_extraction_refactor_intent ??
-      normalizedRequest.evidence?.boundedLargeFileExtractionRefactorIntent ??
-      normalizedRequest.bounded_large_file_extraction_refactor_intent ??
-      normalizedRequest.boundedLargeFileExtractionRefactorIntent
-  );
   const normalizedPortfolioFacts = {
     schema_version: normalizedRequest.schema_version ?? null,
     decision_kind:
@@ -195,10 +99,7 @@ export function createWorkerAdmissionDomainPackInput(options = {}) {
     file_stats: cloneJson(normalizedRequest.file_stats ?? []),
     structural_target_metrics: cloneJson(normalizedRequest.structural_target_metrics ?? null),
     metric_source_provenance: cloneJson(normalizedRequest.evidence?.metric_source_provenance ?? null),
-    contradictions: cloneJson(normalizedRequest.evidence?.contradictions ?? []),
-    ...(boundedLargeFileExtractionRefactorIntent
-      ? { bounded_large_file_extraction_refactor_intent: boundedLargeFileExtractionRefactorIntent }
-      : {})
+    contradictions: cloneJson(normalizedRequest.evidence?.contradictions ?? [])
   };
 
   const nodeEngineBinding = {
@@ -368,6 +269,13 @@ export async function createSelectedUnitWorkerAdmissionDomainPackInput({
     sourceRecordDigestOverride: reviewedUnitSourceDigest
   });
 
+  const contextualStructuralTargetMetrics = createContextualizedStructuralTargetMetrics(
+    materializationSubject,
+    recordLocalInputs,
+    selectedUnit,
+    reviewedUnitSourceDigest
+  );
+
   const dispatchReadiness = {
     schema_version: "dispatch-readiness.v1",
     record_id: recordId,
@@ -418,8 +326,8 @@ export async function createSelectedUnitWorkerAdmissionDomainPackInput({
     validation_command_metadata: recordLocalInputs.validation_command_metadata,
     runtime_mode_metadata: recordLocalInputs.runtime_mode_metadata,
     artifact_kind_metadata: recordLocalInputs.artifact_kind_metadata,
-    structural_target_metrics: recordLocalInputs.structural_target_metrics,
-    metric_source_provenance: recordLocalInputs.metric_source_provenance,
+    structural_target_metrics: contextualStructuralTargetMetrics,
+    metric_source_provenance: contextualStructuralTargetMetrics.metric_source_provenance,
     dispatch_readiness: dispatchReadiness,
 
     generated_at: now ?? undefined,
@@ -447,8 +355,6 @@ export async function createSelectedUnitWorkerAdmissionDomainPackInput({
   return createWorkerAdmissionDomainPackInput({
     derived_evidence: derivedEvidenceWithPersistedAttestations,
     org_policy_profile: orgPolicyProfile,
-    bounded_large_file_extraction_refactor_intent:
-      recordLocalInputs.bounded_large_file_extraction_refactor_intent,
     now,
     review_attestation_binding: reviewAttestationBinding
   });

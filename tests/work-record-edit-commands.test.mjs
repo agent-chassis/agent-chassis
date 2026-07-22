@@ -611,7 +611,7 @@ test("write failures return structured diagnostics instead of escaping", async (
   }
 });
 
-test("help text names edit commands and edit commands leave admission evidence stale until refresh", async () => {
+test("help text names edit commands and contract edits leave admission evidence stale until refresh", async () => {
   const repo = await setupRepo();
   try {
     const help = await runHelp(["work-records", "help"]);
@@ -631,9 +631,40 @@ test("help text names edit commands and edit commands leave admission evidence s
     assert.match(await runHelp(["work-records", "set-closure", "--help"]), /--json-file/);
 
     await runWiki(["work-records", "refresh-admission-metrics", "--id", "WK-9203"], { dir: repo.dir });
+
     await runWiki(["work-records", "set-status", "--unit", "WK-9203", "--status", "active"], { dir: repo.dir });
-    const admission = await runWiki(["work-records", "admission", "--unit", "WK-9203"], { dir: repo.dir });
-    assert.equal(admission.json.admission_refusal?.code, "stale_worker_admission_derived_evidence");
+    const afterStatus = await runWiki(["work-records", "admission", "--unit", "WK-9203"], { dir: repo.dir });
+    assert.equal(afterStatus.json.admission_refusal, null);
+
+    await runWiki(
+      [
+        "work-records",
+        "set-list-field",
+        "--unit",
+        "WK-9203",
+        "--field",
+        "write_scope",
+        "--values-json",
+        JSON.stringify([
+          "packages/wiki-cli/src/commands/work-records.mjs",
+          "packages/wiki-cli/src/commands/work-records-edit.mjs"
+        ])
+      ],
+      { dir: repo.dir }
+    );
+    const afterContractEdit = await runWiki(["work-records", "admission", "--unit", "WK-9203"], { dir: repo.dir });
+    assert.equal(
+      afterContractEdit.json.admission_refusal?.code,
+      "stale_worker_admission_derived_evidence"
+    );
+    assert.equal(
+      afterContractEdit.json.admission_refusal?.refresh_route,
+      "workspace_work_record_refresh_admission_metrics"
+    );
+
+    await runWiki(["work-records", "refresh-admission-metrics", "--id", "WK-9203"], { dir: repo.dir });
+    const afterRefresh = await runWiki(["work-records", "admission", "--unit", "WK-9203"], { dir: repo.dir });
+    assert.equal(afterRefresh.json.admission_refusal, null);
   } finally {
     await repo.cleanup();
   }

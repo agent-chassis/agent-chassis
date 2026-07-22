@@ -71,13 +71,13 @@ test("WK-0784 fresh bootstrap seeds the AGENTS boilerplate helper template and d
     const wk0001 = JSON.parse(
       readFileSync(path.join(tempDir, "wiki", "work-records", "WK-0001.json"), "utf8")
     );
-    const repoLocalAgents = wk0001.slices.find((s) => s.id === "repo-local-agents");
-    assert.ok(repoLocalAgents, "WK-0001 must carry the repo-local-agents slice");
+    const repoLocalAgents = wk0001.slices.find((s) => s.id === "SLICE-001");
+    assert.ok(repoLocalAgents, "WK-0001 must carry the SLICE-001 repo-local AGENTS.md slice");
 
     assert.deepEqual(
       repoLocalAgents.read_scope,
-      ["docs/adoption.md", "wiki/templates/AGENTS.md.boilerplate.md"],
-      "materialized repo-local-agents.read_scope must keep the seeded docs/adoption.md and AGENTS helper"
+      ["wiki/templates/AGENTS.md.boilerplate.md", "docs/adoption.md"],
+      "materialized SLICE-001 read_scope must keep the seeded AGENTS helper and docs/adoption.md"
     );
 
     const rerun = await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/app-demo" });

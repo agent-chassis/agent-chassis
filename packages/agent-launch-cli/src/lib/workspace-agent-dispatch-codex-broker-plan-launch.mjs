@@ -31,6 +31,9 @@ import {
 } from "./workspace-agent-dispatch-codex-provenance.mjs";
 import { resolveFindingsOnlyAcceptanceContract } from "./workspace-agent-findings-role-context.mjs";
 import { assertFrozenWorkerScopeAuthority } from "./workspace-agent-launch-core.mjs";
+import {
+  renderTrustedCorrectiveFindingsInstructions
+} from "./workspace-agent-launch-adapter-contract.mjs";
 
 function deriveManagedWorktreeGitBinding(provisioning) {
   const mainRepo = provisioning.main_repo;
@@ -94,14 +97,6 @@ function firstManagedProvisioningAttemptMismatch({
   }
   if (provisioning.retry_id !== sliceBinding.retry_id) {
     return mismatch("retry_id", sliceBinding.retry_id, provisioning.retry_id);
-  }
-
-  if (typeof provisioning.run_authority !== "string" || provisioning.run_authority.length === 0) {
-    return mismatch("run_authority", "non-empty", provisioning.run_authority);
-  }
-  if (typeof sliceBinding.run_authority === "string" &&
-      sliceBinding.run_authority !== provisioning.run_authority) {
-    return mismatch("slice_binding.run_authority", provisioning.run_authority, sliceBinding.run_authority);
   }
 
   const expectedWriteScopeSource =
@@ -313,7 +308,8 @@ export function createHostWriteAuthorityBrokerPlanLaunchImpl({
         workspaceDir: workspaceDir ?? defaultCwd,
         loadWorkRecord,
 
-        frozenReviewContract: launchInput?.trusted_frozen_review_contract ?? null
+        frozenReviewContract: launchInput?.trusted_frozen_review_contract ??
+          launchInput?.readiness?.trusted_frozen_review_contract ?? null
       });
     } catch (err) {
       return adaptFamilyBrokerRefusal({
@@ -329,9 +325,9 @@ export function createHostWriteAuthorityBrokerPlanLaunchImpl({
 
     const managedReviewerCanonicalConfigRoot =
       codexRole === "review" &&
-      typeof launchInput?.config_root_dir === "string" &&
-      launchInput.config_root_dir.length > 0
-        ? launchInput.config_root_dir
+      typeof (launchInput?.config_root_dir ?? launchInput?.readiness?.config_root_dir) === "string" &&
+      (launchInput.config_root_dir ?? launchInput.readiness.config_root_dir).length > 0
+        ? (launchInput.config_root_dir ?? launchInput.readiness.config_root_dir)
         : null;
     let brokerSchemaConstrainedTierIsPaid;
     if (managedReviewerCanonicalConfigRoot !== null) {
@@ -371,12 +367,28 @@ export function createHostWriteAuthorityBrokerPlanLaunchImpl({
       schemaConstrainedTierIsPaid: brokerSchemaConstrainedTierIsPaid,
       codexRole
     });
+    let correctiveInstructions = null;
+    try {
+      correctiveInstructions = codexRole === "worker"
+        ? renderTrustedCorrectiveFindingsInstructions(
+            launchInput?.readiness?.trusted_corrective_findings_context ?? null,
+            { subject }
+          )
+        : null;
+    } catch (error) {
+      return adaptFamilyBrokerRefusal({
+        reason: "trusted_corrective_findings_context_invalid",
+        detail: { issue: error?.message ?? String(error) }
+      });
+    }
 
     const artifacts = await buildCodexLaunchArtifacts({
       planArgs: buildCodexDispatchWorkerPlanArgs({
         role: codexRole,
         subject,
-        promptArgs,
+        promptArgs: correctiveInstructions === null
+          ? promptArgs
+          : [...promptArgs, correctiveInstructions],
         env,
         cwd: workspaceDir ?? defaultCwd,
 
@@ -398,8 +410,9 @@ export function createHostWriteAuthorityBrokerPlanLaunchImpl({
 
         worktree_provisioning: brokerWorktreeProvisioning,
 
-        configRootDir: launchInput?.config_root_dir ?? null,
-        trustedFrozenReviewContract: launchInput?.trusted_frozen_review_contract ?? null
+        configRootDir: launchInput?.config_root_dir ?? launchInput?.readiness?.config_root_dir ?? null,
+        trustedFrozenReviewContract: launchInput?.trusted_frozen_review_contract ??
+          launchInput?.readiness?.trusted_frozen_review_contract ?? null
       }),
       buildPlan,
       buildBwrapPlan,

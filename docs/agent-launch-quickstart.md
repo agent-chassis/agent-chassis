@@ -316,10 +316,47 @@ facts through `workspace_coordination_preflight`. Free/local and paid/CCE
 responses keep the same plane meanings and differ only in their enforcement
 metadata.
 
-The current Phase 1 flow is: commit the slice, integrate it into the WK, run a
-findings-only review of the frozen whole-WK context, then return the result to
+The current Phase 1 flow is: commit the slice, freeze and review its exact SHA,
+automatically integrate it into the WK, run a findings-only review of the frozen
+whole-WK context, then return the result to
 the orchestrator for disposition. Findings do not trigger an automatic Git
 mutation or promotion to main.
+
+On enforced CCE (`paid_cce`), exact Proof A is required before integration. On
+free/local, review remains mandatory policy and may be run/reported, but missing
+review evidence does not park lifecycle progress and no Proof A is minted. The
+tier is frozen into the launcher-owned sidecar descriptor at plan registration;
+later changes to the broker planning environment or API-key presence cannot
+upgrade or downgrade that run's enforcement mode.
+
+Launcher runtime persists exact-review state as immutable, synchronously durable
+receipt events under a cross-process lock; exact replay is idempotent and selector
+conflicts refuse rather than overwrite state. Readers take the same lock as
+publishers, a live or stalled owner is never displaced, and first creation syncs
+the receipt directory and its parent. After backend/MCP restart, recovery
+re-resolves the frozen contract, retained identity, refs, marker, and objects
+before minting or resolving the existing Proof A. Final and non-final
+already-integrated results are recovered independently from the obsolete
+pre-integration `active + slice review` shape. On `enforced_cce`, both backend and
+broker independently re-read persisted historical Proof A, validate it against the
+receipt-frozen contract, structured result, runs, SHAs, and exact identity, and fail
+closed before recovered success when that proof is missing or mismatched. The
+broker passes reconstructed acceptance to the existing Proof A gate before initial
+integration; no proof field crosses its closed request. `policy_only` neither
+requires nor fabricates Proof A or audit acceptance.
+
+There is no operator `integrate-slice` command, raw-Git recovery, manual proof
+injection, or caller-carried review authority. Exact-slice reviewers are admitted
+only from backend-owned frozen context and remain read-only in both Codex and Claude
+execution. For Claude exact-slice review, the credential leaf is a read-only bind
+and the final bwrap plan has no writable host root or file. Sandbox construction is
+mandatory for both direct and broker Claude composition: failure refuses before
+spawn, and an exact reviewer can never use the ordinary unenforced plain-launch
+fallback. There is no manual proof injection. `review_purpose` is
+structural and non-authorizing. Exact-bound
+`changes_requested` findings are rendered into the next same-slice Codex or Claude
+worker prompt as non-authorizing corrective context; they do not relaunch work,
+grant acceptance, or change read/write scope.
 
 ### Agent Dispatch Boundary
 
@@ -461,6 +498,17 @@ unavailable. Direct mode is not sandboxed write-scope enforcement: normal host
 OS permissions apply. Structured worker, reviewer, and redteam dispatch remains
 fail-closed unless a later decision explicitly changes that posture.
 
+Bubblewrap-isolated orchestrators receive one additional read-only repository-data
+mount: the launcher derives the owning repository's managed-worktree root as
+`<dirname(real repository)>/.agent-worktrees/<basename(real repository)>` and
+binds exactly that directory. The mount does not expose sibling repositories'
+managed worktrees and does not grant mutation authority. It exists only so
+orchestrators can inspect their own managed worktrees and obtain truthful Git
+diagnostics; host/broker evidence remains authoritative for lifecycle and
+exact-SHA integration decisions. An already-running orchestrator must be
+restarted to receive this mount. Operator direct mode has no bwrap namespace and
+therefore receives no additional bind.
+
 For a user-local Ubuntu amd64 install without changing system packages, the
 operator bootstrap recipe is:
 
@@ -546,6 +594,77 @@ The `agent-run-provenance.v1` envelope, its field model, digest and
 retention rules, and the repo-local provenance inspection command are
 documented in
 [agent-launch-run-provenance.md](agent-launch-run-provenance.md).
+
+### Staged wiki-MCP runtime diagnostics (work record / decision)
+
+A managed confined role (implementation worker, or a confined findings-only
+reviewer/redteam) does not run the wiki-MCP server from the live development
+checkout. The launcher stages a runtime built from one committed Git revision of
+the repository that owns the resolved server entrypoint, in a launcher-owned
+directory outside the repository and outside every managed task worktree, and
+mounts it read-only. The staged directory is keyed by a digest over the commit and
+every member's mode, object id, and path, so an identical request reuses an
+existing complete snapshot and a different revision gets its own directory.
+
+Two operator-recoverable blockers are published in the canonical runtime-blocker
+taxonomy (`workspace_runtime_blocker_taxonomy` describes both):
+
+- `managed_wiki_mcp_runtime_snapshot_incomplete` — the committed snapshot could not
+  be built or verified. Common causes: the runtime source repository has no
+  committed `HEAD`; a member is missing, non-regular (a symlink or submodule), or
+  its Git object is unreadable; a committed importer's target is not tracked at
+  that revision or reaches a workspace package outside the four-package superset;
+  or the staged directory is partial, corrupt, or conflicts with the requested
+  `(commit, digest)` tuple. The refusal carries a bounded, repository-relative
+  member diagnostic naming the offending paths.
+- `managed_wiki_mcp_runtime_dependency_unavailable` — the owning repository's
+  canonical `node_modules` installation is missing, redirected, lacks npm's
+  installed-tree marker, is missing or redirects an expected `@agent-chassis`
+  workspace alias, or does not satisfy a dependency the snapshot's committed
+  manifests declare.
+
+Operator recovery, in order of likelihood:
+
+1. **Commit the launcher runtime change.** An uncommitted edit to the launcher's
+   own runtime source is deliberately INELIGIBLE — that is the guarantee, not a
+   bug. Working-tree churn on the launcher checkout never enters a runtime and
+   never invalidates one already selected, so a dirty checkout is not an outage;
+   but a change you expect to see in-namespace must be committed first.
+2. **Repair the dependency installation** (`npm install` in the owning
+   repository) when the dependency blocker names a missing alias or dependency.
+3. **Remove a conflicting staged directory.** The staged root is disposable cache:
+   deleting the reported directory makes the next dispatch restage it. Prefer this
+   over editing anything inside it — staged trees are verified against the
+   manifest, so hand-edits refuse rather than take effect.
+
+Never work around either blocker by widening the role's repository visibility or
+by launching the role without its wiki-MCP server: that server is the worker's
+sole delivery authority and the reviewer's/redteam's sole findings authority, so
+the launch fails closed by design.
+
+A third failure shape reaches operators through the same
+`managed_wiki_mcp_runtime_snapshot_incomplete` code: the in-namespace MCP
+preflight. Every managed confined role plan runs a bounded real `initialize` +
+`tools/list` against the staged runtime inside that role's FINAL bwrap mount
+topology before the plan is returned, so an initialize error, a `tools/list`
+error, a timeout, a premature exit, or a tool-surface mismatch REFUSES the launch
+rather than spawning a model against a server that cannot serve its authority.
+The refusal detail names `preflight_failure` (`timeout`, `exited`,
+`initialize_error`, `tools_list_error`, `spawn_error`), the `preflight_binding`,
+and a tail of the real stderr.
+
+The most common operator-visible cause is a runtime home that is not
+launcher-owned — for example `CODEX_HOME`/`CODEX_ORCH_RUNTIME_DIR` pointing
+inside the role's own read-only worktree bind, which bwrap cannot create
+(`bwrap: Can't mkdir parents for ...: Read-only file system`). Point those at a
+launcher-owned directory outside the worktree.
+
+Note on what the preflight proves: the STAGED RUNTIME is complete, starts in the
+role's real namespace, and exposes exactly that role's policy-derived tool
+surface. It does NOT prove that the later Codex-owned MCP client instance
+initialized. If a role starts and then reports no wiki tools, that is a
+client-side readiness question, not a staged-runtime question; an actual-client
+mandatory-readiness protocol is separate follow-on work.
 
 ### Operator Follow-Up After Review
 

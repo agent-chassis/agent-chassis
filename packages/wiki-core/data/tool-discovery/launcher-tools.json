@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "launcher-tools.json",
   "summary": "Dispatch, run-status, coordination preflight, and runtime-blocker-taxonomy tools.",
-  "tool_count": 5,
+  "tool_count": 6,
   "tools": [
     {
       "tool_name": "workspace_agent_dispatch",
@@ -246,6 +246,38 @@
         "packages/wiki-mcp/src/server.mjs"
       ],
       "notes": "Read-only coordinator/orchestrator preflight: reports role, caller/session role, subject, allowed durable write surfaces (docs/, wiki/), the implementation/test edit prohibition, repo/docs/wiki writability, available structured dispatch/validation routes, and active runtime blocker codes. A fully read-only mount surfaces as read_only_mount (filesystem category), not as role policy. Caller-supplied identity carriers are refused; role and caller_session_role are caller-asserted introspection knobs."
+    },
+    {
+      "tool_name": "workspace_wk_forge_handoff",
+      "display_name": "Workspace WK forge handoff",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_wk_forge_handoff",
+      "task_ids": ["worker-delivery"],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": ["agent", "operator"],
+      "priority": 120,
+      "side_effects": ["workspace_write", "process_spawn"],
+      "authority": ["launcher_registry", "workspace_repo", "launcher_backend"],
+      "tier_visibility": ["free_local", "paid_cce"],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/agent-launch-cli/src/lib/host-write-authority-substrate/broker-wk-forge-handoff.mjs",
+        "packages/agent-launch-cli/src/lib/host-write-authority-substrate/request-envelopes-wk-forge-handoff.mjs",
+        "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+      ],
+      "notes": "Orchestrator/operator-only forge handoff for a completed work record. Reuses the exact accumulated WK tip tree as one deterministic one-parent squash commit, publishes one handoff/wk/IN-XXXX/WK-YYYY branch by create-if-absent compare-and-swap, and creates or recovers one pull request against the launcher-configured landing branch. Input is closed: an optional workspace repo alias plus a canonical WK-#### assigned_unit; a slice address is refused. Repository, remote, landing branch, initiative, refs, SHAs, and credentials all derive host-side from the launcher-owned remote and WK state and can never be supplied by caller, prompt, model, or environment. All Git, gh, and credential execution runs host-side outside bwrap; the token never enters a request, result, argv, remote URL, or log. The WK must be terminal and quiescent, and its persistent ref is re-read before every success; any movement refuses. Existing exact branches and pull requests are recovered, never duplicated or overwritten. The forge and organization own review, approval, checks, branch protection, merge, and merge queues. Missing backend, secret, remote, initiative, or configuration returns a typed refusal.",
+      "use_when": ["A work record is complete and quiescent and its accumulated change must be handed to the forge as one squashed pull request."],
+      "do_not_use_when": ["The work record is still active, or an implementation slice or managed run is still open; finish the lifecycle first.", "The task asks to merge, approve, rebase, or update an existing branch; the forge and organization policy own those."],
+      "authoritative_for": ["wk_forge_handoff:squash_branch_and_pull_request", "launcher-owned forge branch creation and pull-request create-or-observe"],
+      "requires_prior_state": ["A canonical WK-#### record with a canonical initiative assignment and a terminal, quiescent lifecycle.", "Launcher-configured landing branch and a forge credential available host-side to the trusted server."],
+      "replacement_for_misuse": []
     }
   ]
 }

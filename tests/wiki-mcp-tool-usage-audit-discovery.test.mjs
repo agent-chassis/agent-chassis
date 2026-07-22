@@ -52,7 +52,8 @@ test("workspace_tool_usage_audit discovery is read-only operator observability",
     "summary must present the audit route as read-only observability"
   );
   assert.match(tool.notes, /operator\/coordinator observability surface/i);
-  assert.match(tool.notes, /compact, redacted tool-use audit aggregates/i);
+  assert.match(tool.notes, /compact, redacted, NEUTRAL tool-use catalog/i);
+  assert.match(tool.notes, /renders NO misuse or adherence verdict/i);
 
   const inspectProvenanceResults = queryToolDiscoveryDescriptor(descriptor, {
     task_id: "inspect-provenance"
@@ -74,18 +75,19 @@ test("workspace_tool_usage_audit discovery points to owners without inline vocab
   );
   assert.ok(
     tool.source_files.includes("packages/wiki-core/data/tool-use-policy.v1.json"),
-    "source_files must reference the policy vocabulary instead of copying it inline"
+    "source_files must reference the offline vocabulary instead of copying it inline"
   );
-  assert.ok(
+
+  assert.equal(
     tool.source_files.includes("packages/wiki-core/data/tool-routing-intents.v1.json"),
-    "source_files must reference the WK-1438 routing-intent data boundary"
+    false,
+    "neutral catalog must not reference the retired routing-intent data boundary"
   );
   assert.ok(
     tool.source_files.includes("wiki/work-records/WK-1438.json"),
-    "source_files must reference WK-1438 routing-intent ownership"
+    "source_files must still reference WK-1438 ownership"
   );
-  assert.match(fields, /Misuse-code vocabulary lives in packages\/wiki-core\/data\/tool-use-policy\.v1\.json/i);
-  assert.match(fields, /routing-intent ids and replacement-call guidance remain owned by WK-1438/i);
+  assert.match(fields, /The offline vocabulary lives in packages\/wiki-core\/data\/tool-use-policy\.v1\.json/i);
 
   const inlineMisuseCodes = fields.match(
     /\b(search_used_for_status_aggregation|full_read_without_selected_resource|bulk_sampling_without_lens|dispatch_without_readiness_validation|ignored_required_next_action|high_output_option_without_compact_first)\b/g

@@ -471,11 +471,10 @@ function getStructuredEvidenceAction(taxonomy, selection, record) {
       ),
     )
   ) {
-    return makeEvidenceAction(taxonomy, selection, ['admission', 'metrics'], {
-      kind: 'refresh_admission_metrics',
-      suggested_tool: 'workspace_work_record_refresh_admission_metrics',
+    return makeDispatchValidationAction(taxonomy, selection, {
       reason_code: 'admission_metrics_stale_or_missing',
-      summary: 'Refresh selected-unit worker-admission metric evidence before continuing.',
+      blocking: true,
+      summary: 'Run read-only dispatch validation for this exact unit to interpret the admission-evidence hint.',
     });
   }
 

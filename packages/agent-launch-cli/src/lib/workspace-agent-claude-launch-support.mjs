@@ -605,13 +605,21 @@ export function resolveClaudeLauncherRoleWritePosture(role) {
   });
 }
 
-export function resolveClaudeLauncherWriteScope({ role, writeScope }) {
+export function resolveClaudeLauncherWriteScope({
+  role,
+  writeScope,
+  launcherOwnedExactSliceReview = false
+}) {
   const writePosture = resolveClaudeLauncherRoleWritePosture(role);
   if (
     writePosture.ok === true &&
     writePosture.posture === LAUNCHER_WRITE_POSTURES.FINDINGS_ONLY
   ) {
-    const gated = gateRoleWriteScope({ role: writePosture.role, write_scope: writeScope });
+    const gated = gateRoleWriteScope({
+      role: writePosture.role,
+      write_scope: writeScope,
+      launcher_owned_exact_slice_review: launcherOwnedExactSliceReview === true
+    });
     return gated.ok ? { ok: true, writeScope: gated.write_scope } : { ok: false, refusal: gated.refusal.refusal };
   }
   return { ok: true, writeScope };
@@ -712,6 +720,8 @@ export function defaultBuildClaudeBwrapPlan({
   credentialsReadOnlyFile = CLAUDE_CREDENTIALS_READ_ONLY_FILE,
   approvedCredentialsReadOnlyFiles = CLAUDE_APPROVED_CREDENTIALS_READ_ONLY_FILES,
 
+  credentialsWritable = true,
+
   nativeRepoWriteMechanism = CLAUDE_FAMILY_NATIVE_REPO_WRITE_MECHANISM,
   deriveWritableMounts = nativeRepoWriteMechanism
     ? deriveDirectoryScopedWritableMountsFromWriteScope
@@ -732,12 +742,19 @@ export function defaultBuildClaudeBwrapPlan({
   const approvedCredentialsReadOnlyFile = credentialGuard.assertAllowed(credentialsReadOnlyFile);
 
   const homePolicy = approvedCredentialsReadOnlyFile !== null
-    ? {
-        writableFiles: [{
-          src: approvedCredentialsReadOnlyFile,
-          dst: approvedCredentialsReadOnlyFile
-        }]
-      }
+    ? credentialsWritable === true
+      ? {
+          writableFiles: [{
+            src: approvedCredentialsReadOnlyFile,
+            dst: approvedCredentialsReadOnlyFile
+          }]
+        }
+      : {
+          reads: [{
+            src: approvedCredentialsReadOnlyFile,
+            dst: approvedCredentialsReadOnlyFile
+          }]
+        }
     : null;
 
   return buildFamilyExecutorBwrapPlan({
@@ -791,6 +808,7 @@ export function createDefaultClaudeBwrapIsolatedSpawn({
       familyRuntimeReadOnlyRoots,
       credentialsReadOnlyFile,
       approvedCredentialsReadOnlyFiles,
+      credentialsWritable: opts?.credentialsWritable !== false,
       familyRuntimePolicyProfile
     });
     return spawnIsolated(plan, {
@@ -850,7 +868,8 @@ export function defaultBuildClaudeCommandLine({
   nativeRepoWriteMechanism = CLAUDE_FAMILY_NATIVE_REPO_WRITE_MECHANISM,
   schemaConstrainedTerminalResult = false,
 
-  claudeSettingsPath = null
+  claudeSettingsPath = null,
+  supplementalInstructions = null
 }) {
 
   const roleCheck = validateLauncherFamilyRole(role);
@@ -911,7 +930,7 @@ export function defaultBuildClaudeCommandLine({
     workspaceDir
   }));
 
-  const text = typeof prompt === "string" && prompt.length > 0
+  const baseText = typeof prompt === "string" && prompt.length > 0
     ? prompt
     : renderLauncherFamilyRoleContract({
         role,
@@ -925,6 +944,9 @@ export function defaultBuildClaudeCommandLine({
           role
         })
       });
+  const text = typeof supplementalInstructions === "string" && supplementalInstructions.length > 0
+    ? `${baseText}\n\n${supplementalInstructions}`
+    : baseText;
   args.push(text);
   return { command: claudePath, args };
 }

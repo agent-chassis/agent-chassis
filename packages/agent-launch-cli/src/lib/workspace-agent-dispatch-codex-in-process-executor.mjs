@@ -31,6 +31,7 @@ import {
 } from "./workspace-agent-codex-launch-policy.mjs";
 import { defaultCaptureCodexFinalResult } from "./workspace-agent-codex-final-result.mjs";
 import { resolveFindingsOnlyAcceptanceContract } from "./workspace-agent-findings-role-context.mjs";
+import { renderTrustedCorrectiveFindingsInstructions } from "./workspace-agent-launch-adapter-contract.mjs";
 import {
   CODEX_EXECUTOR_ROLE_MAP,
   makeRefusal,
@@ -319,12 +320,40 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
       codexRole
     });
 
+    let correctiveInstructions = null;
+    try {
+      correctiveInstructions = role === "worker"
+        ? renderTrustedCorrectiveFindingsInstructions(
+            input?.readiness?.trusted_corrective_findings_context ?? null,
+            { subject }
+          )
+        : null;
+    } catch (error) {
+      return makeRefusal(
+        BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+        "trusted_corrective_findings_context_invalid",
+        { issue: error?.message ?? String(error) }
+      );
+    }
+    const runtimeReadiness = input?.readiness && typeof input.readiness === "object" &&
+      !Array.isArray(input.readiness)
+      ? { ...input.readiness }
+      : input?.readiness;
+    if (runtimeReadiness && typeof runtimeReadiness === "object") {
+      delete runtimeReadiness.trusted_corrective_findings_context;
+    }
+    const runtimeInput = runtimeReadiness === input?.readiness
+      ? input
+      : { ...input, readiness: runtimeReadiness };
+
     return launchCodexWorkspaceAgentInProcess({
-      input,
+      input: runtimeInput,
       role,
       subject,
       codexRole,
-      promptArgs,
+      promptArgs: correctiveInstructions === null
+        ? promptArgs
+        : [...promptArgs, correctiveInstructions],
       env,
       planCwd,
       effectiveResolvedProfile,

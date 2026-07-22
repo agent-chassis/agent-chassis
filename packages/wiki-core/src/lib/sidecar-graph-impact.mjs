@@ -16,6 +16,7 @@ import {
   validateImpactPath
 } from "./sidecar-graph-impact-shared.mjs";
 import {
+  artifactIdentityMatches,
   loadCanonicalRecords,
   readArtifact,
   rebuildGraphIndexAtHead,
@@ -52,9 +53,50 @@ function statusRequiresRebuild(status) {
   return status?.index_action === "rebuild";
 }
 
+export function deriveDirectImportAdjacencyFromGraph(graph, bearingPaths) {
+  const bearing = new Set(Array.isArray(bearingPaths) ? bearingPaths : []);
+  if (bearing.size === 0 || !graph || typeof graph !== "object") {
+    return [];
+  }
+
+  const moduleNodePathById = new Map();
+  for (const node of Array.isArray(graph.graph_nodes) ? graph.graph_nodes : []) {
+    if (
+      node &&
+      typeof node === "object" &&
+      node.kind === "module" &&
+      typeof node.path === "string"
+    ) {
+      moduleNodePathById.set(node.id, node.path);
+    }
+  }
+
+  const pairKeys = new Set();
+  for (const edge of Array.isArray(graph.graph_edges) ? graph.graph_edges : []) {
+    if (!edge || typeof edge !== "object" || edge.kind !== "imports_module") {
+      continue;
+    }
+    const fromPath = moduleNodePathById.get(edge.from_node_id);
+    const toPath = moduleNodePathById.get(edge.to_node_id);
+    if (!fromPath || !toPath || fromPath === toPath) {
+      continue;
+    }
+    if (!bearing.has(fromPath) || !bearing.has(toPath)) {
+      continue;
+    }
+    const [a, b] = [fromPath, toPath].sort((left, right) => left.localeCompare(right));
+    pairKeys.add(`${a}\t${b}`);
+  }
+
+  return [...pairKeys]
+    .sort((left, right) => left.localeCompare(right))
+    .map((key) => key.split("\t"));
+}
+
 export async function resolveCurrentGraphForImpact({
   targetDir,
   cacheDir,
+  artifactReader = readArtifact,
   headReader = async () => {
     try {
       const repoRoot = await runSidecarGit(targetDir, ["rev-parse", "--show-toplevel"]);
@@ -85,15 +127,33 @@ export async function resolveCurrentGraphForImpact({
     }
 
     const gitState = await discoverSidecarGitState(targetDir);
-    const artifactRead = await readArtifact({ repoRoot: gitState.repoRoot, status });
+    const artifactRead = await artifactReader({ repoRoot: gitState.repoRoot, status });
+    const artifactMatchesPinnedHead =
+      Boolean(artifactRead.artifact) &&
+      artifactRead.identity?.index_head === pinnedHead &&
+      artifactRead.identity.index_head === status.index_head;
     const overlay = await collectDirtyGraphOverlay({ repoRoot: gitState.repoRoot, status });
     const graphSelection = selectGraph({ status, artifact: artifactRead.artifact, overlay });
+
+    const verifiedArtifactRead = await artifactReader({ repoRoot: gitState.repoRoot, status });
+    const artifactIdentityStable =
+      artifactMatchesPinnedHead &&
+      verifiedArtifactRead.identity?.index_head === pinnedHead &&
+      artifactIdentityMatches(artifactRead.identity, verifiedArtifactRead.identity);
 
     lastResolution = { gitState, status, artifactRead, overlay, graphSelection, rebuild };
 
     const afterHead = await headReader();
-    if (isFinalPass || afterHead === pinnedHead) {
+    if (afterHead === pinnedHead && artifactIdentityStable) {
+
       return lastResolution;
+    }
+
+    if (isFinalPass) {
+      throw new SidecarGraphIndexUnbuildableError(
+        "repo HEAD moved or graph artifact identity changed during graph derivation and did not stabilize within the bounded retry; refusing to return a graph not proven to match current HEAD",
+        { code: "graph_head_moved_unstable" }
+      );
     }
 
   }
@@ -125,6 +185,8 @@ export async function getSidecarGraphImpactPaths({
   );
   const validationHints = validations.map((entry) => entry.hint);
   const invalidPaths = validations.filter((entry) => !entry.ok).map((entry) => entry.input_path);
+
+  const graphImportAdjacency = deriveDirectImportAdjacencyFromGraph(graphSelection.graph, validPaths);
 
   const indexes = createGraphIndexes(sanitizedSelection.graph);
   const impacts = sanitizedSelection.graph
@@ -235,6 +297,7 @@ export async function getSidecarGraphImpactPaths({
     invalid_paths: invalidPaths,
     validation_hints: validationHints,
     graph_state: graphState,
+    graph_import_adjacency: graphImportAdjacency,
     graph_nodes: impactedGraph.graph_nodes,
     graph_edges: impactedGraph.graph_edges,
     structural_impacts: impacts,

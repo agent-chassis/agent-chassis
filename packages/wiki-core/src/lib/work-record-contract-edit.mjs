@@ -753,7 +753,21 @@ export function assignWorkRecordToInitiative(record, { initiative } = {}) {
   return finalizeEdit(clone, ["initiative"]);
 }
 
-export function shapeReviewUnit(record, { sliceId = null } = {}) {
+export function shapeReviewUnit(record, { sliceId = null, reviewPurpose = "standalone" } = {}) {
+  if (!["standalone", "terminal_whole_wk"].includes(reviewPurpose)) {
+    return refusal(createDiagnostic(
+      "invalid_review_purpose",
+      "reviewPurpose must be standalone or terminal_whole_wk",
+      { path: prefixSliceField(sliceId ?? null, "review_purpose") }
+    ));
+  }
+  if (sliceId === null && reviewPurpose !== "standalone") {
+    return refusal(createDiagnostic(
+      "invalid_review_purpose",
+      "terminal_whole_wk reviewPurpose is valid only on a findings-only slice",
+      { path: "review_purpose" }
+    ));
+  }
   const clone = cloneJson(record);
   const selected = selectScopedTarget(clone, sliceId ?? null);
   if (!selected.ok) {
@@ -781,6 +795,10 @@ export function shapeReviewUnit(record, { sliceId = null } = {}) {
   } else if (target.dispatch_intent.intended_agent_role !== "reviewer") {
     target.dispatch_intent.intended_agent_role = "reviewer";
     changedFields.push(prefixSliceField(sliceId ?? null, "dispatch_intent.intended_agent_role"));
+  }
+  if (sliceId !== null && target.review_purpose !== reviewPurpose) {
+    target.review_purpose = reviewPurpose;
+    changedFields.push(prefixSliceField(sliceId, "review_purpose"));
   }
 
   return finalizeEdit(clone, changedFields);
@@ -814,7 +832,7 @@ const READY_SLICE_CONTROL_FIELDS = Object.freeze([
 const READY_SLICE_PAYLOAD_FIELDS = Object.freeze([
   "title", "status", "work_kind", "priority", "owner", "depends_on", "read_scope",
   "repo_paths", "write_scope", "dispatch_intent", "acceptance", "expected_edit_targets",
-  "expected_changed_line_budget", "agent_notes"
+  "expected_changed_line_budget", "agent_notes", "review_purpose"
 ]);
 export const WORK_RECORD_READY_SLICE_FIELDS = Object.freeze([
   ...READY_SLICE_CONTROL_FIELDS,
@@ -1034,6 +1052,7 @@ export function validateWorkRecordReadySliceRequest(request) {
       (!Number.isInteger(request.expected_changed_line_budget) || request.expected_changed_line_budget < 0)
     ) readyInputError("ready_slice_invalid_field", "expected_changed_line_budget must be a non-negative integer or null", "expected_changed_line_budget");
     if (hasOwn(request, "work_kind")) controlled(request.work_kind, new Set(["implementation", "review", "redteam"]), "work_kind");
+    if (hasOwn(request, "review_purpose")) controlled(request.review_purpose, new Set(["standalone", "terminal_whole_wk"]), "review_purpose");
     return { ok: true, diagnostics: [] };
   } catch (error) {
     if (!(error instanceof ReadySliceInputError)) throw error;
@@ -1095,6 +1114,7 @@ export function planWorkRecordReadySlice(record, request = {}) {
       supplied.expected_changed_line_budget = request.expected_changed_line_budget;
     }
     if (hasOwn(request, "agent_notes")) supplied.agent_notes = normalizeAgentNotes(request.agent_notes);
+    if (hasOwn(request, "review_purpose")) supplied.review_purpose = controlled(request.review_purpose, new Set(["standalone", "terminal_whole_wk"]), "review_purpose");
     if (hasOwn(request, "work_kind") && request.work_kind.trim() !== shape.work_kind) readyInputError("ready_slice_shaping_conflict", "work_kind contradicts shaping_mode", "work_kind");
     const incomingIntent = hasOwn(request, "dispatch_intent") ? normalizeReadyDispatchIntent(request.dispatch_intent) : null;
     if (incomingIntent && (incomingIntent.intended_agent_role !== shape.role || incomingIntent.target_unit !== "slice")) readyInputError("ready_slice_shaping_conflict", "dispatch_intent contradicts shaping_mode", "dispatch_intent");
@@ -1127,6 +1147,12 @@ export function planWorkRecordReadySlice(record, request = {}) {
     } : { ...cloneJson(existing), ...cloneJson(supplied) };
     delete next.agent_notes;
     next.work_kind = shape.work_kind;
+    if (mode === "reviewer") {
+      next.review_purpose = supplied.review_purpose ?? next.review_purpose ?? "standalone";
+    } else {
+      if (hasOwn(request, "review_purpose")) readyInputError("ready_slice_review_purpose_incompatible", "review_purpose is valid only for reviewer shaping", "review_purpose");
+      delete next.review_purpose;
+    }
     const preservedIntent = incomingIntent ?? cloneJson(existing?.dispatch_intent) ?? {};
     next.dispatch_intent = {
       intended_agent_role: shape.role,

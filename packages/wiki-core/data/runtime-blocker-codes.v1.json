@@ -214,6 +214,24 @@
       "consumer_notes": "Distinct from read_only_mount: the underlying filesystem accepts writes, but the sandbox profile rejects them."
     },
     {
+      "code": "managed_wiki_mcp_runtime_snapshot_incomplete",
+      "category": "sandbox",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher-owned committed wiki-MCP runtime snapshot for a managed confined role could not be built or verified, so the role's authority-bearing MCP server would not start in-namespace.",
+      "detail": "WK-1555#SLICE-028 / DEC-0160 (staged-runtime successor). A managed confined Codex role executes the wiki-MCP server from a staged runtime built out of ONE immutable Git object snapshot of a launcher-owned committed revision: both member membership (git ls-tree at the commit) and file bytes (git cat-file) come from that revision, never from the index or the working tree. This code reports that the snapshot is not coherent and usable: the runtime source repository has no committed HEAD; a member is missing, non-regular (symlink/gitlink), or has an unreadable Git object; a runtime package has no tracked members at the frozen commit; a committed importer's target is not tracked at that commit or reaches a workspace package outside the tracked four-package superset; the staged directory is partial, corrupt, or conflicts with the requested (commit, digest) tuple; or the staged entrypoint is absent. The refusal is raised BEFORE role spawn and carries a bounded, repository-relative member diagnostic.",
+      "consumer_notes": "This replaces the former tracked-but-absent silent skip in codex-role-wiki-mcp-override.mjs. It MUST NOT be degraded to an opaque bwrap failure, an in-child module-resolution crash, optional-MCP behavior, or a later committed_slice_result_absent: the wiki-MCP server is the role's sole delivery (worker commit) or findings (reviewer/redteam) authority, so an incomplete runtime is a hard pre-spawn block. Recovery is operator-side: commit the launcher runtime source change (an uncommitted edit is deliberately not eligible), restore the missing object, or remove the conflicting staged directory. Distinct from managed_wiki_mcp_runtime_dependency_unavailable, which reports the dependency installation rather than the committed snapshot."
+    },
+    {
+      "code": "managed_wiki_mcp_runtime_dependency_unavailable",
+      "category": "sandbox",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The owning repository's canonical node_modules installation that the staged wiki-MCP runtime links to is missing, redirected, malformed, or incompatible with the snapshot's committed manifests.",
+      "detail": "WK-1555#SLICE-028 / DEC-0160. The staged runtime provisions exactly one dependency link to the owning repository's canonical node_modules installation, which bwrap additionally binds read-only. Before use, the launcher verifies that the canonical target exists, is a directory, is not redirected away from the owning repository, carries npm's installed-tree marker, exposes the expected workspace aliases resolving back to the owning repository's packages, and satisfies every runtime dependency declared by the SNAPSHOT's committed package manifests. This code reports that one of those checks failed.",
+      "consumer_notes": "Scope note: this is ONLY the trusted staged runtime's dependency link. The general consuming-worktree <managed-worktree>/node_modules symlink is owned by agent-chassis:WK-1634 and is not provisioned under this code. Recovery is operator-side (reinstall or repair the canonical installation); it must never be worked around by widening the role's repository visibility or by allowing the role to launch without its MCP server."
+    },
+    {
       "code": "validation_failure",
       "category": "validation",
       "actor_recovery": "coordinator",
@@ -429,8 +447,8 @@
       "category": "read_disclosure",
       "actor_recovery": "caller_retry",
       "blocking": false,
-      "summary": "The supplied compact_read_token could not be decoded or its signature did not verify; re-run the compact read to mint a fresh token and re-call with it.",
-      "detail": "actor_recovery=caller_retry: re-call with the CORRECTED (freshly minted) token, not an identical retry. Emitted by validateToken in the compact-read gate.",
+      "summary": "The supplied compact_read_token was not a well-formed bounded acknowledgment (undecodable, wrong shape or scalar types, wrong fixed lifetime, future-issued, or overlong); re-run the compact read to mint a fresh acknowledgment and re-call with it.",
+      "detail": "actor_recovery=caller_retry: re-call with the CORRECTED (freshly minted) acknowledgment, not an identical retry. The compact_read_token is a plain bounded base64url JSON acknowledgment used for stale-read / explicit-intent bookkeeping, so 'malformed' means the carrier was structurally invalid (undecodable, wrong field set, wrong scalar types, wrong fixed lifetime, future-issued, or overlong). Emitted by validateToken in the compact-read gate.",
       "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
     },
     {
@@ -507,7 +525,7 @@
     }
   ],
   "graph_impact_state_map": {
-    "description": "Exhaustive deterministic mapping from (graph_state, staleness, dirty_state, overlay_state) to runtime blocker codes consumed by workspace_coordination_preflight and workspace_agent_dispatch readiness. The first matching rule wins. A null/unspecified field matches any value.",
+    "description": "Exhaustive deterministic mapping from (graph_state, staleness, dirty_state, overlay_state) to runtime blocker codes consumed by workspace_coordination_preflight and workspace_agent_dispatch readiness. The first matching rule wins. A null/unspecified field matches any value. WK-1590 current-HEAD ruling (2026-07-18, recorded on WK-1590): the graph baseline is derived from the current committed HEAD, so a stale, older-base, missing-overlay, or rebuild_required state is rebuilt at current HEAD rather than blocking -- staleness alone is never a blocking refusal. A valid dirty-worktree overlay is optional enrichment merged over the base (non-blocking graph_impact_degraded_overlay). Only a current-HEAD baseline that genuinely cannot be produced or validated (graph_state unavailable/error/query_error) is a zero-backend blocking refusal before CCE.",
     "rules": [
       {
         "when": { "graph_state": "unavailable" },
@@ -528,55 +546,7 @@
         "outcome": "block"
       },
       {
-        "when": { "staleness": "missing", "overlay_state": "active" },
-        "code": "graph_impact_degraded_overlay",
-        "blocking": false,
-        "outcome": "proceed_degraded"
-      },
-      {
-        "when": { "staleness": "missing" },
-        "code": "graph_impact_artifact_missing",
-        "blocking": true,
-        "outcome": "operator_refresh"
-      },
-      {
-        "when": { "staleness": "stale", "dirty_state": "dirty_worktree", "overlay_state": "active" },
-        "code": "graph_impact_degraded_overlay",
-        "blocking": false,
-        "outcome": "proceed_degraded"
-      },
-      {
-        "when": { "staleness": "stale" },
-        "code": "graph_impact_rebuild_required",
-        "blocking": true,
-        "outcome": "operator_refresh"
-      },
-      {
-        "when": { "staleness": "rebuild_required", "dirty_state": "dirty_worktree", "overlay_state": "active" },
-        "code": "graph_impact_degraded_overlay",
-        "blocking": false,
-        "outcome": "proceed_degraded"
-      },
-      {
-        "when": { "staleness": "rebuild_required" },
-        "code": "graph_impact_rebuild_required",
-        "blocking": true,
-        "outcome": "operator_refresh"
-      },
-      {
-        "when": { "staleness": "unknown", "overlay_state": "active" },
-        "code": "graph_impact_degraded_overlay",
-        "blocking": false,
-        "outcome": "proceed_degraded"
-      },
-      {
-        "when": { "staleness": "unknown" },
-        "code": "graph_impact_unknown_state",
-        "blocking": true,
-        "outcome": "operator_refresh"
-      },
-      {
-        "when": { "dirty_state": "dirty_worktree", "overlay_state": "active" },
+        "when": { "overlay_state": "active" },
         "code": "graph_impact_degraded_overlay",
         "blocking": false,
         "outcome": "proceed_degraded"

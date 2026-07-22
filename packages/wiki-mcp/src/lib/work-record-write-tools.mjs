@@ -166,6 +166,7 @@ export function createReadySliceInputSchema(z) {
       title: nonemptyString.optional(),
       status: z.enum(READY_SLICE_STATUS_VALUES).optional(),
       work_kind: z.enum(READY_SLICE_WORK_KIND_VALUES).optional(),
+      review_purpose: z.enum(["standalone", "terminal_whole_wk"]).optional(),
       priority: z.enum(READY_SLICE_PRIORITY_VALUES).optional(),
       owner: nonemptyString.optional(),
       depends_on: z.array(nonemptyString).optional(),
@@ -221,6 +222,10 @@ export function createReadySliceInputSchema(z) {
           "work_kind",
           "work_kind contradicts shaping_mode"
         );
+      }
+      if (args.review_purpose !== undefined &&
+          (mode === "implementation" || mode === "redteam")) {
+        addReadySliceSchemaIssue(context, "review_purpose", "review_purpose is valid only for reviewer shaping");
       }
       if (
         expectedShape &&
@@ -858,7 +863,8 @@ export function registerWorkRecordWriteTools({
           repo: z.string().optional(),
           unit: z.string(),
           expected_source_digest: z.string().optional(),
-          verbose: z.boolean().optional()
+          verbose: z.boolean().optional(),
+          review_purpose: z.enum(["standalone", "terminal_whole_wk"]).optional()
         })
         .strict()
     },
@@ -886,7 +892,7 @@ export function registerWorkRecordWriteTools({
           dir: workspace.dir,
           unitAddress: args.unit,
           operation: "shape_review_unit",
-          params: {},
+          params: { reviewPurpose: args.review_purpose ?? "standalone" },
           expectedSourceDigest: digestValidation.value,
           verbose: Boolean(args.verbose)
         });

@@ -60,7 +60,15 @@ export function detectMissingTargetPlanReviewSignal({ structuralTargetMetrics, f
   const unresolvedWriteScopeTargets = toNonNegativeInteger(
     structuralTargetMetrics.write_scope_without_resolved_targets
   );
+
+  const bindingStatus = normalizeStringEntry(
+    structuralTargetMetrics.metric_source_provenance?.binding_status
+  );
+  const planDeclared =
+    (targetCount !== null && targetCount > 0) ||
+    (status !== null && status !== "absent" && bindingStatus === "trusted");
   if (
+    !planDeclared &&
     unresolvedWriteScopeTargets !== null &&
     unresolvedWriteScopeTargets > 0
   ) {
@@ -71,7 +79,7 @@ export function detectMissingTargetPlanReviewSignal({ structuralTargetMetrics, f
       rule: "write_scope_without_resolved_targets"
     };
   }
-  if (status !== "absent" || (targetCount !== null && targetCount > 0)) {
+  if (status !== "absent" || planDeclared) {
     return null;
   }
   if (classifyExistingCodeSurfaceCount(fileStats) === 0) {

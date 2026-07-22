@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { loadCanonicalState, resolveContractContext } from "./wiki.mjs";
@@ -6,6 +6,7 @@ import {
   SIDECAR_ARTIFACT_SCHEMA_FIELD,
   SIDECAR_ARTIFACT_SCHEMA_VERSION
 } from "./sidecar-schema.mjs";
+import { classifySidecarGraphArtifactSchema } from "./sidecar-graph-schema.mjs";
 import {
   SidecarPathValidationError,
   validateVirtualSidecarPath
@@ -17,6 +18,7 @@ import {
   provenance,
   uniqueStrings
 } from "./sidecar-graph-impact-shared.mjs";
+import { readSidecarArtifactBytes } from "./sidecar-artifact-bytes.mjs";
 
 export class SidecarGraphIndexUnbuildableError extends Error {
   constructor(message, { code = "graph_index_unbuildable", cause = null, status = null } = {}) {
@@ -88,6 +90,35 @@ export function artifactIsCompatible(artifact) {
   );
 }
 
+export function createArtifactIdentity(rawBytes, artifact) {
+  const graphClassification = classifySidecarGraphArtifactSchema(artifact);
+  return {
+    sha256: createHash("sha256").update(rawBytes).digest("hex"),
+    byte_length: rawBytes.length,
+    index_head: artifact?.index_head ?? null,
+    artifact_schema_version:
+      artifact?.cache_metadata?.[SIDECAR_ARTIFACT_SCHEMA_FIELD] ?? null,
+    graph_schema_version: graphClassification.graph_state.graph_schema_version ?? null,
+    graph_compatible:
+      graphClassification.compatible &&
+      graphClassification.graph_state.graph_available === true
+  };
+}
+
+export function artifactIdentityMatches(left, right) {
+  return Boolean(
+    left &&
+      right &&
+      left.sha256 === right.sha256 &&
+      left.byte_length === right.byte_length &&
+      left.index_head === right.index_head &&
+      left.artifact_schema_version === right.artifact_schema_version &&
+      left.graph_schema_version === right.graph_schema_version &&
+      left.graph_compatible === true &&
+      right.graph_compatible === true
+  );
+}
+
 export async function readArtifact({ repoRoot, status }) {
   if (!status.artifact_exists || status.staleness === "missing") {
     return {
@@ -113,10 +144,14 @@ export async function readArtifact({ repoRoot, status }) {
   }
 
   try {
-    const artifact = JSON.parse(await readFile(path.join(repoRoot, status.artifact_path), "utf8"));
-    if (!artifactIsCompatible(artifact)) {
+    const { rawBytes, artifact } = await readSidecarArtifactBytes(
+      path.join(repoRoot, status.artifact_path)
+    );
+    const identity = createArtifactIdentity(rawBytes, artifact);
+    if (!artifactIsCompatible(artifact) || !identity.graph_compatible) {
       return {
         artifact: null,
+        identity,
         evidence: graphArtifactEvidence({
           status,
           available: false,
@@ -128,6 +163,7 @@ export async function readArtifact({ repoRoot, status }) {
     }
     return {
       artifact,
+      identity,
       evidence: graphArtifactEvidence({
         status,
         available: true,
@@ -137,6 +173,7 @@ export async function readArtifact({ repoRoot, status }) {
   } catch (error) {
     return {
       artifact: null,
+      identity: null,
       evidence: graphArtifactEvidence({
         status,
         available: false,

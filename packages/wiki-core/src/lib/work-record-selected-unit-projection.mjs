@@ -2,7 +2,8 @@ import { types as utilTypes } from "node:util";
 import {
   SLICE_ID_PATTERN,
   WORK_RECORD_STATUS_VALUES,
-  WORK_RECORD_WORK_KIND_VALUES
+  WORK_RECORD_WORK_KIND_VALUES,
+  WORK_RECORD_REVIEW_PURPOSE_VALUES
 } from "./work-record-schema-constants.mjs";
 
 const MAX_PROJECTED_NODES = 10000;
@@ -176,6 +177,13 @@ export function projectSelectedWorkRecordUnit(value) {
   if (!copyCanonicalScalar(projected, value, "work_kind", (entry) =>
     WORK_RECORD_WORK_KIND_VALUES.includes(entry)
   )) return null;
+  if (!copyCanonicalScalar(projected, value, "review_purpose", (entry) =>
+    WORK_RECORD_REVIEW_PURPOSE_VALUES.includes(entry)
+  )) return null;
+  if (Object.hasOwn(projected, "review_purpose") && projected.work_kind !== "review") return null;
+  if (projected.work_kind === "review" && !Object.hasOwn(projected, "review_purpose")) {
+    projected.review_purpose = "standalone";
+  }
 
   const acceptance = projectAcceptance(value);
   if (acceptance === INVALID) return null;

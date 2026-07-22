@@ -1,14 +1,14 @@
 
 
-import path from "node:path";
-import { realpathSync } from "node:fs";
-
 import { runCodexRole } from "../commands/codex-role.mjs";
 import {
   runClaudeOrchestrator,
   runClaudeOrchestratorResume
 } from "./claude-orchestrator-plan.mjs";
-import { ORCHESTRATOR_ISOLATION_MODES } from "./orchestrator-launch-isolation.mjs";
+import {
+  deriveLauncherOwnedDispatchWorktreeRoot,
+  ORCHESTRATOR_ISOLATION_MODES
+} from "./orchestrator-launch-isolation.mjs";
 import { HEADLESS_REQUIRES_BUBBLEWRAP_REASON } from "./orchestrator-launch-runtime.mjs";
 
 export const ORCHESTRATOR_AGY_UNSUPPORTED_REASON = "agy_orchestrator_unsupported";
@@ -24,10 +24,7 @@ export const DEFAULT_ORCHESTRATOR_FAMILY_RUNNERS = Object.freeze({
   runCodexRole
 });
 
-export function deriveLauncherOwnedDispatchWorktreeRoot(cwd = process.cwd()) {
-  const repo = realpathSync(path.resolve(cwd));
-  return path.join(path.dirname(repo), ".agent-worktrees", path.basename(repo));
-}
+export { deriveLauncherOwnedDispatchWorktreeRoot };
 
 export async function routeOrchestratorLaunch({
   role,

@@ -63,31 +63,27 @@ test("WK-1381 description makes role and subject the normal call shape", () => {
   );
 });
 
-test("WK-1381 description identifies agent-launch.toml and neutral derivation", () => {
+test("WK-1381 description keeps model selection launcher-owned, not agent-supplied", () => {
   const desc = getDispatchDescription();
   assert.ok(
-    /agent-launch\.toml/i.test(desc) && /neutral model registry/i.test(desc),
-    "description must name the role config and neutral registry"
+    /launcher-owned configuration selects .* the role model/i.test(desc),
+    "description must state launcher-owned config selects the role model"
   );
 });
 
-test("WK-1381 description reserves typed app/model for explicit overrides", () => {
+test("WK-1381 description rejects caller-supplied identity and authority fields", () => {
   const desc = getDispatchDescription();
   assert.ok(
-    /Typed `app` and `model` are explicit per-dispatch overrides only/i.test(desc),
-    "description must keep app/model override-only"
-  );
-  assert.ok(
-    /identity carriers.*never become selection authority/i.test(desc),
-    "description must keep caller carriers out of selection authority"
+    /Caller-supplied identity or Node Engine authority fields are rejected/i.test(desc),
+    "description must keep caller-supplied identity/authority fields out of selection authority"
   );
 });
 
-test("WK-1381 description keeps actionable refusal and supported-family posture", () => {
+test("WK-1381 description keeps fail-closed backend posture and supported-family vocabulary", () => {
   const desc = getDispatchDescription();
   assert.ok(
-    /actionable role-specific configuration blocker/i.test(desc),
-    "description must state actionable role-config refusal"
+    /fails closed with backend_unavailable/i.test(desc),
+    "description must state dispatch fails closed with backend_unavailable"
   );
   assert.ok(
     /codex/i.test(desc) && /claude/i.test(desc) && /agy/i.test(desc),

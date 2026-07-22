@@ -9,6 +9,7 @@ import { persistWorkRecordGraphImpactByUnit } from "./work-records-graph-impact.
 import { collectGraphImpactSubjectPaths } from "../lib/work-record-dispatch-graph.mjs";
 import { isBashWrapperPath } from "../lib/work-record-dispatch-shared.mjs";
 import { getSidecarGraphImpactPaths } from "../lib/sidecar-graph-impact.mjs";
+import { SidecarGraphIndexUnbuildableError } from "../lib/sidecar-graph-impact-artifact.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "../lib/sidecar-graph-schema.mjs";
 import { loadWorkRecordById } from "../lib/work-record-store.mjs";
 
@@ -31,6 +32,8 @@ function createGenerateResult(overrides = {}) {
     source_digest: null,
     selected_unit: null,
     graph_state: null,
+
+    graph_impact_envelope: null,
     diagnostics: [],
     persist_result: null,
     ...overrides
@@ -152,11 +155,36 @@ export async function generateAndPersistWorkRecordGraphImpactByUnit({
     });
   }
 
-  const queryEnvelope = await getSidecarGraphImpactPaths({
-    dir,
-    paths: subjectPaths,
-    cacheDir
-  });
+  let queryEnvelope;
+  try {
+    queryEnvelope = await getSidecarGraphImpactPaths({
+      dir,
+      paths: subjectPaths,
+      cacheDir
+    });
+  } catch (error) {
+    if (error instanceof SidecarGraphIndexUnbuildableError) {
+      return createGenerateResult({
+        outcome: "graph_head_unbuildable",
+        record_id: recordId,
+        unit,
+        paths_source: pathsSource,
+        subject_paths: subjectPaths,
+        graph_bearing_paths: graphBearingPaths,
+        graph_available: false,
+        diagnostics: [
+          {
+            code: "graph_head_unbuildable",
+            severity: "error",
+            message:
+              "current-HEAD code graph could not be produced or validated for the unit's subject paths",
+            path: pathsSource === "explicit" ? "paths" : "write_scope"
+          }
+        ]
+      });
+    }
+    throw error;
+  }
 
   const graphState = isObject(queryEnvelope.graph_state) ? queryEnvelope.graph_state : {};
   const graphAvailable = graphState.graph_available === true;
@@ -189,6 +217,22 @@ export async function generateAndPersistWorkRecordGraphImpactByUnit({
     outcome = "not_persisted";
   }
 
+  const selectedUnit = persistResult.selected_unit ?? unit;
+  const graphImpactEnvelope =
+    graphAvailable && !graphUnavailable
+      ? {
+          ...queryEnvelope,
+          record_id: persistResult.record_id ?? recordId,
+          slice_id: unit.kind === "slice" ? unit.slice_id : null,
+          unit: {
+            kind: unit.kind,
+            record_id: persistResult.record_id ?? recordId,
+            ...(unit.kind === "slice" ? { slice_id: unit.slice_id } : {})
+          },
+          source_record_digest: persistResult.source_digest ?? null
+        }
+      : null;
+
   return createGenerateResult({
     outcome,
     record_id: persistResult.record_id ?? recordId,
@@ -202,8 +246,9 @@ export async function generateAndPersistWorkRecordGraphImpactByUnit({
     staleness,
     dirty_state: dirtyState,
     source_digest: persistResult.source_digest ?? null,
-    selected_unit: persistResult.selected_unit ?? unit,
+    selected_unit: selectedUnit,
     graph_state: graphState,
+    graph_impact_envelope: graphImpactEnvelope,
     diagnostics: Array.isArray(persistResult.diagnostics) ? persistResult.diagnostics : [],
     persist_result: persistResult
   });

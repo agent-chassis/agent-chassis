@@ -22,9 +22,13 @@ import {
 } from "./codex-role-mcp-env.mjs";
 import {
   buildCodexWikiMcpServerOverrides,
-  collectManagedWorkerWikiMcpRuntimeClosureRoots,
   rebuildCodexPlanIsolationWithReadOnlyRoot
 } from "./codex-role-wiki-mcp-override.mjs";
+import {
+  composeManagedRoleWikiMcpRuntimeManifest,
+  preflightManagedRoleWikiMcpRuntime,
+  rewriteManagedRoleLauncherArtifactArgs
+} from "./managed-role-wiki-mcp-runtime-snapshot.mjs";
 import { gateRoleWriteScope } from "./workspace-agent-launch-adapter-contract.mjs";
 import {
   redteamPrompt,
@@ -182,7 +186,9 @@ export async function buildReadOnlyPlan({
       });
       const reviewerWriteScopeGate = gateRoleWriteScope({
         role: "reviewer",
-        write_scope: reviewerScope ? reviewerScope.write_scope : []
+        write_scope: reviewerScope ? reviewerScope.write_scope : [],
+        launcher_owned_exact_slice_review:
+          canonicalRepo !== null && classified.slice_id !== null
       });
       if (!reviewerWriteScopeGate.ok) {
         return buildCodexReviewerWriteScopeRefusal({
@@ -234,20 +240,56 @@ export async function buildReadOnlyPlan({
   if (!wikiMcpServerPath) {
     throw new Error(`codex-${role}: failed to resolve @agent-chassis/wiki-mcp server entrypoint`);
   }
-  const readOnlyWikiMcpOverrides = [
-    ...buildCodexWikiMcpServerOverrides({ serverPath: wikiMcpServerPath, repo }),
-    ...buildCodexReadOnlyRoleWikiMcpEnvOverrides({ role, assignedUnit: subject })
-  ];
-  let wikiMcpRegistered = false;
-  if (Array.isArray(headlessPlan.args)) {
-    injectCodexConfigOverridesBeforeFinalPositional(headlessPlan.args, readOnlyWikiMcpOverrides);
-    wikiMcpRegistered = true;
-  }
 
   const roleIsConfined = typeof canonicalRepo === "string" && canonicalRepo.length > 0;
-  if (roleIsConfined && wikiMcpRegistered && headlessPlan && headlessPlan.isolation) {
-    const runtimeClosureRoots = collectManagedWorkerWikiMcpRuntimeClosureRoots(wikiMcpServerPath);
-    rebuildCodexPlanIsolationWithReadOnlyRoot(headlessPlan, runtimeClosureRoots);
+  const roleEnvOverrides = buildCodexReadOnlyRoleWikiMcpEnvOverrides({ role, assignedUnit: subject });
+  const managedRuntimeManifest = await composeManagedRoleWikiMcpRuntimeManifest({
+    confined: roleIsConfined
+      && Boolean(headlessPlan && headlessPlan.isolation)
+      && Array.isArray(headlessPlan.args),
+    role,
+    serverPath: wikiMcpServerPath,
+    buildServerOverrides: (entrypoint) => [
+      ...buildCodexWikiMcpServerOverrides({ serverPath: entrypoint, repo }),
+      ...roleEnvOverrides
+    ]
+  });
+  if (managedRuntimeManifest !== null) {
+    injectCodexConfigOverridesBeforeFinalPositional(
+      headlessPlan.args,
+      managedRuntimeManifest.config_overrides
+    );
+    rebuildCodexPlanIsolationWithReadOnlyRoot(
+      headlessPlan,
+      managedRuntimeManifest.read_only_roots
+    );
+
+    const artifactRouting = rewriteManagedRoleLauncherArtifactArgs({
+      plan: headlessPlan,
+      manifest: managedRuntimeManifest
+    });
+
+    const preflight = await preflightManagedRoleWikiMcpRuntime({
+      plan: headlessPlan,
+      manifest: managedRuntimeManifest,
+      role,
+      assignedUnit: subject
+    });
+    headlessPlan.managed_wiki_mcp_runtime = Object.freeze({
+      schema_version: managedRuntimeManifest.schema_version,
+      commit: managedRuntimeManifest.commit,
+      digest: managedRuntimeManifest.digest,
+      staged_root: managedRuntimeManifest.snapshot.staged_root,
+      entrypoint: managedRuntimeManifest.snapshot.entrypoint,
+      artifact_routing: artifactRouting,
+      preflight
+    });
+  } else if (Array.isArray(headlessPlan.args)) {
+
+    injectCodexConfigOverridesBeforeFinalPositional(headlessPlan.args, [
+      ...buildCodexWikiMcpServerOverrides({ serverPath: wikiMcpServerPath, repo }),
+      ...roleEnvOverrides
+    ]);
   }
   if (reviewerEmptyScopeAssertion && headlessPlan && typeof headlessPlan === "object") {
     headlessPlan.reviewer_empty_scope_assertion = reviewerEmptyScopeAssertion;
