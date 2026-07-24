@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   buildSliceReviewAcceptanceProof,
   computeSliceReviewStructuredResultDigest,
+  validateExactSliceImplementationReviewTransition,
   SLICE_REVIEW_ACCEPTANCE_DECISION_CODES,
   SLICE_REVIEW_ACCEPTANCE_EVIDENCE_KEY,
   sliceReviewAcceptanceAuthorityEffects,
@@ -49,6 +50,25 @@ import {
 import { parseDispatchUnitAddress } from "./work-records-shared.mjs";
 
 const CODES = SLICE_REVIEW_ACCEPTANCE_DECISION_CODES;
+
+export async function persistExactSliceImplementationReviewTransition({
+  dir,
+  unitAddress,
+  writeStatus
+} = {}) {
+  if (typeof writeStatus !== "function") {
+    throw new TypeError("exact-slice review transition requires the canonical status writer");
+  }
+  const result = await writeStatus({
+    dir,
+    unitAddress,
+    status: "review"
+  });
+  return Object.freeze({
+    validation: validateExactSliceImplementationReviewTransition(result, unitAddress),
+    result
+  });
+}
 
 const FORBIDDEN_CALLER_CARRIED_FIELDS = new Set([
   "accepted_authorities",
@@ -410,7 +430,12 @@ export async function mintAndPersistSliceReviewAcceptanceProof(options = {}) {
     slice_ref: normalizeStringEntry(binding.slice_ref),
     reviewed_sha: normalizeStringEntry(binding.reviewed_sha),
     diff_base_sha: normalizeStringEntry(binding.diff_base_sha),
-    source_worker_run_id: normalizeStringEntry(binding.source_worker_run_id),
+    ...(binding.review_admission_kind === "canonical_committed_slice"
+      ? {
+          review_admission_kind: normalizeStringEntry(binding.review_admission_kind),
+          committed_target_digest: normalizeStringEntry(binding.committed_target_digest)
+        }
+      : { source_worker_run_id: normalizeStringEntry(binding.source_worker_run_id) }),
     review_run_id: normalizeStringEntry(binding.review_run_id),
     review_monitor_handle: normalizeStringEntry(binding.review_monitor_handle),
     reviewer_role: normalizeStringEntry(binding.reviewer_role),

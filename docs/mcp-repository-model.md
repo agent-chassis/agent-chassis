@@ -133,100 +133,18 @@ checking the SHA-256, and then parsing the resulting UTF-8 JSON. Requests above
 `max_length` are refused rather than silently shortened. This is a delivery/frame
 bound only: the full response remains reachable and is not truncated.
 
-### MCP Sandbox Profile v0
+### Host wiki-MCP process isolation
 
-Launcher-spawned MCP may run inside a sandbox that can read the workspace but
-cannot write runtime/cache state. The `mcp-sandbox-profile.v0` contract is the
-small initial format for declaring the MCP write carveouts the launcher must
-grant for those structured tools to function. It does not change MCP read access
-and does not grant broad repository writes.
+The launcher starts exactly one wiki-MCP server per dispatch on the host. The
+confined client reaches it only through the two launcher-owned named FIFOs bound
+at the fixed relay paths. No MCP executable, interpreter, package tree, cache,
+runtime directory, or writable MCP path class is mounted into a worker, reviewer,
+or redteam sandbox. Host-server state remains launcher-owned and outside the
+repository namespace.
 
-The profile has three layers:
-
-- `capabilities`: named write classes, such as `mcp_cache_write` and
-  `mcp_runtime_state_write`
-- `roles`: launcher-minted role profiles that grant capabilities
-- `path_classes`: concrete path bindings consumed by the launcher sandbox
-  assembler
-
-Initial profile:
-
-```json
-{
-  "schema_version": "mcp-sandbox-profile.v0",
-  "capabilities": {
-    "mcp_cache_write": {
-      "path_classes": ["wiki_search_cache", "repo_code_index_cache"]
-    },
-    "mcp_runtime_state_write": {
-      "path_classes": ["mcp_runtime_state"]
-    }
-  },
-  "roles": {
-    "orchestrator": {
-      "capabilities": ["mcp_cache_write", "mcp_runtime_state_write"]
-    }
-  },
-  "path_classes": {
-    "wiki_search_cache": {
-      "binding_mode": "fixed_in_repo_subbind",
-      "paths": [".cache/wiki-search/**"]
-    },
-    "repo_code_index_cache": {
-      "binding_mode": "fixed_in_repo_subbind",
-      "paths": [".cache/repo-code-index/**"]
-    },
-    "mcp_runtime_state": {
-      "binding_mode": "relocatable_runtime_dir",
-      "env": "WIKI_MCP_RESPONSE_STATE_DIR"
-    }
-  }
-}
-```
-
-Binding modes are deliberately explicit:
-
-- `fixed_in_repo_subbind` means the reader and writer compute a canonical
-  workspace-relative path, so the launcher must make that exact path writable
-  inside an otherwise read-only repository mount. The wiki search cache is fixed
-  at `.cache/wiki-search/index.json`; relocating it would require a wiki-core
-  code change. The repo code index default cache is `.cache/repo-code-index/`.
-  The launcher derives the writable sub-bind from the declared path class, never
-  from caller-supplied tool inputs such as a code-index `cacheDir`; an
-  off-carveout cache argument remains outside the writable bind and fails closed
-  against the read-only repository mount.
-- `relocatable_runtime_dir` means the launcher mints a writable runtime
-  directory and passes the documented addressing variable. For MCP response
-  spill/content-reference state, that variable is `WIKI_MCP_RESPONSE_STATE_DIR`.
-  The minted directory is launcher-owned runtime state and must not be the
-  workspace repository, a broad home/XDG directory, or any caller-selected path.
-
-Role selection is launcher/session authority only. Caller-supplied prompt text,
-request payloads, argv, ambient env, and `claimed_identity.role` cannot select an
-MCP sandbox profile or add path classes.
-
-The first profile defines only the `orchestrator` role. Worker, reviewer, and
-redteam MCP runtime/cache grants are deferred until their in-sandbox MCP posture
-is made explicit: either those roles do not host wiki MCP runtime writes in the
-sandbox, or a follow-up must grant equivalent runtime/cache capabilities before
-their MCP tools rely on these write paths.
-
-Missing or denied capability is reported as `sandbox_write_denial` with
-structured diagnostic context naming the missing capability and path class. This
-code intentionally covers both role/profile denial and sandbox-profile denial;
-callers distinguish the subcase from the structured context. If a tool attempts
-to write a path that the profile says should be writable and the filesystem
-still refuses because the mount is read-only, report `read_only_mount` with the
-failed path and expected capability.
-
-This profile is a declaration consumed by the launcher. The MCP channel
-side-effect permission contract and launcher sandbox assembly are implemented
-by the launcher and MCP integration surfaces: bwrap mount assembly, runtime
-directory minting, environment/addressing, launcher lifecycle, and actual
-write-reach enforcement remain outside the profile document itself. The JSON
-above is the documented v0 shape; emitting a runtime-consumable package
-data/schema artifact is a follow-up implementation surface, not part of this
-docs-format section.
+Role selection and tool authority come only from the frozen launcher binding.
+Prompt text, request payloads, argv, ambient environment, repository settings,
+and user settings cannot select a server, relay, mount, endpoint, or lifecycle.
 
 The workspace read tool still validates page containment through the shared read core. Path traversal such as `../outside.md` or `wiki/work-records/../../escape.json` is rejected before reading.
 

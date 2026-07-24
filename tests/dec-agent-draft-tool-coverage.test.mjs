@@ -212,7 +212,7 @@ test("the kind-record-edit surface exposes no accepted-unlocking transition", ()
   assert.equal(typeof planners.reject, "function");
 });
 
-test("session-role-tool-access grants reject to orchestrator; ratify/unratify stay operator-only", async () => {
+test("session-role-tool-access grants reject to orchestrator; ratify/unratify are not MCP tools at all", async () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const policyPath = path.resolve(
     here,
@@ -225,8 +225,63 @@ test("session-role-tool-access grants reject to orchestrator; ratify/unratify st
     access.workspace_decision_reject.includes("orchestrator"),
     "an agent role (orchestrator) may reject its own proposed draft"
   );
-  assert.ok(!access.workspace_decision_ratify.includes("orchestrator"), "ratify is not agent-reachable");
-  assert.deepEqual(access.workspace_decision_ratify, ["operator"], "ratify stays operator-only");
-  assert.ok(!access.workspace_decision_unratify.includes("orchestrator"), "unratify is not agent-reachable");
-  assert.deepEqual(access.workspace_decision_unratify, ["operator"], "unratify stays operator-only");
+
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(access, "workspace_decision_ratify"),
+    false,
+    "workspace_decision_ratify must not appear in the role-access policy"
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(access, "workspace_decision_unratify"),
+    false,
+    "workspace_decision_unratify must not appear in the role-access policy"
+  );
+  for (const [toolName, roles] of Object.entries(access)) {
+    assert.ok(
+      !/^workspace_decision_(?:un)?ratify$/u.test(toolName),
+      `${toolName} must not be granted to ${JSON.stringify(roles)}`
+    );
+  }
+
+  assert.deepEqual(
+    Object.keys(access).filter((name) => name.startsWith("workspace_decision_")).sort(),
+    [
+      "workspace_decision_amend_scalar",
+      "workspace_decision_amend_section",
+      "workspace_decision_create",
+      "workspace_decision_reject"
+    ],
+    "the MCP decision surface is exactly the proposed lane"
+  );
+});
+
+test("registerKindRecordWriteTools registers the proposed lane without ratify/unratify", async () => {
+  const { registerKindRecordWriteTools } = await import(
+    "../packages/wiki-mcp/src/lib/kind-record-write-tools.mjs"
+  );
+  const { z } = await import("zod");
+
+  const registered = [];
+  registerKindRecordWriteTools({
+    registerTool: (name) => {
+      registered.push(name);
+    },
+    workspaceRepos: [],
+    z,
+    jsonContent: () => ({}),
+    errorContent: () => ({}),
+    resolveWorkspaceRepo: () => ({ repo: "test", dir: "/tmp/does-not-exist" })
+  });
+
+  assert.deepEqual(
+    registered.filter((name) => name.startsWith("workspace_decision_")).sort(),
+    [
+      "workspace_decision_amend_scalar",
+      "workspace_decision_amend_section",
+      "workspace_decision_create",
+      "workspace_decision_reject"
+    ]
+  );
+  assert.equal(registered.includes("workspace_decision_ratify"), false);
+  assert.equal(registered.includes("workspace_decision_unratify"), false);
 });

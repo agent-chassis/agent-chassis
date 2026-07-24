@@ -1,32 +1,5 @@
 
 
-function requireCallable(value, name) {
-  if (typeof value !== "function") {
-    throw new TypeError(`${name} must be a function`);
-  }
-}
-
-export async function delegateToHostWriteAuthority({
-  invoke,
-  onThrew,
-  onMissingResult
-} = {}) {
-  requireCallable(invoke, "invoke");
-  requireCallable(onThrew, "onThrew");
-  requireCallable(onMissingResult, "onMissingResult");
-
-  let result;
-  try {
-    result = await invoke();
-  } catch (err) {
-    return onThrew(err);
-  }
-  if (!result || typeof result !== "object") {
-    return onMissingResult();
-  }
-  return result;
-}
-
 export function attachDispatchProvenanceToSupervisedResult(
   supervised,
   attachToFinalResult

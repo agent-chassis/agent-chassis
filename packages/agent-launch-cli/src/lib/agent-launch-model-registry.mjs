@@ -3,8 +3,8 @@ const APP_NAME_SET = new Set(APP_VOCABULARY);
 
 const BACKEND_BY_APP = Object.freeze({
   codex: "codex",
-  claude: "claude_filesystem_mcp",
-  agy: "agy_filesystem_mcp"
+  claude: "claude",
+  agy: "unsupported"
 });
 
 const NEUTRAL_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
@@ -114,7 +114,7 @@ export const MODEL_REGISTRY = Object.freeze([
     "fable",
     Object.freeze({
       app: "claude",
-      backend: "claude_filesystem_mcp",
+      backend: "claude",
       codex_profile: null,
       default_effort: "max"
     })
@@ -123,7 +123,7 @@ export const MODEL_REGISTRY = Object.freeze([
     "opus",
     Object.freeze({
       app: "claude",
-      backend: "claude_filesystem_mcp",
+      backend: "claude",
       codex_profile: null,
       default_effort: "max",
       app_default: true
@@ -133,7 +133,7 @@ export const MODEL_REGISTRY = Object.freeze([
     "sonnet",
     Object.freeze({
       app: "claude",
-      backend: "claude_filesystem_mcp",
+      backend: "claude",
       codex_profile: null,
       default_effort: "high"
     })
@@ -142,7 +142,7 @@ export const MODEL_REGISTRY = Object.freeze([
     "haiku",
     Object.freeze({
       app: "claude",
-      backend: "claude_filesystem_mcp",
+      backend: "claude",
       codex_profile: null,
       default_effort: "medium"
     })

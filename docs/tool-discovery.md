@@ -11,24 +11,28 @@ agent-chassis command or MCP function should handle a job. It exists so
 agents can choose a tool from structured data instead of guessing from wrapper
 filenames, package metadata, executable bits, or historical WK pages.
 
-## Phase 1 managed implementation-worker discovery contract (staged)
+The assembled corpus is exactly 99 tool entries. The manifest fragment counts
+are (17 + 11 + 4 + 2 + 1 + 29 + 18 + 6 + 10 + 1 + 0 = 99); the checked-in
+manifest remains the source of truth for both values.
 
-work record defines a Phase 1 managed implementation-worker contract that remains
-staged until `work record` activates production confinement. Before that
-activation, discovery, router, FAQ, and runtime output must not describe the
-confinement or its worker tool profile as active merely because this guidance
-or predecessor implementation is present.
+## Initial managed implementation-worker discovery contract
+
+The managed implementation-worker contract is active for confined Claude and
+Codex launches whose backend and bubblewrap contracts validate. Discovery,
+router, FAQ, and runtime output must describe unsupported families or missing
+confinement prerequisites as typed fail-closed states, never as permission to
+fall back to a broader launch.
 
 For that contract, let `R` be the normalized union of the canonical unit's
 `read_scope` and `repo_paths`, and let `W` be the normalized canonical
-`write_scope`. The launcher freezes both sets before launch. Once activated,
+`write_scope`. The launcher freezes both sets before launch.
 the worker's repository visibility is exactly `R union W`, and repository
 mutation is permitted exactly within `W`; a target in `W` is visible without
 also appearing in `R`.
 
-The worker's prompt-governed Codex inspection shell is only a non-mutating way
-to inspect the visible `R union W` namespace. It is not policy authority and
-cannot widen the frozen binding. The Phase 1 implementation-worker profile
+Codex `exec_command` and Claude `Bash` are directly authorized without interactive
+approval inside the visible `R union W` namespace. Commands may mutate `W`; bwrap,
+not command classification, prevents reads or writes elsewhere. The initial implementation-worker profile
 exposes no worker validation or general MCP tools, including the discovery
 routes documented here. Its sole delivery authority is the closed-input commit
 capability in the trusted host/runtime boundary, using the server-resolved
@@ -39,7 +43,7 @@ This worker-specific profile does not change the existing reviewer or redteam
 launcher-owned validation contracts. In particular, the reviewer/redteam
 `node_check` and confined `node_test` operations documented below remain
 available when authorized by their own declared validation. Discovery must not
-project those findings-only role capabilities into the Phase 1 implementation
+project those findings-only role capabilities into the initial implementation
 worker profile.
 
 Every supported family/backend path must preserve the same frozen namespace and
@@ -49,6 +53,16 @@ visibility or mutation. The bootstrap posture retains readable
 launcher-provided Codex auth/sourceHome and `shareNet=true` model-API egress as
 operator-accepted residual risks under prompt governance; it is not a
 digest-bound or per-dispatch mechanical risk-acceptance mechanism.
+
+For each confined Claude or Codex dispatch, the launcher starts exactly one host
+wiki-MCP server and creates exactly two private named FIFOs. It binds those two
+objects into the final bubblewrap namespace and registers only the pinned
+copy-only relay: Claude uses launcher-authored strict MCP configuration; Codex
+uses the exact launcher-authored `mcp_servers.wiki` projection. The real client
+must complete `initialize` and `tools/list` against the launcher-derived role
+profile. Agy is unsupported and fails closed. No caller, prompt, repository/user
+configuration, environment, or arbitrary argv can select the server, FIFO, relay,
+tool profile, or lifecycle.
 
 This document is the durable operator contract for the discovery schema. The
 canonical checked-in registry is the set of JSON fragments under
@@ -421,34 +435,23 @@ not repair malformed recovery locally, guess hidden controls, synthesize review
 attestations or accepted authorities, bypass CCE, or treat absent recovery as
 permission to proceed.
 
-### Worker in-session validation (`node_check` / `node_test`)
+### Findings-only reviewer validation
 
-A dispatched worker/reviewer/redteam child can validate the code it writes
-in-session through `node_check` and `node_test`, exposed as launcher-owned
-operations UNDER the child's existing `structured_validation` capability (no new
-scoped tool name, and never a raw shell / raw `exec_command` / free argv). The
-target comes solely from the unit's declared validation; a path-escape or any
-caller-supplied execution authority is refused with a stable code.
-This is the worker self-validation runner
-(`packages/agent-launch-cli/src/lib/workspace-agent-validation-runner.mjs`), not
-a coordinator tool — discovery must not route a worker to a shell or to the
-coordinator route to run its own tests.
+Implementation workers do not own complete declared validation and do not receive
+test dependencies merely to make it runnable. They may use their native command
+tool for checks already available in frozen `R union W`; inability to reach an
+undeclared test corpus is not a blocker and test success is not a closed-input
+commit prerequisite.
 
-- `node_check` runs `node --check <target>` — parse-only, it does NOT execute
-  the target (zero arbitrary-code-execution).
-- `node_test` runs `node --test <target>` ONLY inside the worker's OWN
-  bubblewrap confinement: the repo (including `write_scope`) is mounted
-  READ-ONLY, `.env` and the `<workspace>/.agent-launch` secret material are
-  MASKED off the mount, the spawn is NETWORK-DENIED (`--unshare-net`), the child
-  env is a launcher-minted clean allowlist, and captured stdout/stderr plus a
-  wall-clock timeout are bounded. A failing run yields a non-green disposition;
-  an unrunnable validation records an honest `not_run`, never success.
-
-This worker-confined runner is a DIFFERENT execution context from the
-coordinator `workspace_run_validation` route below, which spawns `node` in the
-wiki-mcp SERVER process (not a worker confinement). Discovery must keep the two
-distinct: a worker runs its own tests through the confined runner; the
-coordinator route is for coordinator-owned validation.
+The findings-only reviewer receives the exact committed target and diff base,
+repository-wide read-only source, and a reviewer-only read-only dependency
+projection. Workspace dependency links are rewritten to the exact reviewed
+checkout rather than current main. Commands run with isolated writable temp/cache
+locations; the checkout, Git metadata, refs, index, work records, receipts, and
+canonical runtime state remain read-only. Bounded evidence records reviewer run
+id, subject, reviewed SHA, diff-base SHA, command/target, exit status,
+stdout/stderr, and timeout/truncation state. Both passing evidence and failing
+findings are advisory and independently neither admit nor veto integration.
 
 The MCP and CLI surfaces must emit equivalent structured envelopes. They may
 differ in `interface` and `source_kind`. The intended current values are:

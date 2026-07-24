@@ -17,7 +17,6 @@ const {
   normalizeGraphImpactHandoff,
   normalizeIdentityRefusalHandoff,
   normalizeReadinessHandoff,
-  validateDispatchSidecarDescriptor,
   validateFamilyAdapter,
 } = adapterContract;
 
@@ -184,13 +183,5 @@ test('validateFamilyAdapter fails closed for non-object input', () => {
     validateFamilyAdapter,
     'not-an-object',
     'validateFamilyAdapter should fail closed for non-object input',
-  );
-});
-
-test('validateDispatchSidecarDescriptor fails closed for non-object input', () => {
-  assertFailClosedInvocation(
-    validateDispatchSidecarDescriptor,
-    42,
-    'validateDispatchSidecarDescriptor should fail closed for non-object input',
   );
 });

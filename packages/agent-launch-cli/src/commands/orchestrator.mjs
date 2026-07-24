@@ -67,7 +67,7 @@ runtime directory minting under $XDG_STATE_HOME/codex-orch/<repo_key>/<IN-####>,
 meta.env emission, the narrow orchestrator permissions profile, and the
 AGENT_ROLE=orchestrator / AGENT_IN env binding for the child Codex session.
 The \`orchestrator_claude\` profile routes through the launcher-owned Claude
-planner and sidecar path.
+planner and host-server conduit.
 
 Options:
   --profile <profile>    Canonical launcher profile (default: orchestrator;

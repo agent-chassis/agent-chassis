@@ -162,7 +162,7 @@ test("plain dispatch reads agent-launch.toml role default model and derives the 
   assert.equal(profile.value.model_source, "role_config");
   assert.equal(profile.value.effort, "high");
   assert.equal(profile.value.effort_source, "model_registry_default");
-  assert.equal(profile.value.backend, "claude_filesystem_mcp");
+  assert.equal(profile.value.backend, "claude");
 });
 
 test("effort precedence is operator override then role config then registry default", async (t) => {

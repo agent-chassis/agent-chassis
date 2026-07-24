@@ -2,18 +2,17 @@
 <!-- Generated file — edit the source area record and regenerate; do not edit by hand. -->
 
 `packages/agent-launch-cli` is the consolidated launcher CLI package. Its
-published `package.json` `bin` surface installs `agent-launch` and
-`agent-launch-filesystem-mcp-backend`; human/operator launch, resume, dispatch,
-setup, and cleanup actions go through `agent-launch`. Agents do not invoke these
-operator entrypoints. The package composes the `agent-launch-core` substrate
-with the `wiki-core` and `wiki-mcp` surfaces a launched session needs.
+published `package.json` `bin` surface installs only `agent-launch`;
+human/operator launch, resume, dispatch, setup, and cleanup actions go through
+that command. Agents do not invoke this operator entrypoint. The package
+composes the `agent-launch-core` substrate with the `wiki-core` and `wiki-mcp`
+surfaces a launched session needs. Confined role launches use one launcher-owned
+host wiki-MCP process through the shared named-FIFO stdio conduit.
 
 ## Entry Points
 
 Entry points:
 - `packages/agent-launch-cli/src/index.mjs` — the `agent-launch` command bin.
-- `packages/agent-launch-cli/bin/agent-launch-filesystem-mcp-backend` — the
-  supporting filesystem-MCP backend command declared in `package.json` `bin`.
 - Historical family-named files, including `codex-orch`, `claude-orch`, and
   `*-resume` forms, are not retained under `packages/agent-launch-cli/bin/`
   unless they are explicitly declared in `package.json` `bin`; they are not
@@ -31,4 +30,5 @@ This package is installed through `@agent-chassis/core` for normal use. It remai
 
 - [Package Install](../../docs/package-install.md)
 - [agent-launch-quickstart.md](../../docs/agent-launch-quickstart.md)
+- [agent-launch-confinement-mcp-conduit.md](../../docs/agent-launch-confinement-mcp-conduit.md)
 - [enforcement-model.md](../../docs/enforcement-model.md)

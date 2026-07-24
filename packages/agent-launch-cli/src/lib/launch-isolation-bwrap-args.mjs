@@ -1,5 +1,10 @@
 import { buildSystemBaselineArgs } from "./launch-isolation-bwrap.mjs";
 import { sparseNamespaceSkeleton } from "./launch-isolation-worker-scope.mjs";
+import {
+  STDIO_MCP_CONDUIT_INPUT_FD,
+  STDIO_MCP_CONDUIT_OUTPUT_FD,
+  STDIO_MCP_CONDUIT_ROOT
+} from "./stdio-mcp-conduit-contract.mjs";
 
 export function buildBubblewrapArgs({
   systemRoots,
@@ -20,14 +25,22 @@ export function buildBubblewrapArgs({
   writableFileEntries,
   runtime,
   provisionedGitIsolation,
+  decisionsReadOnly = [],
   policedEnv,
   cwdNormalized,
   resolvedCommand,
-  args
+  args,
+  stdioMcpConduit = null
 }) {
 
   const bwrapArgs = [];
   bwrapArgs.push(...buildSystemBaselineArgs({ systemReadOnlyRoots: systemRoots, shareNet, newSession, tmpfsDirs: tmpfsDirsResolved }));
+  if (stdioMcpConduit !== null) {
+    bwrapArgs.push("--dir", "/run/agent-launch");
+    bwrapArgs.push("--dir", STDIO_MCP_CONDUIT_ROOT);
+    bwrapArgs.push("--ro-bind-fd", String(STDIO_MCP_CONDUIT_INPUT_FD), stdioMcpConduit.bindTargets[0]);
+    bwrapArgs.push("--ro-bind-fd", String(STDIO_MCP_CONDUIT_OUTPUT_FD), stdioMcpConduit.bindTargets[1]);
+  }
   if (sparseWorkerNamespace === null) {
     bwrapArgs.push("--ro-bind", repoReal, repoReal);
   } else {
@@ -101,6 +114,10 @@ export function buildBubblewrapArgs({
     if (sparseWorkerNamespace !== null) {
       bwrapArgs.push("--remount-ro", dir);
     }
+  }
+
+  for (const { src, dst } of decisionsReadOnly) {
+    bwrapArgs.push("--ro-bind", src, dst);
   }
   for (const [k, v] of Object.entries(policedEnv)) {
     bwrapArgs.push("--setenv", k, v);

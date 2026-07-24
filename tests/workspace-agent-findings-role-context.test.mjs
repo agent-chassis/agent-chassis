@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
+  FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
   loadWorkspaceAgentFindingsRoleContext,
   resolveFindingsOnlyAcceptanceContract,
   resolveWorkspaceAgentFindingsRoleContext,
@@ -288,6 +289,257 @@ test('frozen whole-WK reviewer contract fails closed on subject, parent, and sel
         frozenReviewContract,
       }),
       (error) => error?.code === 'frozen_findings_only_contract_invalid',
+    );
+  }
+});
+
+const SLICE_SUBJECT = 'WK-1311#SLICE-003';
+
+function sliceLevelFrozenContract({
+  parentAcceptance,
+  sliceAcceptance,
+  parentStatus = 'active',
+  sliceStatus = 'review',
+  sliceWorkKind = 'implementation',
+  reviewUnitContract,
+} = {}) {
+  const slice = {
+    id: 'SLICE-003',
+    title: 'Implementation slice under review',
+    work_kind: sliceWorkKind,
+    status: sliceStatus,
+    acceptance: sliceAcceptance,
+  };
+  const parent = {
+    id: 'WK-1311',
+    title: 'Parent tracker',
+    status: parentStatus,
+    work_kind: 'tracker',
+    acceptance: parentAcceptance,
+    slices: [slice],
+  };
+  return {
+    schema_version: FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
+    review_subject: SLICE_SUBJECT,
+    canonical_parent_wk_contract: JSON.stringify(parent),
+    review_unit_contract: reviewUnitContract ?? JSON.stringify(slice),
+  };
+}
+
+function resolveSliceLevel(overrides) {
+  return resolveFindingsOnlyAcceptanceContract({
+    role: 'review',
+    subject: SLICE_SUBJECT,
+    frozenReviewContract: sliceLevelFrozenContract(overrides),
+  });
+}
+
+const COMPLETE_SLICE_ACCEPTANCE = {
+  criteria: ['slice criterion one', 'slice criterion two'],
+  validation: ['slice validation one'],
+};
+
+test('slice-level review inherits an empty parent as zero entries and keeps the slice mandatory', async () => {
+  const result = await resolveSliceLevel({
+    parentAcceptance: { criteria: [], validation: [] },
+    sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+  });
+  assert.deepEqual(result.acceptanceCriteria, ['slice criterion one', 'slice criterion two']);
+  assert.deepEqual(result.acceptanceValidation, ['slice validation one']);
+});
+
+test('slice-level review composes a complete parent before the selected slice in order', async () => {
+  const result = await resolveSliceLevel({
+    parentAcceptance: { criteria: ['parent criterion'], validation: ['parent validation'] },
+    sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+  });
+  assert.deepEqual(result.acceptanceCriteria, [
+    'parent criterion',
+    'slice criterion one',
+    'slice criterion two',
+  ]);
+  assert.deepEqual(result.acceptanceValidation, ['parent validation', 'slice validation one']);
+});
+
+test('slice-level review renders structured object criteria by their canonical text', async () => {
+  const result = await resolveSliceLevel({
+    parentAcceptance: {
+      criteria: [{ text: 'parent object criterion', verification_method: 'inspection' }],
+      validation: ['parent validation'],
+    },
+    sliceAcceptance: {
+      criteria: [{ text: 'slice object criterion', evidence_target: 'tests/foo.test.mjs' }],
+      validation: ['slice validation'],
+    },
+  });
+  assert.deepEqual(result.acceptanceCriteria, ['parent object criterion', 'slice object criterion']);
+  assert.deepEqual(result.acceptanceValidation, ['parent validation', 'slice validation']);
+});
+
+test('slice-level review preserves valid mixed string/object criteria in stable order', async () => {
+  const result = await resolveSliceLevel({
+    parentAcceptance: {
+      criteria: ['parent str', { text: 'parent object' }],
+      validation: ['parent validation'],
+    },
+    sliceAcceptance: {
+      criteria: [{ text: 'slice object' }, 'slice str'],
+      validation: ['slice validation'],
+    },
+  });
+  assert.deepEqual(result.acceptanceCriteria, [
+    'parent str',
+    'parent object',
+    'slice object',
+    'slice str',
+  ]);
+});
+
+test('slice-level review fails closed on invalid, malformed, and missing acceptance shapes', async () => {
+  const invalidCases = {
+    'asymmetric parent (criteria without validation)': {
+      parentAcceptance: { criteria: ['parent criterion'], validation: [] },
+      sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+    },
+    'asymmetric parent (validation without criteria)': {
+      parentAcceptance: { criteria: [], validation: ['parent validation'] },
+      sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+    },
+    'malformed parent acceptance (criteria not an array)': {
+      parentAcceptance: { criteria: 'not-an-array', validation: [] },
+      sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+    },
+    'malformed parent acceptance (not an object)': {
+      parentAcceptance: 'not-an-object',
+      sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+    },
+    'invalid mixed parent criteria (object without text)': {
+      parentAcceptance: {
+        criteria: ['parent str', { verification_method: 'inspection' }],
+        validation: ['parent validation'],
+      },
+      sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+    },
+    'invalid mixed slice criteria (empty-string entry)': {
+      parentAcceptance: { criteria: [], validation: [] },
+      sliceAcceptance: { criteria: ['slice str', ''], validation: ['slice validation'] },
+    },
+    'empty selected slice criteria': {
+      parentAcceptance: { criteria: [], validation: [] },
+      sliceAcceptance: { criteria: [], validation: ['slice validation'] },
+    },
+    'empty selected slice validation': {
+      parentAcceptance: { criteria: ['parent criterion'], validation: ['parent validation'] },
+      sliceAcceptance: { criteria: ['slice criterion'], validation: [] },
+    },
+    'both selected slice arrays empty': {
+      parentAcceptance: { criteria: [], validation: [] },
+      sliceAcceptance: { criteria: [], validation: [] },
+    },
+    'malformed selected slice acceptance (not an object)': {
+      parentAcceptance: { criteria: [], validation: [] },
+      sliceAcceptance: null,
+    },
+    'non-string selected slice validation entry': {
+      parentAcceptance: { criteria: [], validation: [] },
+      sliceAcceptance: { criteria: ['slice criterion'], validation: [42] },
+    },
+  };
+  for (const [label, overrides] of Object.entries(invalidCases)) {
+    await assert.rejects(
+      resolveSliceLevel(overrides),
+      (error) => error?.code === 'frozen_slice_level_findings_only_contract_invalid',
+      `expected ${label} to fail closed`,
+    );
+  }
+});
+
+test('slice-level review fails closed on wrong work kind, status, parent phase, and stale embedding', async () => {
+  const identityCases = {
+    'selected slice is not implementation work': {
+      parentAcceptance: { criteria: [], validation: [] },
+      sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+      sliceWorkKind: 'review',
+    },
+    'selected slice is not under review': {
+      parentAcceptance: { criteria: [], validation: [] },
+      sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+      sliceStatus: 'active',
+    },
+    'parent is itself in whole-WK review': {
+      parentAcceptance: { criteria: [], validation: [] },
+      sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+      parentStatus: 'review',
+    },
+    'frozen review-unit contract does not byte-match the embedded slice': {
+      parentAcceptance: { criteria: [], validation: [] },
+      sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE,
+      reviewUnitContract: JSON.stringify({
+        id: 'SLICE-003',
+        title: 'Tampered slice',
+        work_kind: 'implementation',
+        status: 'review',
+        acceptance: COMPLETE_SLICE_ACCEPTANCE,
+      }),
+    },
+  };
+  for (const [label, overrides] of Object.entries(identityCases)) {
+    await assert.rejects(
+      resolveSliceLevel(overrides),
+      (error) => error?.code === 'frozen_slice_level_findings_only_contract_invalid',
+      `expected ${label} to fail closed`,
+    );
+  }
+});
+
+test('slice-level review admits a fully-specified canonical structured criterion', async () => {
+  const result = await resolveSliceLevel({
+    parentAcceptance: {
+      criteria: [{ text: 'parent full criterion', verification_method: 'inspection', evidence_target: null }],
+      validation: ['parent validation'],
+    },
+    sliceAcceptance: {
+      criteria: [
+        {
+          text: 'slice full criterion',
+          verification_method: 'test_execution',
+          evidence_target: 'tests/example.test.mjs',
+          facet_provenance: { text: 'authored_record' },
+        },
+      ],
+      validation: ['slice validation'],
+    },
+  });
+  assert.deepEqual(result.acceptanceCriteria, ['parent full criterion', 'slice full criterion']);
+  assert.deepEqual(result.acceptanceValidation, ['parent validation', 'slice validation']);
+});
+
+test('slice-level review fails closed on canonically-invalid structured criteria despite nonempty text', async () => {
+  const invalidObjectCases = {
+    'invalid verification_method enum': {
+      criteria: [{ text: 'nonempty text', verification_method: 'not-a-method' }],
+      validation: ['slice validation'],
+    },
+    'invalid evidence_target type': {
+      criteria: [{ text: 'nonempty text', evidence_target: 42 }],
+      validation: ['slice validation'],
+    },
+    'invalid facet_provenance value': {
+      criteria: [{ text: 'nonempty text', facet_provenance: { text: 'not-a-provenance' } }],
+      validation: ['slice validation'],
+    },
+  };
+  for (const [label, sliceAcceptance] of Object.entries(invalidObjectCases)) {
+    await assert.rejects(
+      resolveSliceLevel({ parentAcceptance: { criteria: [], validation: [] }, sliceAcceptance }),
+      (error) => error?.code === 'frozen_slice_level_findings_only_contract_invalid',
+      `expected ${label} to fail closed`,
+    );
+
+    await assert.rejects(
+      resolveSliceLevel({ parentAcceptance: sliceAcceptance, sliceAcceptance: COMPLETE_SLICE_ACCEPTANCE }),
+      (error) => error?.code === 'frozen_slice_level_findings_only_contract_invalid',
+      `expected ${label} at parent scope to fail closed`,
     );
   }
 });

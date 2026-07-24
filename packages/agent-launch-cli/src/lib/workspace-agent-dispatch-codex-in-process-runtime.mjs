@@ -2,6 +2,19 @@ import { BACKEND_REFUSAL_CODES } from "./workspace-agent-dispatch-backend.mjs";
 import { superviseChildLaunch } from "./workspace-agent-launch-core.mjs";
 import { BubblewrapIsolationError } from "./launch-isolation.mjs";
 import {
+  STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON as CODEX_STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
+  attachStdioMcpConduitLaunchOutcome
+} from "./stdio-mcp-conduit-contract.mjs";
+import {
+  assertCodexWorkerCommitCredentialBinding,
+  injectCodexConfigOverridesBeforeFinalPositional
+} from "./codex-role-mcp-env.mjs";
+import {
+  buildCodexStdioMcpRegistrationOverrides,
+  CODEX_REQUIRED_MCP_CONDUIT_ABSENT_REASON,
+  resolveCodexConduitInput
+} from "./codex-conduit-binding.mjs";
+import {
   WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS,
   buildWorkspaceAgentFailOpenPlan
 } from "./launch-isolation-failopen.mjs";
@@ -21,8 +34,11 @@ import {
   attachProvenanceToSupervisedResult
 } from "./workspace-agent-dispatch-codex-provenance.mjs";
 import {
+  createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn
+} from "./workspace-agent-dispatch-provenance.mjs";
+import {
   bindAttemptOwnedPreSpawnCleanup
-} from "./host-write-authority-substrate/broker.mjs";
+} from "./pre-spawn-cleanup-binding.mjs";
 import {
   buildCodexDispatchWorkerPlanArgs
 } from "./workspace-agent-dispatch-codex-plan-args.mjs";
@@ -95,7 +111,8 @@ export async function launchCodexWorkspaceAgentInProcess({
   killTimeoutMs,
   resolveUnsandboxedOptIn,
   classifyIsolationBackendAvailability,
-  probeCanonicalBwrapAvailability
+  probeCanonicalBwrapAvailability,
+  createMcpConduit
 }) {
   let correctiveInstructions = null;
   try {
@@ -140,7 +157,8 @@ export async function launchCodexWorkspaceAgentInProcess({
 
       configRootDir: input?.config_root_dir ?? input?.readiness?.config_root_dir ?? null,
       trustedFrozenReviewContract: input?.trusted_frozen_review_contract ??
-        input?.readiness?.trusted_frozen_review_contract ?? null
+        input?.readiness?.trusted_frozen_review_contract ?? null,
+      reviewerDependencyBinds: input?.reviewer_dependency_binds ?? null
     }),
     buildPlan,
     buildBwrapPlan,
@@ -253,7 +271,57 @@ export async function launchCodexWorkspaceAgentInProcess({
       mapCodexArtifactsFailureToInProcessRefusal(artifacts)
     );
   }
-  const { plan, bwrapPlan } = artifacts;
+  const plan = artifacts.plan;
+  let bwrapPlan = artifacts.bwrapPlan;
+
+  let conduit = null;
+  try {
+    if (typeof createMcpConduit !== "function") {
+      return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+        BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+        CODEX_REQUIRED_MCP_CONDUIT_ABSENT_REASON,
+        { role: codexRole, subject, unenforced_fallback_permitted: false }
+      ));
+    }
+    const provisioning = input?.worktree_provisioning ?? null;
+    const commitTuple = role === "worker" && provisioning !== null
+      ? assertCodexWorkerCommitCredentialBinding({
+          assignedUnit: subject,
+          managedWorker: true,
+          worktreeProvisioning: provisioning,
+          sliceBinding: provisioning.slice_binding
+        })
+      : null;
+
+    conduit = await createMcpConduit(resolveCodexConduitInput({
+      role: codexRole,
+      assignedUnit: subject,
+      workspaceDir: provisioning?.main_repo ?? workspaceDir ?? planCwd,
+      workerScopeAuthority: bwrapPlan?.workerScopeAuthority ?? null,
+      worktreeProvisioning: provisioning,
+      commitTuple,
+      launcherEnv: env,
+      requested: {
+        read_scope: input?.read_scope ?? null,
+        write_scope: input?.write_scope ?? null,
+        workspace_alias: workspaceAlias ?? null,
+        dispatch_worktree_root: input?.dispatchWorktreeRoot ?? null
+      }
+    }));
+    injectCodexConfigOverridesBeforeFinalPositional(
+      plan.args,
+      buildCodexStdioMcpRegistrationOverrides(conduit)
+    );
+    bwrapPlan = buildBwrapPlan(plan, { stdioMcpConduit: conduit });
+    assertBwrap({ env: plan.env, bwrapPath: bwrapPlan.bwrapPath });
+  } catch (error) {
+    if (conduit) await conduit.cleanup().catch(() => {});
+    return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+      BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+      error?.code ?? "codex_stdio_mcp_conduit_failed",
+      { message: error?.message ?? String(error), detail: error?.detail ?? null }
+    ));
+  }
 
   let child;
   try {
@@ -264,6 +332,26 @@ export async function launchCodexWorkspaceAgentInProcess({
       detached: false
     });
   } catch (err) {
+
+    if (conduit !== null) {
+      let cleanupDetail = null;
+      try {
+        await conduit.cleanup();
+      } catch (cleanupError) {
+        cleanupDetail = cleanupError?.detail ?? { message: cleanupError?.message ?? null };
+      }
+      return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
+        BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+        CODEX_STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
+        {
+          message: err?.message ?? String(err),
+          code: err?.code ?? null,
+          sandbox_required: true,
+          unenforced_fallback_permitted: false,
+          conduit_cleanup_failures: cleanupDetail
+        }
+      ));
+    }
     if (
       err instanceof BubblewrapIsolationError
       && CODEX_SANDBOX_DECISION_BWRAP_DIAGNOSTIC_CODES.has(err.code)
@@ -398,5 +486,19 @@ export async function launchCodexWorkspaceAgentInProcess({
     passthrough: { finalPath, logPath, codexRole, workspaceDir }
   });
 
-  return attachProvenanceToSupervisedResult(supervised, { finalPath, logPath, env });
+  return attachStdioMcpConduitLaunchOutcome(
+    attachProvenanceToSupervisedResult(supervised, {
+      finalPath,
+      logPath,
+      env,
+      enforcement:
+        createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn()
+    }),
+    conduit,
+    (failure) => makeRefusal(
+      BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+      failure.reason,
+      failure.detail
+    )
+  );
 }

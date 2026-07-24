@@ -7,6 +7,9 @@ import {
   computeWorkRecordSourceDigest,
   projectSliceReviewReceiptContracts
 } from "@agent-chassis/wiki-core";
+import {
+  evaluateWorkRecordParentLifecycleContract
+} from "@agent-chassis/wiki-core/src/lib/work-record-parent-lifecycle-contract.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import {
   WK_SUBJECT_RE,
@@ -21,7 +24,7 @@ import { isPlainObject } from "./backend-review-identity.mjs";
 import {
   TERMINAL_REVIEW_MATERIALIZATION_SCHEMA_VERSION,
   TERMINAL_REVIEW_VERIFY_PARTS
-} from "./host-write-authority-substrate/terminal-review-materialization.mjs";
+} from "./terminal-review-materialization.mjs";
 import { managedRefusal, MANAGED_LIFECYCLE_REQUIRED } from "./backend-provisioning-state.mjs";
 
 export function scopeAuthorityRefusal(blocker, detail = null) {
@@ -206,29 +209,24 @@ export function readCanonicalWorkRecord(mainRepo, subject) {
   }
 }
 
-function isCanonicalFindingsOnlyReviewSlice(slice) {
-  if (!isPlainObject(slice) || slice.work_kind !== "review" ||
-      slice.review_purpose !== "terminal_whole_wk" ||
-      !Array.isArray(slice.write_scope) || slice.write_scope.length !== 0 ||
-      slice.dispatch_intent?.intended_agent_role !== "reviewer" ||
-      slice.dispatch_intent?.target_unit !== "slice" ||
-      slice.status === "done" || slice.status === "cancelled") {
-    return false;
-  }
-  return true;
-}
-
 export function resolveCanonicalFindingsOnlyReviewUnit(mainRepo, wkId) {
   const record = readCanonicalWorkRecord(mainRepo, wkId);
-  if (!record || record.id !== wkId || !/^IN-\d{4}$/u.test(record.initiative ?? "") ||
-      !Array.isArray(record.slices)) {
+  if (!record || record.id !== wkId) {
     throw new Error(`canonical ${wkId} record is unavailable for whole-WK review`);
   }
-  const eligible = record.slices.filter(isCanonicalFindingsOnlyReviewSlice);
-  if (eligible.length !== 1) {
-    throw new Error(`canonical ${wkId} record must contain exactly one eligible findings-only review slice; found ${eligible.length}`);
+  const parentLifecycleContract = evaluateWorkRecordParentLifecycleContract(record);
+  if (!parentLifecycleContract.complete) {
+    const terminalMissing = parentLifecycleContract.missing_facts.includes("terminal_review_contract_unit");
+    const terminalAmbiguous = parentLifecycleContract.ambiguous_facts.includes("terminal_review_contract_unit");
+    const terminalCount = terminalMissing ? "0" : terminalAmbiguous ? "more than 1" : "unresolved";
+    throw new Error(
+      `canonical ${wkId} parent lifecycle contract is incomplete: ` +
+      `missing [${parentLifecycleContract.missing_facts.join(", ")}], ` +
+      `ambiguous [${parentLifecycleContract.ambiguous_facts.join(", ")}]; ` +
+      `eligible findings-only review slices found ${terminalCount}`
+    );
   }
-  const slice = eligible[0];
+  const slice = parentLifecycleContract.terminal_review_contract_unit;
 
   const contracts = projectSliceReviewReceiptContracts(record, slice.id);
   if (contracts.slice_review_contract === null) {
@@ -246,6 +244,9 @@ export function resolveCanonicalFindingsOnlyReviewUnit(mainRepo, wkId) {
 }
 
 export function assertFrozenReviewTarget(target) {
+  if (target?.review_identity_kind === "terminal_candidate") {
+    return assertFrozenTerminalCandidateReviewTarget(target);
+  }
   if (!isPlainObject(target) ||
       typeof target.ref !== "string" || !/^refs\/heads\/wk\/IN-\d{4}\/WK-\d{4}$/u.test(target.ref) ||
       typeof target.sha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(target.sha) ||
@@ -254,6 +255,28 @@ export function assertFrozenReviewTarget(target) {
       target.diff_range !== `${target.diff_base_sha}..${target.sha}` ||
       target.complete_parent_wk_contract !== true || target.accumulated_wk_diff !== true) {
     throw new Error("frozen whole-WK review target is incomplete or incompatible");
+  }
+  return target;
+}
+
+export function assertFrozenTerminalCandidateReviewTarget(target) {
+  if (!isPlainObject(target) ||
+      target.schema_version !== "agent_launch.terminal_candidate_review_target.v1" ||
+      target.review_identity_kind !== "terminal_candidate" ||
+      typeof target.candidate_ref !== "string" ||
+      !/^refs\/agent-launch\/terminal-current\/WK-\d{4}$/u.test(target.candidate_ref) ||
+      typeof target.candidate_sha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(target.candidate_sha) ||
+      target.sha !== target.candidate_sha || target.ref !== target.candidate_ref ||
+      typeof target.wk_ref !== "string" || !/^refs\/heads\/wk\/IN-\d{4}\/WK-\d{4}$/u.test(target.wk_ref) ||
+      typeof target.wk_sha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(target.wk_sha) ||
+      typeof target.landing_ref !== "string" || !/^refs\/heads\//u.test(target.landing_ref) ||
+      typeof target.landing_sha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(target.landing_sha) ||
+      target.diff_base_sha !== target.landing_sha || target.diff_head_sha !== target.candidate_sha ||
+      target.diff_range !== `${target.landing_sha}..${target.candidate_sha}` ||
+      typeof target.worktree_path !== "string" || !path.isAbsolute(target.worktree_path) ||
+      typeof target.canonical_wk_digest !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(target.canonical_wk_digest) ||
+      target.complete_parent_wk_contract !== true || target.accumulated_wk_diff !== true) {
+    throw new Error("frozen terminal-candidate review target is incomplete or incompatible");
   }
   return target;
 }
@@ -293,9 +316,21 @@ function runFrozenReviewTargetObjectStoreProbes({ mainRepo, probes, runGit }) {
   return { ok: true };
 }
 
-export { assertTerminalReviewMaterializationAttestation } from "./host-write-authority-substrate/terminal-review-materialization.mjs";
+export { assertTerminalReviewMaterializationAttestation } from "./terminal-review-materialization.mjs";
 
 export function verifyFrozenWkReviewTargetAgainstObjectStore({ mainRepo, context, runGit = defaultRunGit }) {
+  if (context?.review_identity_kind === "terminal_candidate") {
+    return runFrozenReviewTargetObjectStoreProbes({
+      mainRepo,
+      runGit,
+      probes: [
+        { name: "candidate_commit_object_present", rev: `${context.candidate_sha}^{commit}`, expect: context.candidate_sha },
+        { name: "landing_parent_object_present", rev: `${context.landing_sha}^{commit}`, expect: context.landing_sha },
+        { name: "wk_ref_remains_accumulated_tip", rev: `${context.wk_ref}^{commit}`, expect: context.wk_sha },
+        { name: "wk_tip_object_present", rev: `${context.wk_sha}^{commit}`, expect: context.wk_sha }
+      ]
+    });
+  }
   return runFrozenReviewTargetObjectStoreProbes({
     mainRepo,
     runGit,
@@ -316,7 +351,6 @@ export function assertFrozenSliceReviewTarget(target) {
       typeof target.sha !== "string" || !OID_RE.test(target.sha) ||
       target.diff_head_sha !== target.sha ||
       typeof target.diff_base_sha !== "string" || !OID_RE.test(target.diff_base_sha) ||
-      target.diff_base_sha === target.sha ||
       target.diff_range !== `${target.diff_base_sha}..${target.sha}` ||
       target.slice_level_review !== true ||
       Object.prototype.hasOwnProperty.call(target, "complete_parent_wk_contract") ||
@@ -338,7 +372,7 @@ export function verifyFrozenSliceReviewTargetAgainstObjectStore({ mainRepo, cont
   });
 }
 
-export function resolveCanonicalSliceReviewUnit(mainRepo, subject) {
+function resolveCanonicalImplementationSliceUnit(mainRepo, subject, { requireReview }) {
   const match = typeof subject === "string" ? subject.match(EXACT_IMPLEMENTATION_SLICE_RE) : null;
   if (!match) {
     throw new Error(`canonical slice-review subject is not an exact implementation-slice address: ${JSON.stringify(subject)}`);
@@ -350,11 +384,12 @@ export function resolveCanonicalSliceReviewUnit(mainRepo, subject) {
       !Array.isArray(record.slices)) {
     throw new Error(`canonical ${wkId} record is unavailable for slice-level review`);
   }
-  if (record.status === "review") {
+  if (requireReview && record.status === "review") {
     throw new Error(`canonical ${wkId} is in whole-WK review; a slice-level review requires an active parent`);
   }
   const slice = record.slices.find((entry) => entry?.id === sliceId);
-  if (!isPlainObject(slice) || slice.work_kind !== "implementation" || slice.status !== "review") {
+  if (!isPlainObject(slice) || slice.work_kind !== "implementation" ||
+      (requireReview && slice.status !== "review")) {
     throw new Error(`canonical slice ${wkId}#${sliceId} is not an implementation slice under slice-level review`);
   }
 
@@ -371,6 +406,14 @@ export function resolveCanonicalSliceReviewUnit(mainRepo, subject) {
     canonical_parent_wk_contract: contracts.canonical_parent_wk_contract,
     review_unit_contract: contracts.slice_review_contract
   });
+}
+
+export function resolveCanonicalSliceReviewUnit(mainRepo, subject) {
+  return resolveCanonicalImplementationSliceUnit(mainRepo, subject, { requireReview: true });
+}
+
+export function resolveCanonicalSliceIntegrationUnit(mainRepo, subject) {
+  return resolveCanonicalImplementationSliceUnit(mainRepo, subject, { requireReview: false });
 }
 
 export function resolveFrozenSliceReviewReceiptContract(receipt) {

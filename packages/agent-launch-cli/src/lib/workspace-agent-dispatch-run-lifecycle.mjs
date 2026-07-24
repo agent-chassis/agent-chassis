@@ -14,7 +14,7 @@ import {
   BACKEND_MISSING_RESULT_CODES
 } from "@agent-chassis/agent-launch-core";
 
-import { HOST_WRITE_AUTHORITY_FORBIDDEN_TOKENS } from "./host-write-authority-substrate.mjs";
+import { DISPATCH_FORBIDDEN_ENVELOPE_TOKENS } from "./dispatch-envelope-policy.mjs";
 import {
   resolveDispatchedRoleModel,
   resolveExplicitOverrideSelection
@@ -32,8 +32,14 @@ import {
   attachDispatchProvenance
 } from "./workspace-agent-dispatch-final-result-evidence.mjs";
 import { deriveBackendReviewResult } from "./workspace-agent-dispatch-review-result.mjs";
-import { resolveWorkerSourceToolSurface } from "./workspace-agent-dispatch-source-access.mjs";
+import { resolveWorkerSourceAccess } from "./workspace-agent-dispatch-source-access.mjs";
 import { WRITE_SCOPE_VERIFICATION_SCHEMA_VERSION } from "./workspace-agent-write-scope-verification.mjs";
+
+import { readStdioMcpConduitTerminalFailure } from "./stdio-mcp-conduit-contract.mjs";
+import { bindReviewerValidationEvidence } from "./terminal-wk-candidate-validation.mjs";
+
+export const MANAGED_RUN_IDENTITY_ENFORCEMENT_UNAVAILABLE =
+  "managed_run_identity_enforcement_unavailable";
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -121,7 +127,6 @@ export function createDispatchRunLifecycle(ctx = {}) {
     runIdFactory,
     monitorHandleFactory,
     evaluateWorkerAdmission = null,
-    prepareSourceToolSurface = null,
 
     freezeWorkerScopeSnapshot = null,
     validateWorkerScopeSnapshot = null,
@@ -129,13 +134,67 @@ export function createDispatchRunLifecycle(ctx = {}) {
     deriveReviewerLaunchIdentity = null,
 
     proveAssignedSourceReadable = null,
-
-    mintSliceReviewAcceptance = null,
     captureSliceReviewTerminalResult = null
-    ,resolveCorrectiveFindingsContext = null
+    ,resolveCorrectiveFindingsContext = null,
+
+    managedWorkerIdentityRequired = false,
+    managedRunIdentityRootPresent = false,
+    checkPriorManagedAttempt = null,
+    publishPendingManagedRunIdentity = null,
+    bindManagedRunOuterIdentity = null,
+
+    releaseManagedRunSubjectReservationForLaunch = null
   } = ctx;
 
+  const managedWorkerRequiresIdentityReconciliation = (role) =>
+    role === "worker" && managedWorkerIdentityRequired === true;
+
+  function assertManagedWorkerIdentityEnforceable(role, subject) {
+    if (!managedWorkerRequiresIdentityReconciliation(role)) return null;
+    const missing = [];
+    if (managedRunIdentityRootPresent !== true) missing.push("managed_run_identity_root");
+    if (typeof checkPriorManagedAttempt !== "function") missing.push("prior_attempt_resolver");
+    if (typeof publishPendingManagedRunIdentity !== "function") missing.push("pending_identity_publisher");
+    if (typeof bindManagedRunOuterIdentity !== "function") missing.push("outer_identity_binder");
+    if (missing.length === 0) return null;
+    return dispatchRefusal(
+      BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+      MANAGED_RUN_IDENTITY_ENFORCEMENT_UNAVAILABLE,
+      {
+        subject,
+        role,
+        missing_dependencies: Object.freeze([...missing]),
+        remediation: "compose the managed dispatch backend with a resolved managed-run identity root"
+      }
+    );
+  }
+
   async function startLaunch(input = {}) {
+    const reservationHolder = { reservation: null, retain: false, subject: null };
+    let result;
+    try {
+      result = await startLaunchWithSubjectReservation(input, reservationHolder);
+    } catch (error) {
+      await releaseSubjectReservation(reservationHolder);
+      throw error;
+    }
+    if (result?.accepted !== true) await releaseSubjectReservation(reservationHolder);
+    return result;
+  }
+
+  async function releaseSubjectReservation(holder) {
+    if (holder.reservation === null || holder.retain === true) return;
+    const reservation = holder.reservation;
+    holder.reservation = null;
+    if (typeof releaseManagedRunSubjectReservationForLaunch !== "function") return;
+    try {
+      await releaseManagedRunSubjectReservationForLaunch(reservation);
+    } catch {
+
+    }
+  }
+
+  async function startLaunchWithSubjectReservation(input = {}, reservationHolder = { reservation: null }) {
     const {
       caller_session_id = null,
       role = null,
@@ -146,6 +205,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
       config_root_dir = null,
 
       trusted_frozen_review_contract = null,
+
+      reviewer_dependency_binds = null,
       readiness = null,
       app: requestedApp = null,
 
@@ -157,7 +218,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
       : null;
 
     if (dispatchModel !== null) {
-      for (const token of HOST_WRITE_AUTHORITY_FORBIDDEN_TOKENS) {
+      for (const token of DISPATCH_FORBIDDEN_ENVELOPE_TOKENS) {
         if (dispatchModel.includes(token)) {
           return dispatchRefusal(
             BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
@@ -220,6 +281,48 @@ export function createDispatchRunLifecycle(ctx = {}) {
         "subject_required",
         null
       );
+    }
+
+    const identityEnforcementRefusal = assertManagedWorkerIdentityEnforceable(role, subject);
+    if (identityEnforcementRefusal) return identityEnforcementRefusal;
+
+    if (role === "worker" && typeof checkPriorManagedAttempt === "function") {
+      let priorAttempt;
+      try {
+        priorAttempt = await checkPriorManagedAttempt({ role, subject });
+      } catch (error) {
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          "managed_run_identity_check_threw",
+          { message: error?.message ?? String(error) }
+        );
+      }
+      if (!priorAttempt || typeof priorAttempt !== "object") {
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          "managed_run_identity_check_no_result",
+          null
+        );
+      }
+      if (priorAttempt.may_launch !== true) {
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          `managed_run_prior_attempt_${priorAttempt.verdict}`,
+          {
+            subject,
+            verdict: priorAttempt.verdict ?? null,
+            verdict_reason: priorAttempt.reason ?? null,
+            liveness: priorAttempt.liveness ?? null,
+            prior_tuple: priorAttempt.tuple ?? null,
+
+            reservation_holder: priorAttempt.holder ?? null,
+            recovery_route: "workspace_agent_run_status"
+          }
+        );
+      }
+
+      reservationHolder.subject = subject;
+      reservationHolder.reservation = priorAttempt.reservation ?? null;
     }
 
     let frozenWorkerScopeSnapshot = null;
@@ -324,25 +427,12 @@ export function createDispatchRunLifecycle(ctx = {}) {
       workerAdmissionDiagnostic = admissionOutcome.remote_admission ?? null;
     }
 
-    const sourceAccessResult = await resolveWorkerSourceToolSurface({
+    const sourceAccessResult = await resolveWorkerSourceAccess({
       app,
       role,
       subject,
-      workspace_alias,
       workspace_dir,
-      readiness,
-      dispatchModel: resolvedModel,
       familyExecutorRegistryEntry,
-      prepareSourceToolSurface: frozenWorkerScopeSnapshot !== null &&
-          typeof prepareSourceToolSurface === "function"
-        ? (sourceInput) => prepareSourceToolSurface({
-            ...sourceInput,
-            canonical_work_record: frozenWorkerScopeSnapshot.record,
-            canonical_selected_unit: frozenWorkerScopeSnapshot.selected_unit_contract,
-            source_record_digest: frozenWorkerScopeSnapshot.authority.source_digest,
-            worker_scope_authority: frozenWorkerScopeSnapshot.authority
-          })
-        : prepareSourceToolSurface,
       proveAssignedSourceReadable
     });
     if (!sourceAccessResult.ok) {
@@ -352,7 +442,6 @@ export function createDispatchRunLifecycle(ctx = {}) {
         sourceAccessResult.refusal.detail
       );
     }
-    const sourceToolSurface = sourceAccessResult.sourceToolSurface;
     const sourceSnapshotRefusal = await validateFrozenWorkerScope(
       "source_preparation",
       sourceAccessResult
@@ -388,8 +477,76 @@ export function createDispatchRunLifecycle(ctx = {}) {
     const startedAtMs = clock();
     const startedAt = new Date(startedAtMs).toISOString();
 
+    let reviewerValidationEvidence = null;
+    if (role === "reviewer" && Array.isArray(executorReadiness?.reviewer_validation_evidence) &&
+        executorReadiness.reviewer_validation_evidence.length > 0) {
+      const target = executorReadiness.frozen_terminal_candidate_review_target ?? null;
+      reviewerValidationEvidence = bindReviewerValidationEvidence(
+        executorReadiness.reviewer_validation_evidence,
+        {
+          reviewerRunId: run_id,
+          subject,
+          reviewedSha: target?.candidate_sha ?? null,
+          diffBaseSha: target?.landing_sha ?? null
+        }
+      );
+      executorReadiness.reviewer_validation_evidence = reviewerValidationEvidence;
+    }
+
     const executorSnapshotRefusal = await validateFrozenWorkerScope("executor_planning");
     if (executorSnapshotRefusal) return executorSnapshotRefusal;
+
+    let pendingManagedRunIdentity = null;
+    if (role === "worker" && typeof publishPendingManagedRunIdentity === "function") {
+      try {
+        pendingManagedRunIdentity = await publishPendingManagedRunIdentity({
+          role,
+          subject,
+          run_id,
+          monitor_handle,
+
+          reservation: reservationHolder.reservation
+        });
+      } catch (error) {
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          "managed_run_identity_publication_failed",
+          { subject, code: error?.code ?? null, message: error?.message ?? String(error) }
+        );
+      }
+      if (pendingManagedRunIdentity === null || pendingManagedRunIdentity === undefined) {
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          "managed_run_identity_publication_incomplete",
+          { subject }
+        );
+      }
+    }
+
+    const discardPendingIdentity = async (reason) => {
+      if (pendingManagedRunIdentity === null) return null;
+      const pending = pendingManagedRunIdentity;
+      pendingManagedRunIdentity = null;
+      try {
+        await pending.discard();
+      } catch (error) {
+
+        reservationHolder.retain = true;
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          "managed_run_identity_cleanup_failed",
+          {
+            subject,
+            cleanup_after: reason,
+            code: error?.code ?? null,
+            message: error?.message ?? String(error)
+          }
+        );
+      }
+
+      await releaseSubjectReservation(reservationHolder);
+      return null;
+    };
 
     let executorResult;
     try {
@@ -406,16 +563,19 @@ export function createDispatchRunLifecycle(ctx = {}) {
 
         model: resolvedModel,
         backend: resolvedBackend,
-        source_tool_surface: sourceToolSurface,
 
         frozen_worker_scope_snapshot: frozenWorkerScopeSnapshot,
 
         config_root_dir: role === "reviewer" ? (config_root_dir ?? null) : null,
         trusted_frozen_review_contract:
           role === "reviewer" ? (trusted_frozen_review_contract ?? null) : null,
+        reviewer_dependency_binds:
+          role === "reviewer" && Array.isArray(reviewer_dependency_binds)
+            ? reviewer_dependency_binds
+            : null,
       });
     } catch (error) {
-      return dispatchRefusal(
+      return (await discardPendingIdentity("launch_executor_threw")) ?? dispatchRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
         "launch_executor_threw",
         { message: error?.message ?? String(error) }
@@ -423,7 +583,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
     }
 
     if (!executorResult || typeof executorResult !== "object") {
-      return dispatchRefusal(
+      return (await discardPendingIdentity("launch_executor_no_result")) ?? dispatchRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
         "launch_executor_no_result",
         null
@@ -431,7 +591,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
     }
     if (executorResult.accepted === false) {
       const refusal = executorResult.refusal ?? {};
-      return dispatchRefusal(
+      return (await discardPendingIdentity("launch_executor_refused")) ?? dispatchRefusal(
         refusal.code ?? BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
         refusal.reason ?? "launch_executor_refused",
         refusal.detail ?? null
@@ -439,11 +599,44 @@ export function createDispatchRunLifecycle(ctx = {}) {
     }
     const initialStatus = normalizeStatus(executorResult.status ?? "launching");
     if (!initialStatus) {
-      return dispatchRefusal(
+      return (await discardPendingIdentity("launch_executor_invalid_status")) ?? dispatchRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
         "launch_executor_invalid_status",
         { status: executorResult.status ?? null }
       );
+    }
+
+    if (pendingManagedRunIdentity !== null) {
+      if (TERMINAL_STATUSES.has(initialStatus)) {
+        const cleanupRefusal = await discardPendingIdentity("executor_terminal_at_start");
+        if (cleanupRefusal) return cleanupRefusal;
+      } else {
+        const pending = pendingManagedRunIdentity;
+        pendingManagedRunIdentity = null;
+        try {
+
+          const bindOuter = typeof bindManagedRunOuterIdentity === "function"
+            ? bindManagedRunOuterIdentity
+            : (handle, args) => handle.bind(args);
+          await bindOuter(pending, {
+            pid: executorResult.pid ?? null,
+            enforcement: executorResult.enforcement
+          });
+        } catch (error) {
+
+          reservationHolder.retain = true;
+          return dispatchRefusal(
+            BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+            "managed_run_identity_binding_failed",
+            {
+              subject,
+              run_id,
+              code: error?.code ?? null,
+              message: error?.message ?? String(error)
+            }
+          );
+        }
+      }
     }
 
     const record = {
@@ -464,6 +657,14 @@ export function createDispatchRunLifecycle(ctx = {}) {
       probe: typeof executorResult.probe === "function" ? executorResult.probe : null,
       final_result: null
     };
+    if (reviewerValidationEvidence !== null) {
+      Object.defineProperty(record, "validation_evidence", {
+        value: reviewerValidationEvidence,
+        enumerable: true,
+        configurable: false,
+        writable: false
+      });
+    }
     if (reviewerLaunchIdentity !== null) {
 
       Object.defineProperty(record, "reviewer_launch_identity", {
@@ -514,6 +715,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
       updated_at: startedAt,
       exit: record.exit,
       final_result: record.final_result,
+      ...(record.validation_evidence ? { validation_evidence: record.validation_evidence } : {}),
       ...(startReviewResult ? { review_result: startReviewResult } : {}),
 
       ...(workerAdmissionDiagnostic ? { worker_admission: workerAdmissionDiagnostic } : {})
@@ -565,33 +767,74 @@ export function createDispatchRunLifecycle(ctx = {}) {
     if (!record.terminal && typeof record.probe === "function") {
       try {
         const probed = await record.probe();
-        if (probed && typeof probed === "object") {
-          const nextStatus = normalizeStatus(probed.status);
-          if (nextStatus) {
+        if (probed !== null && probed !== undefined) {
+
+          const nextStatus = typeof probed === "object" && !Array.isArray(probed)
+            ? normalizeStatus(probed.status)
+            : null;
+          if (!nextStatus) {
+            record.status = "failed";
+            record.terminal = true;
+            record.exit = {
+              code: null,
+              signal: null,
+              error: "lifecycle probe returned a result without a normalized run status"
+            };
+            record.final_result = buildMissingResultEnvelopeWithStructuredRoleResult(
+              BACKEND_MISSING_RESULT_CODES.FINAL_REPORT_PROBE_FAILED,
+              "probe_result_status_invalid",
+              {
+
+                probe_result_type: Array.isArray(probed) ? "array" : typeof probed,
+                observed_status: typeof probed === "object" && !Array.isArray(probed) &&
+                    typeof probed?.status === "string"
+                  ? probed.status
+                  : null
+              }
+            );
+            record.updated_at = new Date(clock()).toISOString();
+          } else {
             record.status = nextStatus;
             record.terminal = TERMINAL_STATUSES.has(nextStatus);
-          }
-          if (probed.exit !== undefined) {
-            record.exit = probed.exit;
-          }
+            if (probed.exit !== undefined) {
+              record.exit = probed.exit;
+            }
 
-          if (record.terminal && !record.final_result) {
-            const captured = normalizeFinalResultWithStructuredRoleResult(
-              probed.final_result,
-              record
-            );
-            record.final_result = captured
-              ? attachWriteScopeVerification(
-                  attachDispatchProvenance(captured, probed.final_result, record),
-                  probed.final_result
-                )
-              : buildMissingResultEnvelopeWithStructuredRoleResult(
-                  BACKEND_MISSING_RESULT_CODES.FINAL_REPORT_NOT_CAPTURED,
-                  "probe_terminal_without_final_result",
-                  { status: record.status }
-                );
+            if (record.terminal && !record.final_result) {
+              const captured = normalizeFinalResultWithStructuredRoleResult(
+                probed.final_result,
+                record
+              );
+
+              const conduitFailure = readStdioMcpConduitTerminalFailure(probed);
+
+              if (captured && conduitFailure !== null) {
+                record.exit = {
+                  ...(isPlainObject(record.exit) ? record.exit : { code: null, signal: null }),
+                  conduit_failure: conduitFailure
+                };
+              }
+
+              if (conduitFailure !== null) {
+                record.launcher_conduit_terminal_failure = conduitFailure;
+              }
+              record.final_result = captured
+                ? attachWriteScopeVerification(
+                    attachDispatchProvenance(captured, probed.final_result, record),
+                    probed.final_result
+                  )
+                : buildMissingResultEnvelopeWithStructuredRoleResult(
+                    BACKEND_MISSING_RESULT_CODES.FINAL_REPORT_NOT_CAPTURED,
+                    conduitFailure === null
+                      ? "probe_terminal_without_final_result"
+                      : conduitFailure.reason,
+                    conduitFailure === null
+                      ? { status: record.status }
+                      : { status: record.status, ...(conduitFailure.detail ?? {}) }
+                  );
+            }
+            record.updated_at = new Date(clock()).toISOString();
           }
-          record.updated_at = new Date(clock()).toISOString();
         }
       } catch (error) {
         record.status = "failed";
@@ -611,29 +854,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
     }
 
     const reviewResult = deriveBackendReviewResult(record);
-
-    if (record.terminal && reviewResult === null &&
-        typeof captureSliceReviewTerminalResult === "function") {
-      await captureSliceReviewTerminalResult({ record });
-    }
-
-    if (reviewResult && typeof mintSliceReviewAcceptance === "function") {
-      try {
-        await mintSliceReviewAcceptance({ record, review_result: reviewResult });
-      } catch (error) {
-
-        record.slice_review_acceptance_mint = Object.freeze({
-          ok: false,
-          decision_code: "agent_launch.slice_integration.review_acceptance_proof_not_minted.v1",
-          reasons: Object.freeze([
-            "slice_review_acceptance_mint_hook_threw",
-            error?.message ?? String(error)
-          ])
-        });
-      }
-    }
-
-    if (record.terminal && reviewResult !== null &&
+    if (record.terminal &&
         typeof captureSliceReviewTerminalResult === "function") {
       await captureSliceReviewTerminalResult({ record });
     }
@@ -653,6 +874,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
       updated_at: record.updated_at,
       exit: record.exit ?? null,
       final_result: record.final_result ?? null,
+      ...(record.validation_evidence ? { validation_evidence: record.validation_evidence } : {}),
       ...(reviewResult ? { review_result: reviewResult } : {})
     };
   }
@@ -754,7 +976,7 @@ export function createDispatchRunLifecycle(ctx = {}) {
     const dispatchModel = normalizeDispatchModelHint(requestedModel);
 
     if (dispatchModel !== null) {
-      for (const token of HOST_WRITE_AUTHORITY_FORBIDDEN_TOKENS) {
+      for (const token of DISPATCH_FORBIDDEN_ENVELOPE_TOKENS) {
         if (dispatchModel.includes(token)) {
           return planRefusal("forbidden_token_in_model_hint", { token });
         }
@@ -810,10 +1032,6 @@ export function createDispatchRunLifecycle(ctx = {}) {
       caller_session_id: r.caller_session_id,
       ...(r.reviewer_launch_identity
         ? { reviewer_launch_identity: r.reviewer_launch_identity }
-        : {}),
-
-      ...(r.slice_review_acceptance_mint
-        ? { slice_review_acceptance_mint: r.slice_review_acceptance_mint }
         : {})
     }));
   }

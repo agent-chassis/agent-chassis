@@ -41,3 +41,8 @@ export {
 } from "./orchestrator-launch-isolation.mjs";
 
 export { spawnIsolated } from "./launch-isolation-spawn.mjs";
+
+export {
+  STDIO_MCP_CONDUIT_ERROR_CODES,
+  StdioMcpConduitError
+} from "./stdio-mcp-conduit-contract.mjs";

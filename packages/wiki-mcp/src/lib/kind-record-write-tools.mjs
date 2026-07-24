@@ -3,8 +3,6 @@
 import {
   amendKindRecordSection,
   amendKindRecordScalar,
-  ratifyDecisionRecord,
-  unratifyDecisionRecord,
   rejectDecisionRecord
 } from "@agent-chassis/wiki-core/src/operations/kind-record-edit.mjs";
 import { assignWorkRecordToInitiativeByUnit as defaultAssignWorkRecordToInitiative } from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
@@ -116,8 +114,8 @@ export function registerKindRecordWriteTools({
   const DEC_DRAFT_NOTE =
     "DEC-0152: agents DRAFT decisions but cannot ratify. `create` mints a `proposed` DEC and `amend` edits a " +
     "`proposed` DEC; neither can set `status`. Making a decision binding (`proposed`->`accepted`) is a HUMAN-ONLY " +
-    "action by the operator (the `wiki decision ratify` CLI once it ships; operator-only in the interim) - there " +
-    "is no agent ratify tool. To get a decision ratified, finish the `proposed` draft and ask the operator to " +
+    "action the operator performs with the `wiki decision ratify` CLI - there is no MCP ratify/unratify tool for " +
+    "any role. To get a decision ratified, finish the `proposed` draft and ask the operator to " +
     "ratify it. Amending an `accepted` decision is refused until it is unratified back to `proposed`.";
 
   const IN_DRAFT_NOTE =
@@ -215,59 +213,6 @@ export function registerKindRecordWriteTools({
   registerAmendScalar("workspace_decision_amend_scalar", "a decision (`DEC-*`) record", DEC_DRAFT_NOTE);
   registerAmendSection("workspace_initiative_amend_section", "an initiative (`IN-*`) record", IN_DRAFT_NOTE);
   registerAmendScalar("workspace_initiative_amend_scalar", "an initiative (`IN-*`) record", IN_DRAFT_NOTE);
-
-  registerTool(
-    "workspace_decision_ratify",
-    {
-      description:
-        "Write-capable: ratify a decision (`DEC-*`) record - the human `proposed` -> `accepted` status flip - by id, " +
-        "stamping who/when provenance through the validated kind-record persistence path and honoring an optional " +
-        "expected_source_digest. OPERATOR-ONLY human ratification action: agents are denied this tool by the " +
-        "session-role policy (DEC-0152); it is being superseded by the `wiki decision ratify` CLI (WK-1512). Not " +
-        "agent-callable and not ungated. Identity is server-resolved; there is no actor input.",
-      inputSchema: lifecycleInputSchema()
-    },
-    async (args) => {
-      try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const result = await ratifyDecisionRecord({
-          repoRoot: workspace.dir,
-          id: args.id,
-          expectedSourceDigest: args.expected_source_digest ?? null
-        });
-        return jsonContent(createCompactKindRecordEditResponse(workspace.repo, args.id, result));
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
-
-  registerTool(
-    "workspace_decision_unratify",
-    {
-      description:
-        "Write-capable: unratify a decision (`DEC-*`) record - the human `accepted` -> `proposed` status flip - by " +
-        "id, clearing the ratification provenance and stamping who/when through the validated kind-record " +
-        "persistence path, honoring an optional expected_source_digest. Unratify first when an accepted decision " +
-        "must be amended. OPERATOR-ONLY human action: agents are denied this tool by the session-role policy " +
-        "(DEC-0152); it is being superseded by the `wiki decision unratify` CLI (WK-1512). Not agent-callable and " +
-        "not ungated. Identity is server-resolved; there is no actor input.",
-      inputSchema: lifecycleInputSchema()
-    },
-    async (args) => {
-      try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const result = await unratifyDecisionRecord({
-          repoRoot: workspace.dir,
-          id: args.id,
-          expectedSourceDigest: args.expected_source_digest ?? null
-        });
-        return jsonContent(createCompactKindRecordEditResponse(workspace.repo, args.id, result));
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
 
   registerTool(
     "workspace_decision_reject",

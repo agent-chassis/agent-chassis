@@ -3,32 +3,19 @@
 import { summarizeDispatchReadinessDependencies } from "@agent-chassis/agent-launch-core/src/lib/work-record-gate.mjs";
 import { validateWorkRecordDispatchById } from "@agent-chassis/wiki-core";
 import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
-
 import {
   REVIEWER_WRITE_SCOPE_NONEMPTY_REASON,
   buildReviewerEmptyScopeAssertion,
   buildReviewerWriteScopeRefusalDetail
-} from "../commands/agent-role.mjs";
+} from "./reviewer-write-scope-policy.mjs";
 import {
   AGENT_ROLE_GRAPH_IMPACT_BRIDGE_ENV_VAR,
   appendGraphImpactBridgeDiagnostic,
   applyGraphImpactBridge
 } from "./graph-impact-bridge.mjs";
 import {
-  assertNoConfiguredCodexRoleCommitCredential,
-  buildCodexReadOnlyRoleWikiMcpEnvOverrides,
-  injectCodexConfigOverridesBeforeFinalPositional,
-  resolveWikiMcpServerPath
+  assertNoConfiguredCodexRoleCommitCredential
 } from "./codex-role-mcp-env.mjs";
-import {
-  buildCodexWikiMcpServerOverrides,
-  rebuildCodexPlanIsolationWithReadOnlyRoot
-} from "./codex-role-wiki-mcp-override.mjs";
-import {
-  composeManagedRoleWikiMcpRuntimeManifest,
-  preflightManagedRoleWikiMcpRuntime,
-  rewriteManagedRoleLauncherArtifactArgs
-} from "./managed-role-wiki-mcp-runtime-snapshot.mjs";
 import { gateRoleWriteScope } from "./workspace-agent-launch-adapter-contract.mjs";
 import {
   redteamPrompt,
@@ -60,6 +47,7 @@ export async function buildReadOnlyPlan({
   acceptanceCriteria = [],
   acceptanceValidation = [],
   terminalStructuredRoleResultMode = undefined,
+  reviewerDependencyBinds = [],
 
   canonicalRepo = null
 }) {
@@ -226,6 +214,7 @@ export async function buildReadOnlyPlan({
       ...buildCodexApprovalArgsForRole(role),
       "-p", profile,
       "exec",
+      "--ignore-user-config",
       "--ignore-rules"
     ],
     model,
@@ -233,64 +222,13 @@ export async function buildReadOnlyPlan({
     workspaceAlias,
     workspaceDir,
     dispatchWorktreeRoot,
+    additionalReadOnlyRoots: role === "review" && Array.isArray(reviewerDependencyBinds)
+      ? reviewerDependencyBinds
+      : [],
 
     terminalStructuredRoleResultMode
   });
-  const wikiMcpServerPath = resolveWikiMcpServerPath();
-  if (!wikiMcpServerPath) {
-    throw new Error(`codex-${role}: failed to resolve @agent-chassis/wiki-mcp server entrypoint`);
-  }
 
-  const roleIsConfined = typeof canonicalRepo === "string" && canonicalRepo.length > 0;
-  const roleEnvOverrides = buildCodexReadOnlyRoleWikiMcpEnvOverrides({ role, assignedUnit: subject });
-  const managedRuntimeManifest = await composeManagedRoleWikiMcpRuntimeManifest({
-    confined: roleIsConfined
-      && Boolean(headlessPlan && headlessPlan.isolation)
-      && Array.isArray(headlessPlan.args),
-    role,
-    serverPath: wikiMcpServerPath,
-    buildServerOverrides: (entrypoint) => [
-      ...buildCodexWikiMcpServerOverrides({ serverPath: entrypoint, repo }),
-      ...roleEnvOverrides
-    ]
-  });
-  if (managedRuntimeManifest !== null) {
-    injectCodexConfigOverridesBeforeFinalPositional(
-      headlessPlan.args,
-      managedRuntimeManifest.config_overrides
-    );
-    rebuildCodexPlanIsolationWithReadOnlyRoot(
-      headlessPlan,
-      managedRuntimeManifest.read_only_roots
-    );
-
-    const artifactRouting = rewriteManagedRoleLauncherArtifactArgs({
-      plan: headlessPlan,
-      manifest: managedRuntimeManifest
-    });
-
-    const preflight = await preflightManagedRoleWikiMcpRuntime({
-      plan: headlessPlan,
-      manifest: managedRuntimeManifest,
-      role,
-      assignedUnit: subject
-    });
-    headlessPlan.managed_wiki_mcp_runtime = Object.freeze({
-      schema_version: managedRuntimeManifest.schema_version,
-      commit: managedRuntimeManifest.commit,
-      digest: managedRuntimeManifest.digest,
-      staged_root: managedRuntimeManifest.snapshot.staged_root,
-      entrypoint: managedRuntimeManifest.snapshot.entrypoint,
-      artifact_routing: artifactRouting,
-      preflight
-    });
-  } else if (Array.isArray(headlessPlan.args)) {
-
-    injectCodexConfigOverridesBeforeFinalPositional(headlessPlan.args, [
-      ...buildCodexWikiMcpServerOverrides({ serverPath: wikiMcpServerPath, repo }),
-      ...roleEnvOverrides
-    ]);
-  }
   if (reviewerEmptyScopeAssertion && headlessPlan && typeof headlessPlan === "object") {
     headlessPlan.reviewer_empty_scope_assertion = reviewerEmptyScopeAssertion;
   }

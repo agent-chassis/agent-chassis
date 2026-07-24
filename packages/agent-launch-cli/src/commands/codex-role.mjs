@@ -23,30 +23,17 @@ import {
   buildWorkerPlan,
   ensureNewWorkerWriteRoots
 } from "../lib/codex-worker-plan.mjs";
-
-import {
-  createHostWriteAuthorityBrokerClaudePlanLaunch
-} from "../lib/workspace-agent-dispatch-claude-executor.mjs";
-import {
-  createHostWriteAuthorityBrokerAgyPlanLaunch
-} from "../lib/workspace-agent-dispatch-agy-executor.mjs";
-
-import {
-  createHostWriteAuthorityBrokerPlanLaunch
-} from "../lib/workspace-agent-dispatch-codex-executor.mjs";
 import {
   resolveFindingsOnlyAcceptanceContract
 } from "../lib/workspace-agent-findings-role-context.mjs";
-
 import {
-  runHostWriteAuthorityBroker
-} from "./host-write-authority-broker.mjs";
-export {
-  runHostWriteAuthorityBroker,
-  HOST_WRITE_AUTHORITY_BROKER_SOCKET_ENV_VAR,
-  HOST_WRITE_AUTHORITY_BROKER_LEGACY_SOCKET_DISABLED_REASON,
-  resolveHostWriteAuthorityBrokerSocketPath
-} from "./host-write-authority-broker.mjs";
+  createStdioMcpConduit
+} from "../lib/stdio-mcp-conduit.mjs";
+import {
+  buildCodexStdioMcpRegistrationOverrides,
+  resolveCodexConduitInput
+} from "../lib/codex-conduit-binding.mjs";
+import { resolveLauncherRoleToolNames } from "../lib/launcher-role-tool-profile.mjs";
 
 import {
   isDirectory,
@@ -81,29 +68,13 @@ import {
   writeHeartbeatLog
 } from "../lib/codex-role-run-capture.mjs";
 import { formatRefusal } from "../lib/codex-role-refusal-format.mjs";
-import {
-  CODEX_WIKI_MCP_SERVER_NAME,
-  WIKI_MCP_SERVER_PACKAGE_SUBPATH,
-  WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
-  WIKI_MCP_TOOL_PROFILE_ENV_VAR,
-  WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
-  WIKI_MCP_WORKSPACE_DIR_ENV_VAR,
-  buildCodexWikiMcpEnvOverride,
-  buildCodexWorkspaceMcpEnvOverrides,
-  ensureWikiMcpResponseStateDir,
-  injectCodexConfigOverridesBeforeFinalPositional,
-  quoteTomlString,
-  resolveLauncherConfiguredWorkspaceAlias,
-  resolveWikiMcpServerPath,
-  selectWikiMcpServerEnv
-} from "../lib/codex-role-mcp-env.mjs";
 
 import {
-  buildCodexWikiMcpServerOverrides,
-  collectCodexSynthesizedWikiMcpReadOnlyRoots,
-  detectCodexWikiMcpServerPosture,
-  rebuildCodexPlanIsolationWithReadOnlyRoot
-} from "../lib/codex-role-wiki-mcp-override.mjs";
+  CODEX_WIKI_MCP_SERVER_NAME,
+  ensureWikiMcpResponseStateDir,
+  injectCodexConfigOverridesBeforeFinalPositional,
+  quoteTomlString
+} from "../lib/codex-role-mcp-env.mjs";
 
 import {
   buildCodexRoleBubblewrapPlan,
@@ -130,8 +101,7 @@ export {
   redteamPrompt,
   reviewPrompt,
   reviewPromptSubjectPath,
-  runCodexOrchestratorList,
-  createHostWriteAuthorityBrokerPlanLaunch
+  runCodexOrchestratorList
 };
 
 export {
@@ -174,14 +144,6 @@ export {
   attachOperatorOrchestratorIsolation,
   runInteractiveOrchestratorChild
 } from "../lib/codex-role-orchestrator-runtime.mjs";
-import {
-  createCodexOrchestratorDispatchSidecarAdapter,
-  maybeStartOrchestratorDispatchSidecar
-} from "../lib/codex-role-dispatch-sidecar-adapter.mjs";
-export {
-  createCodexOrchestratorDispatchSidecarAdapter,
-  maybeStartOrchestratorDispatchSidecar
-} from "../lib/codex-role-dispatch-sidecar-adapter.mjs";
 
 const CODEX_ROLE_MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -225,11 +187,6 @@ export async function runCodexRole(argv, io = {}, context = {}) {
 
   if (role === "list") {
     await runCodexOrchestratorList(argv.slice(1), io);
-    return;
-  }
-
-  if (role === "host-write-authority-broker") {
-    await runHostWriteAuthorityBroker(argv.slice(1), io);
     return;
   }
 
@@ -296,8 +253,6 @@ export async function buildCodexRolePlan({
   provisioned_worktree_git_identity = null,
   worker_scope_authority = null,
   worktree_provisioning = null,
-
-  hostWriteAuthorityEndpoint = null,
   sourceToolSurface = null,
   headless = false,
   logFile = null,
@@ -305,7 +260,8 @@ export async function buildCodexRolePlan({
   terminalStructuredRoleResultMode = undefined,
 
   config_root_dir = null,
-  trusted_frozen_review_contract = null
+  trusted_frozen_review_contract = null,
+  reviewer_dependency_binds = null
 } = {}) {
   const normalizedRole = normalizeRole(role);
   if (normalizedRole === "orch" || normalizedRole === "orch-resume") {
@@ -343,22 +299,8 @@ export async function buildCodexRolePlan({
       provisioned_worktree_git_binding,
       provisioned_worktree_git_identity,
       worker_scope_authority,
-      worktree_provisioning,
-      hostWriteAuthorityEndpoint
+      worktree_provisioning
     });
-    if (workerPlan && typeof workerPlan === "object" && workerPlan.mode !== "refusal") {
-      const managedMainRepo = workerPlan.worktree_provisioning?.main_repo ?? null;
-      const workspaceMcpEnvOverrides = buildCodexWorkspaceMcpEnvOverrides({
-        workspaceAlias,
-        workspaceDir: managedMainRepo ?? workspaceDir,
-        dispatchWorktreeRoot
-      }).filter((override) =>
-        !override.startsWith(`mcp_servers.${CODEX_WIKI_MCP_SERVER_NAME}.env.${WIKI_MCP_TOOL_PROFILE_ENV_VAR}=`)
-      );
-      if (workspaceMcpEnvOverrides.length > 0 && Array.isArray(workerPlan.args)) {
-        injectCodexConfigOverridesBeforeFinalPositional(workerPlan.args, workspaceMcpEnvOverrides);
-      }
-    }
     if (
       workerPlan &&
       typeof workerPlan === "object" &&
@@ -392,6 +334,7 @@ export async function buildCodexRolePlan({
       terminalStructuredRoleResultMode,
 
       canonicalRepo: config_root_dir,
+      reviewerDependencyBinds: reviewer_dependency_binds,
       ...acceptance
     });
     if (typeof dispatchWorktreeRoot === "string" && dispatchWorktreeRoot.length > 0) {
@@ -453,13 +396,39 @@ async function executePlan(plan, io) {
     await ensureNewWorkerWriteRoots(plan.repo, plan.preparedNewWriteRoots, plan.role);
   }
 
-  let sidecarHandle = null;
+  if (isOperatorDirectLaunchPlan(plan)) {
+    writeStderr(io.stderr, `${OPERATOR_DIRECT_MODE_NO_WIKI_MCP_NOTICE}\n`);
+    await runPlannedChild(plan, io);
+    return;
+  }
+
+  let conduit = null;
   try {
-    sidecarHandle = await maybeStartOrchestratorDispatchSidecar(plan, io);
+
+    conduit = await createStdioMcpConduit(resolveCodexConduitInput({
+      role: plan.role.startsWith("orch") ? "orchestrator" : plan.role,
+      assignedUnit: plan.subject,
+      workspaceDir: plan.worktree_provisioning?.main_repo ?? plan.repo,
+      workerScopeAuthority: plan.worker_scope_authority ?? null,
+      worktreeProvisioning: plan.worktree_provisioning ?? null,
+      launcherEnv: plan.env ?? process.env,
+
+      responseStateDir: typeof plan.runtimeDir === "string" && plan.runtimeDir.length > 0
+        ? ensureWikiMcpResponseStateDir({
+            runtimeDir: plan.runtimeDir,
+            workspaceDir: plan.repo
+          })
+        : null
+    }));
+    injectCodexConfigOverridesBeforeFinalPositional(
+      plan.args,
+      buildCodexStdioMcpRegistrationOverrides(conduit)
+    );
+    plan.stdioMcpConduit = conduit;
   } catch (err) {
     writeStderr(
       io.stderr,
-      `codex-${plan.role}: failed to start host write authority sidecar: ${err?.message ?? String(err)}\n`
+      `codex-${plan.role}: failed to start host wiki-MCP conduit: ${err?.message ?? String(err)}\n`
     );
     process.exitCode = 1;
     return;
@@ -468,13 +437,7 @@ async function executePlan(plan, io) {
   try {
     await runPlannedChild(plan, io);
   } finally {
-    if (sidecarHandle !== null) {
-      try {
-        await sidecarHandle.stop();
-      } catch {
-
-      }
-    }
+    await conduit?.cleanup().catch(() => {});
   }
 }
 
@@ -490,10 +453,13 @@ async function runPlannedChild(plan, io) {
     return;
   }
 
-  if (
-    plan.operatorIsolation?.mode === ORCHESTRATOR_ISOLATION_MODES.DIRECT
-    && !isHeadlessOrchestratorPlan(plan)
-  ) {
+  if (isOperatorDirectLaunchPlan(plan)) {
+    if (plan.stdioMcpConduit) {
+      writeStderr(io.stderr,
+        `codex-${plan.role}: direct launch cannot carry the launcher-owned FIFO conduit; bubblewrap is required\n`);
+      process.exitCode = 1;
+      return;
+    }
     writeStderr(io.stderr, `${OPERATOR_DIRECT_MODE_WARNING}\n`);
     if (plan.operatorIsolation?.failOpenWarning) {
       writeStderr(
@@ -514,7 +480,9 @@ async function runPlannedChild(plan, io) {
   let plainSpawnDecision = null;
   if (plan.operatorIsolation || supervisedOrchestratorPlan) {
     try {
-      bwrapPlan = buildCodexRoleBubblewrapPlan(plan);
+      bwrapPlan = buildCodexRoleBubblewrapPlan(plan, {
+        stdioMcpConduit: plan.stdioMcpConduit ?? null
+      });
       assertBubblewrapAvailable({ env: plan.env, bwrapPath: bwrapPlan.bwrapPath });
     } catch (err) {
       if (err instanceof BubblewrapIsolationError) {
@@ -555,6 +523,19 @@ async function runPlannedChild(plan, io) {
   await runHeadlessCaptureChild({ plan, io, bwrapPlan, plainSpawnDecision });
 }
 
+export function isOperatorDirectLaunchPlan(plan) {
+  return Boolean(plan)
+    && plan.operatorIsolation?.mode === ORCHESTRATOR_ISOLATION_MODES.DIRECT
+    && (plan.role === "orch" || plan.role === "orch-resume")
+    && plan.mode === "interactive"
+    && !isHeadlessOrchestratorPlan(plan);
+}
+
+export const OPERATOR_DIRECT_MODE_NO_WIKI_MCP_NOTICE =
+  "agent-launch: operator direct mode has no bubblewrap namespace, so the "
+  + "launcher-owned host wiki-MCP conduit is not available in this session. "
+  + "Install or repair bubblewrap to get wiki tools in the orchestrator.";
+
 function isHeadlessOrchestratorPlan(plan) {
   return Boolean(plan)
     && (plan.headless === true || plan.mode === "orchestrator-headless")
@@ -572,7 +553,8 @@ async function handleHeadlessLateBwrapFailure({ plan, io, error, runPlain }) {
     throw error;
   }
   const decision = buildCodexRoleSandboxFailOpenPlan(plan, error);
-  if (decision.disposition === WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN) {
+  if (decision.disposition === WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN &&
+      !plan.stdioMcpConduit) {
     await runPlain(decision);
     return true;
   }
@@ -593,6 +575,9 @@ export async function runHeadlessVerboseChild({
   spawnPlain = spawnDirectAndWait
 } = {}) {
   const runPlain = async (decision) => {
+    if (plan.stdioMcpConduit) {
+      throw new Error("plain spawn cannot carry the launcher-owned FIFO conduit");
+    }
     emitCodexRolePlainSpawnNotice(plan, io, decision);
     const status = await spawnPlain(plan.command, plan.args, {
       cwd: plan.repo,
@@ -637,6 +622,13 @@ export async function runHeadlessCaptureChild({
   let child = null;
   let heartbeatTimer = null;
   let status;
+  if (plainSpawnDecision && plan.stdioMcpConduit) {
+    writeStderr(io.stderr,
+      `codex-${plan.role}: plain spawn cannot carry the launcher-owned FIFO conduit; bubblewrap is required\n`);
+    process.exitCode = 1;
+    await stdout.close();
+    return;
+  }
   let enforced = !plainSpawnDecision;
   const stdio = ["ignore", stdout.fd, stdout.fd];
   try {
@@ -653,7 +645,8 @@ export async function runHeadlessCaptureChild({
           throw err;
         }
         const decision = buildCodexRoleSandboxFailOpenPlan(plan, err);
-        if (decision.disposition !== WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN) {
+        if (decision.disposition !== WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN ||
+            plan.stdioMcpConduit) {
           writeStderr(
             io.stderr,
             `${formatCodexRoleSandboxFailOpenRefusal(plan, decision, err)}\n`

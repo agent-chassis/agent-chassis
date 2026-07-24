@@ -587,20 +587,20 @@ const PROFILE_ALIAS_MAP = Object.freeze({
 const APP_VOCABULARY = Object.freeze(["codex", "claude", "agy"]);
 const BACKEND_VOCABULARY = Object.freeze([
   "codex",
-  "claude_filesystem_mcp",
-  "agy_filesystem_mcp"
+  "claude",
+  "unsupported"
 ]);
 
 const APP_TO_BACKEND = Object.freeze({
   codex: "codex",
-  claude: "claude_filesystem_mcp",
-  agy: "agy_filesystem_mcp"
+  claude: "claude",
+  agy: "unsupported"
 });
 
 const APP_TO_VALIDATION_TRANSPORT = Object.freeze({
-  codex: "codex",
-  claude: "claude_filesystem_mcp",
-  agy: "agy_filesystem_mcp"
+  codex: "stdio_mcp_conduit",
+  claude: "stdio_mcp_conduit",
+  agy: "unsupported"
 });
 
 const ROLE_DEFAULT_PROFILE = Object.freeze({
@@ -646,7 +646,7 @@ function buildClaudeOrchestratorBinding({ registryRole }) {
 
   return {
     app: "claude",
-    backend: "claude_filesystem_mcp",
+    backend: "claude",
     validation_transport: APP_TO_VALIDATION_TRANSPORT.claude,
     backend_profile_source: `registry_default_for_role:${registryRole}`,
     default_model_source: "operator_declared",

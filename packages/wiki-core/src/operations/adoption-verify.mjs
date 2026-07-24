@@ -116,8 +116,8 @@ async function inspectLauncherRegistry(targetDir) {
       present: false,
       valid: false,
       error: registry.error,
-      filesystem_mcp_backend_count: 0,
-      default_backend: null
+      agent_count: 0,
+      supported_agents: []
     };
   }
 
@@ -126,28 +126,30 @@ async function inspectLauncherRegistry(targetDir) {
     const data = parsed && typeof parsed === "object" && parsed.data && typeof parsed.data === "object"
       ? parsed.data
       : parsed;
-    const backends =
-      data && typeof data === "object" && data.filesystem_mcp_backends && typeof data.filesystem_mcp_backends === "object"
-        ? data.filesystem_mcp_backends
+    const agents =
+      data && typeof data === "object" && data.agents && typeof data.agents === "object"
+        ? data.agents
         : null;
-    const backendCount = backends ? Object.keys(backends).length : 0;
+    const supportedAgents = agents
+      ? ["codex", "claude"].filter((family) => {
+          const baseArgv = agents[family]?.base_argv;
+          return Array.isArray(baseArgv) && baseArgv.length > 0;
+        })
+      : [];
     return {
       present: true,
-      valid: backendCount > 0,
+      valid: supportedAgents.length === 2,
       error: null,
-      filesystem_mcp_backend_count: backendCount,
-      default_backend:
-        typeof data?.filesystem_mcp_backend_default === "string"
-          ? data.filesystem_mcp_backend_default
-          : null
+      agent_count: supportedAgents.length,
+      supported_agents: supportedAgents
     };
   } catch (error) {
     return {
       present: true,
       valid: false,
       error: error.message,
-      filesystem_mcp_backend_count: 0,
-      default_backend: null
+      agent_count: 0,
+      supported_agents: []
     };
   }
 }
@@ -386,8 +388,8 @@ async function runDispatchPreflightCheck(targetDir) {
       registry_present: launcherRegistry.present,
       registry_valid: launcherRegistry.valid,
       registry_error: launcherRegistry.error,
-      filesystem_mcp_backend_count: launcherRegistry.filesystem_mcp_backend_count,
-      default_backend: launcherRegistry.default_backend,
+      agent_count: launcherRegistry.agent_count,
+      supported_agents: launcherRegistry.supported_agents,
       role_guard_secret_path: LAUNCHER_ROLE_GUARD_SECRET_PATH,
       role_guard_secret_present: roleGuardSecretPresent
     }

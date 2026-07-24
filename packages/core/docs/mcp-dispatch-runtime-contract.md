@@ -1,372 +1,108 @@
 
-# MCP Dispatch Runtime Contract
+# MCP dispatch runtime contract
 
-Detailed MCP dispatch, bootstrap, run monitoring, host-write-authority sidecar,
-caller/session identity, runtime blocker taxonomy, and coordination preflight
-contract for [MCP Integration](mcp-integration.md).
+`workspace_agent_dispatch` and its monitor routes are backed by one
+launcher-owned in-process runtime. The runtime freezes the selected family,
+role, work record or slice, managed worktree binding, read and write authority,
+model registration adapter, host wiki-MCP server, named-FIFO conduit, and
+lifecycle owner before spawning the role.
 
-## Dispatch Identity And Bootstrap Review
+## Supported families
 
-`workspace_agent_dispatch` and `workspace_agent_run_status` are the
-MCP-only agent role dispatch and monitor surfaces. The identity and bootstrap
-contract they enforce lives in
-`packages/wiki-core/src/lib/agent-dispatch-identity.mjs` and is surfaced
-through the read-only `workspace_agent_dispatch_identity_contract` MCP tool.
+Confined Claude and Codex roles are supported when their runtime and bubblewrap
+contracts validate. Worker, reviewer, and redteam sessions use the same R union
+W namespace construction and write-scope enforcement; reviewers and redteam
+have no writable repository paths. Claude preserves native-edit permission
+settings and settings masking. Codex preserves its isolated runtime home and
+launcher-generated configuration overrides. Agy remains unsupported and fails
+closed.
 
-Missing `workspace_agent_dispatch` is a structured-transport blocker, not
-permission to fall back to non-MCP role wrappers. Agents must not invoke
-wrapper commands as an alternate dispatch transport. Operator installation or
-debug docs may describe local wrapper inventory, but those wrappers are not
-agent dispatch transports.
+## Launch and monitoring
 
-The contract is binding on `workspace_agent_dispatch`,
-`workspace_agent_run_status`, on launcher-side worker plans that consume the
-same role identity, and on any future MCP surface that makes a role decision.
+`start_launch` validates readiness and starts the selected family executor
+directly. `probe_run` reads the in-memory launcher run state directly. Run IDs
+and monitor handles are launcher-minted correlation values and never accepted
+as caller authority. Cancellation or any client, relay, host-server, or model
+exit tears down the same per-dispatch lifecycle.
 
-### workspace_agent_dispatch And workspace_agent_run_status
+Managed worktrees are provisioned in-process from canonical launcher roots.
+After an exact-slice worker terminates, the runtime prepares the retained slice
+review surface and parks until the separate `workspace_integrate_committed_slice`
+coordinator continuation completes. The server derives the exact target and CCE
+owns every configured organization-policy decision; paid-tier presence alone
+configures no gate. No transport response or orchestrator request can substitute
+repository truth, binding identity, CCE authority, or compare-and-swap results.
 
-`workspace_agent_dispatch` accepts a controlled `role` enum
-(`worker`, `reviewer`, `redteam`) and a `subject` string drawn from the
-subject-role matrix:
+Exact-slice findings-only review is plural. Every valid reviewer or policy-allowed
+redteam dispatch for the same exact committed target is independently admissible
+and receives distinct run identity, monitoring state, and an append-only receipt.
+Active reviews and receipt history never block another review. Evidence is retained
+per run and exact target; target movement preserves old evidence as inapplicable.
 
-- `worker` and `reviewer` dispatch a `WK-####` or `WK-#####slice` subject
-- `redteam` dispatches a `WK-####`, `WK-#####slice`, or `IN-####` subject
-- any other role/subject pairing refuses before launch
+Findings and clean output are advisory evidence with no admission, deferral, or
+veto authority, and disagreement remains visible. The orchestrator may disposition
+comments and request integration, but the request is not authorization. A configured
+CCE gate fails closed on missing, unavailable, malformed, unratified, denied, or
+target-mismatched evidence; no configured gate follows decision free-substrate
+behavior and reports non-audit posture honestly.
+Worker and reviewer concurrency is expected; attempt isolation plus exact ref/status
+CAS provide collision safety rather than singleton lifecycle consumption.
 
-The role enum is exactly `worker`, `reviewer`, and `redteam`. There is no
-`fixup` role; post-review fixes use normal worker slices or follow-up WKs.
-There is no `orchestrator` role on `workspace_agent_dispatch`; orchestrator
-launch and resume remain human/operator-only entrypoints and cannot be
-dispatched through this MCP tool.
+## Wiki-MCP boundary
 
-Stdio MCP is a same-user local transport and is not an authentication
-boundary. There is no launcher-to-MCP registration prelude,
-HMAC registration frame, mint bundle, or per-connection identity registry
-in the active dispatch path; that architecture is gone, not merely
-disabled. A configured stdio `wiki-mcp` process may call
-`workspace_agent_dispatch` directly; dispatch is controlled by the MCP tool
-being exposed in the current session plus the structured work-record
-dispatch-readiness checks below.
+See [MCP integration](mcp-integration.md). One host wiki-MCP process directly
+terminates two named FIFOs bound into the client's bubblewrap namespace. The
+client uses a pinned copy-only relay and completes initialize plus tools/list
+against the exact role tool profile. No executable MCP runtime is mounted into
+the sandbox.
 
-Dispatch-readiness feeds the launcher-side run-lifecycle backend.
-When a launch executor is configured on the MCP server process (the
-backend-adapter module
-`packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs`
-provides the in-process backend, and the MCP server selects it via the
-launcher-owned startup env var `WIKI_MCP_DISPATCH_BACKEND_TEST_FIXTURE` for
-test fixtures), accepted dispatch returns a backend-minted `wkdb_`-prefixed
-`run_id` and `wkmh_`-prefixed `monitor_handle`, and `workspace_agent_run_status`
-reports the controlled lifecycle vocabulary `launching`, `running`,
-`succeeded`, `failed`, or `cancelled` (there is no `pending_launch` state).
-Executor refusal surfaces as the `validation_failure` blocker;
-executor exceptions surface as `operator_recovery_needed`. The `backend_unavailable`
-blocker is reserved for the genuinely unconfigured case — no launch executor
-wired into the server process — not the normal posture.
+## Trusted operation ownership
 
-Caller-supplied identity carriers (request payload role fields, prompt text,
-ambient env, argv role claims, `claimed_identity.role`) remain refused with
-the `agent_dispatch_identity.caller_supplied_*` codes before any
-launch decision. Those refusals prevent callers from smuggling unsupported
-roles or bypassing the role enum. They are not stdio authentication.
+| Operation | Owner |
+| --- | --- |
+| `start_launch` | launcher runtime, in-process |
+| `probe_run` | launcher runtime, in-process |
+| `provision_worktree` | launcher runtime, in-process |
+| `prepare_slice_review_surface` | launcher runtime, in-process |
+| `integrate_slice` | launcher runtime, in-process |
+| `commit_slice` | host wiki-MCP server, in-process and closed-input |
+| `wk_forge_handoff` | launcher-owned host executor, invoked in-process |
 
-For avoidance of doubt, `backend_unavailable` also covers a dead or missing
-host-write-authority substrate. In that case the stable reason remains
-`host_write_authority_substrate_unavailable`; the host-write section below
-spells out the endpoint contract in full.
+Every failure is returned in the structured dispatch or runtime-blocker
+taxonomy. There is no compatibility route to another process boundary.
 
-If authenticated cross-session or multi-user dispatch becomes a requirement,
-the correct design is a different transport or launcher-owned broker that
-owns connection/session identity. Do not reintroduce a first-line stdio
-prelude, inline env policy, shell helper, or Codex `CODEX_HOME` config
-rewrite to simulate authentication over stdio.
+`wk_forge_handoff` receives backend-resolved exact candidate state plus
+exact-candidate-bound advisory review evidence. Clean output does not authorize
+publication, findings do not veto it, and missing or mixed review output decides
+nothing. CCE alone decides a configured organization-policy gate bound to exact
+`C/L/W`; missing, unavailable, malformed, unratified, denied, or target-mismatched
+CCE evidence fails closed. Paid-tier presence alone configures no gate. With no
+configured gate, decision free-substrate publication proceeds with an explicit
+non-audit posture. Candidate, frozen parent, WK tip, record, candidate ref, remote
+identity, branch CAS, and exact PR invariants remain mandatory, and the exact
+candidate is never reconstructed. Landing-ref movement after construction does
+not invalidate the candidate or block publication; merge readiness belongs to
+the configured merge actor and CCE policy.
 
-Reviewer dispatch enforces findings-only `write_scope: []` during MCP dispatch-readiness
-by reading the selected slice or work-item write_scope from the canonical
-JSON record and refusing non-empty scopes with `role_policy_violation`
-plus structured diagnostic context `reason: reviewer_write_scope_nonempty`.
-That reason is structured diagnostic context attached to
-`role_policy_violation`, not a separate taxonomy code.
+Loss of process memory, a monitor handle, or a prior in-memory binding does not
+invalidate the terminal cycle. On restart, trusted runtime re-derives canonical
+frozen `L` from C's verified sole parent, re-derives `W` and unique `B`, and
+deterministically derives `C`. It verifies the pre-existing candidate ref/object,
+expected tree, sole parent `L`, and unchanged `W`, then
+mints a fresh non-authorizing runtime projection and reruns exact-candidate
+validation. Recovery reads the construction-time contract digest from immutable
+`C` commit metadata, reconstructs the complete payload from that digest plus
+server-derived `L/W/B`, expected tree, fixed launcher identity, epoch timestamps,
+message bytes, and trailing newline, and hashes those exact bytes in the repository
+object format. It does not substitute a digest recomputed from the W record or
+the merge-result record in C's tree, invoke `commit-tree`, create a Git object, or move a ref.
+Missing, ambiguous, moved, or inconsistent Git facts refuse;
+historical worker attempts and reviewer monitor state are irrelevant.
 
-When a reviewer dispatch refuses with `reviewer_write_scope_nonempty`, the
-selected subject is shaped like implementation work. The recovery is a
-coordination change: create or select a separate findings-only review unit
-whose `work_kind` is `review`, whose `write_scope` is exactly `[]`, whose
-`repo_paths` name the files being inspected, whose `depends_on` points at the
-implementation unit, and whose acceptance criteria ask for findings only. Do
-not remediate this refusal by changing the requested role, bypassing dispatch
-readiness, refreshing graph impact, broadening filesystem authority, invoking a
-role wrapper or direct CLI command, adding prompt/env/argv/request carriers, or
-editing the implementation inline.
+## Dispatch-readiness generated write surface
 
-On accepted dispatch the tool returns an opaque server-minted `monitor_handle`
-plus `run_id`. Monitor handles are bound to subject, role, the per-server-session
-synthetic dispatch identity (`workspace-agent-dispatch-session-identity.v1.<hex>`),
-`workspace_alias`, and a server-only provenance digest produced by the
-backend-adapter module. Query progress through
-`workspace_agent_run_status` only; fabricated handles, cross-subject reuse,
-replay, and queries by an unauthorized caller refuse with the
-`monitor_handle_unknown`, `monitor_handle_subject_mismatch`,
-`monitor_handle_caller_mismatch`, or `monitor_handle_replay` codes. The
-controlled run-status vocabulary is `launching`, `running`, `succeeded`,
-`failed`, and `cancelled`; `pending_launch` is not a valid state.
-
-All blocker codes emitted by dispatch and run-status are drawn from the union
-of the runtime blocker taxonomy and the `IDENTITY_REFUSAL_CODES`
-and `BOOTSTRAP_STATE_CODES`. Adding a new code requires updating the canonical
-schema in the same change rather than inventing a string at the handler.
-
-There is no shell/wrapper fallback for `workspace_agent_dispatch`. When the
-tool is unavailable on the local MCP server, the correct result is the
-`missing_structured_transport` blocker, not invocation of an operator-shell
-wrapper.
-
-### Host Write Authority Localhost Sidecar Endpoint (initiative)
-
-The `backend_unavailable` blocker in this page is broader than the unconfigured launch-executor case: a dead or missing host-write-authority substrate can also fail closed with `backend_unavailable` and the stable `host_write_authority_substrate_unavailable` reason.
-
-The MCP server consumes the launcher-owned host-write-authority dispatch
-sidecar endpoint as startup transport state. This subsection pins how that
-endpoint reaches MCP startup; the full operator-facing contract lives in
-[docs/agent-launch-quickstart.md](agent-launch-quickstart.md).
-This contract covers AUTH-H1 through AUTH-H4. Authority hardening here is
-secondary to working structured dispatch and must not introduce a new launch
-precondition for the controlled-orchestrator path.
-
-- **Canonical endpoint variable.** MCP startup reads the localhost endpoint
-  once, before the MCP transport is wired, from the canonical env var
-  `AGENT_LAUNCH_HOST_WRITE_AUTHORITY_TCP_ENDPOINT` (value shape `<host>:<port>`,
-  host pinned to `127.0.0.1` — a loopback-only invariant; non-loopback hosts are
-  refused before listen/connect). The JS constant
-  `HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR` is a misleadingly named
-  identifier whose value is exactly that string; it is not a second competing
-  env var.
-- **Launcher-owned, not caller-supplied.** The endpoint and the
-  `AGENT_LAUNCH_HOST_WRITE_AUTHORITY_FILE` authority-file path are launcher-owned
-  startup state. Caller-supplied prompt, request payload, argv,
-  `claimed_identity`, or agent-authored env carriers cannot select or override
-  either value.
-- **No controlled-orchestrator Unix-socket fallback.** When the endpoint is
-  absent, malformed, or unreachable, `resolveHostWriteAuthoritySubstrateAdapter`
-  returns no adapter; controlled-orchestrator MCP startup must not fall back to
-  the legacy `.local/state` Unix-socket resolver (AUTH-H1). The in-process
-  executor then surfaces `backend_unavailable` /
-  `host_write_authority_substrate_unavailable`.
-- **Dead-sidecar recovery is a runtime blocker, not a readiness probe.** A
-  configured-but-dead sidecar is reported only by dispatch/`startLaunch` as
-  `backend_unavailable` / `host_write_authority_substrate_unavailable` (AUTH-H4);
-  static dispatch-readiness never probes sidecar liveness. Recovery is
-  restarting the launcher-owned sidecar — never a wrapper, direct CLI, shell,
-  temp worktree, broad bwrap remount, inline env policy, stdio auth prelude,
-  connection registry, Unix-socket fallback, or graph-impact launch side
-  channel.
-- **Kernel-assigned ports; static ports forbidden.** Each orchestrator binds a
-  kernel-assigned per-orchestrator loopback endpoint;
-  static/fixed ports are forbidden. MCP consumes only its own orchestrator
-  session's endpoint and must not discover, cache globally, or reuse a sibling
-  session's endpoint. Multiple orchestrators and multiple concurrent workers per
-  orchestrator are supported without endpoint, cache, run-id, or monitor-handle
-  collisions.
-- **Authority file (AUTH-H2).**
-  `AGENT_LAUNCH_HOST_WRITE_AUTHORITY_FILE` names a launcher-generated
-  per-orchestrator authority file. It is not a standalone launch prerequisite
-  unless the touched channel surface already implements it end to end.
-- **Operator-shell socket variable.**
-  `AGENT_LAUNCH_HOST_WRITE_AUTHORITY_SOCKET` is operator-shell-only and is never
-  read by controlled-orchestrator MCP startup.
-- **Redaction.** Endpoint and authority-file values are redacted across planner
-  output, broker/server logs, channel errors, MCP dispatch responses,
-  `final_result` envelopes, structured blocker detail fields, and WK closure /
-  attempt-log text.
-
-Remote agent runner distribution and remote endpoint/authority handling are
-excluded from the local sidecar endpoint contract.
-
-### Caller/Session Identity
-
-Caller/session role identity authority is **launcher-minted** or
-**transport-minted** only. The following sources are explicitly not
-authority and are refused before any dispatch decision:
-
-- `request.role`, `request.caller_role`, `request.session_role`,
-  `request.agent_role`, or any other caller-supplied request payload field
-- `prompt.role` or any role claim embedded in prompt text
-- `env.AGENT_ROLE`, `env.AGENT_WK`, or `env.AGENT_OPERATOR_WRITE_SCOPE`
-  (these env variables are transport metadata only, never authority)
-- `argv.role` or any caller-passed argv claim
-- `claimed_identity.role` (a caller-asserted role field, regardless of how it
-  is wrapped in the request)
-- docs inference
-
-When the dispatch surface receives a request that attaches one of those
-carriers, it must refuse with the stable refusal code
-`agent_dispatch_identity.caller_supplied_role.v1` (and the carrier-specific
-variants for ambient env, request payload, and prompt text) and must not
-downgrade the refusal to an accepted decision. The
-`workspace_agent_dispatch_identity_contract` MCP introspection tool exposes
-`graph_impact_required` and `review_evidence_recorded` as caller-asserted
-contract knobs that drive the bootstrap-state evaluator's output for the
-current introspection call only; they are NOT proof that WK review evidence
-has been recorded or that graph-impact persistence is required for a real
-WK. Durable proof of bootstrap review evidence lives in the owning WK
-closure.
-
-### AI-Agent Review Separation
-
-The active local dispatch model enforces AI-agent review separation through
-role, tool, write-scope, and evidence controls rather than by comparing two
-authenticated AI-agent principals. Stdio MCP is a same-user local transport,
-and the current launcher does not mint a human/service principal envelope for
-each AI-agent role session. Therefore same-principal comparison is not a
-meaningful security boundary for the current AI-agent review flow and is not a
-prerequisite for dispatching findings-only reviews.
-
-The current control boundary is:
-
-- implementation workers may edit only their assigned `write_scope` and can
-  move only their own implementation unit to `review` through the scoped
-  commit/submit-for-review path; they cannot complete their own work
-- reviewer sessions are findings-only role sessions with `write_scope: []`;
-  dispatch-readiness refuses reviewer units whose canonical JSON write scope is
-  non-empty with `role_policy_violation` and diagnostic reason
-  `reviewer_write_scope_nonempty`
-- structured review-evidence routes are part of this enforceable boundary:
-  accepted no-findings review evidence is recorded through
-  `workspace_record_review_attestation`, and changes-requested or other
-  non-completion reviewer/redteam results are recorded through
-  `workspace_record_review_result_evidence`
-- reviewer output is evidence for coordinator disposition; it is not a
-  role-session authority to change the reviewed unit to `done`
-- the coordinator-owned `review` to `done` transition remains the trusted
-  completion boundary after mandatory findings-only review evidence is read and
-  dispositioned
-
-Under this model, a worker cannot satisfy the mandatory review gate by
-reviewing and closing its own implementation session because the worker role
-lacks the review completion authority, the reviewer role has no write scope,
-and completion is coordinator-owned. The review separation invariant is thus
-enforced by independent role admission, empty reviewer write authority,
-structured review-evidence recording, and coordinator closure, not by asserting
-that the AI-agent reviewer is a different authenticated principal from the
-AI-agent author.
-
-Git `author.name`, `author.email`, committer metadata, branch names, `run_id`,
-`launch_ref`, retry ids, worktree paths, output branches, monitor handles,
-dispatch session ids, generated launch briefs, prompt text, ambient env,
-launcher argv visible to a child, request payloads, `claimed_identity`,
-work-record prose, slice notes, and runtime artifacts may provide provenance,
-debugging context, correlation, or binding evidence. They are not security
-authority for AI-agent reviewer independence and must not be promoted into an
-author or reviewer principal for the current dispatch flow.
-
-work record, work record, and work record are revised by this role/evidence model. They
-are no longer blocked on inventing an AI-agent principal solely to compare
-implementation and reviewer sessions in the active local dispatch path.
-work record remains the consumer of review-separation policy, but its current
-AI-agent enforcement target is role/evidence separation. work record may record
-trusted provenance from the commit path when useful, but it must not describe
-that provenance as reviewer-independence authority. work record's earlier
-principal-envelope prerequisite is superseded for the current AI-agent flow by
-this section.
-
-### Future Authenticated Principal Extension
-
-A future authenticated human/service-principal substrate may add hard
-principal-envelope comparison on top of the current role/evidence controls. In
-that extension, reviewer and commit-author authority would need launcher- or
-transport-minted envelopes that are unforgeable by the MCP request caller,
-available before the relevant admission decision, and canonically comparable
-without reinterpreting prompt text or work-record prose.
-
-That future envelope, if adopted, would carry a stable schema version, a
-non-empty opaque principal, a controlled principal kind, a controlled trust
-source such as `launcher_minted` or `transport_minted`, opaque mint evidence,
-and selected-unit binding semantics. Its equality check would be meaningful
-only for authenticated human/service principals or another adopted principal
-registry that is distinct from run/session/worktree metadata.
-
-Until such a substrate is accepted and implemented, the following sources are
-explicitly not author or reviewer principal authority:
-
-- `workspace_agent_dispatch` request fields, including requested `role`,
-  `subject`, free-form metadata, or any request-level reviewer/caller field
-- prompt text, instructions, role labels, generated launch briefs, or docs
-  inference
-- ambient env, launcher argv as seen by the child, or any agent-authored
-  env/argv override
-- `claimed_identity`, `claimed_identity.role`, or any similarly wrapped
-  caller assertion
-- work-record title/body/closure prose, slice notes, ad hoc work-record fields,
-  or the fact that a unit's `work_kind` is `review`
-- git author/name/email, committer metadata, branch names,
-  `dispatchSessionIdentity`, `run_id`, `launch_ref`, retry ids, worktree paths,
-  output branches, monitor handles, and runtime artifacts
-
-Those values may locate a binding or explain provenance. They must not be
-compared as security principals, hashed into substitute principals, or used to
-fail or pass AI-agent reviewer independence in the current role/evidence model.
-
-The controlled vocabulary of caller role kinds is:
-
-- `coordinator`
-- `worker`
-- `reviewer`
-- `redteam`
-- `human_operator`
-- `unknown`
-
-Human/operator-only orchestrator launch/resume is enforceable from the same
-identity model. The dispatch surface refuses orchestrator launch attempts for
-any role kind other than `human_operator` with the refusal code
-`agent_dispatch_identity.orchestrator_not_operator.v1`. Agents never launch
-orchestrators.
-
-## Runtime Blocker Taxonomy And Coordination Preflight
-
-A schema-backed runtime blocker taxonomy is published at
-`packages/wiki-core/data/runtime-blocker-codes.v1.json`. The taxonomy is the
-canonical code set for orchestrator preflight, dispatch readiness
-(`workspace_agent_dispatch`), and launcher diagnostics. The
-bootstrap-state codes are a strict subset; dispatch-specific consumers must
-select from this taxonomy rather than inventing ad hoc strings.
-
-The taxonomy intentionally separates role policy from runtime
-filesystem/transport failures. A fully read-only repository mount is reported
-as `read_only_mount` (filesystem category), not as `role_policy_violation`.
-Even when orchestrator role policy already restricts writes to `docs/` and
-`wiki/`, a failed write to a permitted surface is a filesystem fact that
-must be reported with the filesystem code so operators can investigate the
-mount or sandbox profile, rather than rewriting WK acceptance to absorb it.
-
-Graph-impact degraded outcomes are deterministic. The taxonomy's
-`graph_impact_state_map` maps sub-states to taxonomy codes:
-
-- `graph_state` `unavailable` or `error` → blocking `graph_impact_unavailable`
-- `staleness` `stale`, `rebuild_required`, or `missing` without a usable
-  dirty worktree overlay → blocking `graph_impact_rebuild_required` (the
-  operator must refresh; agents must not rebuild inside a dirty worktree)
-- `dirty_state` `dirty_worktree` with `overlay_state` `active` →
-  non-blocking `graph_impact_degraded_overlay` (the dispatch result must
-  surface the overlay evidence alongside canonical authority)
-
-### MCP Tools
-
-- `workspace_runtime_blocker_taxonomy` — read-only introspection that emits
-  the canonical code catalog, categories, the deterministic graph-impact
-  state map, and the bootstrap-state subset.
-- `workspace_coordination_preflight` — composes the coordinator/orchestrator
-  preflight envelope: role, caller/session role, subject, allowed durable
-  write surfaces (`docs/`, `wiki/`, `wiki/initiatives/`, `wiki/decisions/`,
-  `wiki/issues/`, `wiki/sources/`, `wiki/work-records/`),
-  implementation/test edit prohibition, repo mount writability, docs/ and
-  wiki/ writability, available structured dispatch and review routes, and
-  any active runtime blockers. Caller-supplied identity carriers
-  (`request`, `prompt`, `env`, `argv`, `claimed_identity.role`) are refused
-  with the stable refusal code at the MCP boundary. The `role` and
-  `caller_session_role` inputs are caller-asserted contract introspection
-  knobs until launcher-minted identity is wired into dispatch.
-
-Coordinators that discover a blocking preflight entry must stop and report
-the stable blocker code rather than implement inline, fall back to shell, or
-rewrite the WK to absorb the runtime failure. Coordinators are not
-authorized to implement inline; preflight blockers must be cleared by the
-operator or by a distinct implementation `WK-*`.
+Graph-index refresh may use the fixed eight exclusively claimed candidate names
+`.index.json.build-lock.json.slot-00.candidate` through
+`.index.json.build-lock.json.slot-07.candidate`. An existing persistent shared lock
+prevents candidate attempts; slot exhaustion falls back to an independent
+atomic build. Candidate files are retained but never reused or authoritative.

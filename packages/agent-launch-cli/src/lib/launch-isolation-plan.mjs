@@ -2,13 +2,29 @@ import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
   BUBBLEWRAP_LAUNCH_PLAN_SCHEMA_VERSION,
   assertAbsoluteSafePath,
+  fail,
   isNonEmptyString
 } from "./launch-isolation-errors.mjs";
 import { prepareWritableFiles } from "./launch-isolation-paths.mjs";
+import {
+  prepareReadOnlyProjectionMountpoints,
+  prepareRequiredReadOnlyFiles
+} from "./launch-isolation-required-read-only-files.mjs";
 import { DEFAULT_SYSTEM_READ_ONLY_ROOTS } from "./launch-isolation-executable.mjs";
 import { prepareBubblewrapPlanCore } from "./launch-isolation-plan-core.mjs";
-import { prepareBubblewrapPlanMounts } from "./launch-isolation-plan-mounts.mjs";
+import {
+  composeDecisionsReadOnlyOverlay,
+  prepareBubblewrapPlanMounts,
+  resolveDecisionsReadOnlyCarveout
+} from "./launch-isolation-plan-mounts.mjs";
 import { buildBubblewrapArgs } from "./launch-isolation-bwrap-args.mjs";
+import {
+  assertFindingsRoleGitMetadataReadOnly,
+  normalizeFindingsGitMetadataRole,
+  resolveFindingsRoleGitMetadata
+} from "./launch-isolation-findings-git-metadata.mjs";
+
+import { assertTrustedStdioMcpConduitBinding } from "./stdio-mcp-conduit-contract.mjs";
 
 export function buildBubblewrapLaunchPlan({
   repo,
@@ -17,12 +33,13 @@ export function buildBubblewrapLaunchPlan({
   cwd = null,
   env = null,
   readOnlyRoots = [],
+  requiredReadOnlyFiles = [],
   writableRoots = [],
   writableFiles = [],
   runtimeRoots = [],
+  findingsRole = null,
   provisionedWorktreeGitIdentity = null,
   workerScopeAuthority = null,
-  mcpSandboxProfile = null,
   homePolicy = null,
   familyRuntimeReadOnlyRoots = [],
   familySystemReadOnlyRoots = null,
@@ -39,8 +56,22 @@ export function buildBubblewrapLaunchPlan({
   shareNet = true,
 
   newSession = true,
-  bwrapPath = null
+  bwrapPath = null,
+  stdioMcpConduit = null
 } = {}) {
+  const normalizedFindingsRole = normalizeFindingsGitMetadataRole(findingsRole);
+  if (
+    normalizedFindingsRole !== null
+    && (provisionedWorktreeGitIdentity !== null || provisionedWorktreeGitBinding !== null)
+  ) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.FINDINGS_GIT_METADATA_INVALID,
+      "findings-role Git metadata must be derived from the launcher-created checkout; supplied Git identity fields are forbidden"
+    );
+  }
+  const trustedStdioMcpConduit = stdioMcpConduit === null
+    ? null
+    : assertTrustedStdioMcpConduitBinding(stdioMcpConduit);
   const {
     repoReal,
     provisionedGitIsolation,
@@ -50,9 +81,7 @@ export function buildBubblewrapLaunchPlan({
     tmpfsDirsResolved,
     maskTmpfsDirsResolved,
     familyRuntimeApprovedPrefixes,
-    resolvedCommand,
-    mcpReadOnlyRoots,
-    mcpSandboxProfilePlan
+    resolvedCommand
   } = prepareBubblewrapPlanCore({
     repo,
     command,
@@ -63,7 +92,6 @@ export function buildBubblewrapLaunchPlan({
     provisionedWorktreeGitIdentity,
     provisionedWorktreeGitBinding,
     workerScopeAuthority,
-    mcpSandboxProfile,
     familyRuntimeMountPrefixes,
     familyRuntimePolicyProfile,
     commandResolution,
@@ -72,6 +100,17 @@ export function buildBubblewrapLaunchPlan({
     maskTmpfsDirs,
     newSession
   });
+
+  const findingsRoleGitMetadata = resolveFindingsRoleGitMetadata({
+    repoReal,
+    role: normalizedFindingsRole
+  });
+  const effectiveReadOnlyRoots = Array.isArray(readOnlyRoots)
+    ? [
+        ...readOnlyRoots,
+        ...(findingsRoleGitMetadata?.readOnlyBinds ?? [])
+      ]
+    : readOnlyRoots;
 
   const {
     writable,
@@ -91,7 +130,7 @@ export function buildBubblewrapLaunchPlan({
     writableRoots,
     writableFiles,
     runtimeRoots,
-    readOnlyRoots,
+    readOnlyRoots: effectiveReadOnlyRoots,
     homePolicy,
     familyRuntimeReadOnlyRoots,
     familySystemReadOnlyRoots,
@@ -101,12 +140,32 @@ export function buildBubblewrapLaunchPlan({
     cwd,
     repoReal,
     sparseWorkerNamespace,
-    mcpSandboxProfilePlan,
-    mcpReadOnlyRoots,
     resolvedCommand,
     familyRuntimeApprovedPrefixes,
     resolvedFamilyRuntimePolicyProfile
   });
+
+  assertFindingsRoleGitMetadataReadOnly(findingsRoleGitMetadata, {
+    writableRoots: writable,
+    writableFiles: effectiveWritableFiles,
+    runtimeRoots: runtime,
+    homeWritableFiles,
+    familyRuntimeWritableRoots: familyRuntimeWritable
+  });
+
+  const decisionsCarveout = resolveDecisionsReadOnlyCarveout({
+    repoReal,
+    sparseWorkerNamespace,
+    maskTmpfsDirsResolved,
+    inRepoSecretFileMasks,
+    writable,
+    runtime
+  });
+
+  const requiredReadOnlyFileEntries = prepareRequiredReadOnlyFiles(
+    requiredReadOnlyFiles,
+    readOnly
+  );
 
   const pinnedBwrapPath = isNonEmptyString(bwrapPath)
     ? assertAbsoluteSafePath(bwrapPath, "bwrapPath")
@@ -123,6 +182,26 @@ export function buildBubblewrapLaunchPlan({
         })
   });
   const writableFileEntries = writableFilePreparation.entries;
+
+  let readOnlyProjectionMountpoints;
+  try {
+    readOnlyProjectionMountpoints = prepareReadOnlyProjectionMountpoints(readOnly, {
+      repoReal,
+      writableRoots: writable,
+      runtimeRoots: runtime,
+      writableFiles: writableFileEntries,
+      sparseWorkerNamespace
+    });
+  } catch (error) {
+    writableFilePreparation.cleanup.cleanup();
+    throw error;
+  }
+
+  const decisionsReadOnly = composeDecisionsReadOnlyOverlay(decisionsCarveout, {
+    writable,
+    writableFileEntries,
+    runtime
+  });
 
   const bwrapArgs = buildBubblewrapArgs({
     systemRoots,
@@ -143,10 +222,12 @@ export function buildBubblewrapLaunchPlan({
     writableFileEntries,
     runtime,
     provisionedGitIsolation,
+    decisionsReadOnly,
     policedEnv,
     cwdNormalized,
     resolvedCommand,
-    args
+    args,
+    stdioMcpConduit: trustedStdioMcpConduit
   });
 
   return Object.freeze({
@@ -173,9 +254,17 @@ export function buildBubblewrapLaunchPlan({
     sparseWorkerNamespace,
     runtimeRoots: Object.freeze([...runtime]),
     provisionedWorktreeGitIsolation: provisionedGitIsolation,
+    findingsRoleGitMetadata,
     tmpfsDirs: Object.freeze([...tmpfsDirsResolved]),
     maskTmpfsDirs: Object.freeze([...maskTmpfsDirsResolved]),
     readOnlyRoots: Object.freeze(readOnly.map((b) => Object.freeze({ ...b }))),
+    ...(requiredReadOnlyFileEntries.length > 0
+      ? { requiredReadOnlyFiles: requiredReadOnlyFileEntries }
+      : {}),
+    ...(readOnlyProjectionMountpoints.length > 0
+      ? { readOnlyProjectionMountpoints }
+      : {}),
+    decisionsReadOnlyRoots: Object.freeze(decisionsReadOnly.map((b) => Object.freeze({ ...b }))),
     homePolicyReads: Object.freeze(homeReads.map((b) => Object.freeze({ ...b }))),
     homePolicyWritableFiles: Object.freeze(
       homeWritableFiles.map((b) => Object.freeze({ ...b }))
@@ -190,20 +279,6 @@ export function buildBubblewrapLaunchPlan({
       familyRuntimeWritable.map((b) => Object.freeze({ ...b }))
     ),
     systemReadOnlyRoots: Object.freeze([...systemRoots]),
-    mcpSandboxProfile: mcpSandboxProfilePlan === null
-      ? null
-      : Object.freeze({
-          schemaVersion: mcpSandboxProfilePlan.schemaVersion,
-          launcherRole: mcpSandboxProfilePlan.launcherRole,
-          grantedCapabilities: Object.freeze([...mcpSandboxProfilePlan.grantedCapabilities]),
-          requestedCapabilities: Object.freeze([...mcpSandboxProfilePlan.requestedCapabilities]),
-          fixedPathClasses: Object.freeze([...mcpSandboxProfilePlan.fixedPathClasses]),
-          exactFilePathClasses: Object.freeze([
-            ...mcpSandboxProfilePlan.exactFilePathClasses
-          ]),
-          runtimePathClasses: Object.freeze([...mcpSandboxProfilePlan.runtimePathClasses]),
-          writableRoots: Object.freeze([...mcpSandboxProfilePlan.writableRoots]),
-          writableFiles: Object.freeze([...mcpSandboxProfilePlan.writableFiles])
-        })
+    stdioMcpConduit: trustedStdioMcpConduit
   });
 }

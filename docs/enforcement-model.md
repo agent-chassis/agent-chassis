@@ -78,26 +78,27 @@ meaningfully safer than no-sandbox while staying usable everywhere.
   full-privileges agent has the same, so this is *no worse than baseline*. Future
   hardening can narrow egress to model-API endpoints; the current public posture
   is transparent about allowing worker outbound network.
-- **Worker self-scoped policy writes.** A worker can write `wiki/decisions/` only
-  if its *coordinator-authored* `write_scope` lists it; a full-privileges agent
-  could write it freely, so the write_scope gating is already better than
-  baseline. A kernel read-only backstop on `wiki/decisions/` for worker sandboxes
-  would be defense-in-depth, not the current enforcement boundary.
+- **Self-scoped policy writes are now denied at the kernel.** This limit is
+  closed: see "The DEC filesystem authority boundary" below. No launcher-enforced
+  bwrap namespace leaves `wiki/decisions/` mutable, whatever the coordinator
+  wrote into `write_scope`.
 - **Orchestrator / escalated / host sessions** are operator-trusted and outside
   the dispatched-run enforcement envelope by design.
 
-### Phase 1 managed implementation-worker R/W boundary
+### Initial managed implementation-worker R/W boundary
 
-For the bounded Phase 1 managed implementation-worker tranche, `R` is the
+For the bounded initial managed implementation-worker tranche, `R` is the
 normalized union of the canonical unit's `read_scope` and `repo_paths`; `W` is
 the normalized canonical `write_scope`. The launcher freezes both sets before
 launch. The worker can see exactly `R union W` repository content and can mutate
 exactly `W`. Including `W` in visibility is deliberate: an authorized write
 target does not also need to be duplicated in `read_scope` or `repo_paths`.
 
-The Codex inspection shell remains available only as a prompt-governed,
-non-mutating way to inspect the visible namespace. It is not an authority source
-and cannot widen `R` or `W`. This tranche exposes no worker validation or general
+The actual family command tool is available without interactive approval:
+Codex receives `exec_command` and Claude receives `Bash`. Commands may inspect,
+generate, format, and mutate inside the namespace. There is no read-only command
+classifier or command allowlist; bubblewrap is the filesystem authority and
+cannot be widened by a command. This tranche exposes no worker validation or general
 MCP tools. Delivery uses only the closed-input commit capability in the trusted
 host/runtime boundary, with the server-resolved binding as its input; the worker
 does not receive the repository gitdir, index, refs, or a general commit shell.
@@ -109,6 +110,99 @@ posture preserves readable launcher-provided Codex auth/sourceHome and
 `shareNet=true` model-API egress as explicit operator-accepted residual risks
 under prompt governance. It does not add or imply a digest-bound or per-dispatch
 mechanical risk-acceptance gate.
+
+### Role-visibility split: worker R∪W vs findings-role full-repo read
+
+The repository-visibility contract differs by role, and each role's read root is
+derived from **role policy**, never composed from the subject unit:
+
+- **Implementation worker — exactly `R union W`, writes only `W`.** As above:
+  the launcher freezes `R` and `W` from the canonical unit and the bwrap
+  namespace binds only those entries; everything else is absent (decision).
+- **Reviewer / redteam — the FULL repository, read-only, writes nothing.**
+  Reviewer and redteam are findings-only roles whose repository READ visibility
+  is the whole repository, matching orchestrator read visibility — NOT the
+  `R union W` of the unit under review (decision clause 3, decision clause 2).
+  Deriving a findings role's read scope from the selected WK/slice would hide the
+  canonical decisions, durable docs, and undeclared sibling implementation/test
+  paths a reviewer or redteam must inspect, so the read root is the repository
+  itself and the selected unit can neither narrow nor widen it. The bwrap
+  namespace binds the whole repository read-only and mounts nothing writable; a
+  supported managed findings launch that cannot construct that read-only bwrap
+  topology fails closed rather than silently narrowing or widening authority.
+  Full read visibility is a read-only posture only — it grants no lifecycle,
+  dispatch, commit, mutation, or host-write authority, because a confined role's
+  tool surface is exactly its policy profile (decision), and the role's
+  repository write surface stays empty.
+- **Orchestrator — the full repository read with its separate role-specific
+  coordination write policy.** Unchanged by this split.
+
+### The DEC filesystem authority boundary
+
+Ratifying a decision is a **human/operator** act (`decision`, `decision`). The
+operator CLI is the only surface that confers or removes accepted DEC authority;
+agents keep the proposed lane (create, amend, proposed→rejected) through their
+role policy. That authority split is only credible if an agent cannot simply
+route around the tools and write the file, so the boundary is enforced at the
+layer that does not negotiate: **the kernel mount namespace**.
+
+Every launcher-enforced bwrap namespace reimposes the canonical
+`<repo>/wiki/decisions` subtree read-only as the **absolute final repository
+mount overlay**. The rule is **role-neutral and launcher-derived** — it is not
+selected by role, family, backend, prompt text, caller request, or ambient
+environment, and there is no per-launch opt-out. Because the overlay is emitted
+after the repo bind, every declared read-only bind, every writable root and
+writable file, every runtime bind, the Git-identity binds, and the in-repo secret
+and tmpfs masks, nothing emitted earlier can shadow it. Mount order *is* the
+enforcement here: an overlay emitted anywhere but last would be silently undone
+by a later overlapping writable bind.
+
+Two properties bound what the overlay is allowed to do:
+
+- **It subtracts write authority, never adds visibility.** The overlay is emitted
+  only for a path the namespace *already showed*. If no DEC path or ancestor is
+  visible, no bind is emitted at all — absent DEC authority stays absent. An exact
+  declared DEC read stays exact and read-only: it never justifies a
+  directory-level bind, because that would expose sibling decisions the unit was
+  not authorized to see. When a subtree is deliberately masked away, the carveout
+  stays silent rather than re-exposing it.
+- **It preserves legitimate coordination writes.** An authorized ancestor such as
+  a writable `wiki/` is *not* rejected and remains writable **outside**
+  `wiki/decisions`, so orchestrator coordination writes to non-DEC wiki paths
+  still land. Worker `R ∪ W` semantics are unchanged apart from the DEC
+  subtraction.
+
+A physically absent `wiki/decisions` is judged by the same rule rather than waved
+through. There is nothing to reimpose, so no bind is emitted either way; but if the
+final namespace still contains a **writable visible path equal to or above**
+`wiki/decisions` — an authorized writable `wiki/` root, an in-repo writable runtime
+bind, or a worker `W` entry at or above the subtree — the child could create the
+directory and author DEC files under human-only ratification authority, with no
+later overlay left to stop it. That combination refuses the launch. Absence is a
+no-op only when nothing visible in the namespace could create the subtree; the
+launcher never creates it, and never adds visibility, in either case.
+
+The carveout is fail-closed: the decisions path and every bind source it uses must
+be canonical, non-symlinked, and launcher-derived, and an unsafe or impossible
+carveout (a symlinked or non-directory decisions path, an absent subtree a writable
+visible path could still create, or a launcher mask strictly
+inside the subtree) refuses the launch **before spawn** — and before any writable
+host preparation — rather than degrading to a weaker boundary.
+
+This is the kernel floor, not the only seam: structured dispatch separately
+refuses a canonical `write_scope` entry equal to or beneath `wiki/decisions` with
+one stable typed error before provisioning or launch, which turns a
+mis-authored scope into a clear coordinator-facing refusal instead of a confusing
+`EROFS` mid-run. The dispatch refusal is the ergonomic gate; the bwrap overlay is
+the boundary that holds when anything upstream is wrong. Neither is duplicated
+into family-specific or downstream preparation guards.
+
+For the source-available Codex findings path this is already the bwrap enactment:
+the reviewer/redteam plan binds the whole repository realpath `--ro-bind` with an
+empty writable set. The Claude backend-request scope derivation resolves a
+findings role's read scope to the repository root for the same reason, so no
+supported reviewer/redteam launch path derives read visibility from the subject
+unit.
 
 ## Product Structure
 
@@ -240,8 +334,8 @@ minting / attestation) is never part of this local set — it is CCE or remote
   as strong as the containment beneath it.
 - where it may **write** → write-scope. An out-of-scope write is **prevented before
   it lands** for both families — a different mechanism at a different layer, with the
-  same outcome. In-place editors (Codex and AGY, which is WIP / not officially
-  supported yet) get a **kernel exact-file bind**: only the bound `write_scope` files
+  same outcome. The in-place Codex editor gets a **kernel exact-file bind**: only
+  the bound `write_scope` files
   are writable, the containing directory stays read-only, so an out-of-scope write is
   impossible at the kernel. Native-edit editors that need a writable parent directory
   (Claude) get **native tool-use permissions**: the launcher mints a settings file
@@ -269,10 +363,9 @@ free-tier substrate.
 
 ### Current per-executor boundary
 
-The current supported implementation families are **Codex** and **Claude**. AGY
-is WIP / not officially supported yet; its row is documented so reviewers can see
-the current boundary and its known temporary runtime-state exposure, not as a
-hardened support claim.
+The supported implementation families are **Codex** and **Claude**. Agy is
+unsupported and fails closed before any model, repository-write, runtime-state,
+or wiki-MCP transport setup.
 
 All non-orchestrator worker-family bwrap launches mask repo-local launcher
 secrets before the child starts: when `<workspace>/.env` exists it is shadowed by
@@ -289,8 +382,8 @@ posture above.
 | Executor family | What it may write | Write-scope enforcement | What is sandboxed | What is not sandboxed / known caveats | Network posture |
 | --- | --- | --- | --- | --- | --- |
 | Codex | The assigned implementation `write_scope` for workers; reviewer/redteam subjects must have `write_scope: []`. | The outer bubblewrap plan mounts the repo read-only, then emits exact `--bind <file> <file>` entries for file scopes and writable root binds only for directory scopes. Paths are realpath-normalized and must remain inside the repo; repo root and `.git` writable roots fail closed. Codex CLI `-s workspace-write` / `--add-dir` records directory-level intent only, so the bwrap file bind is the file-level boundary. | The dispatched child runs under bwrap with system/read-only roots, env filtered through the launcher policy, and write binds derived from canonical record state. | The Codex CLI sandbox itself is not the file-level guarantee; do not read `--add-dir` as per-file enforcement. | Worker launch shares network (`shareNet: true`) for model API access; this is the accepted worker-egress risk above. |
-| Claude | The assigned implementation `write_scope` for workers; reviewer/redteam read-only is the default sandboxed posture when an enforced backend is active. | Native Claude Code tool-use permissions: the launcher mints a settings file whose `permissions.allow` grants `Edit` **only** within the record's `write_scope` (exact files + directory prefixes) plus a positive repo-scoped `Read` allow-list, and whose `permissions.deny` blocks `Bash` and every network-egress tool. The editor runs in its **default permission mode**, so an allowed in-scope write applies with no prompt while any unlisted/out-of-scope write is default-denied **before it executes** — out-of-scope writes are prevented, not detected after the fact. The settings are launcher-minted and installed on the launch itself (in-process and broker paths); the launch fails closed if they cannot be minted or if a behavioral probe cannot prove the restriction is actually in effect (an ignored allow-list would fail open), and they are bound read-only so the worker cannot disable them. Committed lower-scope editor settings (the repo `.claude/` subtree and the system managed-settings dir) are masked so they cannot additively widen the grant. The editor also gets writable **containing directories** for the `write_scope` (the atomic rename needs a writable parent) with unsafe roots guarded before spawn. | Under the current Linux enforced backend, the repo is mounted read-only except those writable parent directories. The Claude OAuth credential is a single-file read-only home-policy bind, not broad `~/.claude`; the positive `Read` allow-list keeps the read tool inside the repo, so the credential and host files are not readable through it. Env is launcher-filtered. | The kernel mount is at parent-directory granularity (the atomic-rename editor needs a writable parent), so the file-level boundary is the native tool-use permission gate rather than a kernel exact-file bind; a post-run `changed-files ⊆ write_scope` verifier that fails closed is the backstop beneath it. The layer differs from Codex's kernel bind, but the outcome is the same — an out-of-scope write does not land. Because the permission gate is enforced by the editor process, it is defeated only by an adversary outside the v1 threat model (a compromised editor that ignores its own permission settings). An explicit operator opt-in unenforced run has no sandbox-enforced reviewer/redteam read-only posture and is recorded as unenforced. | Worker launch shares network (`shareNet: true`) for model API access; this is the accepted worker-egress risk above. |
-| AGY | WIP / not officially supported. For current launcher experiments, the assigned implementation `write_scope` is bound like Codex: exact files for file scopes and writable roots only for directory scopes. | The executor uses the shared exact-file write-scope mechanism for repo writes. This is separate from the family-runtime writable root. | Repo write scope is bwrap-bound through the shared write-scope derivation and launcher env policy. | AGY has a separate broad writable family-runtime bind for `$HOME/.gemini`, used as a temporary WIP stopgap for Gemini/Antigravity state. Do not conflate that runtime-state bind with repo `write_scope`; tightening it is planned post-v1. | Worker launch shares network (`shareNet: true`) for model API access; this is the accepted worker-egress risk above. |
+| Claude | The assigned implementation `write_scope` for managed workers; reviewer/redteam are read-only. | Managed workers receive exact `W` writable mounts over a sparse `R union W` namespace. `Bash` is present in `permissions.allow`, `--allowedTools`, and the capability probe, and absent from both deny layers. Native WebFetch/WebSearch and delegation/spawn tools remain denied. | The settings root is read-only, repository visibility is exactly `R union W`, and repository Git metadata is absent. | Legacy non-managed native-edit composition may retain directory-scoped native editing, but managed-worker shell authority comes from bwrap, not command parsing or native edit permissions. Post-run changed-path containment remains a backstop. | `shareNet: true`; shell-visible network binaries may use the shared network. Native WebFetch/WebSearch denial is not network confinement. |
+| Agy | Unsupported; no repository writes. | No executor or write-scope projection is created. | No role sandbox is spawned. | No Gemini state, credential, config, or wiki-MCP transport is mounted. | No launch; fails closed. |
 
 #### Why native-edit families use a directory bind
 
@@ -301,7 +394,7 @@ temporary sibling in the target's directory and `rename(2)`s it over the target.
 **containing directory**, not on the file. An exact-file kernel bind — target
 file writable, parent directory read-only — is therefore *structurally
 incompatible* with a rename-atomic editor: the temp create or the rename fails
-`EROFS` and the agent cannot edit at all. Codex and AGY can take the exact-file
+`EROFS` and the agent cannot edit at all. Codex can take the exact-file
 bind precisely because they write in place.
 
 So the directory-scoped writable parent is required by the editor's write
@@ -310,7 +403,7 @@ directory is the editor's native tool-use permission gate**: the launcher mints 
 settings file that grants `Edit` only within `write_scope`, and the editor runs in
 its default permission mode, so an out-of-scope `Edit`/`Write` (including a sibling
 file in the writable directory) is default-denied before it executes while an
-in-scope write applies with no prompt. In-place editors (Codex, AGY) reach the same
+in-scope write applies with no prompt. The in-place Codex editor reaches the same
 write-scope outcome through the kernel exact-file bind. The layer differs — kernel
 for in-place editors, native permissions for atomic-rename editors — but neither lets
 an out-of-scope write land. The post-run `changed-files ⊆ write_scope` verifier is
@@ -330,8 +423,8 @@ allow-list *does* enforce path-scoped writes non-interactively — an allowed in
 write applies with no prompt, and an unlisted or out-of-scope write (including through
 a symlink whose real path escapes the scope) is denied. So the file-level boundary is
 the editor's own permission gate on the bwrap floor, not a custom hook or an
-out-of-sandbox authorization broker. The write-scope enforcement path carries **no**
-launcher secret and needs no per-action broker.
+second authorization service. The write-scope enforcement path carries **no**
+launcher secret and needs no per-action service.
 
 Reproduce the spike (edit the `REPO`/`OUT` placeholders and point `CLAUDE` at the
 installed editor CLI):
@@ -345,8 +438,8 @@ ln -s "$OUT/escape.txt" "$REPO/inscope/link.txt"            # symlink escaping t
 printf 'v=1\n' > "$OUT/escape.txt"
 cat > "$REPO/settings.json" <<JSON
 { "permissions": {
-    "allow": ["Edit(inscope/**)", "Read(//${REPO#/}/**)"],
-    "deny": ["Bash","WebFetch","WebSearch","Task","Agent","Workflow","Skill","Monitor","mcp__*"],
+    "allow": ["Bash", "Edit(inscope/**)", "Read(//${REPO#/}/**)"],
+    "deny": ["WebFetch","WebSearch","Task","Agent","Workflow","Skill","Monitor","mcp__*"],
     "disableBypassPermissionsMode": "disable" } }
 JSON
 cd "$REPO"
@@ -362,8 +455,9 @@ grep -q '^v=1' "$OUT/escape.txt"          && echo "symlink escape: DENIED (expec
 
 Expected result: `inscope/target.txt` becomes `v=2` (the in-scope edit applies), while
 the out-of-repo symlink target stays `v=1` (the escaping edit is denied). The same
-settings shape denies `Bash`, every network-egress tool, and any read outside the
-positive repo-scoped `Read` allow-list.
+settings shape grants `Bash` while denying native WebFetch/WebSearch and delegation
+tools. Because the sandbox shares the model network, a shell-visible network binary
+can still connect; durable proxy/network confinement is separate work.
 
 ## The declaration as a positive, default-shipped artifact
 
@@ -504,35 +598,69 @@ itself: a trusted attestation comes only from the Chassis Control Engine's
 signing service. Consumers that need a guarantee verify the signed attestation,
 not the local recorded state.
 
+### The recorded result carries its own attribution
+
+Principle (4) says enforcement-relevant state is set by the **observer**, never
+asserted by the **subject**. The recorded result enacts that by carrying, next to
+the posture, an explicit statement of **where the posture came from** — so a
+reader never has to infer trust from the presence of a field.
+
+A posture is attributed to the launcher (`authority = "launcher_owned"`) **only**
+when it rode on a source the launcher itself minted — from a real sandbox
+decision, or from its own confirmed isolated spawn. That marking is private and
+identity-based: it cannot be serialized, reconstructed, or imitated by a
+correctly-shaped payload. Validation precedes marking, so invalid input yields no
+marked source at all rather than a marked-but-empty one; "launcher-owned" means
+*the launcher observed this*, never merely *this code path ran*.
+
+Everything else — an absent source, a malformed one, an unmarked one, one
+supplied by the caller, one supplied by the dispatched child — is recorded
+**unattributed** and collapses to the fail-honest unenforced default. It cannot
+claim enforcement. This is (0′) applied to the result rather than to the
+decision: absence and ambiguity resolve to the safe side, and the unattributed
+marking makes that resolution *visible* instead of leaving a confident-looking
+record the launcher never stood behind.
+
+Two consequences follow. First, a launch the launcher **accepted and ran under a
+confirmed backend** records the enforced result — `enforced=true` with the
+backend id — and cannot truthfully be recorded as refused; refusal describes a
+launch that never ran under the backend, and the child's output quality is a
+separate fact that does not retroactively unmake containment. Recording an
+accepted contained run as its least contained outcome would violate (3) in the
+opposite direction from the usual concern: fail-honest cuts both ways, and
+under-claiming real containment is as dishonest as over-claiming absent
+containment. Second, the rule is **family-neutral**: every supported family
+(Codex, Claude) earns attribution the same way, and none has a private route to
+it — an unsupported or unmarked path fails to unattributed rather than
+inheriting authority.
+
+This is result provenance only. It records the outcome of containment; it is not
+a containment mechanism, does not belong to the closed Principle (5) set, and
+does not alter backend selection, scope projection, transport setup, spawn, or
+the fail-open and refusal branches those mechanisms own.
+
 ## Scope and limits
 
 A few points clarify where the boundaries are, so the layered model is not
 misread.
 
-**The command-surface classifier is advisory; the boundaries are reach and
-write.** The Bash/argv classifier is the command-surface dimension of Principle
-(5): it catches the modal agent failure — drift out of lane — cheaply and early,
-but it is only as strong as the containment beneath it. The actual boundaries are
+**There is no managed-worker command classifier; the boundaries are reach and
+write.** Inspection, generation, formatting, and in-scope mutation may use the
+native command tool. The actual boundaries are
 the sandbox **reach** dimension (filesystem / env via bubblewrap) and the
 **write** dimension, where out-of-scope writes are blocked before they land (the
-kernel exact-file bind for Codex/AGY, the native tool-use permission gate for
+kernel exact-file bind for Codex, the native tool-use permission gate for
 Claude). Per Principles (3) and (4), an advisory dimension is recorded as such and
 never presented as the guarantee.
 
-**An allowed code-runner is contained by where it spawns, not by the classifier.**
-A worker's in-session validation (`node_check` / `node_test`) runs inside the
-worker's own bubblewrap sandbox — not the server process — with the repo mounted
-read-only, launcher secrets masked off the mount, no network (`--unshare-net`), a
-launcher-minted clean-env allowlist, and an ephemeral tmpfs as the only writable
-scratch. So a worker's `node --test` is arbitrary code that can write nothing
-persistent, read no secret, and reach no network — the containment holds, not the
-classifier. (`node_check` is parse-only.) The coordinator
-`workspace_run_validation` route instead spawns `node` unsandboxed in the server
-process; that is a coordinator/operator capability, and operator sessions are
-outside the enforcement envelope by design — it matches the baseline of an
-operator running the command in a shell. It is still bounded against accident and
-secret leak: the target must be an allowlisted validation entry, launcher secret
-families are stripped from the child env, and output and wall-clock are capped.
+**An allowed code-runner is contained by where it spawns.**
+Managed implementation workers receive no validation or general wiki-MCP tool;
+their only server capability is closed-input commit delivery. Test availability
+and success are not worker admission or commit prerequisites. Findings-only
+review owns declared validation against the exact committed target, in a read-only
+reviewer namespace with isolated writable scratch and bounded structured output.
+Passing and failing results are advisory evidence; coordinator/CCE policy decides
+their effect on integration.
 
 **Inputs are typed where it matters.** Identifiers are allocator-minted through
 the structured create path, never hand-assigned. Spec completeness

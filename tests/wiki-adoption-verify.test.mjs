@@ -62,10 +62,12 @@ async function writeFirstRunLauncherSetup(tempDir) {
       {
         schema_version: "agent-launchers.v1",
         data: {
-          filesystem_mcp_backend_default: "local",
-          filesystem_mcp_backends: {
-            local: {
-              command: "agent-launch-filesystem-mcp-backend"
+          agents: {
+            codex: {
+              base_argv: ["codex", "exec"]
+            },
+            claude: {
+              base_argv: ["claude", "--print"]
             }
           }
         }
@@ -202,7 +204,7 @@ test("runAdoptionVerify blocks (agent_operable:false) when a required check fail
   });
 });
 
-test("WK-1396 runAdoptionVerify blocks a bare bootstrapped repo on operator first-run setup, not implementation-slice bookkeeping", async () => {
+test("WK-1396 runAdoptionVerify reports the seeded implementation and review slices while operator setup is missing", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-bookkeeping" });
 
@@ -211,8 +213,8 @@ test("WK-1396 runAdoptionVerify blocks a bare bootstrapped repo on operator firs
     assert.equal(blocked.agent_operable, false);
 
     const workRecords = blocked.checks.find((check) => check.check === "work-records");
-    assert.equal(workRecords.status, "pass", "review-only WK-0001 must validate without implementation bookkeeping");
-    assert.deepEqual(workRecords.evidence.implementation_slices, []);
+    assert.equal(workRecords.status, "pass", "seeded WK-0001 must validate before operator setup");
+    assert.deepEqual(workRecords.evidence.implementation_slices, [{ id: "SLICE-001", status: "todo" }]);
     assert.deepEqual(
       workRecords.evidence.review_slices.map((slice) => slice.id),
       ["adoption-verify"]
@@ -223,8 +225,8 @@ test("WK-1396 runAdoptionVerify blocks a bare bootstrapped repo on operator firs
     assert.equal(dispatchPreflight.blocker.code, "operator_first_run_prerequisites_missing");
     assert.match(
       `${dispatchPreflight.blocker.code}: ${dispatchPreflight.blocker.message}`,
-      /operator_first_run_prerequisites_missing: .*AGENTS\.md/,
-      "missing root AGENTS.md must be surfaced as an operator-owned first-run prerequisite"
+      /operator_first_run_prerequisites_missing: .*agent-launch\.toml/,
+      "missing launcher config must be surfaced as an operator-owned first-run prerequisite"
     );
     assert.equal(dispatchPreflight.evidence.agents_md.present, false);
     assert.equal(dispatchPreflight.evidence.launcher_toml.present, false);
@@ -248,7 +250,7 @@ test("WK-1396 runAdoptionVerify blocks a bare bootstrapped repo on operator firs
   });
 });
 
-test("WK-1396 distributed WK-0001 is review-only and carries no implementation-slice bookkeeping evidence", async () => {
+test("WK-1396 distributed WK-0001 carries its seeded implementation and review work", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-blocked-slice" });
     await writeFirstRunLauncherSetup(tempDir);
@@ -256,9 +258,9 @@ test("WK-1396 distributed WK-0001 is review-only and carries no implementation-s
     const result = await runAdoptionVerify({ dir: tempDir });
     const workRecords = result.checks.find((check) => check.check === "work-records");
     assert.equal(workRecords.status, "pass");
-    assert.equal(workRecords.evidence.work_kind, "review");
-    assert.equal(workRecords.evidence.write_scope_count, 0);
-    assert.deepEqual(workRecords.evidence.implementation_slices, []);
+    assert.equal(workRecords.evidence.work_kind, "implementation");
+    assert.equal(workRecords.evidence.write_scope_count, 1);
+    assert.deepEqual(workRecords.evidence.implementation_slices, [{ id: "SLICE-001", status: "todo" }]);
     assert.deepEqual(
       workRecords.evidence.review_slices,
       [{ id: "adoption-verify", status: "todo" }]

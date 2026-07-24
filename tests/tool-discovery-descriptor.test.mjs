@@ -349,6 +349,7 @@ test("free/local discovery projection hides paid tool names and CLI operator ent
   assert.ok(freeNames.has("workspace_search_repo"));
   assert.ok(freeNames.has("workspace_validate_dispatch"));
   assert.ok(freeNames.has("workspace_agent_dispatch"));
+  assert.ok(freeNames.has("workspace_integrate_committed_slice"));
 });
 
 test("paid/CCE discovery projection exposes paid tools while free/local does not", async () => {

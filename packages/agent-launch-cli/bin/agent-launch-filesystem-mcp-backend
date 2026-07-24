@@ -1,3 +1,0 @@
-#!/usr/bin/env -S -u NODE_OPTIONS -u NODE_PATH -u NODE_PRESERVE_SYMLINKS node
-
-await import("../src/agent-launch-filesystem-mcp-backend.mjs");

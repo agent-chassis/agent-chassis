@@ -16,9 +16,6 @@ import {
 } from "./workspace-agent-codex-runtime-facts.mjs";
 import { buildCodexWritableSandboxArgs } from "./codex-role-write-scope.mjs";
 import {
-  buildOrchestratorMcpSandboxProfileRequest
-} from "./mcp-sandbox-profile.mjs";
-import {
   LAUNCHER_WRITE_POSTURE_FAMILIES,
   resolveLauncherRoleWritePosture
 } from "./workspace-agent-family-policy.mjs";
@@ -135,13 +132,7 @@ export function buildCodexRoleIsolationInputs({
     shareNet: true,
     workerScopeAuthority: sourceHomeResult.workerScopeAuthority
   });
-  if (!isCodexOrchestratorRole(role)) {
-    return isolation;
-  }
-  return Object.freeze({
-    ...isolation,
-    mcp_sandbox_profile: buildOrchestratorMcpSandboxProfileRequest()
-  });
+  return isolation;
 }
 
 export function stripNestedCodexSandboxArgs(args) {
@@ -168,6 +159,7 @@ export function buildCodexRoleBubblewrapPlan(plan, {
   argsOverride = null,
   envOverride = null,
   cwdOverride = null,
+  stdioMcpConduit = null,
 
   envPolicy = isCodexOrchestratorRole(plan?.role) ? null : CODEX_BWRAP_ENV_POLICY
 } = {}) {
@@ -196,6 +188,11 @@ export function buildCodexRoleBubblewrapPlan(plan, {
     ?? plan.provisioned_worktree_git_identity
     ?? plan.provisioned_worktree_git_binding
     ?? null;
+  const findingsRole = plan.role === "review" || plan.role === "reviewer"
+    ? "reviewer"
+    : plan.role === "redteam"
+      ? "redteam"
+      : null;
   return buildBubblewrapLaunchPlan({
     repo: plan.repo,
     command: childCommand,
@@ -207,7 +204,7 @@ export function buildCodexRoleBubblewrapPlan(plan, {
       ? [...plan.isolation.writable_files]
       : [],
     runtimeRoots: [...plan.isolation.runtime_roots],
-    mcpSandboxProfile: plan.isolation.mcp_sandbox_profile ?? null,
+    findingsRole,
     readOnlyRoots: Array.isArray(plan.isolation.read_only_roots)
       ? [
           ...plan.isolation.read_only_roots,
@@ -215,6 +212,9 @@ export function buildCodexRoleBubblewrapPlan(plan, {
           ...orchestratorManagedWorktreeReadRoots
         ]
       : [...workerSecretMaskInputs.readOnlyRoots, ...orchestratorManagedWorktreeReadRoots],
+    requiredReadOnlyFiles: Array.isArray(plan.isolation.required_read_only_files)
+      ? [...plan.isolation.required_read_only_files]
+      : [],
     maskTmpfsDirs: [...workerSecretMaskInputs.maskTmpfsDirs],
     workerScopeAuthority: plan.isolation.worker_scope_authority,
     ...(serverProvisionedWorktreeGitIdentity !== null
@@ -224,6 +224,7 @@ export function buildCodexRoleBubblewrapPlan(plan, {
       ? { reads: [...plan.isolation.home_policy_reads] }
       : null,
     shareNet: plan.isolation.share_net !== false,
+    stdioMcpConduit,
     envPolicy
   });
 }
@@ -243,8 +244,7 @@ export function isolationSummaryForPublic(isolation) {
     read_only_roots: Array.isArray(isolation.read_only_roots)
       ? [...isolation.read_only_roots]
       : [],
-    home_policy_reads: [...isolation.home_policy_reads],
-    mcp_sandbox_profile: isolation.mcp_sandbox_profile ?? null
+    home_policy_reads: [...isolation.home_policy_reads]
   };
 }
 

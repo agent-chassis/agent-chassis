@@ -10,7 +10,10 @@ import {
   spawnIsolated as defaultSpawnIsolated
 } from "./launch-isolation.mjs";
 import { buildValidationConfinementPlan as defaultBuildValidationConfinementPlan } from "./workspace-agent-family-bwrap-plan.mjs";
-import { AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS } from "./agent-child-tool-surface.mjs";
+const AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS = Object.freeze({
+  node_check: Object.freeze({ operation: "node_check", node_flag: "--check", executes_target: false }),
+  node_test: Object.freeze({ operation: "node_test", node_flag: "--test", executes_target: true })
+});
 
 export const WORKSPACE_AGENT_VALIDATION_RUN_RESULT_SCHEMA_VERSION =
   "workspace-agent-validation-run-result.v1";

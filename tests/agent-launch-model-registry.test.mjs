@@ -18,7 +18,7 @@ const VALID_CODEX_SPEC = Object.freeze({
 
 const VALID_CLAUDE_SPEC = Object.freeze({
   app: "claude",
-  backend: "claude_filesystem_mcp",
+  backend: "claude",
   codex_profile: null,
   default_effort: "max"
 });
@@ -51,7 +51,7 @@ test("resolveModel returns the model spec and derives app/backend from the regis
   assert.equal(resolveModel("gpt-5.5-pro").codex_profile, "orchestrator_xhigh");
   assert.equal(resolveModel("gpt-5.4-nano").default_effort, "low");
   assert.equal(resolveModel("fable").app, "claude");
-  assert.equal(resolveModel("opus").backend, "claude_filesystem_mcp");
+  assert.equal(resolveModel("opus").backend, "claude");
   assert.equal(resolveModel("sonnet").default_effort, "high");
   assert.equal(resolveModel("haiku").default_effort, "medium");
 });
@@ -59,7 +59,7 @@ test("resolveModel returns the model spec and derives app/backend from the regis
 test("Claude launcher-facing tokens are stable mode names, not provider API IDs", () => {
   for (const token of ["opus", "sonnet", "haiku", "fable"]) {
     assert.equal(resolveModel(token).app, "claude");
-    assert.equal(resolveModel(token).backend, "claude_filesystem_mcp");
+    assert.equal(resolveModel(token).backend, "claude");
   }
   assert.equal(resolveModel("claude-opus-4-8"), null);
   assert.equal(resolveModel("claude-sonnet-5"), null);

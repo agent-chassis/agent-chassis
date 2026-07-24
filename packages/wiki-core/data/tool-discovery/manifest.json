@@ -11,7 +11,7 @@
     },
     {
       "file": "mcp-work-record-tools.json",
-      "tool_count": 13,
+      "tool_count": 11,
       "summary": "MCP work-record assignment, evidence, and review-result recording tools."
     },
     {
@@ -41,8 +41,8 @@
     },
     {
       "file": "launcher-tools.json",
-      "tool_count": 6,
-      "summary": "Dispatch, run-status, coordination preflight, and runtime-blocker-taxonomy tools."
+      "tool_count": 7,
+      "summary": "Dispatch, run-status, committed-slice integration, coordination preflight, and runtime-blocker-taxonomy tools."
     },
     {
       "file": "cli-commands.json",
@@ -60,7 +60,7 @@
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 101,
+  "expected_tool_count": 100,
   "uniqueness": {
     "key": "tool_name",
     "scope": "assembled_corpus",

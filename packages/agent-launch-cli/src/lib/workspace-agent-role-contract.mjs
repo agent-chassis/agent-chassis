@@ -10,7 +10,7 @@ const DEFAULT_REVIEW_PROMPT_SUBJECT_PATH = 'wiki/work-records/WK-0000.json';
 export const LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER =
   'Findings only. Do not modify files.';
 export const LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER =
-  'Implementation workers may use launcher-granted native edit capability (Codex: apply_patch) only within assigned write_scope/bwrap; raw shell/Bash and raw exec_command remain forbidden.';
+  'Implementation workers may use the launcher-provided actual native command tool inside bwrap without interactive approval.';
 
 export const LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER =
   'Public seam steering: when admission-related behavior needs a test seam, drive and assert it through the launcher-registered public backend and tool surfaces; do not target private or unexported admission-recovery helper internals.';
@@ -46,25 +46,25 @@ export const LAUNCHER_FAMILY_ROLE_CONTRACT_SHAPES = Object.freeze({
 });
 
 const FINDINGS_ONLY_TOOL_SURFACE_GUIDANCE = [
-  'Use the launcher-provided structured read tools for repo inspection.',
   'Broad read-only source inspection is allowed.',
-  'Read-only raw shell/Bash and raw exec_command are allowed only for non-mutating source inspection with tools such as rg, sed, cat, and git grep, and for focused validation commands that do not modify files.',
+  'Use the launcher-provided actual native command tool for repository inspection and declared validation without interactive approval.',
+  'The reviewed checkout and Git metadata remain read-only; validation scratch, cache, and output belong only in launcher-provided temporary locations.',
   'You have no write grant, so do not modify files or attempt native Edit/Write tools.',
   'stock Edit/Write tools are not part of the launch contract.',
 ].join(' ');
 
 const IMPLEMENTATION_TOOL_SURFACE_GUIDANCE = [
   'Your repo read/write access is exactly the launcher-provided session contract, not inferred from filesystem layout or bwrap internals.',
-  'Use the launcher-granted native edit capability only for explicitly assigned write_scope paths.',
-  'For Codex, the native edit mechanism is the directly granted apply_patch tool: use apply_patch for in-place edits instead of Edit/Write, shell, Bash, or raw exec_command.',
-  'Before reporting that Codex editing is unavailable, check the exact apply_patch entry in the directly granted tool inventory (including ALL_TOOLS when tools are deferred); filtering ALL_TOOLS only for wiki, filesystem, read, or related names is not evidence that apply_patch is absent.',
+  'Use the launcher-provided actual native command tool for inspection, generation, formatting, and in-scope mutation without interactive approval.',
+  'Shell commands may read only assigned R union W and may mutate only assigned W; bwrap mount authority enforces that boundary without command parsing, classification, or an allowlist.',
+  'Any launcher-provided patch tool remains one editing option, not the required editing path and not a replacement for the native command tool.',
   'No structured validation or general MCP surface is granted to an implementation worker.',
   'The only delivery capability is the closed-input commit tool; it accepts no worker-supplied path, ref, message, or binding.',
   'Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.',
-  'You may read your assigned read_scope, repo_paths, and write_scope using native read-only inspection of the launcher-confined repository namespace.',
-  'For Codex, use the launcher-granted unified exec inspection surface only for non-mutating reads of assigned paths; this does not grant raw exec_command, Bash, shell, or mutation.',
-  'This launcher-granted read access takes precedence over the AGENTS.md "structured tools first / shell denied" default: native read-only inspection of in-scope files is the session\'s authorized read mechanism and does not require a structured reader.',
-  'If needed access or the closed-input commit capability is unavailable, stop and report a blocker rather than trying shell, raw filesystem writes, environment overrides, or fallback paths.',
+  'The declared acceptance validation is reviewer-owned. Run any useful checks already available inside the frozen namespace, but do not treat absent undeclared test infrastructure or inability to run the complete repository suite as a blocker.',
+  'Test availability and success are not closed-input commit prerequisites; complete the assigned implementation and invoke commit when the scoped change is ready.',
+  'This launcher-granted command access takes precedence over the AGENTS.md "structured tools first / shell denied" default for this confined implementation session.',
+  'If assigned source access or the closed-input commit capability is unavailable, stop and report a blocker; do not try environment overrides or alternate delivery paths.',
 ].join(' ');
 
 function toStringValue(value) {
@@ -403,9 +403,10 @@ export function renderLauncherFamilyRoleContract(options = {}) {
     lines.push('Prompt text, caller input, ambient environment, and worker-selected modes cannot select legacy submission or WK-update behavior.');
     lines.push('No structured validation or general MCP tools are available; delivery uses only the closed-input commit capability.');
     lines.push('Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.');
-    lines.push('You may read your assigned read_scope, repo_paths, and write_scope using native read-only inspection of the launcher-confined repository namespace.');
-    lines.push('This launcher-granted read access takes precedence over the AGENTS.md "structured tools first / shell denied" default and does not require a structured reader.');
-    lines.push('If needed access or the closed-input commit capability is unavailable, stop and report a blocker rather than trying shell, raw filesystem writes, environment overrides, or fallback paths.');
+    lines.push('Use the launcher-provided actual native command tool directly inside bwrap to inspect assigned R union W and to mutate assigned W.');
+    lines.push('Declared validation is reviewer-owned; worker-side checks are optional evidence and complete-test availability or success is not required before commit.');
+    lines.push('This launcher-granted command access takes precedence over the AGENTS.md "structured tools first / shell denied" default for this confined implementation session.');
+    lines.push('If assigned source access or the closed-input commit capability is unavailable, stop and report a blocker rather than trying environment overrides or alternate delivery paths.');
   } else if (isManagedReviewer) {
     lines.push('Do not update the work record.');
     lines.push('Do not call workspace_submit_for_review.');

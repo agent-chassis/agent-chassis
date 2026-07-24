@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 import { SLICE_ID_PATTERN } from '@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs';
+import { validateAcceptanceCriterionEntry } from '@agent-chassis/wiki-core/src/lib/work-record-schema-validators.mjs';
 
 import { LauncherRoleContractError } from './workspace-agent-role-contract.mjs';
 
@@ -531,6 +532,58 @@ export async function loadWorkspaceAgentFindingsRoleContext(input = {}) {
   return finalizeContext({ subject, selectedUnit, workRecord });
 }
 
+function isCanonicalAcceptanceCriterion(entry) {
+  const diagnostics = [];
+  validateAcceptanceCriterionEntry(diagnostics, entry, 'criteria', { allowString: true });
+  return diagnostics.length === 0;
+}
+
+function findingsAcceptanceCriterionText(entry) {
+  if (typeof entry === 'string') {
+    return normalizeText(entry);
+  }
+  if (isPlainObject(entry)) {
+    return normalizeText(entry.text);
+  }
+  return null;
+}
+
+function classifyFindingsAcceptanceSection(section) {
+  if (!isPlainObject(section) ||
+      !Array.isArray(section.criteria) ||
+      !Array.isArray(section.validation)) {
+    return { state: 'invalid', detail: 'acceptance_section_malformed' };
+  }
+  const criteriaEmpty = section.criteria.length === 0;
+  const validationEmpty = section.validation.length === 0;
+  if (criteriaEmpty && validationEmpty) {
+    return { state: 'empty' };
+  }
+  if (criteriaEmpty !== validationEmpty) {
+    return { state: 'invalid', detail: 'acceptance_section_asymmetric' };
+  }
+  const criteria = [];
+  for (const entry of section.criteria) {
+    if (!isCanonicalAcceptanceCriterion(entry)) {
+      return { state: 'invalid', detail: 'acceptance_criterion_not_canonical' };
+    }
+    const text = findingsAcceptanceCriterionText(entry);
+    if (text === null) {
+      return { state: 'invalid', detail: 'acceptance_criterion_not_renderable' };
+    }
+    criteria.push(text);
+  }
+  const validation = [];
+  for (const entry of section.validation) {
+    const text = normalizeText(entry);
+    if (text === null) {
+      return { state: 'invalid', detail: 'acceptance_validation_invalid' };
+    }
+    validation.push(text);
+  }
+  return { state: 'valid', criteria, validation };
+}
+
 function resolveSliceLevelFindingsOnlyAcceptance({ role, subject, frozenReviewContract }) {
   try {
     if (!isPlainObject(frozenReviewContract) ||
@@ -557,14 +610,27 @@ function resolveSliceLevelFindingsOnlyAcceptance({ role, subject, frozenReviewCo
     if (!parentReviewUnit || JSON.stringify(parentReviewUnit) !== frozenReviewContract.review_unit_contract) {
       throw new Error('frozen slice review unit is not the exact selected unit in the frozen parent contract');
     }
-    const parentAcceptance = normalizeAcceptance(parent.acceptance, parsedSubject.recordId);
-    const reviewAcceptance = normalizeAcceptance(reviewUnit.acceptance, subject);
-    if (!parentAcceptance || !reviewAcceptance) {
-      throw new Error('frozen parent or slice review unit acceptance/validation is missing or invalid');
+
+    const parentAcceptance = classifyFindingsAcceptanceSection(parent.acceptance);
+    const reviewAcceptance = classifyFindingsAcceptanceSection(reviewUnit.acceptance);
+    if (parentAcceptance.state === 'invalid') {
+      throw new Error(
+        `frozen parent acceptance is malformed or asymmetric (${parentAcceptance.detail})`,
+      );
     }
+    if (reviewAcceptance.state !== 'valid') {
+      throw new Error(
+        reviewAcceptance.state === 'empty'
+          ? 'frozen slice review unit acceptance and validation are empty'
+          : `frozen slice review unit acceptance is missing or malformed (${reviewAcceptance.detail})`,
+      );
+    }
+    const inheritedCriteria = parentAcceptance.state === 'valid' ? parentAcceptance.criteria : [];
+    const inheritedValidation =
+      parentAcceptance.state === 'valid' ? parentAcceptance.validation : [];
     return {
-      acceptanceCriteria: [...parentAcceptance.criteria, ...reviewAcceptance.criteria],
-      acceptanceValidation: [...parentAcceptance.validation, ...reviewAcceptance.validation],
+      acceptanceCriteria: [...inheritedCriteria, ...reviewAcceptance.criteria],
+      acceptanceValidation: [...inheritedValidation, ...reviewAcceptance.validation],
     };
   } catch (error) {
     throw new LauncherRoleContractError(

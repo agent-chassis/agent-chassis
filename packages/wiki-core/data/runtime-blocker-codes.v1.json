@@ -48,7 +48,10 @@
           "remediation": {
             "action": "create_or_select_separate_findings_only_review_unit",
             "summary": "The selected subject is shaped like implementation work, so it is the wrong subject for a findings-only reviewer. Create or select a separate review unit and dispatch the reviewer against that unit.",
-            "suggested_unit_id_examples": ["WK-#####review", "WK-#####implementation-review"],
+            "suggested_unit_id_examples": [
+              "WK-#####review",
+              "WK-#####implementation-review"
+            ],
             "work_kind": "review",
             "write_scope": [],
             "repo_paths": "the implementation files the review inspects",
@@ -87,7 +90,9 @@
       "actor_recovery": "operator",
       "blocking": true,
       "summary": "Identity was supplied through a non-authoritative carrier (request payload, prompt text, ambient env, argv, claimed_identity.role, docs inference).",
-      "aliases": ["agent_dispatch_identity.caller_supplied_role.v1"],
+      "aliases": [
+        "agent_dispatch_identity.caller_supplied_role.v1"
+      ],
       "consumer_notes": "CALLER_SUPPLIED_IDENTITY_CARRIERS owns the refused identity-carrier set. All carriers in that set must produce this code."
     },
     {
@@ -156,7 +161,7 @@
       "category": "backend",
       "actor_recovery": "operator",
       "blocking": true,
-      "summary": "A required backend (filesystem MCP backend, registry, launcher daemon) is not reachable.",
+      "summary": "A required launcher backend, host server, registry, or confinement prerequisite is not reachable.",
       "consumer_notes": "Distinct from missing transport: the structured transport exists, but its backing service or registry is not usable."
     },
     {
@@ -196,6 +201,24 @@
       }
     },
     {
+      "code": "managed_slice_tip_reconcile_required",
+      "category": "backend",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Managed provisioning is available, but the slice branch retains a delivery the canonical WK base does not contain, so it cannot be adopted as a fresh worker base.",
+      "detail": "Emitted when a managed implementation launch finds an existing slice tip that is ahead of, or diverged from, the canonical WK-derived base — the shape a committed-but-unintegrated worker attempt leaves behind. Adopting that tip would make the retained delivery invisible to every later diff and would start a second worker for work already committed, so the launch fails closed BEFORE any attempt binding, ref mutation, worktree mutation, provisioning side effect, or spawn. This code reports Git containment facts only: it does not assert that the prior worker terminated, and it carries no authority to delete, move, reset, rebase, or integrate any ref, nor to launch a replacement worker. It is NOT a provisioning-capability failure — managed_worktree_provisioning_unavailable remains the code for genuinely absent, unknown, or stale provisioning authority, and unrelated Git, configuration, allocation, or worktree failures keep their own codes.",
+      "consumer_notes": "Coordinator-owned: the retained delivery is a REVIEW problem, not a re-spawn problem. Dispatch a reviewer for the exact slice subject; launcher-owned admission derives the frozen committed target from canonical review state and refs. Read the bounded reconcile_state / slice_tip / wk_base_ref / wk_base_sha / recovery_route facts carried on the refusal detail. Do not re-dispatch a worker, recover a worker monitor handle, hand-repair refs, or infer worker terminality from Git truth.",
+      "recovery": {
+        "kind": "structured_route",
+        "route": "workspace_agent_dispatch",
+        "arguments": {
+          "role": "reviewer",
+          "subject": "<exact-slice-subject-from-refusal>"
+        },
+        "success_condition": "the retained slice delivery reaches the exact-slice review surface, or the canonical WK base already contains it"
+      }
+    },
+    {
       "code": "read_only_mount",
       "category": "filesystem",
       "actor_recovery": "operator",
@@ -214,22 +237,220 @@
       "consumer_notes": "Distinct from read_only_mount: the underlying filesystem accepts writes, but the sandbox profile rejects them."
     },
     {
-      "code": "managed_wiki_mcp_runtime_snapshot_incomplete",
-      "category": "sandbox",
+      "code": "stdio_mcp_conduit_input_invalid",
+      "category": "transport",
       "actor_recovery": "operator",
       "blocking": true,
-      "summary": "The launcher-owned committed wiki-MCP runtime snapshot for a managed confined role could not be built or verified, so the role's authority-bearing MCP server would not start in-namespace.",
-      "detail": "WK-1555#SLICE-028 / DEC-0160 (staged-runtime successor). A managed confined Codex role executes the wiki-MCP server from a staged runtime built out of ONE immutable Git object snapshot of a launcher-owned committed revision: both member membership (git ls-tree at the commit) and file bytes (git cat-file) come from that revision, never from the index or the working tree. This code reports that the snapshot is not coherent and usable: the runtime source repository has no committed HEAD; a member is missing, non-regular (symlink/gitlink), or has an unreadable Git object; a runtime package has no tracked members at the frozen commit; a committed importer's target is not tracked at that commit or reaches a workspace package outside the tracked four-package superset; the staged directory is partial, corrupt, or conflicts with the requested (commit, digest) tuple; or the staged entrypoint is absent. The refusal is raised BEFORE role spawn and carries a bounded, repository-relative member diagnostic.",
-      "consumer_notes": "This replaces the former tracked-but-absent silent skip in codex-role-wiki-mcp-override.mjs. It MUST NOT be degraded to an opaque bwrap failure, an in-child module-resolution crash, optional-MCP behavior, or a later committed_slice_result_absent: the wiki-MCP server is the role's sole delivery (worker commit) or findings (reviewer/redteam) authority, so an incomplete runtime is a hard pre-spawn block. Recovery is operator-side: commit the launcher runtime source change (an uncommitted edit is deliberately not eligible), restore the missing object, or remove the conflicting staged directory. Distinct from managed_wiki_mcp_runtime_dependency_unavailable, which reports the dependency installation rather than the committed snapshot."
+      "summary": "The launcher-resolved input for the named-FIFO wiki-MCP conduit was not exactly the launcher-owned shape.",
+      "detail": "Emitted by createStdioMcpConduit when the input carries a caller-controlled authority field, an unsupported role, a missing assigned unit, or a non-absolute workspace, and by the trusted-binding assertion when a launch plan does not carry one exact launcher-minted binding.",
+      "consumer_notes": "A caller cannot supply a conduit binding, a transport, an executable, or a lifecycle budget. This is the refusal that proves it; it never degrades to a weaker transport."
     },
     {
-      "code": "managed_wiki_mcp_runtime_dependency_unavailable",
+      "code": "stdio_mcp_conduit_family_unsupported",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A confined wiki-MCP conduit was requested for a family the launcher does not support.",
+      "detail": "Only Claude and Codex have a reviewed pinned relay invocation. Agy and every other family fail closed here rather than receiving an unreviewed conduit.",
+      "consumer_notes": "Adding a family requires reviewing its relay invocation against DEC-0159, not widening this set."
+    },
+    {
+      "code": "stdio_mcp_conduit_private_root_unavailable",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher could not resolve a private per-user root for the per-dispatch conduit directory.",
+      "detail": "DEC-0159 requires a launcher-private mode-0700 directory outside the repository and every worktree. Resolution uses the per-user runtime directory or the passwd-derived home cache; ambient TMPDIR/HOME cannot retarget it.",
+      "consumer_notes": "Operator recovery is to make /run/user/<uid> or the user cache directory owned and writable by the launcher account."
+    },
+    {
+      "code": "stdio_mcp_conduit_directory_invalid",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The per-dispatch conduit directory is not a launcher-owned mode-0700 directory.",
+      "detail": "Checked immediately after creation: ownership must be the launcher uid and the mode exactly 0700, so no other account can reach the conduit objects by path.",
+      "consumer_notes": "Distinct from private_root_unavailable, which is about resolving the ROOT rather than validating the per-dispatch directory."
+    },
+    {
+      "code": "stdio_mcp_conduit_fifo_create_failed",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher could not create the two conduit FIFO nodes.",
+      "detail": "mkfifo(1) failed or the directory did not end up containing exactly the two launcher-created FIFOs.",
+      "consumer_notes": "The launcher creates both nodes itself with mode 0600; there is no fallback to a socket or a caller-supplied path."
+    },
+    {
+      "code": "stdio_mcp_conduit_fifo_invalid",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A conduit object is not a launcher-owned mode-0600 FIFO, or an O_PATH reference no longer identifies a FIFO.",
+      "detail": "Validated at creation and again when a launch plan consumes the binding, so a node replaced between minting and spawn cannot be bound.",
+      "consumer_notes": "Wrong type, wrong owner, wrong mode, or a closed/retargeted descriptor all use this code."
+    },
+    {
+      "code": "stdio_mcp_conduit_fifo_identity_mismatch",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A conduit FIFO identity changed during launch, or a family registration was handed another family’s binding.",
+      "detail": "The launcher pins each FIFO by device and inode from a held O_PATH reference and re-verifies before retiring the names; the Claude and Codex registration builders additionally require their own exact family binding.",
+      "consumer_notes": "This is the TOCTOU guard for the named-FIFO variant and the cross-family guard for the registration builders."
+    },
+    {
+      "code": "stdio_mcp_conduit_binding_consumed",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A conduit binding that was already projected into a namespace was reused.",
+      "detail": "A binding is single use: once its namespace is ready the O_PATH references are released and the FIFO names retired, so re-planning or re-spawning from it would bind the wrong objects.",
+      "consumer_notes": "Per DEC-0159 a conduit is per dispatch and never reused across runs or roles."
+    },
+    {
+      "code": "stdio_mcp_conduit_stdio_shape_unsupported",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The requested child stdio shape cannot carry the two conduit bind descriptors.",
+      "detail": "The conduit needs child descriptors 3 and 4 for its two --ro-bind-fd references. A caller that occupies them, or a shorthand the launcher cannot extend exactly, is refused rather than silently rewritten.",
+      "consumer_notes": "Refusing is required: silently substituting a different stdio shape once wired a piped child straight onto launcher descriptors."
+    },
+    {
+      "code": "stdio_mcp_host_server_unavailable",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher could not resolve the host wiki-MCP server entrypoint.",
+      "detail": "The server runs on the trusted host (DEC-0166); if its entrypoint cannot be resolved there is no in-sandbox fallback and dispatch fails closed.",
+      "consumer_notes": "Never degrade to optional MCP or to an in-namespace server."
+    },
+    {
+      "code": "stdio_mcp_host_server_start_failed",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The host wiki-MCP server process failed to spawn.",
+      "detail": "Reported from the spawned child’s error event before any readiness was observed.",
+      "consumer_notes": "Distinct from startup_timeout, where the process started but never reported registration."
+    },
+    {
+      "code": "stdio_mcp_host_server_readiness_failed",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The host wiki-MCP server emitted malformed, out-of-order, or unrecognized launcher lifecycle output.",
+      "detail": "The launcher reads a strict newline-delimited event stream on its private readiness descriptor; anything outside that grammar fails closed.",
+      "consumer_notes": "Includes a missing readiness pipe and a client event arriving before the server reported registration."
+    },
+    {
+      "code": "stdio_mcp_host_server_startup_timeout",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The host wiki-MCP server did not report registration within the launcher startup budget.",
+      "detail": "The server budget spans launcher spawn to registration only; it never spans bwrap or the client, so a slow model cold start cannot be mistaken for a dead server.",
+      "consumer_notes": "Paired with client_readiness_timeout, which bounds the separate client phase."
+    },
+    {
+      "code": "stdio_mcp_tool_surface_mismatch",
+      "category": "role_policy",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The tool surface the host wiki-MCP server REGISTERED does not match the launcher-derived role profile.",
+      "detail": "Compared exactly — missing, unexpected, and duplicate names all fail — before the confined client is allowed to proceed.",
+      "consumer_notes": "DEC-0167: a confined role receives exactly its policy profile, never a wider or hardcoded list."
+    },
+    {
+      "code": "stdio_mcp_client_tool_surface_mismatch",
+      "category": "role_policy",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The tool surface RETURNED to the confined client by tools/list does not match the launcher-derived role profile.",
+      "detail": "Observed on the server transport for the real client request, so it proves what the model actually received rather than what was registered.",
+      "consumer_notes": "Distinct from tool_surface_mismatch, which checks registration; both must hold."
+    },
+    {
+      "code": "stdio_mcp_client_readiness_failed",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The confined client did not complete a real MCP initialize and tools/list through the conduit.",
+      "detail": "Emitted for out-of-order readiness, an abnormal host-server exit while the client was running, and every other non-timeout readiness fault. The launcher terminates the client and the dispatch reports this typed blocker rather than an unexplained signal exit.",
+      "consumer_notes": "Required MCP is never optional: there is no accepted launch without this gate passing."
+    },
+    {
+      "code": "stdio_mcp_client_readiness_timeout",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The confined client did not complete initialize and tools/list within the launcher client-readiness budget.",
+      "detail": "Armed when the confined child is spawned, cleared when a real tools/list result matching the role profile is observed.",
+      "consumer_notes": "A separate budget from host_server_startup_timeout so the two phases are individually diagnosable."
+    },
+    {
+      "code": "stdio_mcp_client_relay_restarted",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The confined client restarted its MCP relay, which the per-dispatch conduit cannot resume.",
+      "detail": "A second initialize on a live session means the pinned relay was respawned. The conduit is one continuous byte stream per dispatch, so resuming a half-consumed JSON-RPC stream is not a recoverable state.",
+      "consumer_notes": "Fails closed with full teardown rather than corrupting the session."
+    },
+    {
+      "code": "stdio_mcp_conduit_server_exit",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The host wiki-MCP server exited abnormally, or before the confined client became ready.",
+      "detail": "A clean exit AFTER the client is ready is the EXPECTED end-of-conduit drain and is not a blocker; this code covers only a nonzero code, a signal, or an exit before readiness.",
+      "consumer_notes": "Treating the expected drain as a failure previously turned every successful confined run into a bogus readiness blocker and killed the model before it flushed its result."
+    },
+    {
+      "code": "stdio_mcp_conduit_cancelled",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher cancelled the conduit lifecycle before completion.",
+      "detail": "Cancellation disposes every conduit resource and then raises this typed error; it is never a silent abandon.",
+      "consumer_notes": "Cleanup runs before the error is raised, so no server, FIFO, or descriptor survives a cancellation."
+    },
+    {
+      "code": "stdio_mcp_conduit_cleanup_failed",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "One or more conduit resources could not be released during teardown.",
+      "detail": "Teardown is idempotent and exception-safe: every disposer runs and the collected failures are reported together, preserving any originating error.",
+      "consumer_notes": "A teardown that could not fully release is a fail-closed condition the dispatch result reports, not a discarded rejection."
+    },
+    {
+      "code": "stdio_mcp_conduit_reap_failed",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The host wiki-MCP server could not be reaped after SIGTERM and SIGKILL.",
+      "detail": "Raised only after the bounded escalation has run to completion.",
+      "consumer_notes": "A conduit child that outlives its dispatch is a DEC-0159 teardown error."
+    },
+    {
+      "code": "stdio_mcp_conduit_requires_bubblewrap",
       "category": "sandbox",
       "actor_recovery": "operator",
       "blocking": true,
-      "summary": "The owning repository's canonical node_modules installation that the staged wiki-MCP runtime links to is missing, redirected, malformed, or incompatible with the snapshot's committed manifests.",
-      "detail": "WK-1555#SLICE-028 / DEC-0160. The staged runtime provisions exactly one dependency link to the owning repository's canonical node_modules installation, which bwrap additionally binds read-only. Before use, the launcher verifies that the canonical target exists, is a directory, is not redirected away from the owning repository, carries npm's installed-tree marker, exposes the expected workspace aliases resolving back to the owning repository's packages, and satisfies every runtime dependency declared by the SNAPSHOT's committed package manifests. This code reports that one of those checks failed.",
-      "consumer_notes": "Scope note: this is ONLY the trusted staged runtime's dependency link. The general consuming-worktree <managed-worktree>/node_modules symlink is owned by agent-chassis:WK-1634 and is not provisioned under this code. Recovery is operator-side (reinstall or repair the canonical installation); it must never be worked around by widening the role's repository visibility or by allowing the role to launch without its MCP server."
+      "summary": "A dispatch whose role requires the launcher-owned wiki-MCP conduit could not obtain a usable bubblewrap namespace.",
+      "detail": "The conduit and host wiki-MCP server were established, then the bwrap child failed to spawn or reported an unusable-backend diagnostic. The conduit's two FIFO nodes exist only inside a bwrap namespace, so no unconfined launch can reach the required MCP surface.",
+      "consumer_notes": "Terminal for both supported families. A launch holding a required conduit never enters the unenforced plain-spawn fallback; the host server, FIFO directory, and all descriptors are torn down before the refusal is returned."
+    },
+    {
+      "code": "stdio_mcp_cleanup_failed",
+      "category": "operator_recovery",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher could not unlink conduit names, close references, terminate children, or reap the per-dispatch host wiki-MCP lifecycle completely.",
+      "detail": "At least one per-dispatch conduit object or child process could not be deterministically closed, unlinked, terminated, or reaped.",
+      "consumer_notes": "Cleanup and reaping failures are explicit terminal failures and never authorize conduit reuse."
     },
     {
       "code": "validation_failure",
@@ -528,25 +749,33 @@
     "description": "Exhaustive deterministic mapping from (graph_state, staleness, dirty_state, overlay_state) to runtime blocker codes consumed by workspace_coordination_preflight and workspace_agent_dispatch readiness. The first matching rule wins. A null/unspecified field matches any value. WK-1590 current-HEAD ruling (2026-07-18, recorded on WK-1590): the graph baseline is derived from the current committed HEAD, so a stale, older-base, missing-overlay, or rebuild_required state is rebuilt at current HEAD rather than blocking -- staleness alone is never a blocking refusal. A valid dirty-worktree overlay is optional enrichment merged over the base (non-blocking graph_impact_degraded_overlay). Only a current-HEAD baseline that genuinely cannot be produced or validated (graph_state unavailable/error/query_error) is a zero-backend blocking refusal before CCE.",
     "rules": [
       {
-        "when": { "graph_state": "unavailable" },
+        "when": {
+          "graph_state": "unavailable"
+        },
         "code": "graph_impact_unavailable",
         "blocking": true,
         "outcome": "block"
       },
       {
-        "when": { "graph_state": "error" },
+        "when": {
+          "graph_state": "error"
+        },
         "code": "graph_impact_unavailable",
         "blocking": true,
         "outcome": "block"
       },
       {
-        "when": { "graph_state": "query_error" },
+        "when": {
+          "graph_state": "query_error"
+        },
         "code": "graph_impact_query_error",
         "blocking": true,
         "outcome": "block"
       },
       {
-        "when": { "overlay_state": "active" },
+        "when": {
+          "overlay_state": "active"
+        },
         "code": "graph_impact_degraded_overlay",
         "blocking": false,
         "outcome": "proceed_degraded"

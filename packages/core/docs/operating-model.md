@@ -4,6 +4,44 @@
 
 This repository exists to make a shared wiki operating model portable across many codebases without centralizing the actual content.
 
+## Security scope
+
+The local tooling in this repository is **correctness, provenance, and
+honest-agent workflow machinery — not same-user security infrastructure**. Read
+the rest of this document, and the enforcement model it feeds, through that
+scope. Its local mechanisms exist to:
+
+- **enforce product contracts** — `write_scope` confinement, dispatch-readiness
+  shape checks, and the launcher's controlled-execution boundary keep an honest
+  managed agent inside the lane its coordinator authored;
+- **detect accidental drift and corruption** — CAS/digest integrity, sidecar
+  fail-loud checks, declared-versus-landed verification, and freshness/expiry
+  checks catch an unintended, stale, or corrupted change, not a forged one;
+- **protect credentials from external disclosure** — the launcher masks its own
+  secrets off the worker mount and redacts private carriers so a credential is
+  not leaked outward through a run's inputs, outputs, or model egress;
+- **constrain confined managed execution** — a managed worker sees exactly its
+  `R ∪ W` namespace and mutates only `write_scope`, so its blast radius is
+  bounded to what it was dispatched to touch.
+
+It does **not** claim security against a **malicious same-user actor or a
+compromised host process**. A party that already holds the operator's shell, host
+filesystem, and credentials can defeat every local mechanism here; containing
+that party is outside the mandate. The realistic baseline is *"the operator runs
+the agent with full host privileges and no tooling at all,"* and the job is to be
+honestly better than that baseline for an **honest** agent, not to make a hostile
+one harmless.
+
+This framing weakens no real boundary. External service authentication, the
+Chassis Control Engine's signing authority as the sole minter of enforcement
+authorization, kernel write confinement, CAS/digest integrity, and the
+credential/private-carrier disclosure boundaries above all still hold exactly as
+before; they are simply described as contract-enforcement, provenance, and
+disclosure controls rather than as a same-user security guarantee. This mandate
+was established by the work record audit; work record first applied it, making
+target-resolution evidence advisory to dispatch rather than a file-type
+permission.
+
 ## Model Boundary
 
 Shared here:
@@ -109,6 +147,55 @@ Operational rule:
 
 - do not treat generated views as current unless they were just regenerated or lint reports no stale generated-view findings
 - when in doubt, read canonical pages directly
+
+## JSON-Backed Initiatives And Decisions
+
+Initiatives (`IN-*`) and decisions (`DEC-*`) are canonical JSON records, matching
+the `WK-*` work-record shape. Each `wiki/initiatives/IN-####.json` and
+`wiki/decisions/DEC-####.json` is the authored source of truth; the co-located
+`IN-####.md` / `DEC-####.md` is a generated Markdown projection with no
+independent authority. The kind-record store keeps the two in lockstep: it
+validates the JSON against the per-kind schema (`decision.v1` / `initiative.v1`)
+and regenerates the `.md` in the same write, so a hand edit to the projection is
+never canonical and is overwritten on the next regeneration. This is the same
+canonical-vs-generated rule described above, applied to the initiative and
+decision surfaces.
+
+Agents mutate these records through schema-aware structured routes, never by
+editing the Markdown or the JSON on disk directly. Direct filesystem edits to
+`wiki/initiatives/` and `wiki/decisions/` are not the agent authoring path.
+
+### Decision Authority Lifecycle
+
+A decision carries a `status`, and its authority follows the two-state lifecycle
+fixed by `decision`:
+
+- `proposed` — a non-binding draft. Consumers must not treat a `proposed`
+  decision as authority.
+- `accepted` — binding. In this free/local tier `accepted` is binding **on
+  trust**: consumers accept it at face value.
+
+The lifecycle is driven by a single agent-callable operation family, all
+ungated and fail-open in the free tier, each call stamping provenance (who/when):
+
+- `create` — mint a new decision as `proposed`.
+- `amend` — edit a `proposed` decision in place. Amending an `accepted`
+  decision is refused until it is returned to `proposed` via `unratify`.
+- `ratify` — the `proposed → accepted` transition, a trusted status flip
+  recorded honestly.
+- `unratify` — the `accepted → proposed` transition, reopening a decision for
+  amendment.
+
+The free tier is intentionally ungated: any agent may draft and ratify
+decisions, `ratify` is a trusted status flip, and there is no approver check.
+The enforcement boundary against self-authorization lives in the paid CCE ratification
+attestation (a signed approver-set predicate), which is out of scope here and
+tracked separately (node-engine + `initiative`). This model deliberately does
+**not** assert an operator-only ratification gate, a local approver check, or any
+filesystem/admission lockdown of `wiki/decisions/`: `decision` retires local
+lockdown, and neither the JSON record nor its projection encodes one. The JSON
+migration preserves exactly today's Markdown `accepted` semantics and broadens no
+authority.
 
 ## Cross-Repo Referencing
 

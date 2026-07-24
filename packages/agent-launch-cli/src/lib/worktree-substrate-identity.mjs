@@ -530,10 +530,6 @@ export function resolveUniqueManagedLifecycleBindingPairForRecovery({
   }
   if (candidates.length === 0) return null;
 
-  if (candidates.length !== EXACT_RECOVERY_BINDING_PAIR_SIZE) {
-    failRecoveryPairSelection({ matching_binding_count: candidates.length });
-  }
-
   const matching = candidates.map(({ filePath, binding }) => {
     assertRecoveryBindingContract(binding, {
       filePath,
@@ -545,6 +541,10 @@ export function resolveUniqueManagedLifecycleBindingPairForRecovery({
     });
     return binding;
   });
+
+  if (matching.length !== EXACT_RECOVERY_BINDING_PAIR_SIZE) {
+    failRecoveryPairSelection({ matching_binding_count: matching.length });
+  }
 
   const [wkId, sliceId] = [expectedWkId, expectedSliceId];
   const sliceCandidates = matching.filter((binding) =>
@@ -561,7 +561,9 @@ export function resolveUniqueManagedLifecycleBindingPairForRecovery({
       binding.record_id === wkId && binding.slice_id === null &&
       binding.initiative === slice.initiative &&
       binding.unit_address === `${slice.initiative}/${wkId}` &&
-      binding.base_sha === slice.base_sha
+      binding.base_sha === slice.base_sha &&
+
+      binding.worktree_path !== slice.worktree_path
     );
     for (const wk of wkCandidates) pairs.push({ runId: baseRunId, retryId: slice.retry_id, slice, wk });
   }
@@ -572,10 +574,6 @@ export function resolveUniqueManagedLifecycleBindingPairForRecovery({
     });
   }
   const pair = pairs[0];
-  if (pair.slice.worktree_path === pair.wk.worktree_path) {
-    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
-      "recovery WK and slice bindings must identify distinct worktrees");
-  }
   const sliceBinding = Object.freeze({ ...pair.slice });
   const wkBinding = Object.freeze({ ...pair.wk });
   return Object.freeze({

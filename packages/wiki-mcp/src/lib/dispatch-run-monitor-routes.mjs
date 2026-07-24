@@ -7,8 +7,12 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/agent-dispatch-identity.mjs";
 import {
   createLifecycleCheckpoint,
+  LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
+  lifecycleResolutionRequiresExternalAction,
   POST_WORKER_LIFECYCLE_CHECKPOINT,
   POST_WORKER_LIFECYCLE_PHASES,
+  projectLifecycleResolution,
+  recordLifecycleFailure,
   WORKER_SLICE_SUBJECT_RE
 } from "./dispatch-post-worker-lifecycle-bindings.mjs";
 import { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
@@ -25,8 +29,18 @@ import {
   mapBackendRefusalToDispatchCode,
   omitNullFields,
   resolveMonitorHandleAlwaysUnknown,
+  SAFE_POSTCHECK_MISMATCH_FIELDS,
   summarizeRunStatusFinalResult
 } from "./dispatch-tool-helpers.mjs";
+
+export {
+  LIFECYCLE_EXTERNAL_ACTION_NEXT_ACTIONS,
+  LIFECYCLE_FAILURE_HISTORY_LIMIT,
+  LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
+  lifecycleResolutionRequiresExternalAction,
+  projectLifecycleResolution,
+  RUN_LIFECYCLE_RESOLUTION_SCHEMA_VERSION
+} from "./dispatch-post-worker-lifecycle-bindings.mjs";
 
 export {
   TERMINAL_REVIEW_EVIDENCE_MODES,
@@ -35,6 +49,46 @@ export {
 } from "./dispatch-terminal-review-evidence.mjs";
 
 export { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
+
+function buildLifecycleFailure(checkpoint, error) {
+  const detail = buildDispatchToolExceptionDetail("post_worker_slice_lifecycle", error);
+  const failure = {
+    invoked: true,
+    phase: checkpoint.phase,
+    integrated: checkpoint.phase !== POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION,
+    error_code: error?.code ?? "agent_launch.slice_lifecycle.failed.v1",
+    error_message: detail.error_message,
+    error_message_truncated: detail.error_message_truncated
+  };
+
+  if (detail.postcheck_mismatch_field !== undefined) {
+    failure.postcheck_mismatch_field = detail.postcheck_mismatch_field;
+  }
+  if (checkpoint.integration) failure.integration = checkpoint.integration;
+  return Object.freeze(failure);
+}
+
+function publishableLifecycleFailure(lifecycle) {
+  if (lifecycle === null || typeof lifecycle !== "object") return lifecycle ?? null;
+  if (!Object.hasOwn(lifecycle, "postcheck_mismatch_field")) return lifecycle;
+  const value = lifecycle.postcheck_mismatch_field;
+  if (typeof value === "string" && SAFE_POSTCHECK_MISMATCH_FIELDS.includes(value)) {
+    return lifecycle;
+  }
+  const bounded = { ...lifecycle };
+  delete bounded.postcheck_mismatch_field;
+  return Object.freeze(bounded);
+}
+
+class RecordedLifecycleFailure extends Error {
+  constructor(failure) {
+    super("post-worker slice lifecycle invocation failed");
+    this.name = "RecordedLifecycleFailure";
+    this.failure = failure;
+  }
+}
+
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 export function registerRunMonitorRoutes(ctx) {
   const {
@@ -118,6 +172,12 @@ export function registerRunMonitorRoutes(ctx) {
             checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.FINALIZED;
           }
           return result;
+        })
+
+        .catch((error) => {
+          throw new RecordedLifecycleFailure(
+            recordLifecycleFailure(checkpoint, buildLifecycleFailure(checkpoint, error))
+          );
         });
       checkpoint.in_flight = invocation;
     }
@@ -125,27 +185,36 @@ export function registerRunMonitorRoutes(ctx) {
     try {
       return await invocation;
     } catch (error) {
-      const detail = buildDispatchToolExceptionDetail("post_worker_slice_lifecycle", error);
-      const failure = {
-        invoked: true,
-        phase: checkpoint.phase,
-        integrated: checkpoint.phase !== POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION,
-        error_code: error?.code ?? "agent_launch.slice_lifecycle.failed.v1",
-        error_message: detail.error_message,
-        error_message_truncated: detail.error_message_truncated
-      };
-      if (checkpoint.integration) failure.integration = checkpoint.integration;
-      return Object.freeze(failure);
+
+      if (error instanceof RecordedLifecycleFailure) return error.failure;
+
+      return recordLifecycleFailure(checkpoint, buildLifecycleFailure(checkpoint, error));
     } finally {
       if (checkpoint.in_flight === invocation) checkpoint.in_flight = null;
     }
+  }
+
+  function projectManagedTerminality({ runId, lifecycle, childTerminal }) {
+    const checkpoint = postWorkerLifecycleByRun.get(runId) ?? null;
+    const resolution = projectLifecycleResolution({ lifecycle, checkpoint });
+    return {
+      child_terminal: childTerminal === true,
+      terminal: childTerminal === true && (resolution === null || resolution.resolved === true),
+      lifecycle_resolution: resolution
+    };
+  }
+
+  function resolveTopLevelNextAction(resolution) {
+    return lifecycleResolutionRequiresExternalAction(resolution)
+      ? resolution.next_action
+      : LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY;
   }
 
   registerTool(
     "workspace_agent_run_status",
     {
       description:
-        "Query the status of a workspace_agent_dispatch run by monitor_handle. Stdio MCP is not an authentication boundary; caller-supplied identity carriers are refused. Unknown, subject-mismatch, and caller-session-mismatch handles refuse with the monitor_handle_* taxonomy. The accepted response is compact by default: null fields are omitted and a terminal run returns a bounded final_result_summary instead of the captured agent text. Pass verbose:true or include_final_result:true for the full final_result envelope. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success carrying structured_role_result.valid:false is EXPECTED and is not a failed child run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key.",
+        "Query a workspace_agent_dispatch run by monitor_handle. NOT read-only for a managed exact-slice worker run: each call ADVANCES that run's post-worker lifecycle, writing canonical work-record status and mutating Git refs through the trusted runtime. terminal:true means the COMPLETE managed run is finalized; child_terminal reports only that the child process ended. An unresolved run returns terminal:false, child_terminal:true, and a lifecycle_resolution projection (phase, latest retained typed failure, bounded attempt metadata, next step). next_action is that exact lifecycle action when the CALLER must act - notably \"complete_slice_review_then_retry_run_status\", which polling can never clear - else \"retry_wait_or_check_status\": poll again with the same monitor_handle and do NOT relaunch. status, exit, final_result, and review_result describe the CHILD and never contradict terminal:false. Stdio MCP is not an authentication boundary; caller-supplied identity carriers are refused. Unknown, subject-mismatch, and caller-session-mismatch handles refuse with the monitor_handle_* taxonomy. Responses are compact by default (null fields omitted, bounded final_result_summary); pass verbose:true or include_final_result:true for the full final_result. Free/local output is prose-only under DEC-0128, so structured_role_result.valid:false on a terminal success is EXPECTED, not a failed child run or missing findings.",
       inputSchema: {
         repo: z.string().optional(),
         monitor_handle: z.string(),
@@ -215,6 +284,11 @@ export function registerRunMonitorRoutes(ctx) {
           args?.verbose === true || args?.include_final_result === true;
         const finalResult = status.final_result ?? null;
         const reviewResult = compactRunStatusReviewResult(status.review_result);
+        const terminality = projectManagedTerminality({
+          runId: status.run_id,
+          lifecycle,
+          childTerminal: status.terminal === true
+        });
         const accepted = {
           schema_version: AGENT_RUN_STATUS_SCHEMA_VERSION,
           accepted: true,
@@ -224,14 +298,27 @@ export function registerRunMonitorRoutes(ctx) {
           app: status.app ?? null,
           role: status.role,
           subject: status.subject,
+
           status: status.status,
-          terminal: status.terminal,
+          terminal: terminality.terminal,
+          child_terminal: terminality.child_terminal,
           started_at: status.started_at,
+
           updated_at: status.updated_at,
           exit: status.exit ?? null,
           review_result: reviewResult
         };
-        if (lifecycle) accepted.slice_lifecycle = lifecycle;
+        if (Array.isArray(status.validation_evidence)) {
+          accepted.validation_evidence = status.validation_evidence;
+        }
+        if (terminality.lifecycle_resolution) {
+          accepted.lifecycle_resolution = terminality.lifecycle_resolution;
+        }
+        if (!terminality.terminal) {
+          accepted.next_action = resolveTopLevelNextAction(terminality.lifecycle_resolution);
+        }
+
+        if (lifecycle) accepted.slice_lifecycle = publishableLifecycleFailure(lifecycle);
         if (finalResult) {
           if (includeFullFinalResult) {
             accepted.final_result = finalResult;
@@ -256,7 +343,7 @@ export function registerRunMonitorRoutes(ctx) {
     "workspace_agent_run_wait",
     {
       description:
-        "Wait for a workspace_agent_dispatch run to reach a terminal state or until a bounded wait window expires. Normally OMIT timeout_ms: the 60000 ms default is a client-safe window sized to return within the outer MCP tool-call timeout. Returns terminal with timed_out:false, or non-terminal with timed_out:true and next_action:\"retry_wait_or_check_status\" when the window expires. timed_out:true is a CLEAN wait-window timeout, NOT a failed child — the child is still running; call run_wait or run_status again with the SAME monitor_handle and do NOT relaunch. Stdio MCP is not an authentication boundary; caller-supplied identity carriers are refused, with the same monitor-handle/subject/caller-session refusal taxonomy as workspace_agent_run_status. Bounds (out-of-range refused): timeout_ms integer [1,300000] default 60000; poll_interval_ms integer [500,60000] default 5000. Terminal response is compact by default; pass verbose:true or include_final_result:true for the full final_result envelope. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success carrying structured_role_result.valid:false is EXPECTED and is not a failed run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key.",
+        "Wait for a workspace_agent_dispatch run to finish, or until a bounded wait window expires. NOT read-only: like run_status it ADVANCES a managed exact-slice run's post-worker lifecycle (canonical status writes, trusted-runtime Git ref mutation). terminal:true means the COMPLETE managed run is finalized; child_terminal only that the child process ended. Normally OMIT timeout_ms: the 60000 ms default suits the outer MCP tool-call timeout. The window bounds the WHOLE call: after the child exits it keeps waiting on the same deadline for the lifecycle. Three outcomes: (1) terminal:true, timed_out:false; (2) terminal:false, timed_out:false, child_terminal:true, next_action:\"complete_slice_review_then_retry_run_status\" - returned PROMPTLY; only the caller can clear it; (3) timed_out:true with next_action:\"retry_wait_or_check_status\" - the window expired; nothing failed. Cases 2 and 3 carry a lifecycle_resolution projection (phase, latest retained typed failure, bounded attempt metadata) and never mean a failed child: call again with the SAME monitor_handle; do NOT relaunch. Bounds (out-of-range refused): timeout_ms [1,300000] default 60000; poll_interval_ms [500,60000] default 5000, both integers. Identity carriers are refused with the monitor_handle_* taxonomy. Terminal response is compact; pass verbose:true or include_final_result:true for the full final_result. Free/local output is prose-only under DEC-0128, so structured_role_result.valid:false on success is EXPECTED.",
       inputSchema: {
         repo: z.string().optional(),
         monitor_handle: z.string(),
@@ -332,6 +419,8 @@ export function registerRunMonitorRoutes(ctx) {
           );
         }
 
+        const waitDeadline = Date.now() + timeoutMs;
+
         let waitResult = await dispatchBackend.waitForRunStatus({
           caller_session_id: dispatchSessionIdentity,
           monitor_handle: args.monitor_handle,
@@ -356,32 +445,71 @@ export function registerRunMonitorRoutes(ctx) {
           }
         }
 
-        if (waitResult.timed_out) {
+        const buildWaitTimeout = (source, childTerminal, resolution, lifecycle = null) => {
           const timeout = {
             schema_version: AGENT_RUN_WAIT_SCHEMA_VERSION,
             accepted: true,
             timed_out: true,
             verbose: args?.verbose === true,
-            run_id: waitResult.run_id,
-            monitor_handle: waitResult.monitor_handle,
-            app: waitResult.app ?? null,
-            role: waitResult.role,
-            subject: waitResult.subject,
-            status: waitResult.status,
+            run_id: source.run_id,
+            monitor_handle: source.monitor_handle,
+            app: source.app ?? null,
+            role: source.role,
+            subject: source.subject,
+            status: source.status,
             terminal: false,
-            started_at: waitResult.started_at,
-            updated_at: waitResult.updated_at,
-            next_action: "retry_wait_or_check_status"
+            child_terminal: childTerminal === true,
+            started_at: source.started_at,
+            updated_at: source.updated_at,
+            next_action: resolveTopLevelNextAction(resolution)
           };
+          if (Array.isArray(source.validation_evidence)) {
+            timeout.validation_evidence = source.validation_evidence;
+          }
+          if (resolution) timeout.lifecycle_resolution = resolution;
+          const publishable = publishableLifecycleFailure(lifecycle);
+          if (publishable) timeout.slice_lifecycle = publishable;
           return jsonContent(omitNullFields(timeout));
+        };
+
+        if (waitResult.timed_out) {
+
+          return buildWaitTimeout(waitResult, false, null);
         }
 
-        const lifecycle = recoveredLifecycle ?? await completeTerminalWorkerLifecycle(workspace, waitResult);
+        const childTerminal = waitResult.terminal === true;
+        let lifecycle = recoveredLifecycle ?? await completeTerminalWorkerLifecycle(workspace, waitResult);
+        let terminality = projectManagedTerminality({
+          runId: waitResult.run_id,
+          lifecycle,
+          childTerminal
+        });
+
+        while (recoveredLifecycle === null &&
+               !terminality.terminal &&
+               terminality.lifecycle_resolution !== null &&
+               !lifecycleResolutionRequiresExternalAction(terminality.lifecycle_resolution)) {
+          const remainingMs = waitDeadline - Date.now();
+          if (remainingMs <= 0) {
+
+            return buildWaitTimeout(
+              waitResult, childTerminal, terminality.lifecycle_resolution, lifecycle
+            );
+          }
+          await sleep(Math.min(pollIntervalMs, remainingMs));
+          lifecycle = await completeTerminalWorkerLifecycle(workspace, waitResult);
+          terminality = projectManagedTerminality({
+            runId: waitResult.run_id,
+            lifecycle,
+            childTerminal
+          });
+        }
 
         const includeFullFinalResult =
           args?.verbose === true || args?.include_final_result === true;
         const finalResult = waitResult.final_result ?? null;
         const reviewResult = compactRunStatusReviewResult(waitResult.review_result);
+
         const accepted = {
           schema_version: AGENT_RUN_WAIT_SCHEMA_VERSION,
           accepted: true,
@@ -393,13 +521,24 @@ export function registerRunMonitorRoutes(ctx) {
           role: waitResult.role,
           subject: waitResult.subject,
           status: waitResult.status,
-          terminal: true,
+          terminal: terminality.terminal,
+          child_terminal: terminality.child_terminal,
           started_at: waitResult.started_at,
           updated_at: waitResult.updated_at,
           exit: waitResult.exit ?? null,
           review_result: reviewResult
         };
-        if (lifecycle) accepted.slice_lifecycle = lifecycle;
+        if (Array.isArray(waitResult.validation_evidence)) {
+          accepted.validation_evidence = waitResult.validation_evidence;
+        }
+        if (terminality.lifecycle_resolution) {
+          accepted.lifecycle_resolution = terminality.lifecycle_resolution;
+        }
+        if (!terminality.terminal) {
+          accepted.next_action = resolveTopLevelNextAction(terminality.lifecycle_resolution);
+        }
+
+        if (lifecycle) accepted.slice_lifecycle = publishableLifecycleFailure(lifecycle);
         if (finalResult) {
           if (includeFullFinalResult) {
             accepted.final_result = finalResult;

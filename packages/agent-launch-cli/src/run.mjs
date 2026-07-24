@@ -1,4 +1,3 @@
-import { runAgentRole } from "./commands/agent-role.mjs";
 import { runCleanup } from "./commands/cleanup.mjs";
 import {
   runCodexOrchestratorList,
@@ -128,9 +127,6 @@ export async function run(argv) {
       return;
     case "codex-role":
       await runCodexRole(rest);
-      return;
-    case "agent-role":
-      await runAgentRole(rest);
       return;
     case "temporal-wrapper-dry-run":
       throw new Error(TEMPORAL_WRAPPER_UNSUPPORTED_MESSAGE);

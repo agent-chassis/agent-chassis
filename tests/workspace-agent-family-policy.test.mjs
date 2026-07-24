@@ -131,47 +131,6 @@ test('Codex in-process model refusal carries the launcher envelope shape', () =>
   });
 });
 
-test('Codex broker model refusal carries the host-write-authority envelope shape', () => {
-  const disp = resolveFamilyModelDisposition({ model: 'gpt-5-codex' });
-  const refusal = buildFamilyModelRefusal({
-    transport: FAMILY_REFUSAL_TRANSPORTS.BROKER,
-    reason: CODEX_REASON,
-    detail: { model: disp.model },
-  });
-  assert.deepEqual(refusal, {
-    ok: false,
-    refusal: { reason: CODEX_REASON, detail: { model: 'gpt-5-codex' } },
-  });
-});
-
-test('Agy in-process and broker model refusals carry the family `{ app, model }` detail', () => {
-  const disp = resolveFamilyModelDisposition({ model: 'agy-premier' });
-
-  const inProcess = buildFamilyModelRefusal({
-    transport: FAMILY_REFUSAL_TRANSPORTS.IN_PROCESS,
-    reason: AGY_REASON,
-    detail: { app: AGY_APP_ID, model: disp.model },
-  });
-  assert.deepEqual(inProcess, {
-    accepted: false,
-    refusal: {
-      code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-      reason: AGY_REASON,
-      detail: { app: 'agy', model: 'agy-premier' },
-    },
-  });
-
-  const broker = buildFamilyModelRefusal({
-    transport: FAMILY_REFUSAL_TRANSPORTS.BROKER,
-    reason: AGY_REASON,
-    detail: { app: AGY_APP_ID, model: disp.model },
-  });
-  assert.deepEqual(broker, {
-    ok: false,
-    refusal: { reason: AGY_REASON, detail: { app: 'agy', model: 'agy-premier' } },
-  });
-});
-
 test('in-process transport is the default and an explicit code is honored', () => {
   const refusal = buildFamilyModelRefusal({ reason: CODEX_REASON });
   assert.equal(refusal.accepted, false);

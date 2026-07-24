@@ -1,9 +1,4 @@
 import {
-  MCP_SANDBOX_RUNTIME_BLOCKER_CODES,
-  McpSandboxProfileError,
-  buildMcpSandboxProfileMountPlan
-} from "./mcp-sandbox-profile.mjs";
-import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
   assertAbsoluteSafePath,
   fail,
@@ -14,7 +9,6 @@ import {
   realpathExisting
 } from "./launch-isolation-paths.mjs";
 import {
-  collectCodexMcpReadOnlyRoots,
   resolveExecutableForPlan,
   resolverPathFromEnv
 } from "./launch-isolation-executable.mjs";
@@ -35,7 +29,6 @@ export function prepareBubblewrapPlanCore({
   provisionedWorktreeGitIdentity,
   provisionedWorktreeGitBinding,
   workerScopeAuthority,
-  mcpSandboxProfile,
   familyRuntimeMountPrefixes,
   familyRuntimePolicyProfile,
   commandResolution,
@@ -169,48 +162,6 @@ export function prepareBubblewrapPlanCore({
         repoReal,
         policyProfile: resolvedFamilyRuntimePolicyProfile
       });
-  const mcpReadOnlyRoots = collectCodexMcpReadOnlyRoots({
-    env,
-    pathEnv: resolverPathEnv,
-    systemRoots,
-    repoReal
-  });
-  let mcpSandboxProfilePlan = null;
-  if (mcpSandboxProfile !== null && mcpSandboxProfile !== undefined) {
-    if (sparseWorkerNamespace !== null) {
-      fail(
-        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
-        "managed sparse workers do not accept a general MCP sandbox profile"
-      );
-    }
-    if (typeof mcpSandboxProfile !== "object" || Array.isArray(mcpSandboxProfile)) {
-      fail(
-        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
-        "mcpSandboxProfile must be a plain object",
-        {
-          runtime_blocker_code: MCP_SANDBOX_RUNTIME_BLOCKER_CODES.SANDBOX_WRITE_DENIAL,
-          reason: "profile_request_invalid"
-        }
-      );
-    }
-    try {
-      mcpSandboxProfilePlan = buildMcpSandboxProfileMountPlan({
-        repo: repoReal,
-        launcherRole: mcpSandboxProfile.launcherRole,
-        capabilities: mcpSandboxProfile.capabilities
-      });
-    } catch (err) {
-      if (err instanceof McpSandboxProfileError) {
-        fail(
-          BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
-          err.message,
-          err.detail ?? null
-        );
-      }
-      throw err;
-    }
-  }
-
   return {
     repoReal,
     provisionedGitIsolation,
@@ -220,8 +171,6 @@ export function prepareBubblewrapPlanCore({
     tmpfsDirsResolved,
     maskTmpfsDirsResolved,
     familyRuntimeApprovedPrefixes,
-    resolvedCommand,
-    mcpReadOnlyRoots,
-    mcpSandboxProfilePlan
+    resolvedCommand
   };
 }

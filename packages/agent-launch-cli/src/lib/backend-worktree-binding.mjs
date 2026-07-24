@@ -7,7 +7,6 @@ import { resolveVerifiedSparseExactUnitBinding } from "./worktree-substrate.mjs"
 import { allocateFullSliceExactUnitWorktree } from "./worktree-substrate-exact-unit.mjs";
 import {
   assertCompleteManagedProvisioningResult,
-  assertStructuralManagedProvisioningResult,
   provisionManagedWorktreesAtDispatch
 } from "./worktree-provisioning-dispatch.mjs";
 import {
@@ -167,7 +166,6 @@ export function maybeWrapExecutorWithWorktreeProvisioning(
     let initiative;
     let provisioningRetryId;
 
-    let provisionedViaBroker = false;
     try {
       initiative = resolveProvisioningInitiative({
         readiness: input.readiness ?? null,
@@ -215,69 +213,45 @@ export function maybeWrapExecutorWithWorktreeProvisioning(
           };
         }
       }
-      const hostProvisioningAdapter = provisioningConfig.hostProvisioningAdapter ?? null;
-      if (hostProvisioningAdapter !== null) {
 
-        const brokered = await hostProvisioningAdapter({
-          role: input.role,
-          subject: input.subject,
-          initiative,
-          launch_ref: input.monitor_handle,
-          run_id: input.run_id,
-          retry_id: provisioningRetryId
-        });
-        if (!isPlainObject(brokered) || brokered.accepted !== true ||
-            !isPlainObject(brokered.provisioning)) {
-          return isPlainObject(brokered) && isPlainObject(brokered.refusal)
-            ? { accepted: false, refusal: brokered.refusal }
-            : provisioningRefusal(new Error("host managed worktree provisioning is unavailable"));
-        }
-        provisioning = brokered.provisioning;
-        provisionedViaBroker = true;
-      } else {
-
-        const configuredAllocateSlice = provisioningConfig.deps?.allocateFullSliceExactUnitWorktree
-          ?? allocateFullSliceExactUnitWorktree;
-        provisioning = provisionManagedWorktreesAtDispatch({
-          mainRepo: provisioningConfig.mainRepo,
-          initiative,
-          subject: input.subject,
-          launchRef: input.monitor_handle,
-          runId: input.run_id,
-          retryId: provisioningRetryId,
-          worktreeRoot: provisioningConfig.worktreeRoot,
-          deps: {
-            ...(provisioningConfig.deps ?? {}),
-            allocateFullSliceExactUnitWorktree: (args) => {
-              const configuredVerifyBinding = args.deps?.verifyBinding
-                ?? resolveVerifiedSparseExactUnitBinding;
-              const binding = configuredAllocateSlice({
-                ...args,
-                deps: {
-                  ...(args.deps ?? {}),
-                  verifyBinding: (verifyArgs) => {
-                    const verified = configuredVerifyBinding(verifyArgs);
-                    assertProvisionedScopeAuthority(verified, frozenScopeAuthority);
-                    return verified;
-                  }
+      const configuredAllocateSlice = provisioningConfig.deps?.allocateFullSliceExactUnitWorktree
+        ?? allocateFullSliceExactUnitWorktree;
+      provisioning = provisionManagedWorktreesAtDispatch({
+        mainRepo: provisioningConfig.mainRepo,
+        initiative,
+        subject: input.subject,
+        launchRef: input.monitor_handle,
+        runId: input.run_id,
+        retryId: provisioningRetryId,
+        worktreeRoot: provisioningConfig.worktreeRoot,
+        deps: {
+          ...(provisioningConfig.deps ?? {}),
+          allocateFullSliceExactUnitWorktree: (args) => {
+            const configuredVerifyBinding = args.deps?.verifyBinding
+              ?? resolveVerifiedSparseExactUnitBinding;
+            const binding = configuredAllocateSlice({
+              ...args,
+              deps: {
+                ...(args.deps ?? {}),
+                verifyBinding: (verifyArgs) => {
+                  const verified = configuredVerifyBinding(verifyArgs);
+                  assertProvisionedScopeAuthority(verified, frozenScopeAuthority);
+                  return verified;
                 }
-              });
-              assertProvisionedScopeAuthority(binding, frozenScopeAuthority);
-              return binding;
-            }
+              }
+            });
+            assertProvisionedScopeAuthority(binding, frozenScopeAuthority);
+            return binding;
           }
-        });
-      }
+        }
+      });
     } catch (error) {
       return provisioningRefusal(error);
     }
 
     try {
 
-      const assertProvisioningResult = provisionedViaBroker
-        ? assertStructuralManagedProvisioningResult
-        : assertCompleteManagedProvisioningResult;
-      assertProvisioningResult({
+      assertCompleteManagedProvisioningResult({
         provisioning,
         mainRepo: provisioningConfig.mainRepo,
         initiative,

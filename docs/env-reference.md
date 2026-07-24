@@ -37,7 +37,7 @@ not a general dotenv loader:
   tolerated.
 - The repo-local `.env` is read keyed on the workspace directory
   (`WIKI_MCP_WORKSPACE_DIR` for the MCP server; the launch input's workspace dir
-  for the host-write-authority broker), so both launcher surfaces share one
+  for the launcher-owned host wiki-MCP server), so launcher surfaces share one
   parser and allowlist.
 
 > `.env.example` at the repo root is **operator documentation only** — the
@@ -130,20 +130,21 @@ repo-local `.env` keys.
 |---|---|
 | `AGENT_LAUNCH_RUNTIME_STATE_DIR` | Root for mutable launcher runtime state (nonces, token state). Must resolve outside the repo / `HOME` / `XDG` roots; defaults to an OS-tmpdir location when unset (`packages/agent-launch-core/src/lib/config.mjs`). |
 
-Other `AGENT_LAUNCH_*` variables (role-guard, host-write-authority broker,
-isolation, bin-dir) are launcher-internal plumbing minted from canonical config
+Other `AGENT_LAUNCH_*` variables (role-guard, isolation, bin-dir) are
+launcher-internal plumbing minted from canonical config
 for a single launch; they are not operator-facing configuration and should not
 be set by hand. Agent-authored environment is never policy authority — any
 runtime environment a tool needs must be launcher-minted from canonical config.
 
 ## 5. Third-party agent-CLI credentials (intentionally not configured here)
 
-The underlying agent CLIs (Claude, Codex, Agy) read their **own** credentials and
-configuration from their own config/home locations (e.g. `CODEX_HOME`, and each
-CLI's own API-key/credential mechanism). AgentChassis neither sets, proxies, nor
-documents those credentials as its own keys — configure each agent CLI per its
-own vendor instructions. The launcher only references such locations to isolate
-them per launch, never to supply credentials.
+The supported underlying agent CLIs (Claude and Codex) read their **own**
+credentials and configuration from their own config/home locations (for example
+`CODEX_HOME` and each CLI's vendor credential mechanism). AgentChassis neither
+sets, proxies, nor documents those credentials as its own keys. The launcher
+references only the narrow approved locations needed to isolate each launch and
+never treats them as wiki-MCP authority. Agy is unsupported and receives no
+credential or runtime-state projection.
 
 ## Secret vs non-secret summary
 

@@ -14,8 +14,6 @@ import {
 } from "./workspace-agent-codex-runtime-facts.mjs";
 import { subjectKey } from "./codex-role-orchestrator-history.mjs";
 import {
-  buildCodexWorkerWikiMcpEnvOverrides,
-  buildCodexWorkspaceMcpEnvOverrides,
   injectCodexConfigOverridesBeforeFinalPositional
 } from "./codex-role-mcp-env.mjs";
 import {
@@ -50,24 +48,8 @@ export async function buildHeadlessPlan({
   dispatchWorktreeRoot = null,
   terminalStructuredRoleResultMode = undefined,
   workerScopeAuthority = null,
-  workerWikiMcpAssignedUnit = null,
-  managedWorker = false,
-  workerWikiMcpWorktreeProvisioning = null,
-  workerWikiMcpSliceBinding = null,
-
-  workerWikiMcpHostWriteEndpoint = null
+  additionalReadOnlyRoots = []
 }) {
-  const hasWorkerWikiMcpBinding = workerWikiMcpAssignedUnit !== null || managedWorker === true ||
-    workerWikiMcpWorktreeProvisioning !== null || workerWikiMcpSliceBinding !== null;
-  const workerWikiMcpEnvOverrides = hasWorkerWikiMcpBinding
-    ? buildCodexWorkerWikiMcpEnvOverrides({
-        assignedUnit: workerWikiMcpAssignedUnit,
-        managedWorker,
-        worktreeProvisioning: workerWikiMcpWorktreeProvisioning,
-        sliceBinding: workerWikiMcpSliceBinding,
-        hostWriteAuthorityEndpoint: workerWikiMcpHostWriteEndpoint
-      })
-    : [];
   const runtimeHomeResult = await setupCodexRuntimeHome({ env, repo, subject, role });
   if (isCodexFactResolutionRefusal(runtimeHomeResult)) {
     return buildCodexFactResolutionRefusalPlan({
@@ -81,15 +63,13 @@ export async function buildHeadlessPlan({
   const runtimeEnv = sanitizeCodexChildEnv(runtimeHomeResult);
   const modelArgs = typeof model === "string" && model.trim() !== "" ? ["-m", model.trim()] : [];
 
-  const schemaConstraintArgs =
+  const schemaConstraintPath =
     terminalStructuredRoleResultMode === TERMINAL_STRUCTURED_ROLE_RESULT_MODES.SCHEMA_CONSTRAINED
-      ? ["--output-schema", resolveAgentRoleResultSchemaPath()]
-      : [];
-  const workspaceMcpEnvOverrides = buildCodexWorkspaceMcpEnvOverrides({
-    workspaceAlias,
-    workspaceDir,
-    dispatchWorktreeRoot
-  });
+      ? resolveAgentRoleResultSchemaPath()
+      : null;
+  const schemaConstraintArgs = schemaConstraintPath === null
+    ? []
+    : ["--output-schema", schemaConstraintPath];
   const writePosture = resolveCodexScopeMountWritePosture(role);
   const runDirBase = path.join(runtimeEnv.CODEX_HOME, "tmp");
   await ensureWritableDirectory(runDirBase, role, "launcher runtime directory");
@@ -102,7 +82,7 @@ export async function buildHeadlessPlan({
   const writableFiles = Array.isArray(explicitWritableFiles)
     ? explicitWritableFiles
     : [];
-  const isolation = buildCodexRoleIsolationInputs({
+  const baseIsolation = buildCodexRoleIsolationInputs({
     role,
     repo,
     env: runtimeEnv,
@@ -112,21 +92,36 @@ export async function buildHeadlessPlan({
     workerScopeAuthority,
     subject
   });
-  if (isCodexFactResolutionRefusal(isolation)) {
+  if (isCodexFactResolutionRefusal(baseIsolation)) {
     return buildCodexFactResolutionRefusalPlan({
       role,
       subject,
       repo,
       env: runtimeEnv,
-      result: isolation
+      result: baseIsolation
     });
   }
+
+  const extraReadOnlyRoots = Array.isArray(additionalReadOnlyRoots)
+    ? additionalReadOnlyRoots
+    : [];
+  const isolation = schemaConstraintPath === null && extraReadOnlyRoots.length === 0
+    ? baseIsolation
+    : Object.freeze({
+        ...baseIsolation,
+        read_only_roots: Object.freeze([
+          ...baseIsolation.read_only_roots,
+          ...(schemaConstraintPath === null ? [] : [schemaConstraintPath]),
+          ...extraReadOnlyRoots
+        ]),
+        required_read_only_files: Object.freeze(
+          schemaConstraintPath === null ? [] : [schemaConstraintPath]
+        )
+      });
   if (verbose) {
     const args = [...argsPrefix, ...modelArgs, ...schemaConstraintArgs, prompt];
     injectCodexConfigOverridesBeforeFinalPositional(args, [
-      ...buildCodexReasoningEffortConfigOverrides({ role, repo, model }),
-      ...workspaceMcpEnvOverrides,
-      ...workerWikiMcpEnvOverrides
+      ...buildCodexReasoningEffortConfigOverrides({ role, repo, model })
     ]);
     return {
       mode: "headless-verbose",
@@ -146,9 +141,7 @@ export async function buildHeadlessPlan({
   const logPath = path.join(runDir, "run.log");
   const args = [...argsPrefix, ...modelArgs, "--output-last-message", finalPath, ...schemaConstraintArgs, prompt];
   injectCodexConfigOverridesBeforeFinalPositional(args, [
-    ...buildCodexReasoningEffortConfigOverrides({ role, repo, model }),
-    ...workspaceMcpEnvOverrides,
-    ...workerWikiMcpEnvOverrides
+    ...buildCodexReasoningEffortConfigOverrides({ role, repo, model })
   ]);
   return {
     mode: "headless",

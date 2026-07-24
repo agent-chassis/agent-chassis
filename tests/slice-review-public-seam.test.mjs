@@ -326,7 +326,7 @@ test("A2a public seam: the PRODUCTION binder derives the slice worktree from sli
   assert.equal(parked.wk_transitioned_to_review, false);
 });
 
-test("A2a public seam: accepted review unlocks only the closed broker integration tuple", async (t) => {
+test("A2a public seam: accepted review unlocks only the closed trusted integration tuple", async (t) => {
   const fixture = await createPublicSeamFixture(t);
 
   const parked = await fixture.runLifecycle();

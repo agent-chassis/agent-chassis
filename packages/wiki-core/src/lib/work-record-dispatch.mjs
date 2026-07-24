@@ -10,7 +10,16 @@ import {
 } from "./node-engine-api-client.mjs";
 import { getSidecarIndexStatus } from "./sidecar-status.mjs";
 import { SLICE_ID_PATTERN } from "./work-record-schema-constants.mjs";
-import { evaluateWorkRecordPolicy } from "./work-record-policy.mjs";
+import { validateAcceptanceCriterionEntry } from "./work-record-schema-validators.mjs";
+import { buildNextCall } from "./next-calls-descriptor.mjs";
+import {
+  PARENT_LIFECYCLE_CONTRACT_FACTS,
+  evaluateWorkRecordParentLifecycleContract
+} from "./work-record-parent-lifecycle-contract.mjs";
+import {
+  evaluateWorkRecordPolicy,
+  normalizeWorkRecordPolicyPath
+} from "./work-record-policy.mjs";
 import { isMigrationReviewAcknowledged } from "./work-record-schema.mjs";
 import {
   deriveDirectImportAdjacencyFromGraph,
@@ -32,7 +41,7 @@ import {
   uniqueBy
 } from "./work-record-dispatch-shared.mjs";
 import {
-  WORK_RECORD_DISPATCH_DECISION_CODES,
+  WORK_RECORD_DISPATCH_DECISION_CODES as BASE_WORK_RECORD_DISPATCH_DECISION_CODES,
   chooseDecisionCode
 } from "./work-record-dispatch-decision.mjs";
 import {
@@ -97,9 +106,12 @@ export {
   WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES
 } from "./work-record-dispatch-readiness-shape.mjs";
 export { isBashWrapperPath } from "./work-record-dispatch-shared.mjs";
-export {
-  WORK_RECORD_DISPATCH_DECISION_CODES
-} from "./work-record-dispatch-decision.mjs";
+export const PARENT_LIFECYCLE_CONTRACT_INCOMPLETE_DECISION_CODE =
+  "parent_lifecycle_contract_incomplete";
+export const WORK_RECORD_DISPATCH_DECISION_CODES = Object.freeze([
+  ...BASE_WORK_RECORD_DISPATCH_DECISION_CODES,
+  PARENT_LIFECYCLE_CONTRACT_INCOMPLETE_DECISION_CODE
+]);
 export {
   LOCAL_PREFLIGHT_NON_CLAIM_CONTRACT,
   PREPARATION_AUDIT_ENVELOPE_CONTRACT
@@ -153,6 +165,36 @@ function normalizeDispatchGraphState(graphState = null) {
     graph_state: explicitGraphState,
     overlay_state: explicitOverlayState
   };
+}
+
+const CANONICAL_DECISIONS_DIRECTORY = "wiki/decisions";
+
+function normalizedWriteScopePathOrNull(entry) {
+  try {
+    return normalizeWorkRecordPolicyPath(entry).relative_path;
+  } catch {
+    return null;
+  }
+}
+
+export function collectForbiddenDecisionsWriteScopePaths(writeScope) {
+  if (!Array.isArray(writeScope)) {
+    return [];
+  }
+  const forbidden = new Set();
+  for (const entry of writeScope) {
+    const relativePath = normalizedWriteScopePathOrNull(entry);
+    if (!relativePath) {
+      continue;
+    }
+    if (
+      relativePath === CANONICAL_DECISIONS_DIRECTORY ||
+      relativePath.startsWith(`${CANONICAL_DECISIONS_DIRECTORY}/`)
+    ) {
+      forbidden.add(relativePath);
+    }
+  }
+  return [...forbidden].sort((left, right) => left.localeCompare(right));
 }
 
 export function isGraphBearingCodePath(relativePath) {
@@ -310,6 +352,85 @@ function maybeValidateSliceSelection(record, unit) {
   return { selectedUnit: createSelectedSliceUnit(record, selectedSlice), missingSlice: null };
 }
 
+function buildParentLifecycleContractNextCalls(recordId, evaluation) {
+  const missing = new Set(evaluation.missing_facts);
+  const ambiguous = new Set(evaluation.ambiguous_facts);
+  const calls = [];
+
+  if (missing.has(PARENT_LIFECYCLE_CONTRACT_FACTS.INITIATIVE)) {
+    calls.push(buildNextCall({
+      tool: "assign_work_record_to_initiative",
+      arguments: { unit: recordId },
+      recommended: true,
+      fact: PARENT_LIFECYCLE_CONTRACT_FACTS.INITIATIVE,
+      required_arguments: ["initiative"]
+    }));
+  }
+
+  const acceptanceFacts = [
+    PARENT_LIFECYCLE_CONTRACT_FACTS.ACCEPTANCE_CRITERIA,
+    PARENT_LIFECYCLE_CONTRACT_FACTS.ACCEPTANCE_VALIDATION
+  ].filter((fact) => missing.has(fact));
+  if (acceptanceFacts.length > 0) {
+    calls.push(buildNextCall({
+      tool: "workspace_work_record_set_acceptance",
+      arguments: { unit: recordId },
+      recommended: true,
+      facts: acceptanceFacts,
+      required_arguments: acceptanceFacts.map((fact) => fact.split(".").at(-1))
+    }));
+  }
+
+  if (missing.has(PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT)) {
+    calls.push(buildNextCall({
+      tool: "workspace_work_record_ready_slice",
+      arguments: {
+        unit: recordId,
+        shaping_mode: "reviewer",
+        review_purpose: "terminal_whole_wk"
+      },
+      recommended: true,
+      fact: PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT,
+      action: "create_terminal_review_contract_unit"
+    }));
+  } else if (ambiguous.has(PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT)) {
+    calls.push(buildNextCall({
+      tool: "workspace_work_record_ready_slice",
+      arguments: { unit: recordId },
+      recommended: true,
+      fact: PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT,
+      action: "repair_terminal_review_contract_unit_ambiguity",
+      required_arguments: ["slice_id"]
+    }));
+  }
+
+  return Object.freeze(calls.map(Object.freeze));
+}
+
+function buildParentLifecycleContractRefusal({ record, unit, evaluation, reportOnly }) {
+  const missing = evaluation.missing_facts.join(", ");
+  const ambiguous = evaluation.ambiguous_facts.join(", ");
+  const reasonParts = [
+    missing ? `missing: ${missing}` : null,
+    ambiguous ? `ambiguous: ${ambiguous}` : null
+  ].filter(Boolean);
+  const readiness = buildTerminalReadiness({
+    recordId: record.id,
+    unit,
+    state: normalizeDispatchGraphState(null),
+    decisionCode: PARENT_LIFECYCLE_CONTRACT_INCOMPLETE_DECISION_CODE,
+    reason: `parent lifecycle contract is incomplete (${reasonParts.join("; ")})`,
+    parserDiagnostics: [],
+    reportOnly,
+    dispatchRole: "implementation"
+  });
+  return {
+    ...readiness,
+    parent_lifecycle_contract: evaluation,
+    next_calls: buildParentLifecycleContractNextCalls(record.id, evaluation)
+  };
+}
+
 function resolveNodeEngineConfigReadiness(request) {
   const bundle = isObject(request) ? request : {};
   const config = isObject(bundle.config)
@@ -370,6 +491,80 @@ function boundedGraphImpactFailure(error) {
       "build or fix the repo code index (run `code-index build` / `code-index rebuild`) before requesting graph impact",
     ...(statusReason ? { status_reason: statusReason } : {})
   };
+}
+
+function isCanonicalAcceptanceCriterion(entry) {
+  const diagnostics = [];
+  validateAcceptanceCriterionEntry(diagnostics, entry, "criteria", { allowString: true });
+  return diagnostics.length === 0;
+}
+
+function findingsAcceptanceCriterionText(entry) {
+  if (typeof entry === "string") {
+    const text = entry.trim();
+    return text ? text : null;
+  }
+  if (isObject(entry)) {
+    if (typeof entry.text !== "string") {
+      return null;
+    }
+    const text = entry.text.trim();
+    return text ? text : null;
+  }
+  return null;
+}
+
+function classifyProspectiveReviewAcceptanceSection(section) {
+  if (
+    !isObject(section) ||
+    !Array.isArray(section.criteria) ||
+    !Array.isArray(section.validation)
+  ) {
+    return "invalid";
+  }
+  const criteriaEmpty = section.criteria.length === 0;
+  const validationEmpty = section.validation.length === 0;
+  if (criteriaEmpty && validationEmpty) {
+    return "empty";
+  }
+  if (criteriaEmpty !== validationEmpty) {
+    return "invalid";
+  }
+  for (const entry of section.criteria) {
+    if (!isCanonicalAcceptanceCriterion(entry) || findingsAcceptanceCriterionText(entry) === null) {
+      return "invalid";
+    }
+  }
+  for (const entry of section.validation) {
+    if (typeof entry !== "string" || entry.trim() === "") {
+      return "invalid";
+    }
+  }
+  return "valid";
+}
+
+function collectProspectiveSliceReviewAcceptanceBlocker(record, selectedUnit, unit) {
+  const parentState = classifyProspectiveReviewAcceptanceSection(record?.acceptance);
+  if (parentState === "invalid") {
+    return {
+      code: "missing_validation",
+      remediation_unit: record.id,
+      reason:
+        `exact-slice review inherits parent acceptance from ${record.id}, but its acceptance is asymmetric or malformed; ` +
+        `set both acceptance.criteria and acceptance.validation (or leave both empty) with workspace_work_record_set_acceptance on ${record.id}`
+    };
+  }
+  const sliceState = classifyProspectiveReviewAcceptanceSection(selectedUnit?.acceptance);
+  if (sliceState !== "valid") {
+    return {
+      code: "missing_validation",
+      remediation_unit: unit.address,
+      reason:
+        `exact-slice review requires complete acceptance on the implementation slice ${unit.address}; ` +
+        `set acceptance.criteria and acceptance.validation with workspace_work_record_set_acceptance on ${unit.address}`
+    };
+  }
+  return null;
 }
 
 function buildReadinessFromRecord({
@@ -436,6 +631,14 @@ function buildReadinessFromRecord({
   });
   for (const auditBlocker of collectPreparationAuditBlockers(normalizedAudit, auditRequired)) {
     blockers.push(auditBlocker);
+  }
+
+  const forbiddenDecisionsWriteScope = collectForbiddenDecisionsWriteScopePaths(writeScope);
+  if (forbiddenDecisionsWriteScope.length > 0) {
+    blockers.push({
+      code: "decisions_write_scope_forbidden",
+      reason: `write_scope must not include wiki/decisions or any path beneath it (accepted decision authority is human/operator-only): ${forbiddenDecisionsWriteScope.join(", ")}`
+    });
   }
 
   if (!readOnly) {
@@ -566,6 +769,22 @@ function buildReadinessFromRecord({
         code: "missing_validation",
         reason: "acceptance.validation must list at least one validation command"
       });
+    }
+  }
+
+  let prospectiveReviewRemediationUnit = null;
+  if (!readOnly && unit.kind === "slice" && selectedUnit && subject?.work_kind === "implementation") {
+    const prospectiveReviewBlocker = collectProspectiveSliceReviewAcceptanceBlocker(
+      record,
+      selectedUnit,
+      unit
+    );
+    if (prospectiveReviewBlocker) {
+      blockers.push({
+        code: prospectiveReviewBlocker.code,
+        reason: prospectiveReviewBlocker.reason
+      });
+      prospectiveReviewRemediationUnit = prospectiveReviewBlocker.remediation_unit;
     }
   }
 
@@ -749,9 +968,21 @@ function buildReadinessFromRecord({
       target_resolution: admissionRecovery?.recovery?.target_resolution
     }
   });
+
+  const prospectiveNextCalls =
+    prospectiveReviewRemediationUnit && decisionCode === "missing_validation"
+      ? [
+          buildNextCall({
+            tool: "workspace_work_record_set_acceptance",
+            arguments: { unit: prospectiveReviewRemediationUnit },
+            recommended: true
+          })
+        ]
+      : null;
   return {
     ...readiness,
     ...(graphImpactFailure ? { graph_impact_failure: graphImpactFailure } : {}),
+    ...(prospectiveNextCalls ? { next_calls: prospectiveNextCalls } : {}),
     state: {
       ...readiness.state,
       graph_state: {
@@ -940,6 +1171,22 @@ export async function validateWorkRecordDispatchById(options = {}) {
   }
 
   const { selectedUnit, missingSlice } = maybeValidateSliceSelection(loaded.record, parsedUnit.value);
+
+  if (
+    !readOnly &&
+    parsedUnit.value.kind === "slice" &&
+    selectedUnit?.work_kind === "implementation"
+  ) {
+    const parentLifecycleContract = evaluateWorkRecordParentLifecycleContract(loaded.record);
+    if (!parentLifecycleContract.complete) {
+      return buildParentLifecycleContractRefusal({
+        record: loaded.record,
+        unit: parsedUnit.value,
+        evaluation: parentLifecycleContract,
+        reportOnly
+      });
+    }
+  }
 
   const subject = selectedUnit || loaded.record;
   const subjectWriteScope = Array.isArray(subject?.write_scope) ? subject.write_scope : [];

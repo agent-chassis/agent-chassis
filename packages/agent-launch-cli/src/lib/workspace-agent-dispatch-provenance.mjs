@@ -4,7 +4,10 @@ import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 
 import { isNonEmptyStringInternal } from "./codex-role-io.mjs";
-import { isWorkspaceAgentSandboxDecision } from "./workspace-agent-sandbox-decision.mjs";
+import {
+  buildSandboxBackendSelectionFromBwrapFacts,
+  isWorkspaceAgentSandboxDecision
+} from "./workspace-agent-sandbox-decision.mjs";
 import {
   WORKSPACE_AGENT_RUN_ENFORCEMENT_REASONS,
   WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS,
@@ -63,12 +66,6 @@ export const DISPATCH_ENFORCEMENT_PROVENANCE_DISPOSITIONS = Object.freeze({
   REFUSED: "refused"
 });
 
-const TRANSPORT_ENDPOINT_PATTERNS = Object.freeze([
-  /\b(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}\b/g,
-  /\[[0-9a-fA-F:]+\]:\d{1,5}\b/g,
-  /\blocalhost:\d{1,5}\b/g
-]);
-
 export function normalizeDispatchTranscriptSource(value) {
   return DISPATCH_TRANSCRIPT_SOURCES.includes(value)
     ? value
@@ -90,9 +87,6 @@ export function redactTransportSecrets(value, secrets = []) {
     if (isNonEmptyStringInternal(secret) && out.includes(secret)) {
       out = out.split(secret).join(REDACTED_TRANSPORT_SECRET);
     }
-  }
-  for (const pattern of TRANSPORT_ENDPOINT_PATTERNS) {
-    out = out.replace(pattern, REDACTED_TRANSPORT_SECRET);
   }
   return out;
 }
@@ -223,15 +217,12 @@ export function normalizeDispatchProvenanceEnforcement(enforcement) {
   if (isLauncherObservedDispatchEnforcementSource(source)) {
     return createTrustedDispatchSourceEnforcement(source);
   }
+
   return createWorkspaceAgentRunEnforcement(
     source
       ? {
-          enforced: source.enforced,
-          isolation_backend: source.isolation_backend,
           command_surface: source.command_surface,
-          reason: source.reason,
-          confirmedIsolatedSpawn:
-            isLauncherObservedDispatchEnforcementSource(source)
+          reason: source.reason
         }
       : undefined
   );
@@ -258,17 +249,14 @@ export function createDispatchProvenanceEnforcementFromSandboxDecision(
   sandboxDecision,
   { launcherObservedConfirmation = null } = {}
 ) {
-  const trustedSandboxDecision =
-    isSandboxDecisionForDispatchProvenance(sandboxDecision)
-      ? sandboxDecision
-      : null;
-  const runEnforcement = trustedSandboxDecision
-    ? createWorkspaceAgentRunEnforcementFromSandboxDecision(
-        trustedSandboxDecision,
-        { launcherObservedConfirmation }
-      )
-    : createWorkspaceAgentRunEnforcement();
-  const trustedSource = {
+  if (!isSandboxDecisionForDispatchProvenance(sandboxDecision)) {
+    return null;
+  }
+  const runEnforcement = createWorkspaceAgentRunEnforcementFromSandboxDecision(
+    sandboxDecision,
+    { launcherObservedConfirmation }
+  );
+  return Object.freeze({
     [LAUNCHER_OWNED_DISPATCH_ENFORCEMENT_SOURCE]: true,
     observed_by: "launcher",
     authority: "launcher_owned",
@@ -276,18 +264,67 @@ export function createDispatchProvenanceEnforcementFromSandboxDecision(
     enforced: runEnforcement.enforced,
     isolation_backend: runEnforcement.isolation_backend,
     command_surface: runEnforcement.command_surface,
-    reason: runEnforcement.reason
-  };
-  if (trustedSandboxDecision) {
-    trustedSource.enforcement_posture = sandboxDecisionEnforcementPosture(
-      trustedSandboxDecision
-    );
-    trustedSource.backend_availability = sandboxDecisionBackendAvailability(
-      trustedSandboxDecision
-    );
-    trustedSource.refusal = trustedSandboxDecision.refusal ?? null;
+    reason: runEnforcement.reason,
+    enforcement_posture: sandboxDecisionEnforcementPosture(sandboxDecision),
+    backend_availability: sandboxDecisionBackendAvailability(sandboxDecision),
+    refusal: sandboxDecision.refusal ?? null
+  });
+}
+
+export const LAUNCHER_OBSERVED_CONFIRMED_ISOLATED_SPAWN_SOURCE =
+  "launcher_observed_confirmed_isolated_spawn";
+
+export function createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn({
+  isolationBackend = WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.BWRAP,
+  commandSurface = null
+} = {}) {
+  const runEnforcement = createWorkspaceAgentRunEnforcementForConfirmedSandbox({
+    isolation_backend: isolationBackend,
+    command_surface: commandSurface,
+    launcherObservedConfirmation: {
+      confirmedIsolatedSpawn: true,
+      command_surface: commandSurface
+    }
+  });
+  if (
+    runEnforcement.enforced !== true
+    || runEnforcement.isolation_backend === WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.NONE
+  ) {
+    return null;
   }
-  return Object.freeze(trustedSource);
+  return Object.freeze({
+    [LAUNCHER_OWNED_DISPATCH_ENFORCEMENT_SOURCE]: true,
+    observed_by: "launcher",
+    authority: "launcher_owned",
+    confirmedIsolatedSpawn: true,
+    enforced: runEnforcement.enforced,
+    isolation_backend: runEnforcement.isolation_backend,
+    command_surface: runEnforcement.command_surface,
+    reason: runEnforcement.reason,
+
+    enforcement_posture: null,
+    backend_availability: confirmedIsolatedSpawnBackendAvailability(
+      runEnforcement.isolation_backend
+    ),
+    refusal: null
+  });
+}
+
+function confirmedIsolatedSpawnBackendAvailability(isolationBackend) {
+  if (isolationBackend !== WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.BWRAP) {
+    return null;
+  }
+  const backendSelection = buildSandboxBackendSelectionFromBwrapFacts({
+    availability: { available: true },
+    source: LAUNCHER_OBSERVED_CONFIRMED_ISOLATED_SPAWN_SOURCE
+  });
+  return Object.freeze({
+    state: backendSelection.state,
+    backend: backendSelection.backend_id,
+    reason: backendSelection.reason,
+    source: backendSelection.source,
+    diagnostic: backendSelection.diagnostic
+  });
 }
 
 function isSandboxDecisionForDispatchProvenance(value) {
@@ -480,7 +517,8 @@ export function normalizeDispatchEnforcementProvenance(
   const refusal = normalizeRefusalFacts(sourceFacts.refusal, transportSecrets);
   return Object.freeze({
     schema_version: DISPATCH_ENFORCEMENT_PROVENANCE_SCHEMA_VERSION,
-    authority: "launcher_owned",
+
+    authority: sourceTrusted ? "launcher_owned" : null,
     disposition: resolveDispatchEnforcementDisposition(dispositionEnforcement),
     enforcement_posture: posture,
     backend_availability: backendAvailability,

@@ -1,37 +1,51 @@
 # AgentChassis
 
-AgentChassis is an operating substrate for long-running coding agents where
-orchestrators plan, dispatch, monitor, and close work, but are restricted from
-**implementing work directly.**
+Coding agents rely on private, ephemeral context. As sessions grow, that
+context shifts, compresses, and degrades.
 
-An orchestrator plans an initiative, turns it into scoped work records,
-dispatches workers against those records, and reviews results against written
-acceptance criteria. Because implementation must pass through that loop, the
-repo accumulates a durable knowledge graph as a byproduct of normal execution:
-contracts, scopes, validation, reviews, decisions, provenance, and closure state.
+The code survives.
 
-AgentChassis turns agent work into durable engineering state: agents work from
-scoped contracts instead of chat history; interrupted work resumes from the
-record alone; reviewers check the diff against written acceptance criteria;
-parallel agents stay on non-overlapping surfaces; every contract, decision,
-review, and run becomes part of a durable linked record of the repo's
-engineering knowledge.
+The reasoning does not.
 
-The free local tier gives you the working system: structured wiki, scoped work
-records, digest-bound review records, dispatch-readiness checks, structured-run
-admissibility, honest enforcement-state provenance, graph-backed repo context,
-an MCP server agents call, and an operator launcher for orchestrators. Role
-dispatch is enforced when a supported isolation backend is active and runs with
-honest provenance when it is not; a configured CCE key decides whether an
-unenforced run is allowed to proceed — see [Enforcement posture](#enforcement-posture).
-Install the core npm package from the public npm registry (no `.npmrc` or auth
-required), bootstrap once, build the code index, and drive orchestrators from
-your repo.
+AgentChassis starts with one rule:
 
-The hosted **Chassis Control Engine** adds the governance layer for teams that
-need policy outside the repo itself: remote admission, authorization, and signed
-run attestation for agent work that must be allowed by org policy before it
-runs.
+**The agent that defines the work cannot implement it.**
+
+What this rule forces:
+
+```mermaid
+flowchart TD
+    A["Plans become durable contracts"]
+    B["Scope becomes explicit"]
+    C["Success is defined before implementation"]
+    D["Parallel execution becomes a graph problem"]
+    E["Review measures code against intent"]
+    F["Decisions, provenance, and history accumulate by default"]
+    A --> B --> C --> D --> E --> F
+```
+
+**AgentChassis turns agentic coding into agentic engineering.**
+
+## What it is
+
+AgentChassis is a system you install into your own repository. It splits agent
+coding work into three roles that are not allowed to overlap:
+
+- an **orchestrator** plans the work and breaks it into small, scoped tasks, but
+  never writes product code itself;
+- **workers** each implement one task, confined to the files that task is
+  allowed to change;
+- **reviewers** check each change against what its task said it should do.
+
+Every task is a written **work record** — its contract. The record states the
+scope, the acceptance criteria, and how to validate the result, all before any
+code is written. Nothing reaches your codebase without one.
+
+Because implementation has to pass through this loop, your repository builds up
+an engineering record — what was planned, why, who did it, and whether it
+passed — as an ordinary byproduct of getting work done. That constraint is the
+product: it forces work to become explicit before it runs, reviewable before it
+closes, and durable after the session ends.
 
 ## Why this exists
 
@@ -52,27 +66,55 @@ instructions or after-the-fact checks
 [MI9: Runtime Governance for Agentic AI, 2025](https://arxiv.org/abs/2508.03858);
 [SARC: Governance-by-Architecture, 2026](https://arxiv.org/abs/2605.07728)).
 
-AgentChassis applies that principle to coding work: every unit has a written,
+AgentChassis applies that principle to coding work: every task has a written,
 canonical contract; execution is contained to the declared scope; and the result
-is reviewed against the contract. If work doesn't have a well-formed contract, 
-it is rejected before any code is written. Unsupervised execution needs a boundary
+is reviewed against the contract. If a task has no well-formed contract, it is
+rejected before any code is written. Unsupervised execution needs a boundary
 regardless of how capable the model is.
 
-## The core idea
+## What it gives you
 
-AgentChassis makes disciplined agent work the default path.
+- **Interrupted work resumes cleanly.** A stalled or failed task carries its full
+  definition in its record, so another agent — or you — can pick it up later
+  without rebuilding lost context from a chat log.
+- **Parallel agents don't collide.** Because every task declares which files it
+  may touch, several agents can work at once on non-overlapping parts of the
+  codebase.
+- **Reviews are grounded, not guesswork.** A reviewer checks the change against
+  the task's written acceptance criteria instead of inferring what was intended.
+- **Malformed work is refused early.** A task missing scope, acceptance, or
+  validation is rejected before any model runs — a fast, deterministic check, not
+  a judgment call.
+- **It isn't tied to one AI vendor.** The same setup drives multiple agent tools
+  (Codex, Claude, and more), so you're not locked to a single model or provider.
+- **Agents get a structured interface.** They work through typed tools — an MCP
+  server with built-in discovery — rather than guessing at your files and
+  conventions. The command line is an operator fallback, not the primary path.
 
-The orchestrator is not a privileged coding agent. It does not edit product code
-or improvise implementation from chat. Its job is to create and maintain the
-work graph: split initiatives into scoped units, dispatch the right role, monitor
-runs, record evidence, and route follow-up work.
+## Free and hosted tiers
 
-That constraint is the product. It forces work to become explicit before it is
-executed, reviewable before it is closed, and durable after the session ends.
+**Free, local, and complete.** The source-available tier runs entirely on your
+machine — no account, API key, or network service. You get the full working
+system: the work-record contracts, the check that rejects a malformed task
+before any model runs, local sandbox enforcement of each task's file scope (on
+Linux, via `bwrap`), review records tied to the exact change they reviewed, a
+graph of your code for impact analysis, an MCP server your agents call directly,
+and a launcher for orchestrators. Install one public npm package (no `.npmrc` or
+auth required), run setup, build the code index, and point an orchestrator at
+your repo.
+
+**Hosted governance (private beta).** The **Chassis Control Engine (CCE)** adds
+org-level policy that lives outside any single repo: it decides whether a given
+piece of agent work is allowed to run at all, and returns a signed attestation
+when it is. Teams that need central admission and audit across many repos use it;
+solo and local use never require it. Request access:
+https://forms.gle/YBJc1TnxoEPea3kx6
 
 ## Enforcement posture
 
-AgentChassis keeps two questions separate:
+"Enforced" means AgentChassis actively contained a run to its declared file
+scope, rather than merely asking the agent to stay inside it. Whether that
+happens depends on two separate questions:
 
 - **Can it enforce?** Backend availability decides whether AgentChassis can
   enforce scope locally. When a supported isolation backend (Linux `bwrap`
@@ -94,49 +136,6 @@ never silently degrades to unenforced. This is structured admissibility and
 honest provenance, not a guarantee that a hostile or compromised agent is
 harmless — see [docs/enforcement-model.md](docs/enforcement-model.md) for the
 threat-model limits.
-
-## Advantages of AgentChassis
-
-- **A self-documenting execution loop.** Every implementation starts from a
-  work record and ends in review/closure evidence, so the system builds the
-  repo’s operational memory while work happens.
-- **Orchestrators that coordinate instead of coding inline.** Planning,
-  dispatch, review, and follow-up are separated from implementation, which keeps
-  long-running sessions from becoming unreviewable chat-driven edits.
-- **Parallel work with explicit ownership.** Units carry declared write scope,
-  dependencies, validation, and review state, making concurrent agent work
-  inspectable instead of implicit.
-- **Unattended runs with explicit enforcement state.** Each contract declares
-  its write scope, and supported worker, reviewer, and redteam launches enforce
-  that scope when an isolation backend such as Linux `bwrap` is active. Every run
-  records whether it was enforced and which backend, if any, was used, and every
-  diff is reviewed against the contract before it lands. See
-  [Enforcement posture](#enforcement-posture) for how backend availability and
-  the CCE key interact, and [docs/enforcement-model.md](docs/enforcement-model.md)
-  for the threat-model limits.
-- **Malformed contracts refused before any model call.** A contract missing scope,
-  acceptance, or validation is rejected at dispatch — a model-free, deterministic check
-  that runs in milliseconds.
-- **Parallel agents without collisions.** Disjoint write scopes let several
-  agents work independent contracts on non-overlapping surfaces at the same
-  time.
-- **Reviews bounded by the spec.** The contract is the written spec and the diff
-  is the result; reviewers verify the diff against the contract's scope and
-  acceptance criteria instead of guessing at intent.
-- **Work that survives stalls.** A failed or aborted run carries its full
-  definition in the contract, so another agent or a human can pick it up from
-  the record alone.
-- **Institutional memory and change control by construction.** Every contract,
-  decision, and run lands in the linked wiki, and the separation of design,
-  execution, and review — each recorded and bound to a content digest —
-  gives you an audit trail by default.
-- **Agent-first interface.** Agents work through a structured MCP tool surface
-  with built-in tool discovery, choosing tools from typed contracts instead of
-  guessing from filenames or prose. The CLI is an operator fallback, not the
-  primary path.
-- **Model- and vendor-neutral.** One contract and one launcher drive multiple
-  agent families (Codex, Claude, and more), so the substrate isn't tied to a
-  single model or provider.
 
 ## Install and set up
 
@@ -228,22 +227,6 @@ npx agent-launch resume IN-0001 --model opus
 npx agent-launch orchestrator list --json
 ```
 
-## What AgentChassis provides
-
-- wiki contract schemas, conventions, templates, and allocator-backed work
-  records
-- the `wiki` CLI for bootstrap, validation, lint, search, generated views, code
-  index, and local wiki operations
-- the `wiki-mcp` stdio MCP server for structured repo/wiki access,
-  work-record operations, dispatch-readiness, tool discovery, code-index, and
-  graph-impact queries
-- the `agent-launch` operator entrypoint for orchestrator launch/resume/list and
-  launcher-controlled worker, reviewer, and redteam sessions
-- local execution control: write-scope derivation, backend-enforced sandboxing
-  when available, CCE-key-driven enforcement requirements, explicit
-  unsandboxed opt-out for CCE-key local runs, launcher environment policy,
-  review handoffs, and runtime records
-
 ## What your repo keeps
 
 - product source code
@@ -259,22 +242,6 @@ The `@agent-chassis/*` packages are published to the public npm registry under
 the `@agent-chassis` scope and install with a plain `npm install` (no `.npmrc`
 or auth required). Package-specific README roadmaps are generated from canonical
 work records and remain the active per-package roadmap source of truth.
-
-## Hosted tier (private beta)
-
-The source-available AgentChassis tier runs locally without an account, API key,
-or network service. It owns the workflow substrate: work records,
-dispatch-readiness checks, structured-run admissibility, enforcement-state
-provenance, review records, and repo-local policy. Local sandbox enforcement is
-used when a supported backend is active; see
-[Enforcement posture](#enforcement-posture) for how a configured CCE key governs
-unenforced runs.
-
-The **Chassis Control Engine** is the hosted governance tier. It makes remote
-admission decisions against configurable org policy and returns signed run
-attestations for approved agent work. The Chassis Control Engine is in private
-beta. Teams that want remote admission, org policy, and signed attestation can
-request access: https://forms.gle/YBJc1TnxoEPea3kx6
 
 ## License
 

@@ -17,10 +17,8 @@ import {
 } from "./agent-launch-repo-profile-config.mjs";
 import {
   WIKI_MCP_RESPONSE_STATE_DIR_ENV_VAR,
-  WIKI_MCP_SERVER_PACKAGE_SUBPATH,
   ensureWikiMcpResponseStateDir,
-  resolveLauncherConfiguredWorkspaceAlias,
-  resolveWikiMcpServerPath
+  resolveLauncherConfiguredWorkspaceAlias
 } from "./codex-role-mcp-env.mjs";
 import {
   titleFromPage
@@ -39,25 +37,21 @@ import {
   isValidClaudeOrchestratorWorkspaceAlias,
   resolveClaudeOrchestratorLocalSettings
 } from "./claude-orchestrator-plan-settings.mjs";
-
 import {
-  createOrchestratorDispatchSidecarAdapter,
-  resolveLauncherRegisteredTier,
-  startOrchestratorDispatchSidecar
-} from "./orchestrator-dispatch-sidecar.mjs";
-import {
-  HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR
-} from "./host-write-authority-substrate.mjs";
-import {
-  createHostWriteAuthorityBrokerPlanLaunch
-} from "./workspace-agent-dispatch-codex-executor.mjs";
-import {
-  createHostWriteAuthorityBrokerClaudePlanLaunch,
   resolveLauncherOwnedClaudeRuntimeFacts
 } from "./workspace-agent-dispatch-claude-executor.mjs";
 import {
-  createHostWriteAuthorityBrokerAgyPlanLaunch
-} from "./workspace-agent-dispatch-agy-executor.mjs";
+  buildClaudeStdioMcpAllowedToolsArgs,
+  createStdioMcpConduit
+} from "./stdio-mcp-conduit.mjs";
+import {
+  mintTrustedStdioMcpConduitAuthority
+} from "./stdio-mcp-conduit-authority.mjs";
+import { resolveLauncherRoleToolNames } from "./launcher-role-tool-profile.mjs";
+import {
+  CLAUDE_COMMAND_LINE_CONTRACT_SCHEMA_VERSION,
+  composeClaudeArgv
+} from "./workspace-agent-claude-launch-support.mjs";
 import {
   buildInteractiveOrchestratorBwrapPlan,
   resolveFamilyRuntimeExecutable,
@@ -106,6 +100,9 @@ const CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_RUNTIME_DIR =
   "headless-native-permission-settings";
 const CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_PROJECTED_PATH =
   "<launcher-minted-headless-settings>/settings.json";
+
+export const STDIO_MCP_ORCHESTRATOR_CONDUIT_NOT_PROJECTED_REASON =
+  "stdio_mcp_orchestrator_conduit_not_projected";
 
 export const CLAUDE_ORCHESTRATOR_PLAN_SCHEMA_VERSION =
   "claude-orchestrator-plan.v1";
@@ -162,8 +159,8 @@ function projectedClaudeOrchestratorHeadlessSettingsPath(runtimeDir) {
   );
 }
 
-function withClaudeOrchestratorHeadlessSettingsPath(args, settingsPath) {
-  const nextArgs = [...args];
+function withClaudeOrchestratorHeadlessSettingsPath(optionArgs, settingsPath) {
+  const nextArgs = [...optionArgs];
   const settingsIndex = nextArgs.indexOf("--settings");
   if (settingsIndex === -1) {
     throw new Error("claude-orchestrator: headless argv is missing --settings");
@@ -216,7 +213,6 @@ export async function buildClaudeOrchestratorPlan({
   env = process.env,
   cwd = process.cwd(),
   resolvedProfile = null,
-  resolveWikiMcpServer = resolveWikiMcpServerPath,
   probeBwrapAvailability = probeOrchestratorBwrapAvailability,
 
   headless = false,
@@ -230,18 +226,6 @@ export async function buildClaudeOrchestratorPlan({
   const isHeadless = headless === true && role !== "orch-resume";
   if (!isNonEmptyString(initiative) || !/^IN-[0-9]+$/.test(initiative)) {
     throw new Error(`claude-orchestrator: expected initiative id like IN-0004, got: ${initiative}`);
-  }
-
-  const mcpServerPath = resolveWikiMcpServer();
-  if (!isNonEmptyString(mcpServerPath)) {
-    return makeRefusal(
-      CLAUDE_ORCHESTRATOR_WIKI_MCP_UNRESOLVED_REASON,
-      `claude-orchestrator: cannot resolve the wiki MCP server from the installed ` +
-        `${WIKI_MCP_SERVER_PACKAGE_SUBPATH} package; @agent-chassis/wiki-mcp ` +
-        `installs with @agent-chassis/agent-launch-cli, so reinstall the launcher ` +
-        `package in the launching environment`,
-      { wiki_mcp_package_subpath: WIKI_MCP_SERVER_PACKAGE_SUBPATH }
-    );
   }
 
   const repo = await findRepoRoot(cwd);
@@ -293,7 +277,6 @@ export async function buildClaudeOrchestratorPlan({
   const mcpConfigPath = path.join(runtimeDir, "mcp-config.json");
   const mcpConfigBase = buildClaudeOrchestratorMcpConfig({
     repo,
-    mcpServerPath,
     workspaceAlias,
     workspaceDir,
     dispatchWorktreeRoot,
@@ -320,7 +303,6 @@ export async function buildClaudeOrchestratorPlan({
   } else {
     delete orchEnv.WIKI_MCP_WORKSPACE_ALIAS;
   }
-  delete orchEnv[HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR];
 
   const writePosture = resolveLauncherRoleWritePosture({
     role: "orchestrator",
@@ -334,7 +316,10 @@ export async function buildClaudeOrchestratorPlan({
   }
 
   const headlessSettings = isHeadless
-    ? buildClaudeOrchestratorHeadlessPermissionSettings()
+    ? buildClaudeOrchestratorHeadlessPermissionSettings({
+
+        mcpToolNames: resolveLauncherRoleToolNames("orchestrator")
+      })
     : null;
   const headlessSettingsPath = isHeadless
     ? projectedClaudeOrchestratorHeadlessSettingsPath(runtimeDir)
@@ -347,7 +332,9 @@ export async function buildClaudeOrchestratorPlan({
       workspaceDir: repo,
       writeScope: [],
       env,
-      buildSettings: () => buildClaudeOrchestratorHeadlessPermissionSettings()
+      buildSettings: () => buildClaudeOrchestratorHeadlessPermissionSettings({
+        mcpToolNames: resolveLauncherRoleToolNames("orchestrator")
+      })
     });
     if (availability && availability.ok === false) {
       return makeRefusal(
@@ -358,7 +345,7 @@ export async function buildClaudeOrchestratorPlan({
     }
   }
 
-  const args = [
+  const optionArgs = [
     "--permission-mode",
     "default",
     "--disallowedTools",
@@ -369,16 +356,19 @@ export async function buildClaudeOrchestratorPlan({
   ];
 
   if (isHeadless) {
-    args.push("--print", "--settings", headlessSettingsPath);
+    optionArgs.push("--print", "--settings", headlessSettingsPath);
   }
   if (isNonEmptyString(model)) {
-    args.push("--model", model);
+    optionArgs.push("--model", model);
   }
   if (role === "orch-resume") {
-    args.push("--resume");
-  } else if (isNonEmptyString(prompt)) {
-    args.push(prompt);
+    optionArgs.push("--resume");
   }
+
+  const orchestratorPrompt = role === "orch-resume" || !isNonEmptyString(prompt)
+    ? null
+    : prompt;
+  const args = composeClaudeArgv({ optionArgs, prompt: orchestratorPrompt });
 
   const isolation = buildClaudeOrchestratorIsolationSummary(
     probeBwrapAvailability({ env: orchEnv })
@@ -419,8 +409,12 @@ export async function buildClaudeOrchestratorPlan({
     title,
     command: "claude",
     args,
+
+    optionArgs,
+    prompt: orchestratorPrompt,
+    commandLineContract: CLAUDE_COMMAND_LINE_CONTRACT_SCHEMA_VERSION,
     env: orchEnv,
-    mcpServerPath,
+
     mcpConfigPath,
     mcpConfigBase,
     mcpConfig: { ...mcpConfigBase },
@@ -431,13 +425,6 @@ export async function buildClaudeOrchestratorPlan({
       effort_source: localSettings.settings.effort_source,
       local_config_source: localSettings.localConfig.source,
       local_config_values: localSettings.localConfig.values
-    },
-    dispatchSidecar: {
-      kind: "host_write_authority_localhost",
-      host: "127.0.0.1",
-      envVar: HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR,
-      registeredTier: resolveLauncherRegisteredTier(env),
-      mcpServerName: "wiki"
     }
   };
 }
@@ -464,7 +451,7 @@ function publicClaudeOrchestratorPlan(plan) {
     args: plan.args,
     settings: plan.settings,
     mcp_config_path: plan.mcpConfigPath,
-    dispatch_sidecar: plan.dispatchSidecar,
+    wiki_mcp_transport: "launcher_named_fifo_stdio",
     env: {
       AGENT_ROLE: plan.env.AGENT_ROLE,
       AGENT_IN: plan.env.AGENT_IN,
@@ -477,15 +464,14 @@ function publicClaudeOrchestratorPlan(plan) {
   };
 }
 
-function writeClaudeOrchestratorMcpConfig(plan, endpointValue = null) {
+function writeClaudeOrchestratorMcpConfig(plan, relayRegistration = null) {
   const nextConfig = buildClaudeOrchestratorMcpConfig({
     repo: plan.repo,
-    mcpServerPath: plan.mcpServerPath,
     workspaceAlias: plan.env.WIKI_MCP_WORKSPACE_ALIAS ?? null,
     workspaceDir: plan.env.WIKI_MCP_WORKSPACE_DIR,
     dispatchWorktreeRoot: plan.dispatchWorktreeRoot,
     responseStateDir: plan.env.WIKI_MCP_RESPONSE_STATE_DIR,
-    endpointValue,
+    relayRegistration,
     initiative: plan.subject,
     threadName: plan.threadName,
     model: plan.settings?.model ?? null,
@@ -493,32 +479,6 @@ function writeClaudeOrchestratorMcpConfig(plan, endpointValue = null) {
   });
   plan.mcpConfig = nextConfig;
   return nextConfig;
-}
-
-export function createClaudeOrchestratorDispatchSidecarAdapter() {
-
-  return createOrchestratorDispatchSidecarAdapter({
-    createBrokerPlanLaunch: ({ env, cwd }) =>
-      createHostWriteAuthorityBrokerClaudePlanLaunch({ env, cwd }),
-    appPlanLaunchBuilders: {
-      codex: ({ env, cwd }) => createHostWriteAuthorityBrokerPlanLaunch({ env, cwd }),
-      claude: ({ env, cwd }) => createHostWriteAuthorityBrokerClaudePlanLaunch({ env, cwd }),
-      agy: ({ env, cwd }) => createHostWriteAuthorityBrokerAgyPlanLaunch({ env, cwd })
-    },
-    spawnLaunch: (bwrapPlan, opts) => spawnIsolated(bwrapPlan, opts),
-    applyEndpointToPlan: ({ plan, endpointValue }) => {
-      writeClaudeOrchestratorMcpConfig(plan, endpointValue);
-      return {
-        mcpConfigPath: plan.mcpConfigPath,
-        endpointValue,
-        schema_version: CLAUDE_ORCHESTRATOR_MCP_CONFIG_SCHEMA_VERSION
-      };
-    },
-    removeEndpointFromPlan: ({ plan, applyContext }) => {
-      writeClaudeOrchestratorMcpConfig(plan, null);
-      return applyContext ?? null;
-    }
-  });
 }
 
 function claudeOrchestratorSessionDescriptor(plan) {
@@ -570,6 +530,7 @@ function claudeOrchestratorIsolationProfile({
     familyRuntimeReadOnlyRoots: [runtimeFacts.readOnlyRoot],
     familyRuntimePolicyProfile: runtimeFacts.familyRuntimePolicyProfile,
     dispatchWorktreeRoot: plan.dispatchWorktreeRoot ?? null,
+    stdioMcpConduit: plan.stdioMcpConduit ?? null,
     resolveExecutable
   };
 }
@@ -644,10 +605,24 @@ function buildClaudeOrchestratorIsolationSummary(availability) {
   };
 }
 
+function assertOrchestratorConduitProjected(plan, bwrapPlan) {
+  const configuredRelay = plan?.mcpConfig?.mcpServers?.wiki ?? null;
+  if (configuredRelay === null) return;
+  if (bwrapPlan?.stdioMcpConduit == null || plan?.stdioMcpConduit == null ||
+      bwrapPlan.stdioMcpConduit !== plan.stdioMcpConduit) {
+    const error = new Error(
+      "claude orchestrator MCP config registers the launcher relay but the bwrap plan carries no conduit binding"
+    );
+    error.code = STDIO_MCP_ORCHESTRATOR_CONDUIT_NOT_PROJECTED_REASON;
+    throw error;
+  }
+}
+
 function spawnClaudeOrchestratorChild({ plan, io = {} }) {
 
   if (plan.headless === true) {
     const headlessLaunchPlan = buildClaudeOrchestratorHeadlessLaunchPlan({ plan });
+    assertOrchestratorConduitProjected(plan, headlessLaunchPlan);
     const opened = openHeadlessStdio(plan.headlessLogTarget);
     try {
       return spawnIsolated(headlessLaunchPlan, { stdio: opened.stdio });
@@ -656,6 +631,7 @@ function spawnClaudeOrchestratorChild({ plan, io = {} }) {
     }
   }
   const launchPlan = buildClaudeOrchestratorLaunchPlan({ plan });
+  assertOrchestratorConduitProjected(plan, launchPlan);
   if (launchPlan.isolationMode === ORCHESTRATOR_ISOLATION_MODES.DIRECT) {
     writeStderr(io.stderr, `${launchPlan.warning}\n`);
     return spawn(launchPlan.command, [...launchPlan.args], {
@@ -684,72 +660,104 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
   }
 
   let launchPlan = plan;
-  if (plan.headless === true) {
-    const settingsRuntimeDir = path.join(
-      plan.runtimeDir,
-      CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_RUNTIME_DIR
-    );
-    const minted = await mintNativePermissionSettings({
-      workspaceDir: plan.repo,
-      writeScope: [],
-      env: {
-        ...plan.env,
-        AGENT_LAUNCH_RUNTIME_STATE_DIR: settingsRuntimeDir
-      },
-      buildSettings: () => buildClaudeOrchestratorHeadlessPermissionSettings()
-    });
-    if (
-      !minted ||
-      minted.ok !== true ||
-      typeof minted.settingsPath !== "string" ||
-      minted.settingsPath.length === 0
-    ) {
-      const reason = minted?.code ?? CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON;
-      writeStderr(
-        io.stderr,
-        `claude orchestrator: ${minted?.reason ?? "launcher could not mint Claude headless orchestrator native-permission settings"}\n`
-      );
-      process.exitCode = 1;
-      return {
-        status: "failed",
-        exitCode: 1,
-        signal: null,
-        refusal: { code: reason, detail: minted?.detail ?? null }
-      };
-    }
-    launchPlan = {
-      ...plan,
-      args: withClaudeOrchestratorHeadlessSettingsPath(plan.args, minted.settingsPath),
-      headlessSettings: minted.settings ?? buildClaudeOrchestratorHeadlessPermissionSettings(),
-      headlessSettingsPath: minted.settingsPath
-    };
 
-    const factsResult = resolveClaudeRuntimeFacts({});
-    const claudePath = factsResult?.ok === true ? factsResult.facts.symlink : null;
-    const enforcementProof = await verifyNativePermissionEnforcement({
-      claudePath,
-      env: launchPlan.env
-    });
-    if (!enforcementProof || enforcementProof.ok !== true) {
-      const reason = enforcementProof?.reason ?? CLAUDE_NATIVE_PERMISSION_PROBE_UNPROVEN_REASON;
-      writeStderr(io.stderr, `claude orchestrator: ${reason}\n`);
-      process.exitCode = 1;
-      return {
-        status: "failed",
-        exitCode: 1,
-        signal: null,
-        refusal: { code: reason, detail: enforcementProof?.detail ?? enforcementProof?.checks ?? null }
-      };
-    }
+  if (launchPlan.isolation?.mode !== ORCHESTRATOR_ISOLATION_MODES.BUBBLEWRAP) {
+    throw new Error("claude orchestrator wiki-MCP requires the launcher bwrap FIFO topology");
   }
 
-  const sidecarHandle = await startOrchestratorDispatchSidecar({
-    plan: launchPlan,
-    io,
-    adapter: createClaudeOrchestratorDispatchSidecarAdapter()
+  const conduit = await createStdioMcpConduit({
+    family: "claude",
+    role: "orchestrator",
+    assignedUnit: launchPlan.subject,
+    workspaceDir: launchPlan.repo,
+    workspaceAlias: launchPlan.env.WIKI_MCP_WORKSPACE_ALIAS ?? null,
+    dispatchWorktreeRoot: launchPlan.dispatchWorktreeRoot,
+    responseStateDir: launchPlan.env.WIKI_MCP_RESPONSE_STATE_DIR,
+    authority: mintTrustedStdioMcpConduitAuthority({
+      family: "claude",
+      role: "orchestrator",
+      assignedUnit: launchPlan.subject,
+      workspaceDir: launchPlan.repo
+    })
   });
 
+  const failOrchestratorLaunch = async (reason, detail) => {
+    await conduit.cleanup().catch(() => {});
+    writeStderr(io.stderr, `claude orchestrator: ${reason}\n`);
+    process.exitCode = 1;
+    return { status: "failed", exitCode: 1, signal: null, refusal: { code: reason, detail } };
+  };
+
   try {
+
+    let orchestratorOptionArgs = [
+      ...launchPlan.optionArgs,
+      ...buildClaudeStdioMcpAllowedToolsArgs(conduit, conduit.toolNames)
+    ];
+
+    let headlessSettings = launchPlan.headlessSettings;
+    let headlessSettingsPath = launchPlan.headlessSettingsPath;
+    if (launchPlan.headless === true) {
+      const settingsRuntimeDir = path.join(
+        launchPlan.runtimeDir,
+        CLAUDE_ORCHESTRATOR_HEADLESS_SETTINGS_RUNTIME_DIR
+      );
+
+      const buildSettings = () => buildClaudeOrchestratorHeadlessPermissionSettings({
+        mcpToolNames: conduit.toolNames
+      });
+      const minted = await mintNativePermissionSettings({
+        workspaceDir: launchPlan.repo,
+        writeScope: [],
+        env: {
+          ...launchPlan.env,
+          AGENT_LAUNCH_RUNTIME_STATE_DIR: settingsRuntimeDir
+        },
+        buildSettings
+      });
+      if (
+        !minted ||
+        minted.ok !== true ||
+        typeof minted.settingsPath !== "string" ||
+        minted.settingsPath.length === 0
+      ) {
+        return await failOrchestratorLaunch(
+          minted?.code ?? CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
+          minted?.detail ?? null
+        );
+      }
+      orchestratorOptionArgs =
+        withClaudeOrchestratorHeadlessSettingsPath(orchestratorOptionArgs, minted.settingsPath);
+      headlessSettings = minted.settings ?? buildSettings();
+      headlessSettingsPath = minted.settingsPath;
+
+      const factsResult = resolveClaudeRuntimeFacts({});
+      const claudePath = factsResult?.ok === true ? factsResult.facts.symlink : null;
+      const enforcementProof = await verifyNativePermissionEnforcement({
+        claudePath,
+        env: launchPlan.env
+      });
+      if (!enforcementProof || enforcementProof.ok !== true) {
+        return await failOrchestratorLaunch(
+          enforcementProof?.reason ?? CLAUDE_NATIVE_PERMISSION_PROBE_UNPROVEN_REASON,
+          enforcementProof?.detail ?? enforcementProof?.checks ?? null
+        );
+      }
+    }
+
+    launchPlan = {
+      ...launchPlan,
+      stdioMcpConduit: conduit,
+      optionArgs: orchestratorOptionArgs,
+      args: composeClaudeArgv({
+        optionArgs: orchestratorOptionArgs,
+        prompt: launchPlan.prompt ?? null
+      }),
+      headlessSettings,
+      headlessSettingsPath
+    };
+    writeClaudeOrchestratorMcpConfig(launchPlan, conduit.relay);
+
     await writeJsonAtomic(launchPlan.mcpConfigPath, launchPlan.mcpConfig);
 
     const outcome = await superviseInteractiveOrchestratorLaunch({
@@ -772,7 +780,7 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
     throw error;
   } finally {
     try {
-      await sidecarHandle?.stop();
+      await conduit.cleanup();
     } finally {
       await writeJsonAtomic(launchPlan.mcpConfigPath, launchPlan.mcpConfigBase).catch(() => {});
     }

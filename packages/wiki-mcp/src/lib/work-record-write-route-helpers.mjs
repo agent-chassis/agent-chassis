@@ -28,6 +28,10 @@ import {
   computeReviewedUnitSourceDigest
 } from "@agent-chassis/wiki-core/src/lib/work-record-review-attestation.mjs";
 import { SLICE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import {
+  projectNextActionScalar,
+  validateNextCalls
+} from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -732,14 +736,33 @@ export function createCompactValidateDispatchResponse(
         )
   };
 
+  const structuredNextCalls = Array.isArray(readiness?.next_calls)
+    ? readiness.next_calls
+    : [];
+  const canonicalNextCalls =
+    structuredNextCalls.length > 0 && validateNextCalls(structuredNextCalls).valid
+      ? structuredNextCalls
+      : null;
+  let descriptorAuthoritativeNextAction = false;
+  if (canonicalNextCalls) {
+    response.next_calls = canonicalNextCalls;
+    const scalarNextAction = projectNextActionScalar(canonicalNextCalls);
+    if (typeof scalarNextAction === "string" && scalarNextAction.trim() !== "") {
+      response.next_action = scalarNextAction;
+      descriptorAuthoritativeNextAction = true;
+    }
+  }
+
   if (isFreeLocal) {
     return response;
   }
 
   if (readiness?.dispatchable !== true && readiness?.state?.graph_auto_recoverable === true) {
     response.auto_recoverable = true;
-    response.next_action =
-      "Dispatch worker via workspace_agent_dispatch; admission auto-generates graph-impact evidence";
+    if (!descriptorAuthoritativeNextAction) {
+      response.next_action =
+        "Dispatch worker via workspace_agent_dispatch; admission auto-generates graph-impact evidence";
+    }
   }
 
   if (readiness && typeof readiness === "object" && readiness.admissibility) {

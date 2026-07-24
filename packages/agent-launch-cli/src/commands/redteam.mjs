@@ -5,6 +5,7 @@ import {
 } from "../lib/agent-launch-profiles.mjs";
 import {
   createCodexWorkspaceAgentLaunchExecutor,
+  CODEX_FAMILY_NATIVE_READ_CAPABILITY,
   CODEX_FAMILY_SOURCE_READ_MODE
 } from "../lib/workspace-agent-dispatch-codex-executor.mjs";
 import {
@@ -13,17 +14,9 @@ import {
   CLAUDE_FAMILY_NATIVE_READ_CAPABILITY
 } from "../lib/workspace-agent-dispatch-claude-executor.mjs";
 import {
-  createAgyWorkspaceAgentLaunchExecutor,
-  AGY_FAMILY_SOURCE_READ_MODE,
-  AGY_FAMILY_NATIVE_READ_CAPABILITY
-} from "../lib/workspace-agent-dispatch-agy-executor.mjs";
-import {
   createWorkspaceAgentDispatchBackend,
   WORKSPACE_AGENT_DISPATCH_PLAN_SCHEMA_VERSION
 } from "../lib/workspace-agent-dispatch-backend.mjs";
-import {
-  createLauncherOwnedSourceToolSurfacePreparer
-} from "../lib/agent-backend.mjs";
 
 import {
   buildFamilyExecutorRegistryEntry
@@ -45,7 +38,6 @@ Options:
   --family codex|claude          Deprecated alias for --app
                                  AGY is roadmap/WIP here as with --app
   --operator-config <path>       Launcher registry path override (claude/agy)
-  --backend-key <key>            Override filesystem_mcp_backend_default
                                  (claude/agy)
   --dry-run-json                 Emit canonical plan JSON without spawning
 `;
@@ -204,25 +196,20 @@ export function buildCliDispatchLaunchExecutors({ resolvedProfile = null } = {})
 
     codex: buildFamilyExecutorRegistryEntry({
       executor: createCodexWorkspaceAgentLaunchExecutor({ resolvedProfile }),
-      sourceReadMode: CODEX_FAMILY_SOURCE_READ_MODE
+      sourceReadMode: CODEX_FAMILY_SOURCE_READ_MODE,
+      nativeReadCapability: CODEX_FAMILY_NATIVE_READ_CAPABILITY
     }),
     claude: buildFamilyExecutorRegistryEntry({
       executor: createClaudeWorkspaceAgentLaunchExecutor(),
       sourceReadMode: CLAUDE_FAMILY_SOURCE_READ_MODE,
       nativeReadCapability: CLAUDE_FAMILY_NATIVE_READ_CAPABILITY
-    }),
-    agy: buildFamilyExecutorRegistryEntry({
-      executor: createAgyWorkspaceAgentLaunchExecutor(),
-      sourceReadMode: AGY_FAMILY_SOURCE_READ_MODE,
-      nativeReadCapability: AGY_FAMILY_NATIVE_READ_CAPABILITY
     })
   };
 }
 
 function createCliDispatchBackend({ resolvedProfile = null } = {}) {
   return createWorkspaceAgentDispatchBackend({
-    launchExecutors: buildCliDispatchLaunchExecutors({ resolvedProfile }),
-    prepareSourceToolSurface: createLauncherOwnedSourceToolSurfacePreparer()
+    launchExecutors: buildCliDispatchLaunchExecutors({ resolvedProfile })
   });
 }
 
@@ -341,11 +328,7 @@ function parseCanonicalArgs(argv) {
     }
     const backendKeyOpt = consumeOption(argv, index, "backend-key");
     if (backendKeyOpt) {
-      if (backendKeyOpt.missing) {
-        result.errors.push("--backend-key requires a value");
-      } else {
-        result.agentBackendOptions.push(["--backend-key", backendKeyOpt.value]);
-      }
+      result.errors.push("--backend-key is retired and forbidden");
       index += backendKeyOpt.consumed;
       continue;
     }

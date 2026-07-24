@@ -350,7 +350,6 @@ export const LAUNCHER_OWNED_POLICY_SURFACES = Object.freeze([
   "transport_secret_redaction",
   "refusal_envelope",
   "runtime_state_lifecycle",
-  "sidecar_lifecycle",
   "terminal_state_derivation",
   "signal_exit_handling",
   "coordination_write_scope_authority"
@@ -422,7 +421,6 @@ export const LAUNCHER_REFUSAL_REASONS = Object.freeze({
   ADMISSION_HANDOFF_INVALID: "launcher_admission_handoff_invalid",
   IDENTITY_CALLER_SUPPLIED: "launcher_identity_caller_supplied",
   IDENTITY_REFUSAL_HANDOFF_INVALID: "launcher_identity_refusal_handoff_invalid",
-  SIDECAR_DESCRIPTOR_INVALID: "launcher_sidecar_descriptor_invalid",
   BWRAP_INPUT_INVALID: "launcher_bwrap_input_invalid"
 });
 
@@ -441,7 +439,6 @@ const LAUNCHER_REASON_TO_BACKEND_CODE = Object.freeze({
   [LAUNCHER_REFUSAL_REASONS.ADMISSION_HANDOFF_INVALID]: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
   [LAUNCHER_REFUSAL_REASONS.IDENTITY_CALLER_SUPPLIED]: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
   [LAUNCHER_REFUSAL_REASONS.IDENTITY_REFUSAL_HANDOFF_INVALID]: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-  [LAUNCHER_REFUSAL_REASONS.SIDECAR_DESCRIPTOR_INVALID]: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
   [LAUNCHER_REFUSAL_REASONS.BWRAP_INPUT_INVALID]: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED
 });
 export function launcherRefusalBackendCode(reason) {
@@ -829,53 +826,6 @@ export function normalizeExitEnvelope({ code = null, signal = null, error = null
   });
 }
 
-export const LAUNCHER_DISPATCH_SIDECAR_KIND = "host_write_authority_localhost";
-export const LAUNCHER_DISPATCH_SIDECAR_LOOPBACK_HOST = "127.0.0.1";
-
-export function validateDispatchSidecarDescriptor(descriptor) {
-  if (!isPlainObject(descriptor)) {
-    return Object.freeze({
-      ok: false,
-      refusal: buildLauncherRefusal({
-        reason: LAUNCHER_REFUSAL_REASONS.SIDECAR_DESCRIPTOR_INVALID,
-        detail: { issue: "descriptor_not_object" }
-      })
-    });
-  }
-  if (descriptor.kind !== LAUNCHER_DISPATCH_SIDECAR_KIND) {
-    return Object.freeze({
-      ok: false,
-      refusal: buildLauncherRefusal({
-        reason: LAUNCHER_REFUSAL_REASONS.SIDECAR_DESCRIPTOR_INVALID,
-        detail: {
-          issue: "unsupported_kind",
-          expected: LAUNCHER_DISPATCH_SIDECAR_KIND,
-          received: isNonEmptyString(descriptor.kind) ? descriptor.kind : null
-        }
-      })
-    });
-  }
-  const host = isNonEmptyString(descriptor.host)
-    ? descriptor.host
-    : LAUNCHER_DISPATCH_SIDECAR_LOOPBACK_HOST;
-  if (host !== LAUNCHER_DISPATCH_SIDECAR_LOOPBACK_HOST) {
-    return Object.freeze({
-      ok: false,
-      refusal: buildLauncherRefusal({
-        reason: LAUNCHER_REFUSAL_REASONS.SIDECAR_DESCRIPTOR_INVALID,
-        detail: { issue: "non_loopback_host", received: host }
-      })
-    });
-  }
-  return Object.freeze({
-    ok: true,
-    descriptor: Object.freeze({
-      kind: LAUNCHER_DISPATCH_SIDECAR_KIND,
-      host,
-      envVar: isNonEmptyString(descriptor.envVar) ? descriptor.envVar : null
-    })
-  });
-}
 export function isOrchestratorPlanRole(planRole) {
   return LAUNCHER_ORCHESTRATOR_PLAN_ROLES.includes(planRole);
 }

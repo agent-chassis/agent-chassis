@@ -22,7 +22,7 @@ Upgrade the whole `@agent-chassis/*` set to `0.5.2` together — the packages im
 
 - Stale, dirty, older-base, and "rebuild required" graph states no longer block a dispatch that is otherwise ready; they rebuild at current HEAD automatically, and worker dispatch no longer fails closed just because a separate graph-persistence tool is absent.
 - Exact-slice review state now survives a backend or MCP restart: in-flight review receipts and their acceptance proof are recovered from durable, lock-guarded state rather than dropped or silently re-derived.
-- Managed confined roles that cannot start their wiki-MCP delivery/findings server now fail loud with clear operator blockers (`managed_wiki_mcp_runtime_snapshot_incomplete`, `managed_wiki_mcp_runtime_dependency_unavailable`) plus an in-namespace startup preflight, instead of a silent skip or an opaque sandbox error.
+- Superseded by work record: confined roles now use the launcher-owned host wiki-MCP server and named-FIFO stdio conduit with typed construction, readiness, and cleanup blockers.
 - The initiative-status "admission evidence" nudge now points at read-only `workspace_validate_dispatch`, matching the self-refreshing flow, so there is no separate manual metrics-refresh step to run before dispatch.
 
 Internal module refactors; public import surfaces preserved.

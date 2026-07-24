@@ -14,6 +14,10 @@ import { ensureLauncherRuntimeStateDir } from "@agent-chassis/agent-launch-core/
 
 export const EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION =
   "workspace-agent-exact-slice-review-receipt.v1";
+export const EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V2 =
+  "workspace-agent-exact-slice-review-receipt.v2";
+export const EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3 =
+  "workspace-agent-exact-slice-review-receipt.v3";
 
 const RECEIPT_DIRECTORY = "exact-slice-review-receipts";
 const STORE_EVENT_SCHEMA_VERSION = "workspace-agent-exact-slice-review-receipt-event.v1";
@@ -38,20 +42,66 @@ const REVIEW_RESULT_FIELDS = Object.freeze([
   "review_outcome", "clean_review", "no_findings", "blocking_finding_count",
   "medium_finding_count", "reviewed_controls"
 ]);
-const RECEIPT_FIELDS = Object.freeze([
+const COMMON_RECEIPT_FIELDS = Object.freeze([
   "schema_version", "unit_address", "record_id", "slice_id", "initiative",
   "canonical_parent_wk_contract", "canonical_parent_contract_digest",
   "slice_review_contract", "slice_review_contract_digest",
-  "source_worker_run_id", "source_worker_monitor_handle", "review_run_id",
-  "review_monitor_handle", "reviewer_role", "slice_ref", "worktree_path",
+  "review_run_id", "review_monitor_handle", "reviewer_role", "slice_ref", "worktree_path",
   "worktree_identity", "worktree_identity_digest", "reviewed_sha",
   "diff_base_sha", "frozen_context_state", "terminal_run_status",
   "structured_outcome", "proof_state", "trusted_evidence_digest", "receipt_digest"
 ]);
-const IMMUTABLE_RECEIPT_FIELDS = Object.freeze(RECEIPT_FIELDS.filter((field) => ![
+const V3_COMMON_RECEIPT_FIELDS = Object.freeze(COMMON_RECEIPT_FIELDS.filter((field) =>
+  field !== "frozen_context_state" && field !== "proof_state"
+));
+const V1_RECEIPT_IDENTITY_FIELDS = Object.freeze([
+  "source_worker_run_id", "source_worker_monitor_handle"
+]);
+const V2_RECEIPT_IDENTITY_FIELDS = Object.freeze([
+  "review_admission_kind", "committed_target_digest"
+]);
+const RECEIPT_FIELDS = Object.freeze([...COMMON_RECEIPT_FIELDS, ...V1_RECEIPT_IDENTITY_FIELDS]);
+const RECEIPT_FIELDS_V2 = Object.freeze([...COMMON_RECEIPT_FIELDS, ...V2_RECEIPT_IDENTITY_FIELDS]);
+const RECEIPT_FIELDS_V3 = Object.freeze([...V3_COMMON_RECEIPT_FIELDS, ...V2_RECEIPT_IDENTITY_FIELDS]);
+const IMMUTABLE_COMMON_RECEIPT_FIELDS = Object.freeze(COMMON_RECEIPT_FIELDS.filter((field) => ![
   "frozen_context_state", "terminal_run_status", "structured_outcome", "proof_state",
   "trusted_evidence_digest", "receipt_digest"
 ].includes(field)));
+
+const RECEIPT_VERDICT_EVIDENCE_FIELD = "verdict_evidence";
+export const RECEIPT_VERDICT_EVIDENCE_STATES = Object.freeze({
+
+  PENDING: "pending",
+
+  VERDICT_RECORDED: "verdict_recorded",
+
+  NO_VERDICT_CHILD_TERMINAL: "no_verdict_child_terminal",
+
+  NO_VERDICT_LAUNCH_FAILED: "no_verdict_launch_failed"
+});
+const VERDICT_EVIDENCE_VALUES = new Set(Object.values(RECEIPT_VERDICT_EVIDENCE_STATES));
+export const RECEIPT_NO_VERDICT_EVIDENCE_VALUES = Object.freeze(new Set([
+  RECEIPT_VERDICT_EVIDENCE_STATES.NO_VERDICT_CHILD_TERMINAL,
+  RECEIPT_VERDICT_EVIDENCE_STATES.NO_VERDICT_LAUNCH_FAILED
+]));
+const VERDICT_EVIDENCE_RANK = Object.freeze({
+  pending: 0,
+  verdict_recorded: 1,
+  no_verdict_child_terminal: 1,
+  no_verdict_launch_failed: 1
+});
+
+const RECEIPT_CLEANUP_ONLY_FIELD = "cleanup_only_terminal_failure";
+const OPTIONAL_RECEIPT_FIELDS = Object.freeze([
+  RECEIPT_VERDICT_EVIDENCE_FIELD, RECEIPT_CLEANUP_ONLY_FIELD
+]);
+
+export function receiptCarriesUsableReviewVerdict(receipt) {
+  if (receipt === null || typeof receipt !== "object") return false;
+  if (receipt.terminal_run_status === "succeeded") return true;
+  return receipt.terminal_run_status === "failed" &&
+    receipt[RECEIPT_CLEANUP_ONLY_FIELD] === true;
+}
 const V1_WORKTREE_FIELDS = Object.freeze([
   "schema_version", "launch_ref", "run_id", "retry_id", "unit_address", "initiative",
   "record_id", "slice_id", "base_ref", "base_sha", "output_branch", "worktree_path",
@@ -61,6 +111,12 @@ const V1_WORKTREE_FIELDS = Object.freeze([
 const V2_WORKTREE_FIELDS = Object.freeze([
   ...V1_WORKTREE_FIELDS.filter((field) => field !== "cone_dirs" && field !== "index_sparse"),
   "checkout_mode"
+]);
+const COMMITTED_SLICE_WORKTREE_FIELDS = Object.freeze([
+  "schema_version", "unit_address", "initiative", "record_id", "slice_id",
+  "slice_ref", "wk_ref", "wk_sha", "reviewed_sha", "diff_base_sha",
+  "worktree_path", "changed_paths", "write_scope", "source_digest",
+  "commit_chain", "committed_target_digest"
 ]);
 
 function isPlainObject(value) {
@@ -116,6 +172,44 @@ function assertCanonicalRepoPaths(value, field, { nonEmpty = false } = {}) {
 
 function assertWorktreeIdentity(receipt) {
   const identity = receipt.worktree_identity;
+  if ([EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V2,
+    EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3].includes(receipt.schema_version)) {
+    assertExactKeys(identity, COMMITTED_SLICE_WORKTREE_FIELDS, "worktree_identity");
+    const expectedRef = `refs/heads/slice/${receipt.initiative}/${receipt.record_id}/${receipt.slice_id}`;
+    const expectedWkRef = `refs/heads/wk/${receipt.initiative}/${receipt.record_id}`;
+    const canonicalEmptyDelivery = identity.reviewed_sha === identity.diff_base_sha &&
+      identity.reviewed_sha === identity.wk_sha &&
+      Array.isArray(identity.commit_chain) && identity.commit_chain.length === 0 &&
+      Array.isArray(identity.changed_paths) && identity.changed_paths.length === 0;
+    if (identity.schema_version !== "canonical-committed-slice-review-binding.v1" ||
+        identity.unit_address !== receipt.unit_address ||
+        identity.initiative !== receipt.initiative || identity.record_id !== receipt.record_id ||
+        identity.slice_id !== receipt.slice_id || identity.slice_ref !== expectedRef ||
+        identity.wk_ref !== expectedWkRef || !OID_RE.test(identity.wk_sha ?? "") ||
+        identity.reviewed_sha !== receipt.reviewed_sha ||
+        identity.diff_base_sha !== receipt.diff_base_sha ||
+        identity.worktree_path !== receipt.worktree_path ||
+        identity.committed_target_digest !== receipt.committed_target_digest ||
+        !DIGEST_RE.test(identity.source_digest ?? "") ||
+        !Array.isArray(identity.commit_chain) ||
+        (identity.commit_chain.length === 0 && !canonicalEmptyDelivery) ||
+        identity.commit_chain.some((entry) => !OID_RE.test(entry)) ||
+        !Array.isArray(identity.changed_paths)) {
+      throw new Error("exact slice review receipt committed-target identity is inconsistent");
+    }
+
+    assertCanonicalRepoPaths(identity.changed_paths, "changed_paths");
+    assertCanonicalRepoPaths(identity.write_scope, "write_scope", { nonEmpty: true });
+    if (digestTrustedExactReviewEvidence(
+      Object.fromEntries(Object.entries(identity).filter(([field]) => field !== "committed_target_digest"))
+    ) !== receipt.committed_target_digest) {
+      throw new Error("exact slice review receipt committed-target digest mismatch");
+    }
+    if (digestTrustedExactReviewEvidence(identity) !== receipt.worktree_identity_digest) {
+      throw new Error("exact slice review receipt worktree identity digest mismatch");
+    }
+    return;
+  }
   const expectedFields = identity?.schema_version === "worktree-identity-binding.v1"
     ? V1_WORKTREE_FIELDS
     : identity?.schema_version === "worktree-identity-binding.v2"
@@ -230,8 +324,16 @@ function receiptBody(receipt) {
 function normalizedEvidenceFromReceipt(receipt) {
   return {
     unit_address: receipt.unit_address,
-    source_worker_run_id: receipt.source_worker_run_id,
-    source_worker_monitor_handle: receipt.source_worker_monitor_handle,
+    ...([EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V2,
+      EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3].includes(receipt.schema_version)
+      ? {
+          review_admission_kind: receipt.review_admission_kind,
+          committed_target_digest: receipt.committed_target_digest
+        }
+      : {
+          source_worker_run_id: receipt.source_worker_run_id,
+          source_worker_monitor_handle: receipt.source_worker_monitor_handle
+        }),
     review_run_id: receipt.review_run_id,
     review_monitor_handle: receipt.review_monitor_handle,
     reviewer_role: receipt.reviewer_role,
@@ -244,10 +346,24 @@ function normalizedEvidenceFromReceipt(receipt) {
 
 export function validateExactSliceReviewReceipt(receipt, selector = {}) {
   if (!isPlainObject(receipt) ||
-      receipt.schema_version !== EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION) {
+      ![EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION,
+        EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V2,
+        EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3].includes(receipt.schema_version)) {
     throw new Error("exact slice review receipt is malformed or has an unsupported schema");
   }
-  assertExactKeys(receipt, RECEIPT_FIELDS, "top-level schema");
+
+  assertExactKeys(
+    OPTIONAL_RECEIPT_FIELDS.some((field) => Object.prototype.hasOwnProperty.call(receipt, field))
+      ? Object.fromEntries(Object.entries(receipt)
+        .filter(([field]) => !OPTIONAL_RECEIPT_FIELDS.includes(field)))
+      : receipt,
+    receipt.schema_version === EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3
+      ? RECEIPT_FIELDS_V3
+      : receipt.schema_version === EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V2
+        ? RECEIPT_FIELDS_V2
+        : RECEIPT_FIELDS,
+    "top-level schema"
+  );
   const unit = UNIT_RE.exec(receipt.unit_address);
   if (!unit || receipt.record_id !== unit[1] || receipt.slice_id !== unit[2]) {
     throw new Error("exact slice review receipt unit identity is inconsistent");
@@ -265,8 +381,20 @@ export function validateExactSliceReviewReceipt(receipt, selector = {}) {
         receipt.slice_review_contract_digest) {
     throw new Error("exact slice review receipt frozen contract digest mismatch");
   }
-  for (const field of ["source_worker_run_id", "source_worker_monitor_handle", "review_run_id",
-    "review_monitor_handle"]) assertString(receipt[field], field, OPAQUE_ID_RE);
+  for (const field of ["review_run_id", "review_monitor_handle"]) {
+    assertString(receipt[field], field, OPAQUE_ID_RE);
+  }
+  if ([EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V2,
+    EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3].includes(receipt.schema_version)) {
+    if (receipt.review_admission_kind !== "canonical_committed_slice") {
+      throw new Error("exact slice review receipt carries invalid committed-target admission kind");
+    }
+    assertString(receipt.committed_target_digest, "committed_target_digest", DIGEST_RE);
+  } else {
+    for (const field of ["source_worker_run_id", "source_worker_monitor_handle"]) {
+      assertString(receipt[field], field, OPAQUE_ID_RE);
+    }
+  }
   assertString(receipt.reviewed_sha, "reviewed_sha", OID_RE);
   assertString(receipt.diff_base_sha, "diff_base_sha", OID_RE);
   assertString(receipt.worktree_path, "worktree_path");
@@ -274,12 +402,23 @@ export function validateExactSliceReviewReceipt(receipt, selector = {}) {
     throw new Error("exact slice review receipt worktree_path must be normalized and absolute");
   }
   const expectedRef = `refs/heads/slice/${receipt.initiative}/${receipt.record_id}/${receipt.slice_id}`;
-  if (receipt.slice_ref !== expectedRef || receipt.reviewer_role !== "reviewer" ||
-      !RECEIPT_STATES.has(receipt.frozen_context_state) ||
-      !RUN_STATUSES.has(receipt.terminal_run_status) || !PROOF_STATES.has(receipt.proof_state)) {
+  const legacyAdmissionFieldsValid = receipt.schema_version === EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3 ||
+    (RECEIPT_STATES.has(receipt.frozen_context_state) && PROOF_STATES.has(receipt.proof_state));
+  if (receipt.slice_ref !== expectedRef ||
+      !new Set(["reviewer", "redteam"]).has(receipt.reviewer_role) ||
+      !RUN_STATUSES.has(receipt.terminal_run_status) || !legacyAdmissionFieldsValid) {
     throw new Error("exact slice review receipt carries invalid closed vocabulary");
   }
   assertWorktreeIdentity(receipt);
+
+  if (Object.prototype.hasOwnProperty.call(receipt, RECEIPT_CLEANUP_ONLY_FIELD)) {
+    if (receipt[RECEIPT_CLEANUP_ONLY_FIELD] !== true) {
+      throw new Error("exact slice review receipt carries invalid closed vocabulary");
+    }
+    if (receipt.terminal_run_status !== "failed") {
+      throw new Error("cleanup-only exact slice review evidence requires a failed reviewer run");
+    }
+  }
   if (receipt.structured_outcome !== null) {
     const expected = receipt.structured_outcome.outcome === "clean"
       ? ["outcome", "clean_review", "review_result"]
@@ -290,7 +429,8 @@ export function validateExactSliceReviewReceipt(receipt, selector = {}) {
       throw new Error("exact slice review receipt carries invalid closed vocabulary");
     }
     assertExactKeys(receipt.structured_outcome, expected, "structured_outcome");
-    if (receipt.terminal_run_status !== "succeeded") {
+
+    if (!receiptCarriesUsableReviewVerdict(receipt)) {
       throw new Error("non-succeeded exact slice review receipt cannot carry a structured outcome");
     }
     if (receipt.structured_outcome.outcome === "clean") {
@@ -305,11 +445,29 @@ export function validateExactSliceReviewReceipt(receipt, selector = {}) {
       assertFindings(receipt.structured_outcome);
     }
   }
-  if (receipt.proof_state === "minted" &&
-      (receipt.frozen_context_state !== "consumed" || receipt.terminal_run_status !== "succeeded" ||
-       receipt.structured_outcome?.outcome !== "clean" || receipt.structured_outcome.clean_review !== true)) {
-    throw new Error("minted proof_state requires an exact consumed clean terminal review");
+
+  if (Object.prototype.hasOwnProperty.call(receipt, RECEIPT_VERDICT_EVIDENCE_FIELD)) {
+    const evidence = receipt[RECEIPT_VERDICT_EVIDENCE_FIELD];
+    if (!VERDICT_EVIDENCE_VALUES.has(evidence)) {
+      throw new Error("exact slice review receipt carries invalid closed vocabulary");
+    }
+
+    if (receipt.structured_outcome !== null &&
+        evidence !== RECEIPT_VERDICT_EVIDENCE_STATES.VERDICT_RECORDED) {
+      throw new Error(
+        "exact slice review receipt verdict_evidence disagrees with its validated structured outcome"
+      );
+    }
+    if (evidence === RECEIPT_VERDICT_EVIDENCE_STATES.PENDING &&
+        TERMINAL_STATUSES.has(receipt.terminal_run_status)) {
+      throw new Error("terminal exact slice review receipt cannot leave verdict presence pending");
+    }
+    if (RECEIPT_NO_VERDICT_EVIDENCE_VALUES.has(evidence) &&
+        !TERMINAL_STATUSES.has(receipt.terminal_run_status)) {
+      throw new Error("no-verdict exact slice review evidence requires a terminal reviewer run");
+    }
   }
+
   if (selector.unit_address !== undefined && selector.unit_address !== receipt.unit_address) {
     throw new Error("exact slice review receipt unit selector mismatch");
   }
@@ -330,15 +488,41 @@ export function validateExactSliceReviewReceipt(receipt, selector = {}) {
   return Object.freeze(receipt);
 }
 
+export function classifyExactSliceReviewVerdictEvidence({
+  terminal_run_status: terminalRunStatus,
+  structured_outcome: structuredOutcome,
+  validated_verdict_present: validatedVerdictPresent = false,
+  launch_transport_failed: launchTransportFailed = false
+} = {}) {
+  if (validatedVerdictPresent === true ||
+      (structuredOutcome !== null && structuredOutcome !== undefined)) {
+    return RECEIPT_VERDICT_EVIDENCE_STATES.VERDICT_RECORDED;
+  }
+  if (!TERMINAL_STATUSES.has(terminalRunStatus)) {
+    return RECEIPT_VERDICT_EVIDENCE_STATES.PENDING;
+  }
+  return launchTransportFailed === true
+    ? RECEIPT_VERDICT_EVIDENCE_STATES.NO_VERDICT_LAUNCH_FAILED
+    : RECEIPT_VERDICT_EVIDENCE_STATES.NO_VERDICT_CHILD_TERMINAL;
+}
+
 export function createExactSliceReviewReceipt(fields) {
+  const schemaVersion = fields?.review_admission_kind === "canonical_committed_slice" ||
+    Object.prototype.hasOwnProperty.call(fields ?? {}, "committed_target_digest")
+    ? EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3
+    : EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION;
+  const allowedFields = schemaVersion === EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3
+    ? RECEIPT_FIELDS_V3
+    : RECEIPT_FIELDS;
   const unknown = Object.keys(fields ?? {}).find((field) =>
-    !RECEIPT_FIELDS.includes(field) || field === "schema_version" ||
+    (!allowedFields.includes(field) && !OPTIONAL_RECEIPT_FIELDS.includes(field)) ||
+    field === "schema_version" ||
     field === "trusted_evidence_digest" || field === "receipt_digest");
   if (unknown !== undefined) {
     throw new Error(`exact slice review receipt carries forbidden field: ${unknown}`);
   }
   const bodyWithoutEvidence = canonicalize({
-    schema_version: EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION,
+    schema_version: schemaVersion,
     ...fields
   });
   const body = canonicalize({
@@ -355,7 +539,10 @@ export function createExactSliceReviewReceipt(fields) {
 
 export function reviseExactSliceReviewReceipt(receipt, patch) {
   validateExactSliceReviewReceipt(receipt);
-  const allowed = new Set(["frozen_context_state", "terminal_run_status", "structured_outcome", "proof_state"]);
+  const allowed = new Set([
+    "terminal_run_status", "structured_outcome",
+    ...OPTIONAL_RECEIPT_FIELDS
+  ]);
   const forbidden = Object.keys(patch ?? {}).find((field) => !allowed.has(field));
   if (forbidden !== undefined) {
     throw new Error(`exact slice review receipt revision cannot change immutable field: ${forbidden}`);
@@ -370,7 +557,13 @@ export function reviseExactSliceReviewReceipt(receipt, patch) {
 }
 
 function immutableIdentity(receipt) {
-  return Object.fromEntries(IMMUTABLE_RECEIPT_FIELDS.map((field) => [field, receipt[field]]));
+  const identityFields = [EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V2,
+    EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3].includes(receipt.schema_version)
+    ? V2_RECEIPT_IDENTITY_FIELDS
+    : V1_RECEIPT_IDENTITY_FIELDS;
+  return Object.fromEntries(
+    [...IMMUTABLE_COMMON_RECEIPT_FIELDS, ...identityFields].map((field) => [field, receipt[field]])
+  );
 }
 
 function identityDigest(receipt) {
@@ -385,16 +578,26 @@ function assertMonotonicTransition(prior, next) {
   if (!sameImmutableIdentity(prior, next)) {
     throw new Error("exact slice review receipt transition changes immutable identity");
   }
-  const stateRank = { available: 0, reserved: 1, consumed: 2 };
   const runRank = { launching: 0, running: 1, succeeded: 2, failed: 2, cancelled: 2 };
-  if (stateRank[next.frozen_context_state] < stateRank[prior.frozen_context_state] ||
-      runRank[next.terminal_run_status] < runRank[prior.terminal_run_status] ||
+  if (runRank[next.terminal_run_status] < runRank[prior.terminal_run_status] ||
       (TERMINAL_STATUSES.has(prior.terminal_run_status) &&
        prior.terminal_run_status !== next.terminal_run_status) ||
       (prior.structured_outcome !== null &&
-       canonicalJson(prior.structured_outcome) !== canonicalJson(next.structured_outcome)) ||
-      (prior.proof_state === "minted" && next.proof_state !== "minted")) {
+       canonicalJson(prior.structured_outcome) !== canonicalJson(next.structured_outcome))) {
     throw new Error("exact slice review receipt transition is non-monotonic or conflicts with terminal state");
+  }
+
+  const priorEvidence = prior[RECEIPT_VERDICT_EVIDENCE_FIELD] ?? null;
+  const nextEvidence = next[RECEIPT_VERDICT_EVIDENCE_FIELD] ?? null;
+  if (priorEvidence !== null && nextEvidence !== null &&
+      (VERDICT_EVIDENCE_RANK[nextEvidence] < VERDICT_EVIDENCE_RANK[priorEvidence] ||
+       (priorEvidence !== RECEIPT_VERDICT_EVIDENCE_STATES.PENDING &&
+        priorEvidence !== nextEvidence))) {
+    throw new Error("exact slice review receipt verdict evidence transition is non-monotonic");
+  }
+
+  if (prior[RECEIPT_CLEANUP_ONLY_FIELD] === true && next[RECEIPT_CLEANUP_ONLY_FIELD] !== true) {
+    throw new Error("exact slice review receipt cannot withdraw its cleanup-only disposition");
   }
 }
 
@@ -701,5 +904,25 @@ export function createExactSliceReviewReceiptStore({
     }
   }
 
-  return Object.freeze({ persist, load: select, loadLatest });
+  async function loadAll({ unit_address: unitAddress, committed_target_digest: targetDigest } = {}) {
+    assertString(unitAddress, "unit_address selector", UNIT_RE);
+    if (targetDigest !== undefined) {
+      assertString(targetDigest, "committed_target_digest selector", DIGEST_RE);
+    }
+    const dir = await receiptDirectory();
+    const release = await acquireStoreLock(dir, faultInjector);
+    try {
+      return latestByIdentity(await readEvents(dir))
+        .filter(({ receipt }) => receipt.unit_address === unitAddress &&
+          (targetDigest === undefined || receipt.committed_target_digest === targetDigest))
+        .sort((left, right) => left.generation - right.generation)
+        .map(({ receipt }) => validateExactSliceReviewReceipt(receipt, {
+          unit_address: unitAddress
+        }));
+    } finally {
+      await release();
+    }
+  }
+
+  return Object.freeze({ persist, load: select, loadLatest, loadAll });
 }

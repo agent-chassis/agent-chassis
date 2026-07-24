@@ -9,7 +9,7 @@ import { z } from "zod";
 import { jsonContent, errorContent } from "../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import { registerWorkRecordReadTools } from "../packages/wiki-mcp/src/lib/work-record-read-tools.mjs";
 
-function buildHandler(workspaceDir) {
+function buildHandler(workspaceDir, { runTerminalCandidateValidationForUnit = null } = {}) {
   const handlers = new Map();
   registerWorkRecordReadTools({
     registerTool: (name, _def, handler) => {
@@ -20,7 +20,8 @@ function buildHandler(workspaceDir) {
     jsonContent,
     errorContent,
     resolveWorkspaceRepo: (repos) => repos[0],
-    createCompactValidateDispatchResponse: () => ({})
+    createCompactValidateDispatchResponse: () => ({}),
+    runTerminalCandidateValidationForUnit
   });
   const handler = handlers.get("workspace_run_validation");
   assert.ok(handler, "workspace_run_validation must be registered");
@@ -390,7 +391,7 @@ test("a forged authority field cannot expand the allowed target set", async (t) 
   assertErrorResult(forged, /authority fields/);
 });
 
-test("the tool is family-neutral: unknown family-shaped input does not change behavior", async (t) => {
+test("the tool rejects every caller field outside exact {unit,target}", async (t) => {
   const { handler, cleanup } = await setupWorkspace();
   t.after(cleanup);
 
@@ -399,16 +400,39 @@ test("the tool is family-neutral: unknown family-shaped input does not change be
     target: "passing.test.mjs",
     family: "codex"
   });
-  const asClaude = await handler({
+  assertErrorResult(asCodex, /accepts exactly \{unit,target\}/);
+  assertErrorResult(await handler({
     unit: "WK-9001#SLICE-001",
     target: "passing.test.mjs",
-    family: "claude"
+    repo: "test/fixture"
+  }), /accepts exactly \{unit,target\}/);
+});
+
+test("terminal whole-WK validation routes to launcher-owned candidate state while slices keep existing behavior", async (t) => {
+  const { root, cleanup } = await setupWorkspace();
+  t.after(cleanup);
+  const calls = [];
+  const handler = buildHandler(root, {
+    runTerminalCandidateValidationForUnit: async (request) => {
+      calls.push(request);
+      return {
+        ok: true,
+        candidate: "c".repeat(40),
+        landing_tip: "l".repeat(40),
+        wk_tip: "w".repeat(40),
+        steps: [{ step: "candidate" }]
+      };
+    }
   });
-  assert.equal(asCodex.isError, undefined);
-  assert.equal(asClaude.isError, undefined);
-  assert.equal(asCodex.structuredContent.ok, true);
-  assert.equal(asClaude.structuredContent.ok, true);
-  assert.deepEqual(asCodex.structuredContent.steps[0].argv, asClaude.structuredContent.steps[0].argv);
+  const whole = await handler({ unit: "WK-9001", target: "record-level.test.mjs" });
+  assert.equal(whole.structuredContent.candidate, "c".repeat(40));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].unit, "WK-9001");
+  assert.equal(calls[0].target, "record-level.test.mjs");
+
+  const slice = await handler({ unit: "WK-9001#SLICE-001", target: "passing.test.mjs" });
+  assert.equal(slice.structuredContent.ok, true);
+  assert.equal(calls.length, 1, "slice validation must retain the established main-workspace posture");
 });
 
 test("a missing target is rejected", async (t) => {

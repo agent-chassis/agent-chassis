@@ -5,7 +5,8 @@ import {
 } from "./workspace-agent-dispatch-backend.mjs";
 
 import {
-  LAUNCHER_SOURCE_READ_MODE_LAUNCHER_TOOL_SURFACE
+  LAUNCHER_NATIVE_READ_CAPABILITY_BWRAP_RO_REPO,
+  LAUNCHER_SOURCE_READ_MODE_NATIVE_FILESYSTEM
 } from "./workspace-agent-launch-adapter-contract.mjs";
 
 import {
@@ -15,20 +16,13 @@ import {
   buildLauncherRefusal
 } from "./workspace-agent-launch-core.mjs";
 import {
-  adaptFamilyBrokerRefusal
-} from "./workspace-agent-family-launch-policy.mjs";
-import {
-  HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS,
-  HOST_WRITE_AUTHORITY_SUBSTRATE_ID,
-  HOST_WRITE_AUTHORITY_SUBSTRATE_UNAVAILABLE_REASON,
-  buildWorkerGateRefusalDetail
-} from "./host-write-authority-substrate.mjs";
-import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
   BubblewrapIsolationError
 } from "./launch-isolation.mjs";
 
-export const CODEX_FAMILY_SOURCE_READ_MODE = LAUNCHER_SOURCE_READ_MODE_LAUNCHER_TOOL_SURFACE;
+export const CODEX_FAMILY_SOURCE_READ_MODE = LAUNCHER_SOURCE_READ_MODE_NATIVE_FILESYSTEM;
+export const CODEX_FAMILY_NATIVE_READ_CAPABILITY =
+  LAUNCHER_NATIVE_READ_CAPABILITY_BWRAP_RO_REPO;
 
 export const CODEX_WORKSPACE_AGENT_LAUNCH_EXECUTOR_SCHEMA_VERSION =
   "codex-workspace-agent-launch-executor.v1";
@@ -48,6 +42,20 @@ export const CODEX_ROLE_TO_DISPATCH_ROLE = Object.freeze({
 export const CODEX_SCHEMA_CONSTRAINED_TERMINAL_RESULT_ROLES = Object.freeze(
   new Set(["worker", "reviewer", "redteam"])
 );
+
+function buildWorkerGateRefusalDetail(refusal) {
+  if (typeof refusal !== "object" || refusal === null || Array.isArray(refusal)) return null;
+  return {
+    kind: "worker_gate_refusal.v1",
+    wrapper_gate_code: typeof refusal.wrapper_gate_code === "string" ? refusal.wrapper_gate_code : null,
+    unit_address: typeof refusal.unit_address === "string" ? refusal.unit_address : null,
+    expected_unit_address: typeof refusal.expected_unit_address === "string"
+      ? refusal.expected_unit_address
+      : null,
+    decision_code: typeof refusal.decision_code === "string" ? refusal.decision_code : null,
+    diagnostics: Array.isArray(refusal.diagnostics) ? refusal.diagnostics : []
+  };
+}
 
 export function resolveCodexTerminalStructuredRoleResultMode({
   schemaConstrainedTierIsPaid,
@@ -133,19 +141,6 @@ export function mapCodexArtifactsFailureToInProcessRefusal(failure) {
     case "ensure_write_roots_threw":
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "ensure_new_worker_write_roots_failed", { message });
     case "build_bwrap_plan_isolation":
-      if (err.code === BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.WRITABLE_FILE_NAMESPACE_READ_ONLY) {
-        return makeRefusal(
-          BACKEND_REFUSAL_CODES.BACKEND_UNAVAILABLE,
-          HOST_WRITE_AUTHORITY_SUBSTRATE_UNAVAILABLE_REASON,
-          {
-            substrate_id: HOST_WRITE_AUTHORITY_SUBSTRATE_ID,
-            missing_backend: "workspace_agent_dispatch_codex_executor.hostWriteAuthority",
-            diagnostic_code: err.code,
-            detail: err.detail ?? null,
-            message: err.message ?? null
-          }
-        );
-      }
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, "bubblewrap_plan_refused", { code: err.code, message: err.message });
     case "build_bwrap_plan_threw":
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "build_bwrap_plan_threw", { message });
@@ -155,31 +150,6 @@ export function mapCodexArtifactsFailureToInProcessRefusal(failure) {
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "assert_bubblewrap_threw", { message });
     default:
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "codex_launch_artifacts_unknown_failure", { stage: failure.stage ?? null });
-  }
-}
-
-export function mapCodexArtifactsFailureToBrokerRefusal(failure) {
-  const err = failure.error;
-  const message = err?.message ?? (err ? String(err) : null);
-  switch (failure.stage) {
-    case "plan_build_threw":
-      return adaptFamilyBrokerRefusal({ reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.PLAN_THREW, detail: { message } });
-    case "plan_missing":
-      return adaptFamilyBrokerRefusal({ reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.PLAN_REFUSED, detail: { issue: "codex_role_plan_missing" } });
-    case "plan_refused":
-      return adaptFamilyBrokerRefusal({ reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.PLAN_REFUSED, detail: buildWorkerGateRefusalDetail(failure.refusal) });
-    case "ensure_write_roots_threw":
-      return adaptFamilyBrokerRefusal({ reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.PLAN_THREW, detail: { stage: "ensure_new_worker_write_roots", message } });
-    case "build_bwrap_plan_isolation":
-      return adaptFamilyBrokerRefusal({ reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.PLAN_REFUSED, detail: { stage: "build_bwrap_plan", code: err.code, message: err.message ?? null } });
-    case "build_bwrap_plan_threw":
-      return adaptFamilyBrokerRefusal({ reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.PLAN_THREW, detail: { stage: "build_bwrap_plan", message } });
-    case "assert_bwrap_isolation":
-      return adaptFamilyBrokerRefusal({ reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.ISOLATION_UNAVAILABLE, detail: { code: err.code, message: err.message ?? null } });
-    case "assert_bwrap_threw":
-      return adaptFamilyBrokerRefusal({ reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.PLAN_THREW, detail: { stage: "assert_bubblewrap", message } });
-    default:
-      return adaptFamilyBrokerRefusal({ reason: HOST_WRITE_AUTHORITY_BROKER_REFUSAL_REASONS.PLAN_THREW, detail: { stage: failure.stage ?? null } });
   }
 }
 

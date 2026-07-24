@@ -12,6 +12,10 @@ import {
 } from "@agent-chassis/wiki-core";
 import { parseWorkRecordSummaryUnit } from "@agent-chassis/wiki-core/src/lib/work-record-summary.mjs";
 import {
+  projectNextActionScalar,
+  validateNextCalls
+} from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import {
   getSummarySelectorValidationIssues,
   runWorkRecordSummaryWithCompactGate
 } from "./work-record-compact-read-gate.mjs";
@@ -253,6 +257,7 @@ export function registerWorkRecordReadTools({
   resolveWorkspaceRepo,
   createCompactValidateDispatchResponse,
   validateDispatch = validateWorkRecordDispatch,
+  runTerminalCandidateValidationForUnit = null,
 
   registeredTier = "paid_cce"
 }) {
@@ -397,9 +402,24 @@ export function registerWorkRecordReadTools({
           result,
           registeredTier
         );
+
         if (result.graph_impact_failure) {
           compact.graph_impact_failure_code = result.graph_impact_failure.code;
-          compact.next_action = result.graph_impact_failure.remediation;
+          const structuredNextCalls = Array.isArray(result.next_calls)
+            ? result.next_calls
+            : [];
+          const canonicalNextCalls =
+            structuredNextCalls.length > 0 && validateNextCalls(structuredNextCalls).valid
+              ? structuredNextCalls
+              : null;
+          const scalarNextAction = canonicalNextCalls
+            ? projectNextActionScalar(canonicalNextCalls)
+            : null;
+          const descriptorAuthoritativeNextAction =
+            typeof scalarNextAction === "string" && scalarNextAction.trim() !== "";
+          if (!descriptorAuthoritativeNextAction) {
+            compact.next_action = result.graph_impact_failure.remediation;
+          }
         }
         return jsonContent(compact);
       } catch (error) {
@@ -414,7 +434,6 @@ export function registerWorkRecordReadTools({
       description:
         "Run declared Node test validation for an implementation unit without raw shell or raw exec. Side effect: process_spawn. The only command is the fixed enum `node_test`; caller input is exactly `{ unit, target }`. The handler loads the canonical work record/slice for `unit` itself and authorizes `target` solely from that unit's sections.structured_validation.allowed[] entries with command `node_test`. It then runs `node --check <target>` and, only if check passes, `node --test <target>` using argv arrays with shell:false. Node binary, cwd, env, per-step timeout, and output caps are internal server constants and cannot be supplied or overridden by the caller. Caller-supplied authority-shaped fields (snapshot, runtime/env policy, node binary, cwd/workspace root, timeout, output cap, source digest, extra args) are rejected. Returns structured per-step evidence; `node --test` is reported as skipped when `node --check` fails.",
       inputSchema: {
-        repo: z.string().optional(),
         unit: z.string(),
         target: z.string()
       }
@@ -432,8 +451,14 @@ export function registerWorkRecordReadTools({
               "targets are authorized only from the unit's work contract."
           );
         }
+        const unexpected = Object.keys(suppliedArgs).filter((field) => !["unit", "target"].includes(field));
+        if (unexpected.length > 0) {
+          throw new Error(
+            `workspace_run_validation accepts exactly {unit,target}; unexpected fields: ${unexpected.sort().join(", ")}`
+          );
+        }
 
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
+        const workspace = resolveWorkspaceRepo(workspaceRepos, undefined);
         const { address, recordId, sliceId } = parseNodeTestUnitAddress(args.unit);
 
         const loaded = await readWorkRecordById({ dir: workspace.dir, id: recordId });
@@ -447,14 +472,47 @@ export function registerWorkRecordReadTools({
         }
 
         const authorizedTargets = collectAuthorizedNodeTestTargets(sections);
-        const { absolute, posixRelative } = resolveNodeTestTarget(workspace.dir, args.target);
-        if (!authorizedTargets.has(posixRelative)) {
+        let resolvedMainTarget = null;
+        let requestedTarget;
+        if (sliceId !== null || typeof runTerminalCandidateValidationForUnit !== "function") {
+          resolvedMainTarget = resolveNodeTestTarget(workspace.dir, args.target);
+          requestedTarget = resolvedMainTarget.posixRelative;
+        } else {
+          requestedTarget = toPosixRelative(path.posix.normalize(String(args.target ?? "")));
+          if (!requestedTarget || requestedTarget === "." || requestedTarget === ".." ||
+              requestedTarget.startsWith("../") || path.isAbsolute(args.target ?? "") ||
+              String(args.target ?? "").includes("\0") || /[\r\n]/u.test(String(args.target ?? ""))) {
+            throw new Error("workspace_run_validation target must be repo-relative and contained");
+          }
+        }
+        if (!authorizedTargets.has(requestedTarget)) {
           throw buildRunValidationTargetNotAuthorizedError({
             address,
-            requestedTarget: posixRelative,
+            requestedTarget,
             authorizedTargets
           });
         }
+
+        if (sliceId === null && typeof runTerminalCandidateValidationForUnit === "function") {
+          const candidateResult = await runTerminalCandidateValidationForUnit({
+            workspace,
+            unit: address,
+            target: requestedTarget,
+            record: loaded.record
+          });
+          if (candidateResult !== null && candidateResult !== undefined) {
+            return jsonContent({
+              workspaceRepo: workspace.repo,
+              tool: "workspace_run_validation",
+              command: "node_test",
+              unit: address,
+              target: requestedTarget,
+              ...candidateResult
+            });
+          }
+        }
+
+        const { absolute, posixRelative } = resolvedMainTarget ?? resolveNodeTestTarget(workspace.dir, requestedTarget);
 
         const checkStep = runNodeTestStep({
           workspaceDir: workspace.dir,

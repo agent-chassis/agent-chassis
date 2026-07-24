@@ -3,8 +3,8 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "launcher-tools.json",
-  "summary": "Dispatch, run-status, coordination preflight, and runtime-blocker-taxonomy tools.",
-  "tool_count": 6,
+  "summary": "Dispatch, run-status, committed-slice integration, coordination preflight, and runtime-blocker-taxonomy tools.",
+  "tool_count": 7,
   "tools": [
     {
       "tool_name": "workspace_agent_dispatch",
@@ -47,7 +47,7 @@
         "packages/wiki-core/data/tool-discovery/manifest.json",
         "packages/wiki-core/data/tool-discovery/launcher-tools.json"
       ],
-      "notes": "MCP-only agent role dispatch for worker, reviewer, and redteam. The normal call supplies only role and subject. On every dispatch the launcher reads the role model from repo-root agent-launch.toml and derives app/backend through the neutral model registry; typed app/model are explicit per-dispatch overrides only. Missing, malformed, or unknown role configuration refuses actionably with no family fallback. Same-user stdio MCP is not an authentication boundary; the real boundary is the launcher sandbox plus work-record admission. Caller-supplied identity carriers (request payload, prompt text, ambient env, argv, claimed_identity.role) are refused and never become selection authority. Worker and reviewer accept a WK or slice; redteam also accepts an IN. Non-dispatchable subjects refuse with work_record_readiness_failure. A reviewer subject with non-empty write_scope refuses with role_policy_violation / reviewer_write_scope_nonempty; remediate with a separate findings-only review unit, not a role change or readiness bypass. Refusals use stable runtime-blocker taxonomy codes. Route worker/reviewer/redteam dispatch through this MCP tool only; if the launch backend is unconfigured, report the blocker rather than falling back to wrappers, shell, env, or bwrap changes.",
+      "notes": "MCP-only agent role dispatch for worker, reviewer, and redteam. The normal call supplies only role and subject. On every dispatch the launcher reads the role model from repo-root agent-launch.toml and derives app/backend through the neutral model registry; typed app/model are explicit per-dispatch overrides only. Missing, malformed, or unknown role configuration refuses actionably with no family fallback. Same-user stdio MCP is not an authentication boundary; the real boundary is the launcher sandbox plus work-record admission. Caller-supplied identity carriers (request payload, prompt text, ambient env, argv, claimed_identity.role) are refused and never become selection authority. Worker and reviewer accept a WK or slice; redteam also accepts an IN. Non-dispatchable subjects refuse with work_record_readiness_failure. Reviewer mutation authority is always empty. A canonical implementation slice already in review with a launcher-verified exact committed target is reviewed against that same subject without changing its declared delivery write_scope; other reviewer subjects with non-empty write_scope refuse with role_policy_violation / reviewer_write_scope_nonempty and require a separate findings-only review unit. Confined Claude and Codex sessions receive exactly one launcher-owned host wiki-MCP server through two private named FIFOs bound into the final bubblewrap namespace and the pinned copy-only relay; exact initialize and tools/list readiness is mandatory. Agy is unsupported and fails closed. Refusals use stable runtime-blocker taxonomy codes. Route worker/reviewer/redteam dispatch through this MCP tool only; if the launch backend is unconfigured, report the blocker rather than falling back to wrappers, shell, env, another transport, or bwrap changes.",
       "use_when": ["The dispatch_role_call intent has a dispatchable workspace_validate_dispatch result for the same unit and role."],
       "do_not_use_when": ["Readiness is unknown; use workspace_validate_dispatch first.", "The task asks about an existing run; use workspace_agent_run_status or workspace_agent_run_wait."],
       "authoritative_for": ["dispatch_role_call:launch_after_dispatchable", "launcher-owned worker/reviewer/redteam process spawn"],
@@ -55,7 +55,7 @@
       "replacement_for_misuse": [{"misuse_code": "dispatch_without_readiness_validation", "routing_intent": "dispatch_role_call", "use_instead": "workspace_validate_dispatch"}],
       "tier_text": {
         "paid_cce": {
-          "notes": "MCP-only agent role dispatch for worker, reviewer, and redteam. The normal call supplies only role and subject. On every dispatch the launcher reads the role model from repo-root agent-launch.toml and derives app/backend through the neutral model registry; typed app/model are explicit per-dispatch overrides only. Missing, malformed, or unknown role configuration refuses actionably with no family fallback. Same-user stdio MCP is not an authentication boundary; the real boundary is the launcher sandbox plus work-record admission. Caller-supplied identity carriers (request payload, prompt text, ambient env, argv, claimed_identity.role) are refused and never become selection authority. Worker and reviewer accept a WK or slice; redteam also accepts an IN. Non-dispatchable subjects refuse with work_record_readiness_failure. A reviewer subject with non-empty write_scope refuses with role_policy_violation / reviewer_write_scope_nonempty; remediate with a separate findings-only review unit. Refusals use stable runtime-blocker taxonomy codes. When CCE/Node Engine refusal output includes a valid worker_admission.recovery.v1 object, treat it as the primary recovery projection: pack_result.recovery is current-decision recovery, while top-level route-problem recovery applies before a pack_result exists. Both are advisory, non-authorizing, resubmission-only guidance; they do not satisfy review evidence, accepted authority, launcher policy, or admission. Legacy reason-fact recovery is compatibility-only when no valid recovery object is present. Malformed, unknown-version, unknown-field, or projection-mismatched recovery fails closed: preserve the underlying refusal, report bounded recovery-contract mismatch guidance, resubmit through CCE, and do not infer local admission, hidden controls, bypasses, or synthesized authorities. Route worker/reviewer/redteam dispatch through this MCP tool only; if the launch backend is unconfigured, report the blocker rather than falling back to wrappers, shell, env, or bwrap changes."
+          "notes": "MCP-only agent role dispatch for worker, reviewer, and redteam. The normal call supplies only role and subject. On every dispatch the launcher reads the role model from repo-root agent-launch.toml and derives app/backend through the neutral model registry; typed app/model are explicit per-dispatch overrides only. Missing, malformed, or unknown role configuration refuses actionably with no family fallback. Same-user stdio MCP is not an authentication boundary; the real boundary is the launcher sandbox plus work-record admission. Caller-supplied identity carriers (request payload, prompt text, ambient env, argv, claimed_identity.role) are refused and never become selection authority. Worker and reviewer accept a WK or slice; redteam also accepts an IN. Non-dispatchable subjects refuse with work_record_readiness_failure. Reviewer mutation authority is always empty. A canonical implementation slice already in review with a launcher-verified exact committed target is reviewed against that same subject without changing its declared delivery write_scope; other reviewer subjects with non-empty write_scope refuse with role_policy_violation / reviewer_write_scope_nonempty and require a separate findings-only review unit. Confined Claude and Codex sessions receive exactly one launcher-owned host wiki-MCP server through two private named FIFOs bound into the final bubblewrap namespace and the pinned copy-only relay; exact initialize and tools/list readiness is mandatory. Agy is unsupported and fails closed. Refusals use stable runtime-blocker taxonomy codes. When CCE/Node Engine refusal output includes a valid worker_admission.recovery.v1 object, treat it as the primary recovery projection: pack_result.recovery is current-decision recovery, while top-level route-problem recovery applies before a pack_result exists. Both are advisory, non-authorizing, resubmission-only guidance; they do not satisfy review evidence, accepted authority, launcher policy, or admission. Legacy reason-fact recovery is compatibility-only when no valid recovery object is present. Malformed, unknown-version, unknown-field, or projection-mismatched recovery fails closed: preserve the underlying refusal, report bounded recovery-contract mismatch guidance, resubmit through CCE, and do not infer local admission, hidden controls, bypasses, or synthesized authorities. Route worker/reviewer/redteam dispatch through this MCP tool only; if the launch backend is unconfigured, report the blocker rather than falling back to wrappers, shell, env, another transport, or bwrap changes."
         }
       }
     },
@@ -76,7 +76,8 @@
       ],
       "priority": 128,
       "side_effects": [
-        "read_only"
+        "workspace_write",
+        "record_write"
       ],
       "authority": [
         "launcher_registry",
@@ -97,7 +98,7 @@
         "packages/wiki-core/data/tool-discovery/manifest.json",
         "packages/wiki-core/data/tool-discovery/launcher-tools.json"
       ],
-      "notes": "Monitor-handle status query for workspace_agent_dispatch. Caller-supplied identity carriers are refused before handle lookup. Monitor handles are opaque server-issued tokens scoped to subject and role; subject mismatch, replay, and unknown handles refuse via the monitor_handle_* taxonomy. Reports the run lifecycle vocabulary launching, running, succeeded, failed, or cancelled. With no launch executor configured, every handle resolves to MONITOR_HANDLE_UNKNOWN (status=null) — a stable refusal, not the normal posture. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success with structured_role_result.valid:false is EXPECTED and is not a failed child run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key. Read-only.",
+      "notes": "Monitor-handle status query for workspace_agent_dispatch. Caller-supplied identity carriers are refused before handle lookup. Monitor handles are opaque server-issued tokens scoped to subject and role; subject mismatch, replay, and unknown handles refuse via the monitor_handle_* taxonomy. Reports the CHILD lifecycle vocabulary launching, running, succeeded, failed, or cancelled. With no launch executor configured every handle resolves to MONITOR_HANDLE_UNKNOWN (status=null) - a stable refusal, not the normal posture. Free/local output is prose-only under DEC-0128, so structured_role_result.valid:false on a terminal success is EXPECTED. NOT read-only for a managed exact-slice worker run: polling a terminal managed worker advances that run launcher-owned post-worker lifecycle, which may prepare review state, integrate the slice, update Git refs, and update canonical slice status. terminal:true means the COMPLETE managed run is finalized and is the only stable terminal result; child_terminal reports only that the child ended, so terminal can stay false after child success, with a lifecycle_resolution carrying the action to take.",
       "use_when": ["The run_monitoring intent asks for status, output, failure, or completion of an already dispatched run."],
       "do_not_use_when": ["The task is a new role launch; use workspace_validate_dispatch first.", "No monitor handle is available; ask for it instead of searching, reading records, or relaunching."],
       "authoritative_for": ["run_monitoring:status", "launcher run lifecycle by monitor_handle"],
@@ -131,7 +132,8 @@
       ],
       "priority": 127,
       "side_effects": [
-        "read_only"
+        "workspace_write",
+        "record_write"
       ],
       "authority": [
         "launcher_registry",
@@ -151,7 +153,7 @@
         "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Bounded-wait companion to workspace_agent_run_status: waits for a dispatched run to reach a terminal state or until a bounded polling window expires, returning one response per call. Omit timeout_ms for the client-safe 60000 ms default; issue successive bounded waits across turns rather than one long client-blocking wait. timed_out:true is a clean wait-window timeout, not a failed run — retry the wait or call run-status with the same monitor_handle; do not relaunch. Out-of-range or non-integer timeout_ms/poll_interval_ms are refused, never silently clamped. Free/local dispatched reviewer/redteam/worker output is prose-only under DEC-0128, so a terminal success with structured_role_result.valid:false is EXPECTED and is not a failed run, a failed dispatch, or missing findings; a schema-valid structured role result is a paid/CCE capability enabled only by a canonical paid key. Shares identity-carrier refusals, workspace resolution, and the monitor_handle_* taxonomy with run-status. Read-only.",
+      "notes": "Bounded-wait companion to run-status: waits for a dispatched run to finish or until a bounded polling window expires, one response per call. Omit timeout_ms for the client-safe 60000 ms default. Out-of-range or non-integer timeout_ms/poll_interval_ms are refused, never clamped. Shares identity-carrier refusals, workspace resolution, and the monitor_handle_* taxonomy. Free/local output is prose-only under DEC-0128, so structured_role_result.valid:false on a terminal success is EXPECTED. NOT read-only for a managed exact-slice worker run: like run-status, polling advances that run launcher-owned post-worker lifecycle, which may prepare review state, integrate the slice, update Git refs, and update canonical slice status. The window bounds the whole call - after the child exits the route keeps waiting, on the same deadline and poll interval, for the lifecycle to finalize - so terminal:true means the COMPLETE managed run is finalized while child_terminal reports only that the child ended. A lifecycle blocked on a caller action returns promptly with that exact next_action; timed_out:true is a clean window expiry, not a failed run - retry the same monitor_handle, never relaunch.",
       "use_when": ["The run_monitoring intent asks to wait briefly for an already dispatched run to finish."],
       "do_not_use_when": ["The task is a new role launch; use workspace_validate_dispatch first.", "No monitor handle is available; ask for it instead of searching, reading records, or relaunching."],
       "authoritative_for": ["run_monitoring:bounded_wait", "launcher run lifecycle by monitor_handle"],
@@ -206,7 +208,7 @@
         "packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs",
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Read-only schema-backed runtime blocker taxonomy: the canonical code catalog, categories, the deterministic degraded-state mapping, and the bootstrap-state subset. Dispatch (workspace_agent_dispatch) and the launcher must select blocker codes from this taxonomy rather than inventing ad hoc strings. reviewer_write_scope_nonempty is a structured reason on role_policy_violation (not a separate code), remediated by a separate findings-only review unit."
+      "notes": "Read-only schema-backed runtime blocker taxonomy: the canonical code catalog, categories, the deterministic degraded-state mapping, and the bootstrap-state subset. Dispatch (workspace_agent_dispatch) and the launcher must select blocker codes from this taxonomy rather than inventing ad hoc strings. reviewer_write_scope_nonempty is a structured reason on role_policy_violation (not a separate code); canonical committed implementation slices in review use launcher-owned exact-target admission with empty reviewer mutation authority, while other non-empty reviewer subjects require a separate findings-only review unit."
     },
     {
       "tool_name": "workspace_coordination_preflight",
@@ -248,6 +250,39 @@
       "notes": "Read-only coordinator/orchestrator preflight: reports role, caller/session role, subject, allowed durable write surfaces (docs/, wiki/), the implementation/test edit prohibition, repo/docs/wiki writability, available structured dispatch/validation routes, and active runtime blocker codes. A fully read-only mount surfaces as read_only_mount (filesystem category), not as role policy. Caller-supplied identity carriers are refused; role and caller_session_role are caller-asserted introspection knobs."
     },
     {
+      "tool_name": "workspace_integrate_committed_slice",
+      "display_name": "Workspace integrate committed slice",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_integrate_committed_slice",
+      "task_ids": ["worker-delivery"],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": ["agent", "operator"],
+      "priority": 126,
+      "side_effects": ["workspace_write", "record_write"],
+      "authority": ["launcher_registry", "workspace_repo", "launcher_backend"],
+      "tier_visibility": ["free_local", "paid_cce"],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-dispatch-runtime-contract.md",
+        "docs/agent-launch-quickstart.md"
+      ],
+      "source_files": [
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+      ],
+      "notes": "Separate orchestrator continuation for exact committed-slice integration. Reviewer and redteam output is independently retained advisory evidence with no admission or veto authority; completion never calls integration. The orchestrator may accept, reject, or defer individual comments, but those dispositions and the request itself are not authorization. CCE owns every configured organization-policy decision. Paid-tier presence alone configures no gate and implies no verdict. A configured CCE gate fails closed when its decision is missing, unavailable, malformed, unratified, denied, or target-mismatched. With no configured gate, DEC-0133 free-substrate behavior is reported honestly as non-audit. Input is closed to repo alias, canonical slice subject, and comment dispositions; refs, SHAs, receipts, policy verdicts, CCE attestations, liveness claims, and other authority carriers are rejected. The server derives the exact target/ref/state and performs CAS-safe idempotent integration exactly once.",
+      "use_when": ["A committed implementation slice is parked after review preparation and the orchestrator is ready to disposition advisory comments and request integration."],
+      "do_not_use_when": ["The task is to dispatch or monitor a reviewer; use workspace_agent_dispatch or workspace_agent_run_status.", "The caller intends to supply a ref, SHA, receipt, policy verdict, CCE attestation, or other authority carrier."],
+      "authoritative_for": ["committed_slice_integration:coordinator_request", "launcher-owned exact-target CAS integration"],
+      "requires_prior_state": ["A canonical committed implementation slice in review with launcher-owned frozen target state."],
+      "replacement_for_misuse": []
+    },
+    {
       "tool_name": "workspace_wk_forge_handoff",
       "display_name": "Workspace WK forge handoff",
       "kind": "mcp_tool",
@@ -266,17 +301,17 @@
         "docs/mcp-integration.md"
       ],
       "source_files": [
-        "packages/agent-launch-cli/src/lib/host-write-authority-substrate/broker-wk-forge-handoff.mjs",
-        "packages/agent-launch-cli/src/lib/host-write-authority-substrate/request-envelopes-wk-forge-handoff.mjs",
+        "packages/agent-launch-cli/src/lib/wk-forge-handoff.mjs",
+        "packages/agent-launch-cli/src/lib/trusted-operation-contracts.mjs",
         "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
         "packages/wiki-core/data/tool-discovery/manifest.json",
         "packages/wiki-core/data/tool-discovery/launcher-tools.json"
       ],
-      "notes": "Orchestrator/operator-only forge handoff for a completed work record. Reuses the exact accumulated WK tip tree as one deterministic one-parent squash commit, publishes one handoff/wk/IN-XXXX/WK-YYYY branch by create-if-absent compare-and-swap, and creates or recovers one pull request against the launcher-configured landing branch. Input is closed: an optional workspace repo alias plus a canonical WK-#### assigned_unit; a slice address is refused. Repository, remote, landing branch, initiative, refs, SHAs, and credentials all derive host-side from the launcher-owned remote and WK state and can never be supplied by caller, prompt, model, or environment. All Git, gh, and credential execution runs host-side outside bwrap; the token never enters a request, result, argv, remote URL, or log. The WK must be terminal and quiescent, and its persistent ref is re-read before every success; any movement refuses. Existing exact branches and pull requests are recovered, never duplicated or overwritten. The forge and organization own review, approval, checks, branch protection, merge, and merge queues. Missing backend, secret, remote, initiative, or configuration returns a typed refusal.",
-      "use_when": ["A work record is complete and quiescent and its accumulated change must be handed to the forge as one squashed pull request."],
+      "notes": "Orchestrator/operator continuation for byte-identical publication of the exact terminal candidate. Reviewer and redteam results are advisory only: clean output cannot authorize and findings cannot veto. CCE alone decides a configured organization-policy gate; paid tier alone configures no policy. Configured missing, unavailable, malformed, unratified, denied, or target-mismatched evidence fails closed; no gate follows DEC-0133 free substrate and reports non-audit. The server derives C/L/W, candidate-bound record, remote, branch, and pull request. After restart it reads only the fixed current-candidate ref: a present target is mechanically recovered, while an absent ref triggers deterministic first-cycle construction and absent-ref expected-old CAS before exact validation. Monitor memory, historical bindings, and legacy candidate refs are irrelevant. Per DEC-0169, later landing-ref movement neither invalidates review nor blocks publication of unchanged C; merge readiness belongs to the configured merge actor and CCE policy. Missing, ambiguous, moved, or inconsistent required Git/object/record/remote facts other than normal current-ref absence refuse. Caller input is closed to a workspace alias and canonical WK-#### assigned_unit.",
+      "use_when": ["A terminal candidate is frozen and quiescent and the orchestrator is ready to request its exact forge publication."],
       "do_not_use_when": ["The work record is still active, or an implementation slice or managed run is still open; finish the lifecycle first.", "The task asks to merge, approve, rebase, or update an existing branch; the forge and organization policy own those."],
       "authoritative_for": ["wk_forge_handoff:squash_branch_and_pull_request", "launcher-owned forge branch creation and pull-request create-or-observe"],
-      "requires_prior_state": ["A canonical WK-#### record with a canonical initiative assignment and a terminal, quiescent lifecycle.", "Launcher-configured landing branch and a forge credential available host-side to the trusted server."],
+      "requires_prior_state": ["A launcher-frozen exact terminal candidate with canonical initiative assignment and a quiescent lifecycle.", "Launcher-configured landing branch and a forge credential available host-side to the trusted server."],
       "replacement_for_misuse": []
     }
   ]

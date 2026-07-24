@@ -1258,9 +1258,11 @@ export async function releaseRetainedSlice({
       (entry && (entry.branch !== binding.output_branch || entry.head !== expectedTip))) {
     fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.MISSING_OR_MISMATCHED_BINDING, "slice worktree/ref/binding association is missing or mismatched");
   }
-  const dirty = gitResultOrRefusal(runGit, binding.worktree_path, ["status", "--porcelain=v1", "--untracked-files=all"]);
-  if (dirty.stdout.length > 0) {
-    fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.DIRTY_WORKTREE, "refusing to remove a dirty retained slice", { status: dirty.stdout });
+  if (disposition !== "successful-integration") {
+    const dirty = gitResultOrRefusal(runGit, binding.worktree_path, ["status", "--porcelain=v1", "--untracked-files=all"]);
+    if (dirty.stdout.length > 0) {
+      fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.DIRTY_WORKTREE, "refusing to remove a dirty retained slice", { status: dirty.stdout });
+    }
   }
 
   const auditBase = Object.freeze({
@@ -1286,7 +1288,10 @@ export async function releaseRetainedSlice({
     expectedSha: expectedTip,
     deps
   }, () => {
-    const remove = runGit({ repo, args: ["worktree", "remove", binding.worktree_path] });
+    const removeArgs = disposition === "successful-integration"
+      ? ["worktree", "remove", "--force", binding.worktree_path]
+      : ["worktree", "remove", binding.worktree_path];
+    const remove = runGit({ repo, args: removeArgs });
     const preserved = remove?.ok === true
       ? runGit({ repo, args: ["rev-parse", "--verify", `refs/heads/${binding.output_branch}^{commit}`] })
       : null;

@@ -62,6 +62,8 @@ const DISPATCH_LAUNCH_BACKEND_DETAIL = Object.freeze({
     "No launcher-side update seam is wired to advance workspace_agent_dispatch monitor handles from pending_launch through launching/running/terminal. Dispatch fails closed at admission so callers see a stable structured blocker instead of an indefinitely pending monitor handle. A separate WK must deliver the launch backend; agents must not work around this with wrapper, shell, env, bwrap, temp worktree, or graph-impact side-channel launch."
 });
 
+const DECISIONS_WRITE_SCOPE_FORBIDDEN_DECISION_CODE = "decisions_write_scope_forbidden";
+
 const RECOVERABLE_DISPATCH_STATES = new Set([
   "recoverable_missing",
   "recoverable_stale",
@@ -85,6 +87,20 @@ const CALLER_NODE_ENGINE_AUTHORITY_FIELDS = Object.freeze([
   "node_engine_posture",
   "local_only_fail_open"
 ]);
+
+const CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS = Object.freeze([
+  "ref", "sha", "slice_ref", "reviewed_sha", "diff_base_sha",
+  "run_id", "monitor_handle", "launch_ref", "binding", "binding_pair",
+  "managed_run_identity", "process_identity", "target", "receipt",
+  "review_receipt", "liveness", "worker_liveness", "review_claim",
+  "review_result", "acceptance", "acceptance_binding", "proof_a",
+  "integration", "integration_claim", "integration_result"
+]);
+const CALLER_CCE_POLICY_AUTHORITY_FIELDS = Object.freeze([
+  "policy", "policy_decision", "policy_verdict", "cce", "cce_decision",
+  "cce_attestation", "attestation", "authorization", "authority"
+]);
+const COMMITTED_SLICE_INTEGRATION_TOOL_NAME = "workspace_integrate_committed_slice";
 
 function graphBlockerCodeForReadiness(readiness) {
   if (!new Set(["missing_graph_impact", "stale_write_scope"]).has(readiness?.decision_code)) {
@@ -287,7 +303,7 @@ export function registerDispatchTools({
     AGENT_DISPATCH_TOOL_NAME,
     {
       description:
-        "Dispatch a worker, reviewer, or redteam role through MCP across the supported Codex, Claude, and Agy families. Explicit worker launch intent alone may derive typed recoverable graph/admission evidence; validate_dispatch and findings-only roles remain read-only, and fresh worker dispatch writes nothing. Ordinary reviewer/redteam admission requires empty write_scope; the backend-owned exact-slice exception remains read-only. Stdio MCP is not an authentication boundary. Recovery, canonical reloads, Node Engine or launcher-confirmed no-Node-Engine posture, and final private freshness/integrity revalidation all complete before provisioning or backend handoff. No standalone carrier-preparation API exists. The normal agent call supplies `role` and `subject`; an optional app/model hint must agree with launcher policy. Caller-supplied identity or Node Engine authority fields are rejected. There is no shell or wrapper fallback; with no launch backend configured, dispatch fails closed with backend_unavailable.",
+        "Dispatch a worker, reviewer, or redteam through the structured Codex/Claude backend. Reviewer and redteam admission requires empty write_scope; the exact-slice exception remains read-only. Exact-target review is plural: active or historical reviews never block another review, each run keeps independent append-only evidence, and reviewer/redteam results are advisory only. Clean output grants no admission authority and findings grant no veto authority. CCE owns configured organization policy; paid-tier presence alone implies no policy decision. Integration is the separate workspace_integrate_committed_slice coordinator operation. Worker/reviewer concurrency uses attempt isolation and exact ref/status CAS, not singleton lifecycle consumption. Stdio MCP is not an authentication boundary. The normal call supplies `role` and `subject`; launcher configuration selects the app/model, and caller-supplied selection or identity authority is rejected. There is no shell or wrapper fallback; a missing backend fails closed with backend_unavailable.",
       inputSchema: z.object({
         repo: z.string().optional(),
         app: z.string().optional(),
@@ -303,7 +319,11 @@ export function registerDispatchTools({
           .object({
             role: z.string().optional()
           })
-          .optional()
+          .optional(),
+        ...Object.fromEntries(
+          [...CALLER_NODE_ENGINE_AUTHORITY_FIELDS, ...CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS]
+            .map((field) => [field, z.unknown().optional()])
+        )
       }).strict()
     },
     async (args) => {
@@ -317,6 +337,18 @@ export function registerDispatchTools({
               blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
               reason: "caller_supplied_node_engine_authority",
               detail: { refused_fields: callerAuthorityFields }
+            })
+          );
+        }
+        const committedTargetAuthorityFields = CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS.filter((field) =>
+          Object.prototype.hasOwnProperty.call(args ?? {}, field)
+        );
+        if (committedTargetAuthorityFields.length > 0) {
+          return jsonContent(
+            buildBlockedDispatchResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
+              reason: "caller_supplied_committed_slice_authority",
+              detail: { refused_fields: committedTargetAuthorityFields }
             })
           );
         }
@@ -363,6 +395,16 @@ export function registerDispatchTools({
 
             suppress_live_graph_resolution: args.role === "worker"
           });
+
+          if (readiness?.decision_code === DECISIONS_WRITE_SCOPE_FORBIDDEN_DECISION_CODE) {
+            return jsonContent(buildBlockedDispatchResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.WORK_RECORD_READINESS_FAILURE,
+              reason: DECISIONS_WRITE_SCOPE_FORBIDDEN_DECISION_CODE,
+              detail: boundedRecoveryDetail(readiness, {
+                readiness_reasons: readiness.reasons ?? []
+              })
+            }));
+          }
 
           if (args.role === "worker") {
             const recoveryValues = Object.values(readiness.recovery ?? {});
@@ -647,56 +689,76 @@ export function registerDispatchTools({
             );
           }
           if (findingsOnlySubject.write_scope.length > 0) {
-            const launcherOwnedExactSliceReview = args.role === "reviewer" &&
-              dispatchBackend?.isLauncherOwnedExactSliceReviewAdmission?.({
+            let committedSliceAdmission = null;
+            if ((args.role === "reviewer" || args.role === "redteam") &&
+                typeof dispatchBackend?.prepareCanonicalCommittedSliceReviewAdmission === "function") {
+              committedSliceAdmission = await dispatchBackend.prepareCanonicalCommittedSliceReviewAdmission({
                 subject: args.subject,
                 workspace_dir: workspace.dir
-              }) === true;
+              });
+            }
+            const launcherOwnedExactSliceReview = (args.role === "reviewer" || args.role === "redteam") &&
+              (committedSliceAdmission?.ok === true ||
+                dispatchBackend?.isLauncherOwnedExactSliceReviewAdmission?.({
+                  subject: args.subject,
+                  workspace_dir: workspace.dir
+                }) === true);
             if (launcherOwnedExactSliceReview) {
 
-            } else {
-            return jsonContent(
-              buildBlockedDispatchResult({
-                blockerCode: DISPATCH_BLOCKER_CODES.ROLE_POLICY_VIOLATION,
-                reason: args.role === "reviewer"
-                  ? "reviewer_write_scope_nonempty"
-                  : "redteam_write_scope_nonempty",
-                detail: {
-                  subject: args.subject,
-                  role: args.role,
-                  subject_kind: subjectKind,
-                  subject_title: findingsOnlySubject.title,
-                  record_id: findingsOnlySubject.record_id,
-                  slice_id: findingsOnlySubject.slice_id,
-                  observed_write_scope_size: findingsOnlySubject.write_scope.length,
-                  required_write_scope: [],
-                  cause_classification: "coordination_wk_shape_issue",
-                  remediation: {
-                    action: args.role === "reviewer"
-                      ? "create_or_select_separate_findings_only_review_unit"
-                      : "create_or_select_separate_findings_only_redteam_unit",
-                    suggested_unit_id_examples: args.role === "reviewer"
-                      ? ["WK-#####review", "WK-#####implementation-review"]
-                      : ["WK-#####redteam", "WK-#####implementation-redteam"],
-                    work_kind: args.role === "reviewer" ? "review" : args.role,
-                    write_scope: [],
-                    repo_paths: findingsOnlySubject.repo_paths,
-                    depends_on: [args.subject],
-                    acceptance: args.role === "reviewer"
-                      ? [
-                          "Findings-only review.",
-                          "Do not modify files.",
-                          "Report findings against the inspected files."
-                        ]
-                      : [
-                          "Findings-only redteam.",
-                          "Do not modify files.",
-                          "Report adversarial findings against the inspected implementation."
-                        ]
+            } else if (committedSliceAdmission !== null) {
+              return jsonContent(
+                buildBlockedDispatchResult({
+                  blockerCode: DISPATCH_BLOCKER_CODES.WORK_RECORD_READINESS_FAILURE,
+                  reason: committedSliceAdmission.reason ?? "canonical_committed_slice_review_refused",
+                  detail: {
+                    subject: args.subject,
+                    code: committedSliceAdmission.code ?? null
                   }
-                }
-              })
-            );
+                })
+              );
+            } else {
+              return jsonContent(
+                buildBlockedDispatchResult({
+                  blockerCode: DISPATCH_BLOCKER_CODES.ROLE_POLICY_VIOLATION,
+                  reason: args.role === "reviewer"
+                    ? "reviewer_write_scope_nonempty"
+                    : "redteam_write_scope_nonempty",
+                  detail: {
+                    subject: args.subject,
+                    role: args.role,
+                    subject_kind: subjectKind,
+                    subject_title: findingsOnlySubject.title,
+                    record_id: findingsOnlySubject.record_id,
+                    slice_id: findingsOnlySubject.slice_id,
+                    observed_write_scope_size: findingsOnlySubject.write_scope.length,
+                    required_write_scope: [],
+                    cause_classification: "coordination_wk_shape_issue",
+                    remediation: {
+                      action: args.role === "reviewer"
+                        ? "create_or_select_separate_findings_only_review_unit"
+                        : "create_or_select_separate_findings_only_redteam_unit",
+                      suggested_unit_id_examples: args.role === "reviewer"
+                        ? ["WK-#####review", "WK-#####implementation-review"]
+                        : ["WK-#####redteam", "WK-#####implementation-redteam"],
+                      work_kind: args.role === "reviewer" ? "review" : args.role,
+                      write_scope: [],
+                      repo_paths: findingsOnlySubject.repo_paths,
+                      depends_on: [args.subject],
+                      acceptance: args.role === "reviewer"
+                        ? [
+                            "Findings-only review.",
+                            "Do not modify files.",
+                            "Report findings against the inspected files."
+                          ]
+                        : [
+                            "Findings-only redteam.",
+                            "Do not modify files.",
+                            "Report adversarial findings against the inspected implementation."
+                          ]
+                    }
+                  }
+                })
+              );
             }
           }
         }
@@ -788,10 +850,94 @@ export function registerDispatchTools({
   );
 
   registerTool(
+    COMMITTED_SLICE_INTEGRATION_TOOL_NAME,
+    {
+      description:
+        "Request exact committed-slice integration as an orchestrator continuation. A slice with no remaining tree delta succeeds idempotently with empty_delivery:true and leaves the WK ref unchanged even when its tip is a proper ancestor, its worktree is absent, or lifecycle/review evidence is absent or ambiguous. Findings-only reviewer and redteam results are append-only advisory evidence with no admission or veto authority; clean output cannot authorize and findings cannot prohibit this operation. The orchestrator may accept, reject, or defer individual retained findings, but those dispositions are request facts, not authorization. CCE alone owns any configured organization-policy decision. Paid-tier presence by itself configures no gate and implies no decision. With no configured gate the server proceeds on DEC-0133 free substrate and reports a non-audit posture; with a configured gate, a missing, unavailable, malformed, unratified, denied, or target-mismatched CCE decision fails closed. Input is closed to repo alias, canonical slice subject, and advisory dispositions; refs, SHAs, receipts, review results, policy verdicts, CCE attestations, liveness, and other authority carriers are rejected. The server re-derives the exact target and performs CAS-safe idempotent integration exactly once.",
+      inputSchema: z.object({
+        repo: z.string().optional(),
+        subject: z.string(),
+        dispositions: z.array(z.object({
+          review_run_id: z.string(),
+          finding_id: z.string(),
+          disposition: z.enum(["accept", "reject", "defer"])
+        }).strict()).optional(),
+        ...Object.fromEntries(
+          [
+            ...CALLER_NODE_ENGINE_AUTHORITY_FIELDS,
+            ...CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS,
+            ...CALLER_CCE_POLICY_AUTHORITY_FIELDS
+          ].map((field) => [field, z.unknown().optional()])
+        )
+      }).strict()
+    },
+    async (args) => {
+      try {
+        const refusedFields = [
+          ...CALLER_NODE_ENGINE_AUTHORITY_FIELDS,
+          ...CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS,
+          ...CALLER_CCE_POLICY_AUTHORITY_FIELDS
+        ].filter((field) => Object.prototype.hasOwnProperty.call(args ?? {}, field));
+        if (refusedFields.length > 0) {
+          return jsonContent(buildBlockedDispatchResult({
+            blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
+            reason: "caller_supplied_integration_authority",
+            detail: { refused_fields: refusedFields }
+          }));
+        }
+        if (typeof args?.subject !== "string" || !/^WK-\d{4}#SLICE-\d{3}$/u.test(args.subject)) {
+          return jsonContent(buildBlockedDispatchResult({
+            blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+            reason: "committed_slice_integration_subject_invalid",
+            detail: { subject: typeof args?.subject === "string" ? args.subject : null }
+          }));
+        }
+        resolveWorkspaceRepo(workspaceRepos, args?.repo);
+        if (typeof dispatchBackend?.requestCommittedSliceIntegration !== "function") {
+          return jsonContent(buildBlockedDispatchResult({
+            blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
+            reason: "committed_slice_integration_backend_unavailable",
+            detail: { missing_backend: "requestCommittedSliceIntegration" }
+          }));
+        }
+        const result = await dispatchBackend.requestCommittedSliceIntegration({
+          subject: args.subject,
+          dispositions: args.dispositions
+        });
+        if (result?.integrated === true) {
+          return jsonContent({
+            schema_version: "workspace-integrate-committed-slice.v1",
+            accepted: true,
+            subject: args.subject,
+            integration: result,
+            blocker: null
+          });
+        }
+        const refusal = result?.refusal ?? null;
+        return jsonContent(buildBlockedDispatchResult({
+          blockerCode: refusal?.code?.includes("unavailable") || refusal?.code?.includes("missing")
+            ? DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE
+            : DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+          reason: refusal?.reason ?? result?.reason ?? "committed_slice_integration_refused",
+          detail: refusal === null
+            ? (typeof result?.code === "string" ? { code: result.code } : null)
+            : { cce_policy_refusal: refusal }
+        }));
+      } catch (error) {
+        return jsonContent(buildBlockedDispatchResult({
+          blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+          reason: "dispatch_tool_exception",
+          detail: buildDispatchToolExceptionDetail(COMMITTED_SLICE_INTEGRATION_TOOL_NAME, error)
+        }));
+      }
+    }
+  );
+
+  registerTool(
     WK_FORGE_HANDOFF_TOOL_NAME,
     {
       description:
-        "Hand a completed work record's accumulated change to the consuming repository's forge: reuse the exact accumulated WK tip tree as one deterministic one-parent squash commit, create one handoff branch by compare-and-swap (create-if-absent only), and create or recover exactly one pull request against the launcher-configured landing branch. Orchestrator/operator only. Input is closed: an optional workspace `repo` alias and a canonical record-level `assigned_unit` (WK-####); a slice address is refused. Repository owner/name/host derive from the launcher-owned canonical remote and bind both Git and REST; landing branch derives from launcher configuration; initiative derives from the canonical WK assignment. All Git, gh, and credential execution happens host-side outside bwrap; credentials never appear in requests, results, argv, remote URLs, logs, or diagnostics. The WK must be terminal and quiescent with no integration still eligible to advance its persistent ref, which is re-read before every success; any movement refuses. Existing exact branches and pull requests are recovered, never duplicated or overwritten. This adds NO review, approval, CI, branch-protection, merge, merge-queue, rebase, or cleanup authority — the forge and organization policy own all of those. Missing backend, remote, initiative, or configuration returns a typed refusal rather than an absent route.",
+        "Request publication of the exact terminal candidate through the host forge executor. Reviewer and redteam results are advisory evidence: clean output cannot authorize and findings cannot veto. CCE alone decides a configured organization-policy gate; paid tier alone configures no policy. Configured missing, unavailable, malformed, unratified, denied, or target-mismatched evidence fails closed; no configured gate follows DEC-0133 free substrate and reports non-audit. Orchestrator/operator only. Input is closed to a workspace alias and canonical record-level assigned_unit. The server derives L/W/B/C, candidate-bound record, materialization, remote, branch, and PR. After restart it reads only the fixed current-candidate ref: a present target is mechanically recovered, while an absent ref triggers deterministic first-cycle construction and absent-ref expected-old CAS before exact validation. Monitor memory, historical bindings, and legacy candidate refs are irrelevant. Per DEC-0169, later landing-ref movement does not invalidate review or block publication of unchanged C; merge readiness belongs to the configured merge actor and CCE policy. Missing, ambiguous, moved, or inconsistent required Git/object/record/remote facts other than normal current-ref absence refuse. Exact branch and PR state recovers without duplication. Credentials and raw process output never enter requests or results.",
       inputSchema: z.object({
         repo: z.string().optional(),
         assigned_unit: z.string()
@@ -815,7 +961,7 @@ export function registerDispatchTools({
           return jsonContent(
             buildBlockedDispatchResult({
               blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
-              reason: "host_write_authority_substrate_unavailable",
+              reason: "wk_forge_handoff_executor_unavailable",
               detail: { missing_backend: "wk_forge_handoff_adapter" }
             })
           );
@@ -839,7 +985,9 @@ export function registerDispatchTools({
           buildBlockedDispatchResult({
             blockerCode,
             reason: typeof refusal.reason === "string" ? refusal.reason : "wk_forge_handoff_refused",
-            detail: refusal.detail ?? null
+            detail: refusal.detail ?? (typeof refusal.category === "string"
+              ? { category: refusal.category }
+              : null)
           })
         );
       } catch (error) {

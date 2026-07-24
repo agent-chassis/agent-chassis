@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/core",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -28,16 +28,15 @@
     "wiki": "bin/wiki",
     "wiki-mcp": "bin/wiki-mcp",
     "agent-chassis": "bin/agent-chassis.mjs",
-    "agent-launch": "bin/agent-launch",
-    "agent-launch-filesystem-mcp-backend": "bin/agent-launch-filesystem-mcp-backend"
+    "agent-launch": "bin/agent-launch"
   },
   "exports": {
     ".": "./src/index.mjs"
   },
   "dependencies": {
-    "@agent-chassis/agent-launch-cli": "^0.5.2",
-    "@agent-chassis/wiki-cli": "^0.5.2",
-    "@agent-chassis/wiki-mcp": "^0.5.2"
+    "@agent-chassis/agent-launch-cli": "^0.5.3",
+    "@agent-chassis/wiki-cli": "^0.5.3",
+    "@agent-chassis/wiki-mcp": "^0.5.3"
   },
   "engines": {
     "node": ">=22"

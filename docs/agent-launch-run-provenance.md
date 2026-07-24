@@ -89,6 +89,121 @@ explicit `metadata/provenance.json` or make `meta.json` a documented compatible
 projection. Direct role wrappers should converge on the same envelope rather
 than inventing a separate log format.
 
+## Dispatch Enforcement Provenance
+
+A structured dispatch run also carries `structured-dispatch-provenance.v1` on its
+terminal `final_result.provenance`, exposed only under
+`include_final_result`/`verbose`. Two blocks inside it record the run's
+containment posture:
+
+- `enforcement` — the posture itself: `enforced`, `isolation_backend`,
+  `command_surface`, `reason`.
+- `enforcement_provenance` (`structured-dispatch-enforcement-provenance.v1`) —
+  **where that posture came from**: `authority`, `disposition`,
+  `enforcement_posture`, `backend_availability`, `refusal`.
+
+This is **result provenance only**. It reports what the launcher observed; it
+does not participate in bwrap planning, scope projection, conduit setup, spawn,
+or the fail-open/refusal branches, and changing it cannot change how a run is
+contained.
+
+### The launcher-observed confined run
+
+When the launcher built the containment plan, asserted the backend, and observed
+the isolated spawn return a live child, that observation *is* the enforced
+verdict (see the enforcement model's backend-selection rule). Such a run
+publishes:
+
+| Field | Value |
+| --- | --- |
+| `enforcement.enforced` | `true` |
+| `enforcement.isolation_backend` | `"bwrap"` |
+| `enforcement.reason` | `"sandboxed"` |
+| `enforcement_provenance.authority` | `"launcher_owned"` |
+| `enforcement_provenance.disposition` | `"enforced_backend"` |
+
+`backend_availability` records the observed backend facts; `refusal` is `null`.
+
+### Attribution: `authority` is earned, not assumed
+
+`enforcement_provenance.authority` describes **the source of the posture**, and
+is `"launcher_owned"` **only** when that posture was carried on a valid
+launcher-branded source — one the launcher minted itself from a real sandbox
+decision or from its own confirmed isolated spawn. The brand is private and
+identity-based, so it survives neither serialization nor reconstruction.
+
+Everything else is published **unattributed**, with `authority: null`:
+
+- an **absent** source;
+- a **malformed** source, including one that is structurally perfect but was
+  never minted by the launcher — validation happens *before* branding, so
+  invalid input produces no branded source at all rather than a branded
+  fail-honest one;
+- any **unbranded** source, including one **supplied by the caller** or **by the
+  dispatched child**.
+
+None of these can claim enforcement. An unattributed source always loses
+enforcement authority: the published posture is `enforced: false` and
+`isolation_backend: "none"`, with `authority: null`. Every enforced/`sandboxed`
+claim is dropped, and so is every launcher-owned paid-posture reason — a
+no-paid-key fallback, an operator opt-out, or an enforcement-required refusal
+asserted by an unbranded source is rewritten to `reason: "refused"`. A child or
+caller therefore cannot manufacture containment, or a launcher-owned posture
+narrative, it did not receive.
+
+What an unbranded source *can* still influence is the narrower unenforced
+vocabulary. A caller-permissible unenforced `reason` is read from it and stays
+visible, and because `disposition` is derived from the resulting posture, that
+reason's paired unenforced disposition stays visible too — an unbranded source
+asserting `reason: "operator_opt_in_no_backend"`, for example, publishes
+`disposition: "unenforced_no_backend"` rather than `"refused"`. This is not an
+authority leak: the run is still reported as unenforced with `authority: null`.
+
+Consumers must therefore inspect `authority` first. A disposition other than
+`"refused"` is **not** evidence that the launcher attributed the posture; only
+`authority: "launcher_owned"` is. `authority: null` is a visible, auditable
+signal that the launcher is not vouching for the posture rather than a silent
+absence.
+
+### An accepted managed run never publishes `refused`
+
+`disposition: "refused"` describes the **launch**, not the child's output. Only a
+genuine refusal — a launch that never ran under the backend — publishes
+`"refused"`. The unenforced fall-back dispositions
+(`no_paid_key_unenforced_fallback`, `paid_key_operator_opt_out_unenforced`,
+`unenforced_no_backend`) and the enforcement-required refusal
+(`paid_key_enforcement_required_refusal`) keep their existing meanings.
+
+Missing child output does not change that, but the two ways a run can end
+without a usable answer publish different envelopes:
+
+- A **child- or executor-produced `missing_result` envelope** — the child ran
+  under the backend and the family executor built the terminal envelope from it
+  (unavailable, unreadable, non-text, or empty final message). Branded
+  provenance is already attached to that envelope, so a run the launcher
+  accepted and ran under the containment backend still publishes
+  `disposition: "enforced_backend"`. An empty or `missing_result` payload is a
+  result-quality fact, not a containment fact.
+- A **launcher-synthesized envelope** — `executor_terminal_without_final_result`
+  or `probe_terminal_without_final_result`, built when there is no executor
+  final-result object to carry provenance at all. It may contain no
+  `provenance`, and therefore no `enforcement_provenance`, block whatsoever.
+
+Absence of `enforcement_provenance` is **not** `disposition: "refused"`, and it
+does not prove the run was unenforced. A consumer cannot infer containment — in
+either direction — from a synthesized envelope that lacks provenance. That is
+still fail-honest: the launcher makes no containment claim it cannot support,
+rather than publishing a posture nobody observed.
+
+### One rule for both families
+
+Codex and Claude use the **same** launcher-owned authority rule, the same
+branded-source requirement, and the same disposition vocabulary. Neither family
+has a private path to `authority: "launcher_owned"`, and the posture is
+preserved unchanged across final-result normalization and the dispatch backend's
+provenance re-home, which re-stamps authoritative run identity from its own run
+record rather than trusting the executor payload.
+
 ## Inspect Run Provenance
 
 Use the repo-local inspection command to read a direct-wrapper run directory

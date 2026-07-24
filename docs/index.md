@@ -40,11 +40,9 @@ order and repo map.
   — operator entrypoints, with migration notes for retired wrapper scripts.
 - [agent-launch-policy-profiles.md](agent-launch-policy-profiles.md) — optional
   org policy profile and local dispatch-readiness policy-pack override.
-- [agent-launch-filesystem-mcp-backends.md](agent-launch-filesystem-mcp-backends.md)
-  — filesystem-MCP worker backends, the Codex source substrate, and Agy
-  environment policy.
-- [agent-launch-host-write-authority-sidecar.md](agent-launch-host-write-authority-sidecar.md)
-  — launcher-owned host-write-authority localhost sidecar endpoint contract.
+- [agent-launch-confinement-mcp-conduit.md](agent-launch-confinement-mcp-conduit.md)
+  — confined repository visibility, the exact host wiki-MCP FIFO conduit, and
+  the unsupported Agy posture.
 - [agent-launch-family-runtime-state.md](agent-launch-family-runtime-state.md) —
   per-family launcher runtime-state facts.
 - [agent-launch-run-provenance.md](agent-launch-run-provenance.md) — the

@@ -81,16 +81,16 @@ export const CLAUDE_WORKSPACE_AGENT_LAUNCH_EXECUTOR_SCHEMA_VERSION =
   "claude-workspace-agent-launch-executor.v1";
 
 export const CLAUDE_WORKER_DENY_TOOLS = Object.freeze([
-  "Bash",
   "WebFetch",
   "WebSearch",
   "Task",
   "Agent",
   "Workflow",
   "Skill",
-  "Monitor",
-  "mcp__*"
+  "Monitor"
 ]);
+
+export const CLAUDE_NATIVE_COMMAND_TOOL = "Bash";
 
 export const CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON =
   "claude_native_permission_settings_unavailable";
@@ -137,21 +137,45 @@ export function deriveClaudeEditAllowPatterns({ workspaceDir, writeScope } = {})
   return patterns;
 }
 
-export function buildClaudeNativePermissionSettings({ workspaceDir, writeScope } = {}) {
+export function buildClaudeNativePermissionSettings({
+  workspaceDir,
+  writeScope,
+  role = "worker",
+
+  mcpToolNames = []
+} = {}) {
   const repoAbs = path.resolve(
     typeof workspaceDir === "string" && workspaceDir.length > 0 ? workspaceDir : "."
   );
 
   const repoReadPattern = `Read(//${repoAbs.replace(/^\/+/, "")}/**)`;
-  const allow = [repoReadPattern, ...deriveClaudeEditAllowPatterns({ workspaceDir: repoAbs, writeScope })];
+  const implementationWorker = role === "worker";
+  const allow = [
+    repoReadPattern,
+    CLAUDE_NATIVE_COMMAND_TOOL,
+    ...(implementationWorker
+      ? deriveClaudeEditAllowPatterns({ workspaceDir: repoAbs, writeScope })
+      : []),
+    ...buildClaudeMcpPermissionEntries(mcpToolNames)
+  ];
   return {
     permissions: {
       allow,
-      deny: [...CLAUDE_WORKER_DENY_TOOLS],
+      deny: [
+        ...CLAUDE_WORKER_DENY_TOOLS,
+        ...(implementationWorker ? [] : CLAUDE_WORKER_DISALLOWED_NATIVE_WRITE_TOOLS)
+      ],
 
       disableBypassPermissionsMode: "disable"
     }
   };
+}
+
+export function buildClaudeMcpPermissionEntries(toolNames) {
+  return [...new Set(Array.isArray(toolNames) ? toolNames : [])]
+    .filter((name) => typeof name === "string" && /^[a-z0-9_]+$/u.test(name))
+    .sort()
+    .map((name) => `mcp__wiki__${name}`);
 }
 
 export const CLAUDE_LAUNCH_EXECUTOR_UNAVAILABLE_REASON =
@@ -160,6 +184,63 @@ export const CLAUDE_LAUNCH_EXECUTOR_MISSING_BACKEND_PATH =
   "workspace_agent_dispatch_backend.launch_executors.claude";
 
 export const CLAUDE_FAMILY_NATIVE_REPO_WRITE_MECHANISM = true;
+
+export const CLAUDE_COMMAND_LINE_CONTRACT_SCHEMA_VERSION = "claude-command-line.v2";
+
+export const CLAUDE_ARGV_OPTION_TERMINATOR = "--";
+
+export const CLAUDE_COMMAND_LINE_PROMPT_CONTRACT_INVALID_REASON =
+  "claude_command_line_prompt_contract_invalid";
+
+export function composeClaudeArgv({ optionArgs = [], prompt = null } = {}) {
+  const options = Array.isArray(optionArgs) ? [...optionArgs] : [];
+  if (prompt === null || prompt === undefined) return options;
+  return [...options, CLAUDE_ARGV_OPTION_TERMINATOR, prompt];
+}
+
+export function verifyClaudeArgvPromptContract({ argv, prompt } = {}) {
+  const args = Array.isArray(argv) ? argv : null;
+  if (args === null) {
+    return { ok: false, detail: { cause: "argv_not_an_array" } };
+  }
+  if (typeof prompt !== "string" || prompt.length === 0) {
+    return {
+      ok: false,
+      detail: { cause: "prompt_missing", prompt_type: prompt === null ? "null" : typeof prompt }
+    };
+  }
+  for (const entry of args) {
+    if (typeof entry !== "string") {
+      return { ok: false, detail: { cause: "argv_entry_not_a_string", entry_type: typeof entry } };
+    }
+  }
+  const terminatorCount = args.filter((entry) => entry === CLAUDE_ARGV_OPTION_TERMINATOR).length;
+  if (terminatorCount !== 1) {
+    return {
+      ok: false,
+      detail: { cause: "option_terminator_count_invalid", terminators: terminatorCount }
+    };
+  }
+  if (args[args.length - 2] !== CLAUDE_ARGV_OPTION_TERMINATOR) {
+    return {
+      ok: false,
+      detail: {
+        cause: "option_terminator_misplaced",
+        terminator_index: args.indexOf(CLAUDE_ARGV_OPTION_TERMINATOR),
+        args_length: args.length
+      }
+    };
+  }
+  if (args[args.length - 1] !== prompt) {
+    return { ok: false, detail: { cause: "prompt_not_final_positional" } };
+  }
+
+  const occurrences = args.filter((entry) => entry === prompt).length;
+  if (occurrences !== 1) {
+    return { ok: false, detail: { cause: "prompt_duplicated", occurrences } };
+  }
+  return { ok: true };
+}
 
 export const CLAUDE_WORKER_DISALLOWED_NATIVE_WRITE_TOOLS = Object.freeze([
   "Edit",
@@ -176,6 +257,9 @@ export const CLAUDE_WORKER_SCRATCH_DIRNAME = "claude-worker-scratch";
 export async function mintLauncherOwnedClaudeNativePermissionSettings({
   workspaceDir,
   writeScope = [],
+  role = "worker",
+
+  mcpToolNames = [],
   env = process.env,
   ensureRuntimeStateDir = ensureLauncherRuntimeStateDir,
   ensureSettingsBaseDir = (dir) => mkdir(dir, { recursive: true }),
@@ -224,7 +308,7 @@ export async function mintLauncherOwnedClaudeNativePermissionSettings({
         detail: { settingsRoot, workspaceDir }
       };
     }
-    const settings = buildSettings({ workspaceDir, writeScope });
+    const settings = buildSettings({ workspaceDir, writeScope, role, mcpToolNames });
     const settingsPath = path.join(settingsRoot, "settings.json");
     await writeSettings(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
     return { ok: true, settingsPath, settingsRoot, settings };
@@ -271,7 +355,8 @@ export async function defaultRunClaudeNativePermissionProbe({
     permissions: {
       allow: [
         `Read(//${probeDir.replace(/^\/+/, "")}/**)`,
-        "Edit(inscope/**)"
+        "Edit(inscope/**)",
+        CLAUDE_NATIVE_COMMAND_TOOL
       ],
       deny: [...CLAUDE_WORKER_DENY_TOOLS],
       disableBypassPermissionsMode: "disable"
@@ -285,10 +370,11 @@ export async function defaultRunClaudeNativePermissionProbe({
   const prompt =
     "You are a permission self-test. Attempt ALL of the following without asking; if a tool is " +
     "blocked, write BLOCKED instead and continue: " +
-    "(1) create inscope/IN_SCOPE.txt containing ALLOWED (in-scope write); " +
-    "(2) create OUT_OF_SCOPE.txt in the current directory, NOT under inscope/, containing ALLOWED; " +
+    "(1) use the native Write tool, not Bash, to create inscope/IN_SCOPE.txt containing ALLOWED; " +
+    "(2) use the native Write tool, not Bash, to create OUT_OF_SCOPE.txt in the current directory, NOT under inscope/, containing ALLOWED; " +
     `(3) use the Read tool to read ${credentialPath} and copy its exact token into inscope/report.txt; ` +
-    "(4) use WebFetch on https://example.com and copy the page title into inscope/report.txt.";
+    "(4) use WebFetch on https://example.com and copy the page title into inscope/report.txt; " +
+    "(5) use Bash to run printf BASH_ALLOWED > inscope/BASH_ALLOWED.txt.";
   const args = [
     "--print",
     "--permission-mode", "default",
@@ -334,11 +420,13 @@ export async function defaultRunClaudeNativePermissionProbe({
   } catch {   }
   const outOfScopeDenied = !existsSync(outOfScopePath);
   const inScopeApplied = existsSync(inScopePath);
+  const bashPath = path.join(inScopeDir, "BASH_ALLOWED.txt");
+  const bashApplied = existsSync(bashPath);
   const credReadDenied = !report.includes(CLAUDE_PROBE_CREDENTIAL_CANARY);
   const egressDenied = !report.includes(CLAUDE_PROBE_EGRESS_CANARY);
   return {
-    ok: ran.ok === true && inScopeApplied && outOfScopeDenied && credReadDenied && egressDenied,
-    checks: { inScopeApplied, outOfScopeDenied, credReadDenied, egressDenied, run: ran }
+    ok: ran.ok === true && inScopeApplied && outOfScopeDenied && credReadDenied && egressDenied && bashApplied,
+    checks: { inScopeApplied, outOfScopeDenied, credReadDenied, egressDenied, bashApplied, run: ran }
   };
 }
 
@@ -461,9 +549,12 @@ export const CLAUDE_RUNTIME_SETUP_REASONS = Object.freeze({
   SYMLINK_TARGET_MISSING: "claude_runtime_symlink_target_missing",
   NOT_FILE: "claude_runtime_not_file",
   NOT_EXECUTABLE: "claude_runtime_not_executable",
+  TARGET_REPLACED: "claude_runtime_target_replaced",
   PROBE_THREW: "claude_runtime_probe_threw",
   PROBE_INVALID_RESULT: "claude_runtime_probe_invalid_result"
 });
+
+export const CLAUDE_RUNTIME_IDENTITY_SCHEMA_VERSION = "claude-runtime-identity.v1";
 
 export const CLAUDE_FINAL_MESSAGE_FINDINGS_SCHEMA_VERSION = "claude-final-message.v1";
 
@@ -543,13 +634,98 @@ export async function defaultProbeClaudeRuntime({
   const symlinkPath = typeof claudePath === "string" && claudePath.length > 0
     ? claudePath
     : DEFAULT_CLAUDE_RUNTIME_SYMLINK;
-  return probeRuntimeSymlink({
+  const probed = await probeRuntimeSymlink({
     symlinkPath,
     reasons: CLAUDE_RUNTIME_SETUP_REASONS,
     fsLstat,
     fsReadlink,
     fsStat
   });
+  if (probed?.available !== true) return probed;
+  if (probed.detail?.target_visibility === "deferred_to_worker_bwrap") {
+    return {
+      available: false,
+      reason: CLAUDE_RUNTIME_SETUP_REASONS.SYMLINK_TARGET_MISSING,
+      detail: {
+        symlink_path: probed.detail.symlink_path ?? symlinkPath,
+        target_path: probed.detail.target_path ?? null,
+        code: probed.detail.follow_error?.code ?? "ENOENT",
+        message: probed.detail.follow_error?.message
+          ?? "launcher-owned Claude runtime symlink target is not resolvable on the host",
+        operator_recovery:
+          "reinstall or repair the Claude runtime so the launcher-owned symlink resolves to a real executable"
+      }
+    };
+  }
+
+  const identity = await readClaudeRuntimeIdentity(symlinkPath, fsStat);
+  if (identity === null) {
+    return {
+      available: false,
+      reason: CLAUDE_RUNTIME_SETUP_REASONS.PATH_UNREADABLE,
+      detail: { symlink_path: symlinkPath, target_path: probed.detail?.target_path ?? null }
+    };
+  }
+  return {
+    ...probed,
+    detail: { ...probed.detail, runtime_identity: identity }
+  };
+}
+
+async function readClaudeRuntimeIdentity(symlinkPath, fsStat) {
+  try {
+    const stats = await fsStat(symlinkPath);
+    if (!stats.isFile()) return null;
+    return Object.freeze({
+      schema_version: CLAUDE_RUNTIME_IDENTITY_SCHEMA_VERSION,
+      dev: Number(stats.dev),
+      ino: Number(stats.ino),
+      size: Number(stats.size),
+      mode: Number(stats.mode) & 0o7777,
+
+      ctime_ms: Number(stats.ctimeMs),
+      mtime_ms: Number(stats.mtimeMs)
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function verifyClaudeRuntimeIdentityUnchanged({
+  claudePath,
+  identity,
+  fsStat = stat
+} = {}) {
+  if (!identity || identity.schema_version !== CLAUDE_RUNTIME_IDENTITY_SCHEMA_VERSION) {
+
+    return { ok: true, verified: false };
+  }
+  const current = await readClaudeRuntimeIdentity(claudePath, fsStat);
+  if (current === null) {
+    return {
+      ok: false,
+      reason: CLAUDE_RUNTIME_SETUP_REASONS.SYMLINK_TARGET_MISSING,
+      detail: {
+        symlink_path: claudePath,
+        message: "launcher-selected Claude executable disappeared between probe and spawn"
+      }
+    };
+  }
+  if (current.dev !== identity.dev || current.ino !== identity.ino ||
+      current.size !== identity.size || current.mode !== identity.mode ||
+      current.ctime_ms !== identity.ctime_ms || current.mtime_ms !== identity.mtime_ms) {
+    return {
+      ok: false,
+      reason: CLAUDE_RUNTIME_SETUP_REASONS.TARGET_REPLACED,
+      detail: {
+        symlink_path: claudePath,
+        probed: identity,
+        current,
+        message: "launcher-selected Claude executable was replaced between probe and spawn"
+      }
+    };
+  }
+  return { ok: true, verified: true };
 }
 
 export async function defaultCaptureClaudeFinalResult({
@@ -712,6 +888,10 @@ export function defaultBuildClaudeBwrapPlan({
   runtimeRoots = [],
 
   readOnlyRoots = [],
+  findingsRole = null,
+  stdioMcpConduit = null,
+
+  workerScopeAuthority = null,
   familyRuntimeReadOnlyRoots = CLAUDE_FAMILY_RUNTIME_READ_ONLY_ROOTS,
   familyRuntimeMountPrefixes = null,
   familyRuntimePolicyProfile = null,
@@ -765,6 +945,9 @@ export function defaultBuildClaudeBwrapPlan({
     writeScope,
     runtimeRoots,
     readOnlyRoots,
+    findingsRole,
+    stdioMcpConduit,
+    workerScopeAuthority,
 
     additionalMaskTmpfsDirs: deriveClaudeSettingsMaskDirs({ workspaceDir }),
     envPolicy: CLAUDE_BWRAP_ENV_POLICY,
@@ -805,6 +988,11 @@ export function createDefaultClaudeBwrapIsolatedSpawn({
 
       runtimeRoots: Array.isArray(opts?.runtimeRoots) ? opts.runtimeRoots : [],
       readOnlyRoots: Array.isArray(opts?.readOnlyRoots) ? opts.readOnlyRoots : [],
+      findingsRole: opts?.findingsRole ?? null,
+      stdioMcpConduit: opts?.stdioMcpConduit ?? null,
+
+      workerScopeAuthority: opts?.workerScopeAuthority ?? null,
+      nativeRepoWriteMechanism: opts?.nativeRepoWriteMechanism ?? CLAUDE_FAMILY_NATIVE_REPO_WRITE_MECHANISM,
       familyRuntimeReadOnlyRoots,
       credentialsReadOnlyFile,
       approvedCredentialsReadOnlyFiles,
@@ -890,13 +1078,23 @@ export function defaultBuildClaudeCommandLine({
     schemaConstrainedTerminalResult === true &&
     CLAUDE_SCHEMA_CONSTRAINED_TERMINAL_RESULT_ROLES.has(role);
   const args = ["--print"];
-  if (
+  const assignedWriteWorker =
     writePosture.ok === true &&
-    writePosture.posture === LAUNCHER_WRITE_POSTURES.ASSIGNED_WRITE_SCOPE &&
+    writePosture.posture === LAUNCHER_WRITE_POSTURES.ASSIGNED_WRITE_SCOPE;
+  const disallowedTools = [
+    ...CLAUDE_WORKER_DENY_TOOLS,
+    ...(!assignedWriteWorker || !nativeRepoWriteMechanism
+      ? CLAUDE_WORKER_DISALLOWED_NATIVE_WRITE_TOOLS
+      : [])
+  ];
+  if (disallowedTools.length > 0) {
+    args.push("--disallowedTools", ...new Set(disallowedTools));
+  }
+  if (
+    assignedWriteWorker &&
     !nativeRepoWriteMechanism
   ) {
 
-    args.push("--disallowedTools", ...CLAUDE_WORKER_DISALLOWED_NATIVE_WRITE_TOOLS);
   }
   if (
     writePosture.ok === true &&
@@ -904,10 +1102,12 @@ export function defaultBuildClaudeCommandLine({
     nativeRepoWriteMechanism
   ) {
 
+  }
+  if (role === "worker" || role === "reviewer") {
     args.push("--permission-mode", "default");
-    if (typeof claudeSettingsPath === "string" && claudeSettingsPath.length > 0) {
-      args.push("--settings", claudeSettingsPath);
-    }
+  }
+  if (typeof claudeSettingsPath === "string" && claudeSettingsPath.length > 0) {
+    args.push("--settings", claudeSettingsPath);
   }
   args.push("--output-format", "text");
   if (constrained) {
@@ -947,6 +1147,14 @@ export function defaultBuildClaudeCommandLine({
   const text = typeof supplementalInstructions === "string" && supplementalInstructions.length > 0
     ? `${baseText}\n\n${supplementalInstructions}`
     : baseText;
-  args.push(text);
-  return { command: claudePath, args };
+
+  const argv = composeClaudeArgv({ optionArgs: args, prompt: text });
+  return Object.freeze({
+    command: claudePath,
+    args: argv,
+    optionArgs: Object.freeze([...args]),
+    prompt: text,
+    promptIndex: argv.length - 1,
+    commandLineContract: CLAUDE_COMMAND_LINE_CONTRACT_SCHEMA_VERSION
+  });
 }

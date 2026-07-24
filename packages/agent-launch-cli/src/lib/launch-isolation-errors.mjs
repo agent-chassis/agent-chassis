@@ -1,7 +1,6 @@
 
 
 import path from "node:path";
-import { MCP_SANDBOX_RUNTIME_BLOCKER_CODES } from "./mcp-sandbox-profile.mjs";
 
 export const GLOB_CHARACTERS = /[*?\[\]{}]/;
 
@@ -19,6 +18,8 @@ export const BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES = Object.freeze({
   PATH_MISSING_PARENT: "agent_launch.isolation.path_missing_parent.v1",
   PATH_NOT_DIRECTORY: "agent_launch.isolation.path_not_directory.v1",
   PATH_NOT_FILE: "agent_launch.isolation.path_not_file.v1",
+  FINDINGS_GIT_METADATA_INVALID: "agent_launch.isolation.findings_git_metadata_invalid.v1",
+  FINDINGS_GIT_METADATA_CHANGED: "agent_launch.isolation.findings_git_metadata_changed_before_spawn.v1",
   WRITABLE_FILE_NAMESPACE_READ_ONLY: "agent_launch.isolation.writable_file_namespace_read_only.v1",
   REPO_INVALID: "agent_launch.isolation.repo_invalid.v1",
   COMMAND_INVALID: "agent_launch.isolation.command_invalid.v1",
@@ -40,8 +41,8 @@ export const BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES = Object.freeze({
   REQUIRED_RUNTIME_ROOT_INACCESSIBLE: "agent_launch.isolation.required_runtime_root_inaccessible.v1",
 
   WRITABLE_RUNTIME_ROOT_NOT_VISIBLE_IN_NAMESPACE: "agent_launch.isolation.writable_runtime_root_not_visible_in_namespace.v1",
-  READ_ONLY_MOUNT: MCP_SANDBOX_RUNTIME_BLOCKER_CODES.READ_ONLY_MOUNT,
-  SANDBOX_WRITE_DENIAL: MCP_SANDBOX_RUNTIME_BLOCKER_CODES.SANDBOX_WRITE_DENIAL,
+  READ_ONLY_MOUNT: "read_only_mount",
+  SANDBOX_WRITE_DENIAL: "sandbox_write_denial",
   PLAN_INVALID: "agent_launch.isolation.plan_invalid.v1"
 });
 

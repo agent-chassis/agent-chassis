@@ -135,10 +135,6 @@ export {
   attachWorkerAdmissionRemediation
 } from "./codex-worker-plan-refusals.mjs";
 
-export {
-  buildCodexFilesystemMcpChildMountConfigOverrides
-} from "./codex-worker-plan-admitted.mjs";
-
 export async function resolveWorkerPlanRepoRoots({
   managedCanonicalMainRepo,
   worktreeProvisioning,
@@ -168,9 +164,7 @@ export async function buildWorkerPlan({
   provisioned_worktree_git_binding = null,
   provisioned_worktree_git_identity = null,
   worker_scope_authority = null,
-  worktree_provisioning = null,
-
-  hostWriteAuthorityEndpoint = null
+  worktree_provisioning = null
 }) {
   if (role === "worker-fast" || role === "worker_fast") {
     return buildFastDecommissionedRefusalPlan({ role, subject: wk, env });
@@ -466,8 +460,6 @@ export async function buildWorkerPlan({
     unitAddress,
     managedWorkerCommitRequired,
     worktree_provisioning,
-    serverOwnedSliceBinding,
-    hostWriteAuthorityEndpoint,
     serverProvisionedWorktreeGitBinding,
     remoteAdmissionProvenance,
     buildCodexWritableSandboxArgs,

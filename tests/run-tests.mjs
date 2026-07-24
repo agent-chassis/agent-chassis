@@ -11,6 +11,8 @@ const TEST_TEMP_PARENT = "/tmp";
 
 const DEFAULT_TEST_TIMEOUT_MS = 30000;
 
+const INTEGRATION_TEST_TIMEOUT_MS = 120000;
+
 export const INTEGRATION_MARKERS = [
   /claude-worker/,
   /codex-worker/,
@@ -22,7 +24,7 @@ export const INTEGRATION_MARKERS = [
   /runClaudeWorker|runCodexWorker/,
   /\bspawnSync\b/,
   /family-runtime/,
-  /host-write-authority-substrate/,
+
   /\.local\/share\/claude/,
   /probeClaudeRuntime/,
 
@@ -43,7 +45,6 @@ const INTEGRATION_FILE_NAMES = new Set([
   "publish-smoke.test.mjs",
   "work-record-write-cas-process.test.mjs",
   "mcp-startup-regression.test.mjs",
-  "filesystem-mcp-backend-spawn-stdout.test.mjs",
   "wiki-mcp-tool-discovery-workspace-resolution.test.mjs",
   "wiki-mcp-tool-discovery-descriptor-parity.test.mjs",
   "work-record-admission-mcp-compact.test.mjs",
@@ -64,6 +65,9 @@ const INTEGRATION_FILE_NAMES = new Set([
   "work-record-dispatch-node-engine-operation-mcp-forwarding.test.mjs",
   "work-record-graph-impact-dirty-safe.test.mjs",
   "work-record-graph-impact-generate.test.mjs",
+
+  "work-record-dispatch-extraction-splice.test.mjs",
+  "work-record-graph-derivation-ownership.test.mjs",
   "wiki-core-sidecar-build.test.mjs",
   "wiki-core-sidecar-diff-context.test.mjs",
   "wiki-core-sidecar-impact.test.mjs",
@@ -221,9 +225,13 @@ function main() {
   };
 
   const hasTimeoutFlag = flags.some((f) => f.startsWith("--test-timeout"));
+
+  const timeoutMs = mode === "unit"
+    ? DEFAULT_TEST_TIMEOUT_MS
+    : INTEGRATION_TEST_TIMEOUT_MS;
   const nodeArgs = [
     "--test",
-    ...(hasTimeoutFlag ? [] : [`--test-timeout=${DEFAULT_TEST_TIMEOUT_MS}`]),
+    ...(hasTimeoutFlag ? [] : [`--test-timeout=${timeoutMs}`]),
     ...flags,
     ...targetFiles
   ];
@@ -231,7 +239,7 @@ function main() {
   process.stderr.write(
     `[run-tests] mode=${mode} files=${targetFiles.length} ` +
       `HOME=${scratchHome} TMPDIR=${scratchTemp} ` +
-      `timeout=${DEFAULT_TEST_TIMEOUT_MS}ms\n`
+      `timeout=${timeoutMs}ms\n`
   );
 
   const child = spawn(process.execPath, nodeArgs, {

@@ -6,14 +6,10 @@ import {
   BACKEND_FORBIDDEN_ENVELOPE_TOKENS,
   createWorkspaceAgentDispatchBackend
 } from "../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
-import {
-  SOURCE_TOOL_SURFACE_NOT_CONFIGURED_SCHEMA_VERSION
-} from "../packages/agent-launch-cli/src/lib/agent-child-tool-surface.mjs";
 
 import {
   buildFamilyExecutorRegistryEntry,
   LAUNCHER_SOURCE_READ_MODE_NATIVE_FILESYSTEM,
-  LAUNCHER_SOURCE_READ_MODE_LAUNCHER_TOOL_SURFACE,
   LAUNCHER_NATIVE_READ_CAPABILITY_BWRAP_RO_REPO
 } from "../packages/agent-launch-cli/src/lib/workspace-agent-launch-adapter-contract.mjs";
 
@@ -29,13 +25,13 @@ export function assertNoForbiddenTokens(envelope, label) {
 }
 
 function defaultFixtureSourceReadFacts(app) {
-  if (app === "claude" || app === "agy") {
+  if (app === "claude" || app === "codex") {
     return {
       sourceReadMode: LAUNCHER_SOURCE_READ_MODE_NATIVE_FILESYSTEM,
       nativeReadCapability: LAUNCHER_NATIVE_READ_CAPABILITY_BWRAP_RO_REPO
     };
   }
-  return { sourceReadMode: LAUNCHER_SOURCE_READ_MODE_LAUNCHER_TOOL_SURFACE };
+  return { sourceReadMode: null };
 }
 
 function wrapFixtureExecutor(app, candidate) {
@@ -81,11 +77,6 @@ function wrapFixtureExecutors(options) {
 
 export function createTestDispatchBackend(options = {}) {
   return createWorkspaceAgentDispatchBackend({
-    prepareSourceToolSurface: async () => ({
-      schema_version: SOURCE_TOOL_SURFACE_NOT_CONFIGURED_SCHEMA_VERSION,
-      configured: false,
-      accepted: false
-    }),
 
     proveAssignedSourceReadable: async () => ({ ok: true, detail: { fixture: true } }),
     ...options,

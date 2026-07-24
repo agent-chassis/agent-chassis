@@ -278,18 +278,68 @@ export function buildBlockedRunWaitResult({ blockerCode, reason, detail = null, 
   };
 }
 
+export const SLICE_REVIEW_POSTCHECK_FAILED_CODE =
+  "agent_launch.slice_review_materialization.postcheck_failed.v1";
+
+export const SAFE_POSTCHECK_MISMATCH_FIELDS = Object.freeze([
+  "worktreeIdentityDigest",
+  "canonicalWorktreePath",
+  "gitDir",
+  "commonDirectory",
+  "objectDirectory",
+  "objectAlternates",
+  "targetRegistration",
+  "sliceRef",
+  "headSymbolicRef",
+  "headSha",
+  "reviewedSha",
+  "reviewedTree",
+  "baseSha",
+  "baseTree",
+  "sequencerState"
+]);
+
+const SAFE_POSTCHECK_MISMATCH_FIELD_SET = new Set(SAFE_POSTCHECK_MISMATCH_FIELDS);
+
+export function projectSafePostcheckMismatchField(error) {
+  if (error === null || typeof error !== "object") return null;
+  if (error.code !== SLICE_REVIEW_POSTCHECK_FAILED_CODE) return null;
+  if (!Object.hasOwn(error, "detail")) return null;
+  const detail = error.detail;
+  if (detail === null || typeof detail !== "object") return null;
+
+  if (Array.isArray(detail)) return null;
+
+  if (Object.getPrototypeOf(detail) !== Object.prototype) return null;
+
+  const keys = Reflect.ownKeys(detail);
+  if (keys.length !== 1 || keys[0] !== "field") return null;
+  const descriptor = Object.getOwnPropertyDescriptor(detail, "field");
+
+  if (!descriptor || !Object.hasOwn(descriptor, "value") || !descriptor.enumerable) {
+    return null;
+  }
+  if (typeof descriptor.value !== "string") return null;
+
+  if (!SAFE_POSTCHECK_MISMATCH_FIELD_SET.has(descriptor.value)) return null;
+  return descriptor.value;
+}
+
 export function buildDispatchToolExceptionDetail(toolName, error) {
   const message = error instanceof Error ? error.message : String(error);
 
   const redacted = redactAbsolutePaths(message);
   const truncated = redacted.length > DISPATCH_EXCEPTION_DIAGNOSTIC_MAX_CHARS;
+
+  const mismatchField = projectSafePostcheckMismatchField(error);
   return {
     tool: toolName,
     error_name: error instanceof Error ? error.name : null,
     error_message: truncated
       ? redacted.slice(0, DISPATCH_EXCEPTION_DIAGNOSTIC_MAX_CHARS)
       : redacted,
-    error_message_truncated: truncated
+    error_message_truncated: truncated,
+    ...(mismatchField === null ? {} : { postcheck_mismatch_field: mismatchField })
   };
 }
 

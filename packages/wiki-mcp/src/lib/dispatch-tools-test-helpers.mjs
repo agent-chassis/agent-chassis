@@ -5,7 +5,7 @@ import { z } from "zod";
 import {
   TERMINAL_REVIEW_MATERIALIZATION_SCHEMA_VERSION,
   TERMINAL_REVIEW_VERIFY_PARTS
-} from "../../../agent-launch-cli/src/lib/host-write-authority-substrate/terminal-review-materialization.mjs";
+} from "../../../agent-launch-cli/src/lib/terminal-review-materialization.mjs";
 import { registerDispatchTools } from "./dispatch-tools.mjs";
 import {
   runPostWorkerSliceLifecycle,
@@ -261,17 +261,13 @@ export function createResumableLifecycleHarness({
         worktree_path: sliceWorktree
       });
     },
-
-    resolveSliceReviewAcceptanceBinding: () => sliceReviewAccepted
+    resolveCommittedSliceIntegrationContinuation: () => sliceReviewAccepted
       ? {
-          schema_version: "workspace-agent-slice-review-binding.v1",
-          unit_address: "WK-1537#SLICE-001",
-          initiative: "IN-0021",
-          slice_ref: sliceRef,
+          schema_version: "workspace-agent-committed-slice-integration-continuation.v1",
+          completed: true,
+          subject: "WK-1537#SLICE-001",
           reviewed_sha: acceptedSha ?? commit,
-          diff_base_sha: base,
-          source_worker_run_id: status.run_id,
-          review_run_id: "run-slice-reviewer"
+          integration: integrationResult
         }
       : null,
     bindFrozenReviewContext: () => {

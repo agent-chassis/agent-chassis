@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -10,16 +10,10 @@ import {
   createExactSliceReviewReceipt,
   createExactSliceReviewReceiptStore,
   digestTrustedExactReviewEvidence,
+  receiptCarriesUsableReviewVerdict,
   reviseExactSliceReviewReceipt,
   validateExactSliceReviewReceipt
 } from "../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt.mjs";
-import {
-  createWorkspaceAgentDispatchBackend
-} from "../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
-import {
-  AGENT_ROLE_RESULT_REVIEWED_CONTROLS
-} from "../packages/agent-launch-core/src/lib/agent-role-result.mjs";
-import { canonicalizeWorkRecordJson } from "../packages/wiki-core/src/index.mjs";
 
 function receiptFields(overrides = {}) {
   const frozenSlice = {
@@ -172,7 +166,12 @@ test("exact review receipt round-trips by bounded run and monitor selectors", as
     workspaceDir: "/workspace",
     ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
   });
-  const receipt = createExactSliceReviewReceipt(receiptFields());
+  const receipt = createExactSliceReviewReceipt(receiptFields({
+    frozen_context_state: "available",
+    terminal_run_status: "launching",
+    structured_outcome: null,
+    verdict_evidence: "pending"
+  }));
   await store.persist(receipt);
   assert.deepEqual(await store.load({
     unit_address: receipt.unit_address,
@@ -185,20 +184,29 @@ test("exact review receipt round-trips by bounded run and monitor selectors", as
   assert.deepEqual(await store.loadLatest(receipt.unit_address), receipt);
 });
 
-test("exact receipt replay is idempotent and revision preserves trusted bindings", async (t) => {
+test("exact receipt replay is idempotent and legacy proof state is immutable inert data", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "wk1666-replay-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const store = createExactSliceReviewReceiptStore({
     ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
   });
-  const receipt = createExactSliceReviewReceipt(receiptFields());
+  const receipt = createExactSliceReviewReceipt(receiptFields({
+    frozen_context_state: "available",
+    terminal_run_status: "launching",
+    structured_outcome: null,
+    verdict_evidence: "pending"
+  }));
   await store.persist(receipt);
   await store.persist(receipt);
-  const minted = reviseExactSliceReviewReceipt(receipt, { proof_state: "minted" });
-  await store.persist(minted);
-  assert.equal((await store.loadLatest(receipt.unit_address)).proof_state, "minted");
-  assert.equal(minted.reviewed_sha, receipt.reviewed_sha);
-  assert.equal(minted.review_run_id, receipt.review_run_id);
+  const running = reviseExactSliceReviewReceipt(receipt, { terminal_run_status: "running" });
+  await store.persist(running);
+  assert.equal((await store.loadLatest(receipt.unit_address)).proof_state, "unminted");
+  assert.equal(running.reviewed_sha, receipt.reviewed_sha);
+  assert.equal(running.review_run_id, receipt.review_run_id);
+  assert.throws(
+    () => reviseExactSliceReviewReceipt(running, { proof_state: "minted" }),
+    /cannot change immutable field: proof_state/u
+  );
 });
 
 test("unknown run and handle selectors return no receipt", async (t) => {
@@ -212,7 +220,12 @@ test("unknown run and handle selectors return no receipt", async (t) => {
 });
 
 test("wrong unit and wrong run selectors are rejected", () => {
-  const receipt = createExactSliceReviewReceipt(receiptFields());
+  const receipt = createExactSliceReviewReceipt(receiptFields({
+    frozen_context_state: "available",
+    terminal_run_status: "launching",
+    structured_outcome: null,
+    verdict_evidence: "pending"
+  }));
   assert.throws(() => validateExactSliceReviewReceipt(receipt, {
     unit_address: "WK-1666#SLICE-009"
   }), /unit selector mismatch/);
@@ -430,17 +443,28 @@ test("selector conflicts and non-monotonic terminal transitions refuse without o
   const store = createExactSliceReviewReceiptStore({
     ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
   });
-  const receipt = createExactSliceReviewReceipt(receiptFields());
+  const receipt = createExactSliceReviewReceipt(receiptFields({
+    frozen_context_state: "available",
+    terminal_run_status: "launching",
+    structured_outcome: null,
+    verdict_evidence: "pending"
+  }));
   await store.persist(receipt);
   const conflicting = createExactSliceReviewReceipt(receiptFields({
     reviewed_sha: "c".repeat(40),
     review_monitor_handle: "review-monitor-conflict"
   }));
   await assert.rejects(store.persist(conflicting), /conflicts with an existing immutable selector/);
-  const minted = reviseExactSliceReviewReceipt(receipt, { proof_state: "minted" });
-  await store.persist(minted);
-  await assert.rejects(store.persist(receipt), /non-monotonic/);
-  assert.deepEqual(await store.loadLatest(receipt.unit_address), minted);
+  const clean = receiptFields().structured_outcome;
+  const terminal = reviseExactSliceReviewReceipt(receipt, {
+    terminal_run_status: "succeeded",
+    structured_outcome: clean,
+    verdict_evidence: "verdict_recorded"
+  });
+  await store.persist(terminal);
+  const regressed = reviseExactSliceReviewReceipt(receipt, { terminal_run_status: "running" });
+  await assert.rejects(store.persist(regressed), /non-monotonic/);
+  assert.deepEqual(await store.loadLatest(receipt.unit_address), terminal);
 });
 
 test("caller authority fields are outside the exact durable receipt contract", () => {
@@ -452,1001 +476,252 @@ test("caller authority fields are outside the exact durable receipt contract", (
   })), /forbidden field: attestation/);
 });
 
-const LIVE_RECORD_ID = "WK-9971";
-const LIVE_SLICE_ID = "SLICE-001";
-const LIVE_INITIATIVE = "IN-0031";
-const LIVE_SUBJECT = `${LIVE_RECORD_ID}#${LIVE_SLICE_ID}`;
-const LIVE_SLICE_BRANCH = `slice/${LIVE_INITIATIVE}/${LIVE_RECORD_ID}/${LIVE_SLICE_ID}`;
-const LIVE_SLICE_REF = `refs/heads/${LIVE_SLICE_BRANCH}`;
-const LIVE_REVIEWED_SHA = "e".repeat(40);
-const LIVE_DIFF_BASE_SHA = "f".repeat(40);
-const LIVE_WORKER_RUN_ID = "live_slice_worker_run";
-const LIVE_WORKER_MONITOR = "live_slice_worker_monitor";
-const LIVE_WRITE_SCOPE = ["tests/fixtures/wk1666-live-canary.txt"];
-
-const LIVE_ZERO_COUNTS = Object.freeze({
-  total: 0, blocking: 0, critical: 0, high: 0, medium: 0, low: 0, info: 0
-});
-
-const LIVE_ROLE_CONFIG =
-  '[roles.worker]\nmodel = "gpt-5-codex"\n' +
-  '[roles.reviewer]\nmodel = "gpt-5-codex"\n' +
-  '[roles.redteam]\nmodel = "gpt-5-codex"\n';
-
-function liveSliceReviewRecord() {
-  return {
-    schema_version: "work-record.v1",
-    id: LIVE_RECORD_ID,
-    repo: "agent-chassis/agent-chassis",
-    title: "Live receipt-composition canary",
-    record_kind: "work_item",
-    work_kind: "implementation",
-    status: "active",
-    priority: "high",
-    owner: "codex",
-    created: "2026-07-20",
-    updated: "2026-07-20",
-    initiative: LIVE_INITIATIVE,
-    read_scope: ["docs/work-record-schema.md"],
-    repo_paths: LIVE_WRITE_SCOPE,
-    write_scope: [],
-    depends_on: [],
-    blocks: [],
-    related: [],
-    dispatch_intent: {
-      intended_agent_role: "worker",
-      target_unit: "record",
-      requires_graph_impact: false,
-      requires_escalation: false
-    },
-    acceptance: {
-      criteria: ["Parent WK: the receipt-composition canary is delivered end to end."],
-      validation: ["Parent WK: workspace_work_record_validate returns valid=true."]
-    },
-    sections: {
-      summary: "Receipt-composition canary parent record.",
-      why_it_matters: "Drives the production structured-receipt derivation.",
-      scope: { items: ["receipt composition"], out_of_scope: ["product promotion"] },
-      tasks: [],
-      references: ["docs/work-record-schema.md"],
-      agent_notes: "",
-      closure: null
-    },
-    children: [],
-    slices: [
-      {
-        id: LIVE_SLICE_ID,
-        title: "Implementation slice under slice-level review",
-        work_kind: "implementation",
-        status: "review",
-        write_scope: LIVE_WRITE_SCOPE,
-        repo_paths: LIVE_WRITE_SCOPE,
-        read_scope: ["docs/work-record-schema.md"],
-        dispatch_intent: {
-          intended_agent_role: "worker",
-          target_unit: "slice",
-          requires_graph_impact: false,
-          requires_escalation: false
-        },
-        depends_on: [],
-        acceptance: {
-          criteria: ["Slice: create the canary fixture."],
-          validation: ["Slice: node --test"]
+function committedReceiptFields({
+  runId,
+  monitorHandle,
+  role = "reviewer",
+  outcome = "clean"
+}) {
+  const base = receiptFields();
+  const identityBody = {
+    schema_version: "canonical-committed-slice-review-binding.v1",
+    unit_address: base.unit_address,
+    initiative: base.initiative,
+    record_id: base.record_id,
+    slice_id: base.slice_id,
+    slice_ref: base.slice_ref,
+    wk_ref: `refs/heads/wk/${base.initiative}/${base.record_id}`,
+    wk_sha: base.diff_base_sha,
+    reviewed_sha: base.reviewed_sha,
+    diff_base_sha: base.diff_base_sha,
+    worktree_path: base.worktree_path,
+    changed_paths: ["packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt.mjs"],
+    write_scope: ["packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt.mjs"],
+    source_digest: `sha256:${"4".repeat(64)}`,
+    commit_chain: [base.reviewed_sha]
+  };
+  const committedTargetDigest = digestTrustedExactReviewEvidence(identityBody);
+  const identity = { ...identityBody, committed_target_digest: committedTargetDigest };
+  const structuredOutcome = outcome === "clean"
+    ? base.structured_outcome
+    : {
+        outcome: "changes_requested",
+        clean_review: false,
+        findings: [{
+          id: "F-PLURAL",
+          title: "Independent finding",
+          severity: "high",
+          blocking: true,
+          affected_paths: [{ path: identityBody.changed_paths[0], line: 1 }]
+        }],
+        finding_counts: {
+          total: 1, blocking: 1, critical: 0, high: 1, medium: 0, low: 0, info: 0
         }
-      }
-    ],
-    escalations: [],
-    projections: [],
-    migration: null
+      };
+  const fields = {
+    ...base,
+    review_admission_kind: "canonical_committed_slice",
+    committed_target_digest: committedTargetDigest,
+    review_run_id: runId,
+    review_monitor_handle: monitorHandle,
+    reviewer_role: role,
+    worktree_identity: identity,
+    worktree_identity_digest: digestTrustedExactReviewEvidence(identity),
+    structured_outcome: structuredOutcome,
+    verdict_evidence: "verdict_recorded"
   };
+  delete fields.source_worker_run_id;
+  delete fields.source_worker_monitor_handle;
+  delete fields.frozen_context_state;
+  delete fields.proof_state;
+  return fields;
 }
 
-function liveSliceBinding(worktreePath) {
-  return {
-    schema_version: "worktree-identity-binding.v2",
-    launch_ref: LIVE_WORKER_MONITOR,
-    run_id: `${LIVE_WORKER_RUN_ID}.slice`,
-    retry_id: 0,
-    unit_address: `${LIVE_INITIATIVE}/${LIVE_RECORD_ID}/${LIVE_SLICE_ID}`,
-    initiative: LIVE_INITIATIVE,
-    record_id: LIVE_RECORD_ID,
-    slice_id: LIVE_SLICE_ID,
-    base_ref: `wk/${LIVE_INITIATIVE}/${LIVE_RECORD_ID}`,
-    base_sha: LIVE_DIFF_BASE_SHA,
-    output_branch: LIVE_SLICE_BRANCH,
-    worktree_path: worktreePath,
-    read_scope: ["AGENTS.md"],
-    repo_paths: ["packages/agent-launch-cli"],
-    write_scope: LIVE_WRITE_SCOPE,
-    write_scope_source: `wiki/work-records/${LIVE_RECORD_ID}.json#${LIVE_SLICE_ID}`,
-    selected_unit: {
-      kind: "slice",
-      address: LIVE_SUBJECT,
-      record_id: LIVE_RECORD_ID,
-      slice_id: LIVE_SLICE_ID,
-      repo: null
-    },
-    source_digest: `sha256:${"7".repeat(64)}`,
-    source_version: null,
-    checkout_mode: "full"
-  };
-}
-
-function liveReviewerFinalResult(payloadOverrides = {}, { kind = null } = {}) {
-  const payload = {
-    schema_version: "agent-role-result.v1",
-    reported_role: "reviewer",
-    reported_subject: LIVE_SUBJECT,
-    reported_outcome: "no_findings",
-    summary: "Slice review complete.",
-    findings: [],
-    finding_counts: LIVE_ZERO_COUNTS,
-    reviewed_controls: AGENT_ROLE_RESULT_REVIEWED_CONTROLS.map((control_id) => ({
-      control_id, result: "pass"
-    })),
-    ...payloadOverrides
-  };
-  const findings = payload.reported_outcome === "changes_requested";
-  return {
-    schema_version: "workspace-agent-dispatch-final-result.v1",
-    kind: kind ?? (findings ? "findings" : "no_findings"),
-    findings: findings ? { summary: "findings recorded" } : null,
-    no_findings: findings ? null : { reason: "clean" },
-    missing_result: null,
-    full_response: {
-      format: "markdown",
-      text: `Reviewer notes.\n\n\`\`\`agent-role-result.v1\n${JSON.stringify(payload, null, 2)}\n\`\`\``,
-      source: null
-    },
-    writeback: { kind: "wk_updated", detail: null }
-  };
-}
-
-function liveProseOnlyFinalResult() {
-  return {
-    schema_version: "workspace-agent-dispatch-final-result.v1",
-    kind: "no_findings",
-    findings: null,
-    no_findings: { reason: "No findings. Looks good to me. SIGNOFF." },
-    missing_result: null,
-    full_response: {
-      format: "markdown",
-      text: "No findings. Looks good to me. SIGNOFF.",
-      source: null
-    },
-    writeback: { kind: "wk_updated", detail: null }
-  };
-}
-
-function liveMalformedFinalResult() {
-  const text = "Reviewer notes.\n\n```agent-role-result.v1\n" +
-    '{"schema_version":"agent-role-result.v1","reported_role":"reviewer",' +
-    `"reported_subject":"${LIVE_SUBJECT}","reported_outcome":"changes_requested",` +
-    '"findings":"not-an-array","finding_counts":{"total":1},"reviewed_controls":[]}\n```';
-  return {
-    schema_version: "workspace-agent-dispatch-final-result.v1",
-    kind: "findings",
-    findings: { summary: "findings recorded" },
-    no_findings: null,
-    missing_result: null,
-    full_response: { format: "markdown", text, source: null },
-    writeback: { kind: "wk_updated", detail: null }
-  };
-}
-
-const LIVE_FINDING = Object.freeze({
-  id: "F-001",
-  title: "Corrective finding on the exact slice",
-  severity: "high",
-  blocking: true,
-  affected_paths: [{ path: "tests/fixtures/wk1666-live-canary.txt", line: 3 }]
-});
-
-function liveCorrectiveFinalResult() {
-  return liveReviewerFinalResult({
-    reported_outcome: "changes_requested",
-    summary: "One blocking finding.",
-    findings: [{ ...LIVE_FINDING, affected_paths: [{ ...LIVE_FINDING.affected_paths[0] }] }],
-    finding_counts: { total: 1, blocking: 1, critical: 0, high: 1, medium: 0, low: 0, info: 0 }
+test("append-only store retains every exact-target review run independently", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "plural-review-receipts-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const store = createExactSliceReviewReceiptStore({
+    ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
   });
-}
-
-function withLegacyDocsField(unit) {
-  const out = {};
-  for (const [key, value] of Object.entries(unit)) {
-    if (key === "read_scope") out.docs = value;
-    else out[key] = value;
-  }
-  return out;
-}
-
-function liveSliceReviewRecordWithShape(legacyShape) {
-  const record = liveSliceReviewRecord();
-  const shaped = legacyShape === "record" || legacyShape === "both"
-    ? withLegacyDocsField(record)
-    : record;
-  if (legacyShape === "slice" || legacyShape === "both") {
-    shaped.slices = shaped.slices.map(withLegacyDocsField);
-  }
-  return shaped;
-}
-
-async function createLiveReceiptFixture(
-  t,
-  { finalResult, immediateTerminal = false, legacyShape = null }
-) {
-  const mainRepo = await mkdtemp(path.join(os.tmpdir(), "wk1666-live-main-"));
-  const sliceWorktree = await mkdtemp(path.join(os.tmpdir(), "wk1666-live-worktree-"));
-  const receiptRoot = await mkdtemp(path.join(os.tmpdir(), "wk1666-live-receipts-"));
-  for (const dir of [mainRepo, sliceWorktree, receiptRoot]) {
-    t.after(() => rm(dir, { recursive: true, force: true }));
-  }
-
-  await mkdir(path.join(mainRepo, "wiki", "work-records"), { recursive: true });
-  await mkdir(path.join(mainRepo, "docs"), { recursive: true });
-  await writeFile(path.join(mainRepo, "agent-launch.toml"), LIVE_ROLE_CONFIG, "utf8");
-  await writeFile(
-    path.join(mainRepo, "wiki", "work-records", `${LIVE_RECORD_ID}.json`),
-    JSON.stringify(liveSliceReviewRecordWithShape(legacyShape), null, 2),
-    "utf8"
-  );
-
-  const inner = createExactSliceReviewReceiptStore({
-    ensureRuntimeStateDir: async () => ({ ok: true, dir: receiptRoot })
+  const first = createExactSliceReviewReceipt(committedReceiptFields({
+    runId: "plural-review-1",
+    monitorHandle: "plural-monitor-1",
+    outcome: "clean"
+  }));
+  const second = createExactSliceReviewReceipt(committedReceiptFields({
+    runId: "plural-review-2",
+    monitorHandle: "plural-monitor-2",
+    outcome: "changes_requested"
+  }));
+  await Promise.all([store.persist(first), store.persist(second)]);
+  const all = await store.loadAll({
+    unit_address: first.unit_address,
+    committed_target_digest: first.committed_target_digest
   });
-
-  const publications = [];
-  const receiptStore = {
-    ...inner,
-    persist: async (receipt) => {
-      const before = await inner.loadLatest(receipt.unit_address);
-      const result = await inner.persist(receipt);
-      if (before?.receipt_digest !== result.receipt_digest) publications.push(result);
-      return result;
-    }
-  };
-  const sliceBinding = liveSliceBinding(sliceWorktree);
-  const target = Object.freeze({
-    ref: LIVE_SLICE_REF,
-    sha: LIVE_REVIEWED_SHA,
-    diff_base_sha: LIVE_DIFF_BASE_SHA,
-    diff_head_sha: LIVE_REVIEWED_SHA,
-    diff_range: `${LIVE_DIFF_BASE_SHA}..${LIVE_REVIEWED_SHA}`,
-    slice_level_review: true
-  });
-
-  const backend = createWorkspaceAgentDispatchBackend({
-    __testHooks: true,
-
-    launchExecutor: async () => (immediateTerminal
-      ? { accepted: true, status: "succeeded", final_result: finalResult }
-      : {
-          accepted: true,
-          status: "running",
-          probe: async () => ({ status: "succeeded", final_result: finalResult })
-        }),
-    worktreeProvisioning: { mainRepo, worktreeRoot: path.join(mainRepo, ".worktrees") },
-    exactSliceReviewReceiptStore: receiptStore,
-    reviewContextRunGit: ({ args }) => {
-      const rev = String(args[args.length - 1] ?? "");
-      if (rev.startsWith(LIVE_DIFF_BASE_SHA)) return { ok: true, stdout: LIVE_DIFF_BASE_SHA };
-      return { ok: true, stdout: LIVE_REVIEWED_SHA };
-    },
-    postWorkerSliceLifecycle: async ({ status, deps }) => deps.bindFrozenSliceReviewContext({
-      status,
-      provisioning: {
-        record_id: LIVE_RECORD_ID,
-        slice_id: LIVE_SLICE_ID,
-        slice_binding: sliceBinding
-      },
-      sliceTarget: target,
-      reviewUnit: deps.resolveCanonicalSliceReviewUnit({ mainRepo, subject: LIVE_SUBJECT })
-    })
-  });
-
-  await backend.runPostWorkerSliceLifecycle({
-    workspace: { dir: mainRepo },
-    status: {
-      run_id: LIVE_WORKER_RUN_ID,
-      monitor_handle: LIVE_WORKER_MONITOR,
-      subject: LIVE_SUBJECT
-    }
-  });
-
-  return { backend, mainRepo, receiptStore, sliceWorktree, publications, receiptRoot };
-}
-
-async function runLiveSliceReview(backend, mainRepo, betweenLaunchAndStatus = null) {
-  const launch = await backend.startLaunch({
-    caller_session_id: "wk1666_live_session",
-    role: "reviewer",
-    subject: LIVE_SUBJECT,
-    workspace_alias: "test",
-    workspace_dir: mainRepo,
-    app: "codex"
-  });
-  assert.equal(launch.accepted, true,
-    `slice reviewer must launch; got ${JSON.stringify(launch.refusal ?? null)}`);
-
-  if (betweenLaunchAndStatus !== null) await betweenLaunchAndStatus(launch);
-  const status = await backend.getRunStatus({
-    caller_session_id: "wk1666_live_session",
-    run_id: launch.run_id,
-    monitor_handle: launch.monitor_handle,
-    subject: LIVE_SUBJECT
-  });
-  return { launch, status };
-}
-
-function liveMintOutcome(backend, runId) {
-  return backend.__snapshotRuns().find((run) => run.run_id === runId)
-    ?.slice_review_acceptance_mint ?? null;
-}
-
-test("a clean terminal slice review composes a minted receipt through the production backend", async (t) => {
-  const { backend, mainRepo, receiptStore, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-
-  const { launch, status } = await runLiveSliceReview(backend, mainRepo);
-
-  assert.equal(publications.length, 2, "admission receipt plus one terminal receipt");
-  assert.equal(publications[1].proof_state, "minted");
-
-  assert.equal(status.terminal, true);
-  assert.equal(status.status, "succeeded");
-  assert.equal(status.review_result?.clean_review, true);
-  assert.equal(status.review_result?.review_outcome, "no_findings");
-  assert.equal(liveMintOutcome(backend, launch.run_id)?.ok, true);
-
-  const receipt = await receiptStore.loadLatest(LIVE_SUBJECT);
-  assert.notEqual(receipt, null, "a durable receipt must be published");
-  assert.equal(receipt.frozen_context_state, "consumed");
-  assert.equal(receipt.terminal_run_status, "succeeded");
-  assert.equal(receipt.structured_outcome?.outcome, "clean");
-  assert.equal(receipt.structured_outcome.clean_review, true);
-  assert.deepEqual(receipt.structured_outcome.review_result, {
-    review_outcome: "no_findings",
-    clean_review: true,
-    no_findings: true,
-    blocking_finding_count: 0,
-    medium_finding_count: 0,
-    reviewed_controls: [...AGENT_ROLE_RESULT_REVIEWED_CONTROLS].sort((a, b) => a.localeCompare(b))
-  });
-  assert.equal(receipt.proof_state, "minted");
-  assert.equal(receipt.review_run_id, launch.run_id);
-
-  const reread = await receiptStore.load({
-    unit_address: LIVE_SUBJECT,
-    review_run_id: launch.run_id
-  });
-  assert.equal(reread.proof_state, "minted");
-  assert.deepEqual(reread, receipt);
-});
-
-test("a changes_requested terminal slice review composes exact corrective findings and mints nothing", async (t) => {
-  const { backend, mainRepo, receiptStore, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveCorrectiveFinalResult()
-  });
-
-  const { launch, status } = await runLiveSliceReview(backend, mainRepo);
-
-  assert.equal(publications.length, 2, "admission receipt plus one terminal receipt");
-  assert.equal(publications[0].terminal_run_status, "running");
-  assert.equal(publications[1].terminal_run_status, "succeeded");
-  assert.equal(status.terminal, true);
-  assert.equal(status.status, "succeeded");
-
-  assert.equal(status.review_result ?? null, null);
-  assert.equal(liveMintOutcome(backend, launch.run_id), null);
-
-  const receipt = await receiptStore.loadLatest(LIVE_SUBJECT);
-  assert.equal(receipt.structured_outcome?.outcome, "changes_requested");
-  assert.equal(receipt.structured_outcome.clean_review, false);
-  assert.equal(receipt.proof_state, "unminted");
-
-  assert.deepEqual(receipt.structured_outcome.findings, [LIVE_FINDING]);
-  assert.deepEqual(receipt.structured_outcome.finding_counts, {
-    total: 1, blocking: 1, critical: 0, high: 1, medium: 0, low: 0, info: 0
-  });
-
-  const serialized = JSON.stringify(receipt);
-  assert.doesNotMatch(serialized, /One blocking finding|Reviewer notes|findings recorded/u);
-});
-
-test("prose, malformed, mismatched, and misattributed reviewer output cannot mint or claim corrective authority", async (t) => {
-  const cases = [
-    ["prose-only no findings", liveProseOnlyFinalResult()],
-    ["malformed structured payload", liveMalformedFinalResult()],
-    ["wrong reported role", liveReviewerFinalResult({ reported_role: "redteam" })],
-    ["wrong reported subject", liveReviewerFinalResult({
-      reported_subject: `${LIVE_RECORD_ID}#SLICE-002`
-    })],
-    ["mismatched counts", liveReviewerFinalResult({
-      reported_outcome: "changes_requested",
-      findings: [{ ...LIVE_FINDING, affected_paths: [{ ...LIVE_FINDING.affected_paths[0] }] }],
-      finding_counts: { total: 4, blocking: 2, critical: 0, high: 1, medium: 0, low: 0, info: 0 }
-    })],
-    ["changes_requested with empty findings", liveReviewerFinalResult({
-      reported_outcome: "changes_requested",
-      findings: [],
-      finding_counts: LIVE_ZERO_COUNTS
-    })]
-  ];
-
-  for (const [label, finalResult] of cases) {
-    const { backend, mainRepo, receiptStore, publications } =
-      await createLiveReceiptFixture(t, { finalResult });
-    const { launch, status } = await runLiveSliceReview(backend, mainRepo);
-    assert.equal(publications.length, 2, `${label}: admission receipt plus one terminal receipt`);
-
-    assert.equal(status.terminal, true, `${label}: status must still be returned`);
-    assert.equal(status.review_result ?? null, null, `${label}: no clean review_result`);
-    assert.equal(liveMintOutcome(backend, launch.run_id), null, `${label}: no Proof A mint`);
-
-    const receipt = await receiptStore.loadLatest(LIVE_SUBJECT);
-    assert.notEqual(receipt, null, `${label}: the receipt is still published`);
-    assert.equal(receipt.structured_outcome, null, `${label}: no trusted structured outcome`);
-    assert.equal(receipt.proof_state, "unminted", `${label}: proof_state stays unminted`);
-  }
-});
-
-test("repeating status for a terminal slice review replays exactly without regressing the minted receipt", async (t) => {
-  const { backend, mainRepo, receiptStore, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-
-  const { launch } = await runLiveSliceReview(backend, mainRepo);
-  const first = await receiptStore.loadLatest(LIVE_SUBJECT);
-  assert.equal(first.proof_state, "minted");
-  assert.equal(publications.length, 2);
-
-  const poll = () => backend.getRunStatus({
-    caller_session_id: "wk1666_live_session",
-    run_id: launch.run_id,
-    monitor_handle: launch.monitor_handle,
-    subject: LIVE_SUBJECT
-  });
-
-  const replayA = await poll();
-  const replayB = await poll();
-  assert.equal(replayA.terminal, true);
-  assert.equal(replayB.terminal, true);
-  assert.equal(replayA.review_result?.clean_review, true);
-
-  const after = await receiptStore.loadLatest(LIVE_SUBJECT);
-  assert.equal(after.proof_state, "minted");
-  assert.deepEqual(after, first, "replay must be an exact idempotent receipt");
-  assert.equal(liveMintOutcome(backend, launch.run_id)?.ok, true);
-
-  assert.equal(publications.length, 2, "replay must be an exact no-op");
-});
-
-async function readLiveRecord(mainRepo) {
-  return JSON.parse(
-    await readFile(path.join(mainRepo, "wiki", "work-records", `${LIVE_RECORD_ID}.json`), "utf8")
-  );
-}
-
-test("admission, clean terminal, Proof A, and the minted receipt form one monotonic selector chain", async (t) => {
-  const { backend, mainRepo, receiptStore, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-  const { launch } = await runLiveSliceReview(backend, mainRepo);
-
-  assert.equal(publications.length, 2);
-  const [admission, terminal] = publications;
-
-  for (const field of ["unit_address", "record_id", "slice_id", "initiative",
-    "review_run_id", "review_monitor_handle", "source_worker_run_id", "slice_ref",
-    "reviewed_sha", "diff_base_sha", "worktree_path", "worktree_identity_digest",
-    "canonical_parent_wk_contract", "canonical_parent_contract_digest",
-    "slice_review_contract", "slice_review_contract_digest"]) {
-    assert.equal(admission[field], terminal[field],
-      `${field} must be immutable across the admission -> terminal chain`);
-  }
-  assert.equal(admission.review_run_id, launch.run_id);
-  assert.equal(admission.terminal_run_status, "running");
-  assert.equal(admission.proof_state, "unminted");
-  assert.equal(admission.structured_outcome, null);
-  assert.equal(terminal.terminal_run_status, "succeeded");
-  assert.equal(terminal.structured_outcome.outcome, "clean");
-  assert.equal(terminal.proof_state, "minted");
-  assert.deepEqual(await receiptStore.loadLatest(LIVE_SUBJECT), terminal);
-});
-
-test("Proof A publication alone does not invalidate the frozen source contract", async (t) => {
-  const { backend, mainRepo, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-  await runLiveSliceReview(backend, mainRepo);
-
-  const record = await readLiveRecord(mainRepo);
-  assert.ok(Array.isArray(record.derived_evidence) && record.derived_evidence.length > 0,
-    "Proof A must have published derived_evidence");
-
-  const [admission, terminal] = publications;
-  assert.equal(admission.canonical_parent_wk_contract, terminal.canonical_parent_wk_contract);
-  const frozen = JSON.parse(terminal.canonical_parent_wk_contract);
-  assert.equal(frozen.derived_evidence, undefined, "generated evidence is outside the frozen contract");
-  assert.equal(frozen.projections, undefined, "generated projections are outside the frozen contract");
-
-  assert.equal(frozen.id, LIVE_RECORD_ID);
-  assert.equal(frozen.status, "active");
-  assert.equal(frozen.slices[0].status, "review");
-
-  assert.equal(admission.slice_review_contract, terminal.slice_review_contract);
-
-  assert.equal(terminal.slice_review_contract, canonicalizeWorkRecordJson(record.slices[0]));
-});
-
-test("a real authored contract edit still invalidates the frozen source contract", async (t) => {
-  const { mainRepo } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-  const { resolveCanonicalSliceReviewUnit } = await import(
-    "../packages/agent-launch-cli/src/lib/backend-scope-authority.mjs"
-  );
-  const before = resolveCanonicalSliceReviewUnit(mainRepo, LIVE_SUBJECT);
-
-  const record = await readLiveRecord(mainRepo);
-  record.derived_evidence = [{ schema_version: "worker-admission-derived-evidence.v1" }];
-  record.projections = [{ projection_id: "PR-0001" }];
-  const recordPath = path.join(mainRepo, "wiki", "work-records", `${LIVE_RECORD_ID}.json`);
-  await writeFile(recordPath, JSON.stringify(record, null, 2), "utf8");
-  assert.equal(
-    resolveCanonicalSliceReviewUnit(mainRepo, LIVE_SUBJECT).canonical_parent_wk_contract,
-    before.canonical_parent_wk_contract,
-    "generated surfaces must not move the frozen source contract"
-  );
-
-  record.acceptance.criteria = ["Parent WK: materially different acceptance."];
-  record.slices[0].write_scope = ["tests/fixtures/wk1666-live-canary-moved.txt"];
-  await writeFile(recordPath, JSON.stringify(record, null, 2), "utf8");
-  const after = resolveCanonicalSliceReviewUnit(mainRepo, LIVE_SUBJECT);
-  assert.notEqual(after.canonical_parent_wk_contract, before.canonical_parent_wk_contract,
-    "an authored parent edit must invalidate the frozen contract");
-  assert.notEqual(after.review_unit_contract, before.review_unit_contract,
-    "an authored slice edit must invalidate the frozen slice contract");
-});
-
-test("an immediate-terminal clean launch mints Proof A and persists one minted receipt", async (t) => {
-  const { backend, mainRepo, receiptStore, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult(),
-    immediateTerminal: true
-  });
-
-  const launch = await backend.startLaunch({
-    caller_session_id: "wk1666_live_session",
-    role: "reviewer",
-    subject: LIVE_SUBJECT,
-    workspace_alias: "test",
-    workspace_dir: mainRepo,
-    app: "codex"
-  });
-  assert.equal(launch.accepted, true);
-  assert.equal(launch.status, "succeeded");
-  assert.equal(launch.review_result?.clean_review, true);
-
-  assert.equal(liveMintOutcome(backend, launch.run_id)?.ok, true, "Proof A must mint at launch");
-  assert.equal(publications.length, 1, "an immediate-terminal launch publishes exactly one receipt");
-  const receipt = await receiptStore.loadLatest(LIVE_SUBJECT);
-  assert.equal(receipt.terminal_run_status, "succeeded");
-  assert.equal(receipt.structured_outcome.outcome, "clean");
-  assert.equal(receipt.proof_state, "minted");
-  const record = await readLiveRecord(mainRepo);
-  assert.ok((record.derived_evidence ?? []).length > 0);
-
-  const status = await backend.getRunStatus({
-    caller_session_id: "wk1666_live_session",
-    run_id: launch.run_id,
-    monitor_handle: launch.monitor_handle,
-    subject: LIVE_SUBJECT
-  });
-  assert.equal(status.terminal, true);
-  assert.equal(publications.length, 1, "polling a synchronously-terminal run publishes nothing new");
-  assert.deepEqual(await receiptStore.loadLatest(LIVE_SUBJECT), receipt);
-});
-
-test("the minted receipt survives restart recovery and resolves the broker acceptance binding", async (t) => {
-  const { backend, mainRepo, receiptRoot } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-  const { launch } = await runLiveSliceReview(backend, mainRepo);
-
-  const restarted = createExactSliceReviewReceiptStore({
-    ensureRuntimeStateDir: async () => ({ ok: true, dir: receiptRoot })
-  });
-  const recovered = await restarted.load({
-    unit_address: LIVE_SUBJECT,
-    review_run_id: launch.run_id
-  });
-  assert.equal(recovered.proof_state, "minted");
-  assert.deepEqual(
-    await restarted.load({ unit_address: LIVE_SUBJECT, monitor_handle: recovered.review_monitor_handle }),
-    recovered
-  );
-
-  assert.deepEqual(validateExactSliceReviewReceipt(recovered, {
-    unit_address: LIVE_SUBJECT,
-    review_run_id: launch.run_id
-  }), recovered);
-
-  const { resolveFrozenSliceReviewReceiptContract } = await import(
-    "../packages/agent-launch-cli/src/lib/backend-scope-authority.mjs"
-  );
-  const frozenContract = resolveFrozenSliceReviewReceiptContract(recovered);
-  assert.equal(frozenContract.subject, LIVE_SUBJECT);
-  assert.equal(frozenContract.parent_status, "active");
-
-  const { resolveSliceReviewAcceptanceProof } = await import(
-    "../packages/wiki-core/src/operations/work-record-slice-review-acceptance.mjs"
-  );
-  const resolved = await resolveSliceReviewAcceptanceProof({
-    dir: mainRepo,
-    unit_address: LIVE_SUBJECT,
-    expectation: {
-      unit_address: LIVE_SUBJECT,
-      initiative: LIVE_INITIATIVE,
-      slice_ref: LIVE_SLICE_REF,
-      reviewed_sha: LIVE_REVIEWED_SHA,
-      diff_base_sha: LIVE_DIFF_BASE_SHA,
-      source_worker_run_id: LIVE_WORKER_RUN_ID,
-      review_run_id: launch.run_id,
-      current_slice_sha: LIVE_REVIEWED_SHA
-    }
-  });
-  assert.equal(resolved.ok, true,
-    `broker must accept the minted proof; got ${JSON.stringify(resolved.reasons ?? resolved)}`);
-});
-
-test("the broker's historical Proof A comparison accepts generated evidence but refuses an authored edit", async (t) => {
-  const { backend, mainRepo, receiptStore, receiptRoot } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-  const { launch } = await runLiveSliceReview(backend, mainRepo);
-
-  const restarted = createExactSliceReviewReceiptStore({
-    ensureRuntimeStateDir: async () => ({ ok: true, dir: receiptRoot })
-  });
-  const receipt = await restarted.load({ unit_address: LIVE_SUBJECT, review_run_id: launch.run_id });
-  assert.equal(receipt.proof_state, "minted");
-  const historicalContract = {
-    canonical_parent_wk_contract: receipt.canonical_parent_wk_contract,
-    canonical_parent_contract_digest: receipt.canonical_parent_contract_digest,
-    slice_review_contract: receipt.slice_review_contract,
-    slice_review_contract_digest: receipt.slice_review_contract_digest
-  };
-
-  const recordPath = path.join(mainRepo, "wiki", "work-records", `${LIVE_RECORD_ID}.json`);
-  const integrated = await readLiveRecord(mainRepo);
-  integrated.status = "review";
-  integrated.slices[0].status = "done";
-  integrated.updated = "2026-07-21";
-  await writeFile(recordPath, JSON.stringify(integrated, null, 2), "utf8");
-  assert.ok((integrated.derived_evidence ?? []).length > 0, "generated evidence is present on disk");
-
-  const { resolveHistoricalSliceReviewAcceptanceProof } = await import(
-    "../packages/wiki-core/src/operations/work-record-slice-review-acceptance.mjs"
-  );
-  const resolveHistorical = () => resolveHistoricalSliceReviewAcceptanceProof({
-    dir: mainRepo,
-    unit_address: LIVE_SUBJECT,
-    historical_contract: historicalContract,
-    review_result: receipt.structured_outcome.review_result,
-    expectation: {
-      unit_address: LIVE_SUBJECT,
-      initiative: LIVE_INITIATIVE,
-      slice_ref: LIVE_SLICE_REF,
-      reviewed_sha: LIVE_REVIEWED_SHA,
-      diff_base_sha: LIVE_DIFF_BASE_SHA,
-      source_worker_run_id: LIVE_WORKER_RUN_ID,
-      review_run_id: launch.run_id,
-      current_slice_sha: LIVE_REVIEWED_SHA
-    }
-  });
-
-  const accepted = await resolveHistorical();
-  assert.equal(accepted.ok, true,
-    `generated evidence must not invalidate the frozen contract; got ${JSON.stringify(accepted.reasons ?? accepted)}`);
-
-  const edited = await readLiveRecord(mainRepo);
-  edited.acceptance.criteria = ["Parent WK: materially different acceptance."];
-  await writeFile(recordPath, JSON.stringify(edited, null, 2), "utf8");
-  const refused = await resolveHistorical();
-  assert.equal(refused.ok, false, "an authored contract edit must refuse");
-  assert.match(JSON.stringify(refused.reasons ?? []), /changed beyond the exact lifecycle fields/u);
-});
-
-const LEGACY_SHAPE_CASES = [
-  ["legacy docs at record scope", "record"],
-  ["legacy docs at slice scope", "slice"],
-  ["legacy docs at both record and slice scope", "both"]
-];
-
-for (const [label, legacyShape] of LEGACY_SHAPE_CASES) {
-  test(`${label} still composes exactly one minted terminal receipt`, async (t) => {
-    const { backend, mainRepo, receiptStore, publications } = await createLiveReceiptFixture(t, {
-      finalResult: liveReviewerFinalResult(),
-      legacyShape
-    });
-
-    const authored = await readLiveRecord(mainRepo);
-    if (legacyShape === "record" || legacyShape === "both") {
-      assert.ok(Array.isArray(authored.docs), `${label}: record must be authored with docs`);
-      assert.equal(authored.read_scope, undefined);
-    }
-    if (legacyShape === "slice" || legacyShape === "both") {
-      assert.ok(Array.isArray(authored.slices[0].docs), `${label}: slice must be authored with docs`);
-      assert.equal(authored.slices[0].read_scope, undefined);
-    }
-
-    const { launch, status } = await runLiveSliceReview(backend, mainRepo);
-
-    assert.equal(publications.length, 2, `${label}: admission receipt plus one terminal receipt`);
-    assert.equal(publications[1].proof_state, "minted", `${label}: the terminal receipt is minted`);
-    assert.equal(status.review_result?.clean_review, true, `${label}: clean review result`);
-    assert.equal(liveMintOutcome(backend, launch.run_id)?.ok, true, `${label}: Proof A minted`);
-
-    const [admission, terminal] = publications;
-    assert.equal(admission.canonical_parent_wk_contract, terminal.canonical_parent_wk_contract,
-      `${label}: the frozen parent contract must not move across the mint`);
-    assert.equal(admission.slice_review_contract, terminal.slice_review_contract,
-      `${label}: the frozen slice contract must not move across the mint`);
-
-    const frozenParent = JSON.parse(terminal.canonical_parent_wk_contract);
-    assert.equal(frozenParent.docs, undefined, `${label}: legacy docs is canonicalized out of the parent`);
-    assert.ok(Array.isArray(frozenParent.read_scope), `${label}: parent carries canonical read_scope`);
-    const frozenSlice = JSON.parse(terminal.slice_review_contract);
-    assert.equal(frozenSlice.docs, undefined, `${label}: legacy docs is canonicalized out of the slice`);
-    assert.ok(Array.isArray(frozenSlice.read_scope), `${label}: slice carries canonical read_scope`);
-    assert.equal(
-      JSON.stringify(frozenParent.slices.find((entry) => entry?.id === LIVE_SLICE_ID)),
-      terminal.slice_review_contract,
-      `${label}: parent-embedded slice and standalone slice contract must agree byte-for-byte`
-    );
-
-    assert.deepEqual(frozenParent.read_scope, authored.docs ?? authored.read_scope);
-    assert.deepEqual(frozenSlice.read_scope, authored.slices[0].docs ?? authored.slices[0].read_scope);
-    assert.deepEqual(await receiptStore.loadLatest(LIVE_SUBJECT), terminal);
-  });
-}
-
-test("Proof A persistence canonicalizes a legacy record without an immutable-selector conflict", async (t) => {
-  const { backend, mainRepo, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult(),
-    legacyShape: "both"
-  });
-  await runLiveSliceReview(backend, mainRepo);
-
-  const persisted = await readLiveRecord(mainRepo);
-  assert.ok((persisted.derived_evidence ?? []).length > 0, "Proof A must have published evidence");
-  assert.equal(persisted.docs, undefined, "persistence canonicalizes the record-scope alias");
-  assert.equal(persisted.slices[0].docs, undefined, "persistence canonicalizes the slice-scope alias");
-  assert.ok(Array.isArray(persisted.read_scope));
-  assert.ok(Array.isArray(persisted.slices[0].read_scope));
-
-  const [admission, terminal] = publications;
-  assert.equal(admission.canonical_parent_contract_digest, terminal.canonical_parent_contract_digest);
-  assert.equal(admission.slice_review_contract_digest, terminal.slice_review_contract_digest);
-});
-
-test("an updated-only refresh between admission and terminal publication does not invalidate the receipt", async (t) => {
-  const { backend, mainRepo, receiptStore, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-  const recordPath = path.join(mainRepo, "wiki", "work-records", `${LIVE_RECORD_ID}.json`);
-
-  const { launch } = await runLiveSliceReview(backend, mainRepo, async () => {
-
-    assert.equal(publications.length, 1, "the admission receipt is already published");
-    const record = await readLiveRecord(mainRepo);
-    assert.equal(record.updated, "2026-07-20");
-    record.updated = "2026-07-25";
-    await writeFile(recordPath, JSON.stringify(record, null, 2), "utf8");
-  });
-
-  assert.equal(publications.length, 2, "admission receipt plus one terminal receipt");
-  const [admission, terminal] = publications;
-  assert.equal(terminal.proof_state, "minted");
-  assert.equal(admission.canonical_parent_wk_contract, terminal.canonical_parent_wk_contract,
-    "a coordination-only `updated` change must not move the frozen contract");
-
-  const frozen = JSON.parse(terminal.canonical_parent_wk_contract);
-  assert.equal(frozen.updated, undefined, "`updated` is excluded from review-receipt identity");
-  assert.equal((await readLiveRecord(mainRepo)).updated, "2026-07-25", "the record itself still tracks it");
-  assert.equal(liveMintOutcome(backend, launch.run_id)?.ok, true);
-  assert.deepEqual(await receiptStore.loadLatest(LIVE_SUBJECT), terminal);
-});
-
-test("a running unminted admission receipt is never mistaken for a completed terminal replay", async (t) => {
-  const { backend, mainRepo, receiptStore, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-
-  const { launch } = await runLiveSliceReview(backend, mainRepo, async () => {
-
-    const admission = await receiptStore.load({
-      unit_address: LIVE_SUBJECT,
-      review_run_id: publications[0].review_run_id
-    });
-    assert.notEqual(admission, null, "an admission receipt is on disk before the terminal poll");
-    assert.equal(admission.terminal_run_status, "running");
-    assert.equal(admission.proof_state, "unminted");
-    assert.equal(admission.structured_outcome, null);
-  });
-
-  assert.equal(publications.length, 2, "the terminal transition must still publish");
-  const [admission, terminal] = publications;
-  assert.equal(admission.terminal_run_status, "running");
-  assert.equal(admission.proof_state, "unminted");
-  assert.equal(terminal.terminal_run_status, "succeeded");
-  assert.equal(terminal.proof_state, "minted");
-  assert.equal(terminal.structured_outcome?.outcome, "clean");
-  assert.notEqual(admission.receipt_digest, terminal.receipt_digest,
-    "the terminal receipt is a real monotonic transition, not a replayed admission receipt");
-  assert.equal(liveMintOutcome(backend, launch.run_id)?.ok, true);
-  assert.equal((await receiptStore.loadLatest(LIVE_SUBJECT)).proof_state, "minted");
-});
-
-test("a terminal minted receipt replays as an exact no-op after the slice has integrated", async (t) => {
-  const { backend, mainRepo, receiptStore, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-  const { launch } = await runLiveSliceReview(backend, mainRepo);
-  const minted = await receiptStore.loadLatest(LIVE_SUBJECT);
-  assert.equal(minted.proof_state, "minted");
-  assert.equal(publications.length, 2);
-
-  const poll = () => backend.getRunStatus({
-    caller_session_id: "wk1666_live_session",
-    run_id: launch.run_id,
-    monitor_handle: launch.monitor_handle,
-    subject: LIVE_SUBJECT
-  });
-
-  assert.equal((await readLiveRecord(mainRepo)).slices[0].status, "review");
-  const preIntegration = await poll();
-  assert.equal(preIntegration.terminal, true);
-  assert.equal(publications.length, 2, "a pre-integration replay publishes nothing");
-  assert.deepEqual(await receiptStore.loadLatest(LIVE_SUBJECT), minted);
-
-  const { setWorkRecordStatusByUnit } = await import("../packages/wiki-core/src/index.mjs");
-  const sliceDone = await setWorkRecordStatusByUnit({
-    dir: mainRepo, unitAddress: LIVE_SUBJECT, status: "done"
-  });
-  assert.equal(sliceDone.valid, true,
-    `the slice must transition to done; got ${JSON.stringify(sliceDone.diagnostics ?? null)}`);
-  const parentReview = await setWorkRecordStatusByUnit({
-    dir: mainRepo, unitAddress: LIVE_RECORD_ID, status: "review"
-  });
-  assert.equal(parentReview.valid, true,
-    `the parent must transition to whole-WK review; got ${JSON.stringify(parentReview.diagnostics ?? null)}`);
-
-  const integrated = await readLiveRecord(mainRepo);
-  assert.equal(integrated.slices[0].status, "done", "the production lifecycle really integrated the slice");
-  assert.equal(integrated.status, "review");
-
-  const { resolveCanonicalSliceReviewUnit } = await import(
-    "../packages/agent-launch-cli/src/lib/backend-scope-authority.mjs"
-  );
-  assert.throws(() => resolveCanonicalSliceReviewUnit(mainRepo, LIVE_SUBJECT),
-    /whole-WK review|not an implementation slice under slice-level review/u);
-
-  const postIntegration = await poll();
-  assert.equal(postIntegration.terminal, true);
-  assert.equal(postIntegration.status, "succeeded");
-  assert.equal(postIntegration.review_result?.clean_review, true);
-  assert.equal(publications.length, 2, "a post-integration replay publishes nothing new");
-  assert.deepEqual(await receiptStore.loadLatest(LIVE_SUBJECT), minted,
-    "the retained receipt must replay byte-identically");
-});
-
-test("an authored slice-contract edit still refuses the historical Proof A comparison", async (t) => {
-  const { backend, mainRepo, receiptStore } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-  const { launch } = await runLiveSliceReview(backend, mainRepo);
-  const receipt = await receiptStore.loadLatest(LIVE_SUBJECT);
-  const historicalContract = {
-    canonical_parent_wk_contract: receipt.canonical_parent_wk_contract,
-    canonical_parent_contract_digest: receipt.canonical_parent_contract_digest,
-    slice_review_contract: receipt.slice_review_contract,
-    slice_review_contract_digest: receipt.slice_review_contract_digest
-  };
-
-  const recordPath = path.join(mainRepo, "wiki", "work-records", `${LIVE_RECORD_ID}.json`);
-  const integrated = await readLiveRecord(mainRepo);
-  integrated.status = "review";
-  integrated.slices[0].status = "done";
-
-  integrated.slices[0].write_scope = ["tests/fixtures/wk1666-live-canary-moved.txt"];
-  await writeFile(recordPath, JSON.stringify(integrated, null, 2), "utf8");
-
-  const { resolveHistoricalSliceReviewAcceptanceProof } = await import(
-    "../packages/wiki-core/src/operations/work-record-slice-review-acceptance.mjs"
-  );
-  const refused = await resolveHistoricalSliceReviewAcceptanceProof({
-    dir: mainRepo,
-    unit_address: LIVE_SUBJECT,
-    historical_contract: historicalContract,
-    review_result: receipt.structured_outcome.review_result,
-    expectation: {
-      unit_address: LIVE_SUBJECT,
-      initiative: LIVE_INITIATIVE,
-      slice_ref: LIVE_SLICE_REF,
-      reviewed_sha: LIVE_REVIEWED_SHA,
-      diff_base_sha: LIVE_DIFF_BASE_SHA,
-      source_worker_run_id: LIVE_WORKER_RUN_ID,
-      review_run_id: launch.run_id,
-      current_slice_sha: LIVE_REVIEWED_SHA
-    }
-  });
-  assert.equal(refused.ok, false, "an authored slice-contract edit must refuse");
-  assert.match(JSON.stringify(refused.reasons ?? []), /changed beyond the exact lifecycle fields/u);
-});
-
-test("receipt-store corruption surfaces its own typed error and mutates nothing", async (t) => {
-  const { backend, mainRepo, receiptRoot, publications } = await createLiveReceiptFixture(t, {
-    finalResult: liveReviewerFinalResult()
-  });
-  const { launch } = await runLiveSliceReview(backend, mainRepo);
-  assert.equal(publications.length, 2, "the minted terminal receipt is published first");
-  assert.equal(publications[1].proof_state, "minted");
-
-  const { setWorkRecordStatusByUnit } = await import("../packages/wiki-core/src/index.mjs");
-  assert.equal((await setWorkRecordStatusByUnit({
-    dir: mainRepo, unitAddress: LIVE_SUBJECT, status: "done"
-  })).valid, true);
-  assert.equal((await setWorkRecordStatusByUnit({
-    dir: mainRepo, unitAddress: LIVE_RECORD_ID, status: "review"
-  })).valid, true);
-
-  const eventDir = path.join(receiptRoot, "exact-slice-review-receipts");
-  const eventNames = (await readdir(eventDir)).filter((name) => name.startsWith("event-")).sort();
-  assert.ok(eventNames.length >= 2, "the store holds the admission and terminal events");
-
-  const corruptedName = eventNames.at(-1);
-  const corruptedPath = path.join(eventDir, corruptedName);
-  const original = await readFile(corruptedPath, "utf8");
-  const tampered = JSON.parse(original);
-  tampered.receipt.reviewed_sha = "c".repeat(40);
-  await writeFile(corruptedPath, `${JSON.stringify(tampered, null, 2)}\n`, "utf8");
-
-  const recordBefore = await readLiveRecord(mainRepo);
-  const mintBefore = liveMintOutcome(backend, launch.run_id);
-  const namesBefore = (await readdir(eventDir)).sort();
-
-  await assert.rejects(
-    () => backend.getRunStatus({
-      caller_session_id: "wk1666_live_session",
-      run_id: launch.run_id,
-      monitor_handle: launch.monitor_handle,
-      subject: LIVE_SUBJECT
-    }),
-    (error) => {
-      assert.match(error.message, /exact slice review receipt/u,
-        `must surface the store's own typed diagnostic; got: ${error.message}`);
-      assert.doesNotMatch(error.message, /slice-level review|implementation slice/u,
-        `must NOT report an unrelated canonical-state failure; got: ${error.message}`);
-      return true;
-    }
-  );
-
-  assert.equal(publications.length, 2, "a corrupt store publishes nothing");
-  assert.deepEqual(liveMintOutcome(backend, launch.run_id), mintBefore, "no Proof A re-mint");
-  assert.deepEqual(await readLiveRecord(mainRepo), recordBefore, "the canonical record is untouched");
-  assert.deepEqual((await readdir(eventDir)).sort(), namesBefore, "no receipt is deleted or added");
-  assert.equal(await readFile(corruptedPath, "utf8"), `${JSON.stringify(tampered, null, 2)}\n`,
-    "the corrupt receipt is left exactly as found — never rewritten or repaired");
-});
-
-test("receipt recovery adds no public integrate-slice operation", async () => {
-  const sources = await Promise.all([
-    readFile(new URL("../packages/wiki-mcp/src/server.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../packages/wiki-mcp/src/lib/dispatch-tools/register.mjs", import.meta.url), "utf8")
+  assert.deepEqual(all.map((receipt) => receipt.review_run_id).sort(), [
+    "plural-review-1", "plural-review-2"
   ]);
-  for (const source of sources) {
-    assert.doesNotMatch(source, /registerTool\(\s*["'](?:integrate_slice|integrate-slice)["']/u);
+  assert.deepEqual(all.map((receipt) => receipt.structured_outcome.outcome).sort(), [
+    "changes_requested", "clean"
+  ]);
+  assert.equal(Object.hasOwn(first, "proof_state"), false);
+  assert.equal(Object.hasOwn(second, "frozen_context_state"), false);
+});
+
+test("reviewer and policy-allowed redteam receipts share exact-target binding without selector collision", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "plural-review-roles-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const store = createExactSliceReviewReceiptStore({
+    ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
+  });
+  const reviewer = createExactSliceReviewReceipt(committedReceiptFields({
+    runId: "role-reviewer",
+    monitorHandle: "role-reviewer-monitor",
+    role: "reviewer"
+  }));
+  const redteam = createExactSliceReviewReceipt(committedReceiptFields({
+    runId: "role-redteam",
+    monitorHandle: "role-redteam-monitor",
+    role: "redteam"
+  }));
+  await store.persist(reviewer);
+  await store.persist(redteam);
+  const all = await store.loadAll({
+    unit_address: reviewer.unit_address,
+    committed_target_digest: reviewer.committed_target_digest
+  });
+  assert.deepEqual(all.map((receipt) => receipt.reviewer_role).sort(), ["redteam", "reviewer"]);
+});
+
+test("loadLatest remains a compatibility projection and never replaces the complete evidence set", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "plural-review-latest-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const store = createExactSliceReviewReceiptStore({
+    ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
+  });
+  const receipts = [
+    createExactSliceReviewReceipt(committedReceiptFields({
+      runId: "history-review-1", monitorHandle: "history-monitor-1"
+    })),
+    createExactSliceReviewReceipt(committedReceiptFields({
+      runId: "history-review-2", monitorHandle: "history-monitor-2"
+    }))
+  ];
+  for (const receipt of receipts) await store.persist(receipt);
+  assert.equal((await store.loadLatest(receipts[0].unit_address)).review_run_id, "history-review-2");
+  assert.equal((await store.loadAll({
+    unit_address: receipts[0].unit_address,
+    committed_target_digest: receipts[0].committed_target_digest
+  })).length, 2);
+});
+
+test("legacy cleanup-only receipts remain readable but their historical proof field is inert", () => {
+  const clean = createExactSliceReviewReceipt(receiptFields({
+    terminal_run_status: "failed",
+    cleanup_only_terminal_failure: true,
+    verdict_evidence: "verdict_recorded",
+    proof_state: "minted"
+  }));
+  assert.equal(clean.terminal_run_status, "failed", "the cleanup failure is not hidden");
+  assert.equal(clean.cleanup_only_terminal_failure, true);
+  assert.equal(clean.proof_state, "minted");
+  assert.equal(receiptCarriesUsableReviewVerdict(clean), true);
+  assert.equal(Object.hasOwn(clean, "proof_state"), true,
+    "the compatibility field is readable but never becomes runtime authority");
+
+  const withoutDisposition = createExactSliceReviewReceipt(receiptFields({
+    terminal_run_status: "succeeded",
+    verdict_evidence: "verdict_recorded",
+    proof_state: "minted"
+  }));
+  assert.notEqual(clean.receipt_digest, withoutDisposition.receipt_digest);
+});
+
+test("WK-1689#SLICE-004 M-1: a failed receipt WITHOUT the disposition still cannot carry an outcome", () => {
+  assert.throws(() => createExactSliceReviewReceipt(receiptFields({
+    terminal_run_status: "failed",
+    verdict_evidence: "verdict_recorded"
+  })), /non-succeeded exact slice review receipt cannot carry a structured outcome/);
+  assert.throws(() => createExactSliceReviewReceipt(receiptFields({
+    terminal_run_status: "failed",
+    verdict_evidence: "verdict_recorded",
+    proof_state: "minted"
+  })), /non-succeeded exact slice review receipt cannot carry a structured outcome/);
+});
+
+test("WK-1689#SLICE-004 M-1: the cleanup-only disposition is closed and failed-only", () => {
+
+  assert.throws(() => createExactSliceReviewReceipt(receiptFields({
+    terminal_run_status: "failed",
+    cleanup_only_terminal_failure: "true",
+    verdict_evidence: "verdict_recorded"
+  })), /invalid closed vocabulary/);
+
+  assert.throws(() => createExactSliceReviewReceipt(receiptFields({
+    terminal_run_status: "succeeded",
+    cleanup_only_terminal_failure: true,
+    verdict_evidence: "verdict_recorded"
+  })), /cleanup-only exact slice review evidence requires a failed reviewer run/);
+
+  assert.throws(() => createExactSliceReviewReceipt(receiptFields({
+    terminal_run_status: "cancelled",
+    cleanup_only_terminal_failure: true,
+    structured_outcome: null,
+    verdict_evidence: "no_verdict_child_terminal"
+  })), /cleanup-only exact slice review evidence requires a failed reviewer run/);
+});
+
+test("WK-1689#SLICE-004 M-1: a settled cleanup-only disposition can never be withdrawn", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "wk1689-m1-cleanup-only-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const store = createExactSliceReviewReceiptStore({
+    ensureRuntimeStateDir: async () => ({ ok: true, dir: root })
+  });
+
+  const settled = createExactSliceReviewReceipt(receiptFields({
+    terminal_run_status: "failed",
+    cleanup_only_terminal_failure: true,
+    verdict_evidence: "verdict_recorded"
+  }));
+  await store.persist(settled);
+
+  const withdrawn = {
+    ...Object.fromEntries(Object.entries(settled)
+      .filter(([field]) => !["cleanup_only_terminal_failure", "schema_version",
+        "trusted_evidence_digest", "receipt_digest"].includes(field)))
+  };
+  assert.throws(
+    () => createExactSliceReviewReceipt(withdrawn),
+    /cannot carry a structured outcome/,
+    "a receipt that drops the disposition cannot even be constructed with its outcome"
+  );
+
+  const strippedNoOutcome = createExactSliceReviewReceipt({
+    ...withdrawn,
+    structured_outcome: null,
+    proof_state: "unminted",
+    verdict_evidence: "no_verdict_child_terminal"
+  });
+  await assert.rejects(store.persist(strippedNoOutcome),
+    /cannot withdraw its cleanup-only disposition|non-monotonic/);
+  assert.deepEqual(await store.loadLatest(settled.unit_address), settled);
+});
+
+test("WK-1689#SLICE-004 M-1: a cancelled or non-cleanup failed run is never a usable verdict carrier", () => {
+  for (const status of ["failed", "cancelled", "running", "launching"]) {
+    assert.equal(
+      receiptCarriesUsableReviewVerdict({ terminal_run_status: status }),
+      false,
+      `${status} without the durable cleanup-only disposition is not usable`
+    );
   }
+  assert.equal(receiptCarriesUsableReviewVerdict({ terminal_run_status: "succeeded" }), true);
+  assert.equal(
+    receiptCarriesUsableReviewVerdict({
+      terminal_run_status: "cancelled",
+      cleanup_only_terminal_failure: true
+    }),
+    false,
+    "the disposition only rescues a FAILED run"
+  );
 });

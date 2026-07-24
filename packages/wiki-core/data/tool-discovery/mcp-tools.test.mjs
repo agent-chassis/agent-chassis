@@ -39,9 +39,8 @@ const FRAGMENT_EXPECTATIONS = {
     'workspace_decision_amend_scalar',
     'workspace_decision_amend_section',
     'workspace_decision_create',
-    'workspace_decision_ratify',
+
     'workspace_decision_reject',
-    'workspace_decision_unratify',
     'workspace_initiative_amend_scalar',
     'workspace_initiative_amend_section',
     'workspace_initiative_create',
@@ -514,5 +513,6 @@ test('ready-slice descriptor is installed supported free-local and role policy i
     manifest.expected_tool_count,
     manifest.fragments.reduce((total, entry) => total + entry.tool_count, 0),
   );
-  assert.equal(manifest.expected_tool_count, 100);
+
+  assert.equal(manifest.expected_tool_count, 99);
 });

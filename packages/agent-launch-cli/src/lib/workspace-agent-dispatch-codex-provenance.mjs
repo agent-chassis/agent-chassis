@@ -63,6 +63,17 @@ export function attachProvenanceToSupervisedResult(supervised, provenanceContext
     return supervised;
   }
   const innerProbe = supervised.probe;
+
+  const decorated = new WeakMap();
+  const decorate = async (finalResult) => {
+    const cached = decorated.get(finalResult);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const pending = attachCodexChildRunProvenance(finalResult, provenanceContext);
+    decorated.set(finalResult, pending);
+    return pending;
+  };
   return {
     ...supervised,
     probe: async () => {
@@ -75,7 +86,7 @@ export function attachProvenanceToSupervisedResult(supervised, provenanceContext
       ) {
         return {
           ...probed,
-          final_result: await attachCodexChildRunProvenance(probed.final_result, provenanceContext)
+          final_result: await decorate(probed.final_result)
         };
       }
       return probed;
@@ -83,7 +94,10 @@ export function attachProvenanceToSupervisedResult(supervised, provenanceContext
   };
 }
 
-export function captureCodexFinalResultFromPlan(captureFinalResult) {
+export function captureCodexFinalResultFromPlan(
+  captureFinalResult,
+  { enforcement = null } = {}
+) {
   return async function codexParseFinalResult({ status, exit, plan, stdout, stderr }) {
     const finalPath = typeof plan?.finalPath === "string" && plan.finalPath.length > 0
       ? plan.finalPath
@@ -101,6 +115,12 @@ export function captureCodexFinalResultFromPlan(captureFinalResult) {
       stderr,
       env: plan?.env
     });
-    return attachCodexChildRunProvenance(envelope, { finalPath, logPath, env: plan?.env });
+    return attachCodexChildRunProvenance(envelope, {
+      finalPath,
+      logPath,
+      env: plan?.env,
+      enforcement,
+      sandboxDecision: plan?.sandboxDecision ?? null
+    });
   };
 }

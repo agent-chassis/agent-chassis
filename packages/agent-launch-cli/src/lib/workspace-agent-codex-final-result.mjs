@@ -20,12 +20,6 @@ import {
 import {
   redactFamilyTransportSecrets
 } from "./workspace-agent-family-launch-policy.mjs";
-import {
-  HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR
-} from "./host-write-authority-substrate.mjs";
-import {
-  HOST_WRITE_AUTHORITY_BROKER_SOCKET_ENV_VAR
-} from "../commands/codex-role.mjs";
 
 export const CODEX_FINAL_MESSAGE_FINDINGS_SCHEMA_VERSION = "codex-final-message.v1";
 
@@ -58,8 +52,6 @@ function buildCodexNoFindingsEnvelope({ reasonLine, finalPath, text }) {
 
 export function codexTransportSecretEnvVars() {
   return [
-    HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR,
-    HOST_WRITE_AUTHORITY_BROKER_SOCKET_ENV_VAR
   ];
 }
 

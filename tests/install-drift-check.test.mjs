@@ -273,57 +273,9 @@ test("install-drift-check: symlink to nonexistent path is classified dangling-sy
   });
 });
 
-test("install-drift-check: symlink-to-sibling-package-bin is classified stale-symlink, not clean", async () => {
-  const binMap = await readPackageBinMap();
-  const names = Object.keys(binMap);
-
-  const driftedName = "agent-launch-filesystem-mcp-backend";
-  const siblingName = "agent-launch";
-  assert.ok(names.includes(driftedName), `package must declare ${driftedName}`);
-  assert.ok(names.includes(siblingName), `package must declare ${siblingName}`);
-
-  await withTempTargetDir(async (targetDir) => {
-    await populateCleanSymlinks(targetDir, binMap);
-
-    await rm(path.join(targetDir, driftedName));
-    await symlink(
-      path.resolve(PACKAGE_DIR, binMap[siblingName]),
-      path.join(targetDir, driftedName)
-    );
-
-    const { output, exitCode } = await runJson(targetDir);
-    assertOutputShape(output, targetDir);
-    const entry = findEntry(output, driftedName);
-    assert.equal(
-      entry.drift_kind,
-      "stale-symlink",
-      "sibling-package-bin symlink must classify as stale-symlink"
-    );
-    assert.equal(
-      entry.detail.expected_real_target,
-      path.resolve(PACKAGE_DIR, binMap[driftedName]),
-      "stale-symlink detail.expected_real_target must be the canonical package wrapper for the name"
-    );
-    assert.equal(
-      entry.detail.real_target,
-      path.resolve(PACKAGE_DIR, binMap[siblingName]),
-      "stale-symlink detail.real_target must be the sibling package wrapper"
-    );
-    assert.match(
-      String(entry.detail.message),
-      /does not resolve/i,
-      "stale-symlink detail must describe the realpath mismatch"
-    );
-
-    const sibling = findEntry(output, siblingName);
-    assert.equal(sibling.drift_kind, null, "the sibling bin's own target must remain clean");
-    assert.notEqual(exitCode, 0, "drift fixture must exit non-zero");
-  });
-});
-
 test("install-drift-check: regular file with mismatched bytes is classified hand-copied", async () => {
   const binMap = await readPackageBinMap();
-  const targetName = "agent-launch-filesystem-mcp-backend";
+  const targetName = "agent-launch";
   assert.ok(Object.keys(binMap).includes(targetName), `package must declare ${targetName}`);
 
   await withTempTargetDir(async (targetDir) => {
@@ -417,7 +369,7 @@ test("install-drift-check: --json output shape pins clean and drift envelopes pl
 
 test("install-drift-check: unreadable regular file target is classified unreadable (L1 disposition)", async () => {
   const binMap = await readPackageBinMap();
-  const targetName = "agent-launch-filesystem-mcp-backend";
+  const targetName = "agent-launch";
   await withTempTargetDir(async (targetDir) => {
     await populateCleanSymlinks(targetDir, binMap);
     await rm(path.join(targetDir, targetName));
@@ -447,7 +399,7 @@ test("install-drift-check: unreadable regular file target is classified unreadab
 
 test("install-drift-check: directory target is classified hand-copied with 'neither symlink nor regular file' detail (L2 disposition)", async () => {
   const binMap = await readPackageBinMap();
-  const targetName = "agent-launch-filesystem-mcp-backend";
+  const targetName = "agent-launch";
   await withTempTargetDir(async (targetDir) => {
     await populateCleanSymlinks(targetDir, binMap);
     await rm(path.join(targetDir, targetName));
@@ -541,7 +493,7 @@ test("install-drift-check: non-executable package bin under ./bin/ is reported a
 
 test("install-drift-check: non-executable installed regular file (byte-identical copy) is reported as non-executable-target", async () => {
   const binMap = await readPackageBinMap();
-  const targetName = "agent-launch-filesystem-mcp-backend";
+  const targetName = "agent-launch";
   await withTempTargetDir(async (targetDir) => {
     await populateCleanSymlinks(targetDir, binMap);
     await rm(path.join(targetDir, targetName));

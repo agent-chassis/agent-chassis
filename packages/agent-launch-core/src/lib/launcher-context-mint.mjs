@@ -24,7 +24,6 @@ const UNIT_ADDRESS_PATTERN = new RegExp(`^WK-\\d{4}(#${SLICE_ID_BODY})?$`);
 const AGENT_FAMILY_VALUES = new Set(["claude", "gemini"]);
 const AGENT_ROLE_VALUES = new Set(["worker", "reviewer", "redteam"]);
 const VALIDATION_TRANSPORT_VALUES = new Set(["argv", "named"]);
-const BACKEND_KIND_VALUE = "filesystem_mcp";
 const PROVENANCE_DESTINATION_KIND_VALUE = "launcher_owned";
 const EMPTY_WRITE_SCOPE_DIGEST = computeActionPayloadHash([]);
 
@@ -213,21 +212,7 @@ export function buildLauncherContextActionBinding({
   rawArgv = null,
   targetSource = null,
   targetHash = null,
-  acceptedHandshakeDigest = null,
-  backendKind = null,
-  agentFamily = null,
-  agentProfile = null,
-  agentRole = null,
-  unitAddress = null,
-  recordId = null,
-  sliceId = null,
-  runId = null,
-  readScopeDigest = null,
-  writeScopeDigest = null,
-  validationTransport = null,
-  provenanceDestinationKind = null,
-  envPolicyDigest = null,
-  agentBriefDigest = null
+  acceptedHandshakeDigest = null
 }) {
   if (typeof actionType !== "string" || actionType.length === 0) {
     throw new RoleGuardError("action binding requires actionType", "launcher_context_invalid");
@@ -257,141 +242,6 @@ export function buildLauncherContextActionBinding({
       throw new RoleGuardError("check-command action binding requires raw_argv", "launcher_context_invalid");
     }
     binding.raw_argv = rawArgv;
-  }
-  if (actionType === "agent_role_launch") {
-    if (targetSource !== null) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding must not include target_source",
-        "launcher_context_invalid"
-      );
-    }
-    if (targetHash !== null) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding must not include target_hash",
-        "launcher_context_invalid"
-      );
-    }
-    assertSha256Base64Url(acceptedHandshakeDigest, "accepted_handshake_digest");
-    if (backendKind !== BACKEND_KIND_VALUE) {
-      throw new RoleGuardError(
-        `agent_role_launch action binding requires backend_kind="${BACKEND_KIND_VALUE}"`,
-        "launcher_context_invalid"
-      );
-    }
-    if (typeof agentFamily !== "string" || !AGENT_FAMILY_VALUES.has(agentFamily)) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding requires agent_family in {claude, gemini}",
-        "launcher_context_invalid"
-      );
-    }
-    if (typeof agentProfile !== "string" || agentProfile.length === 0) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding requires non-empty agent_profile",
-        "launcher_context_invalid"
-      );
-    }
-    if (typeof agentRole !== "string" || !AGENT_ROLE_VALUES.has(agentRole)) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding requires agent_role in {worker, reviewer, redteam}",
-        "launcher_context_invalid"
-      );
-    }
-    if (role !== agentRole) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding requires role === agent_role",
-        "launcher_context_invalid"
-      );
-    }
-    if (typeof unitAddress !== "string" || !UNIT_ADDRESS_PATTERN.test(unitAddress)) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding requires canonical unit_address",
-        "launcher_context_invalid"
-      );
-    }
-    if (typeof recordId !== "string" || !WK_ID_PATTERN.test(recordId)) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding requires canonical record_id",
-        "launcher_context_invalid"
-      );
-    }
-    if (normalizedWk !== recordId) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding requires wk === record_id",
-        "launcher_context_invalid"
-      );
-    }
-    const normalizedSliceId = sliceId ?? null;
-    if (normalizedSliceId !== null && (typeof normalizedSliceId !== "string" || !SLICE_ID_PATTERN.test(normalizedSliceId))) {
-      throw new RoleGuardError(
-        "agent_role_launch slice_id must be null or match ^(?:SLICE-[0-9]{3}|[a-z0-9][a-z0-9-]*)$",
-        "launcher_context_invalid"
-      );
-    }
-    if (normalizedSliceId === null) {
-      if (unitAddress !== recordId) {
-        throw new RoleGuardError(
-          "agent_role_launch unit_address must equal record_id when slice_id is null",
-          "launcher_context_invalid"
-        );
-      }
-    } else if (unitAddress !== `${recordId}#${normalizedSliceId}`) {
-      throw new RoleGuardError(
-        "agent_role_launch unit_address must equal <record_id>#<slice_id>",
-        "launcher_context_invalid"
-      );
-    }
-    if (typeof runId !== "string" || runId.length === 0) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding requires non-empty run_id",
-        "launcher_context_invalid"
-      );
-    }
-    assertSha256Base64Url(readScopeDigest, "read_scope_digest");
-    assertSha256Base64Url(writeScopeDigest, "write_scope_digest");
-    if (agentRole === "worker") {
-      if (writeScopeDigest === EMPTY_WRITE_SCOPE_DIGEST) {
-        throw new RoleGuardError(
-          "agent_role_launch worker write_scope_digest must not equal the canonical empty-scope digest",
-          "launcher_context_invalid"
-        );
-      }
-    } else {
-      if (writeScopeDigest !== EMPTY_WRITE_SCOPE_DIGEST) {
-        throw new RoleGuardError(
-          `agent_role_launch ${agentRole} write_scope_digest must equal the canonical empty-scope digest`,
-          "launcher_context_invalid"
-        );
-      }
-    }
-    if (typeof validationTransport !== "string" || !VALIDATION_TRANSPORT_VALUES.has(validationTransport)) {
-      throw new RoleGuardError(
-        "agent_role_launch action binding requires validation_transport in {argv, named}",
-        "launcher_context_invalid"
-      );
-    }
-    if (provenanceDestinationKind !== PROVENANCE_DESTINATION_KIND_VALUE) {
-      throw new RoleGuardError(
-        `agent_role_launch action binding requires provenance_destination_kind="${PROVENANCE_DESTINATION_KIND_VALUE}"`,
-        "launcher_context_invalid"
-      );
-    }
-    assertSha256Base64Url(envPolicyDigest, "env_policy_digest");
-    assertSha256Base64Url(agentBriefDigest, "agent_brief_digest");
-    binding.accepted_handshake_digest = acceptedHandshakeDigest;
-    binding.backend_kind = backendKind;
-    binding.agent_family = agentFamily;
-    binding.agent_profile = agentProfile;
-    binding.agent_role = agentRole;
-    binding.unit_address = unitAddress;
-    binding.record_id = recordId;
-    binding.slice_id = normalizedSliceId;
-    binding.run_id = runId;
-    binding.read_scope_digest = readScopeDigest;
-    binding.write_scope_digest = writeScopeDigest;
-    binding.validation_transport = validationTransport;
-    binding.provenance_destination_kind = provenanceDestinationKind;
-    binding.env_policy_digest = envPolicyDigest;
-    binding.agent_brief_digest = agentBriefDigest;
   }
   if (targetSource !== null) {
     binding.target_source = targetSource;

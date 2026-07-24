@@ -10,6 +10,7 @@ import {
 import { SHA256_PATTERN } from "./work-record-schema-constants.mjs";
 
 export const SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION = "workspace-agent-slice-review-acceptance.v1";
+export const SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION_V2 = "workspace-agent-slice-review-acceptance.v2";
 
 export const SLICE_REVIEW_ACCEPTANCE_EVIDENCE_KEY = "slice_review_acceptance";
 
@@ -35,9 +36,28 @@ export const SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS = Object.freeze([
   "structured_result_digest",
   "unit_address"
 ]);
+export const SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS_V2 = Object.freeze([
+  "canonical_review_unit_digest",
+  "committed_target_digest",
+  "diff_base_sha",
+  "initiative",
+  "review_admission_kind",
+  "review_monitor_handle",
+  "review_outcome",
+  "review_run_id",
+  "reviewed_at",
+  "reviewed_sha",
+  "reviewer_role",
+  "slice_ref",
+  "structured_result_digest",
+  "unit_address"
+]);
 
 export const SLICE_REVIEW_ACCEPTANCE_PROOF_FIELDS = Object.freeze(
   [...SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS, "evidence_digest", "schema_version"].sort()
+);
+export const SLICE_REVIEW_ACCEPTANCE_PROOF_FIELDS_V2 = Object.freeze(
+  [...SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS_V2, "evidence_digest", "schema_version"].sort()
 );
 
 export const SLICE_REVIEW_ACCEPTANCE_DECISION_CODES = Object.freeze({
@@ -61,9 +81,17 @@ const OID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u;
 const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,191}$/u;
 
+export const EXACT_SLICE_IMPLEMENTATION_REVIEW_TRANSITION_CODES = Object.freeze({
+  valid: "work_record.exact_slice_implementation_review_transition_valid.v1",
+  invalid: "work_record.exact_slice_implementation_review_transition_invalid.v1",
+  bindingMismatch: "work_record.exact_slice_implementation_review_transition_binding_mismatch.v1",
+  reviewUnconfirmed: "work_record.exact_slice_implementation_review_transition_unconfirmed.v1"
+});
+
 const OUTCOME_SET = new Set(SLICE_REVIEW_ACCEPTANCE_OUTCOME_VALUES);
 const REVIEWER_ROLE_SET = new Set(SLICE_REVIEW_ACCEPTANCE_REVIEWER_ROLE_VALUES);
 const INPUT_FIELD_SET = new Set(SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS);
+const INPUT_FIELD_SET_V2 = new Set(SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS_V2);
 
 function isSha256(value) {
   return isNonEmptyString(value) && SHA256_PATTERN.test(value.trim());
@@ -87,7 +115,10 @@ function deny(decisionCode, reason) {
 
 function sliceReviewAcceptanceBoundedFacts(proof) {
   const facts = { schema_version: proof.schema_version };
-  for (const field of SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS) {
+  const fields = proof.schema_version === SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION_V2
+    ? SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS_V2
+    : SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS;
+  for (const field of fields) {
     facts[field] = normalizeStringEntry(proof[field]) ?? proof[field] ?? null;
   }
   return facts;
@@ -130,11 +161,44 @@ function sliceRefAgreesWithUnit(sliceRef, unitAddress, initiative) {
   return refInitiative === initiative && `${recordId}#${sliceId}` === unitAddress;
 }
 
+export function validateExactSliceImplementationReviewTransition(result, unitAddress) {
+  const codes = EXACT_SLICE_IMPLEMENTATION_REVIEW_TRANSITION_CODES;
+  if (!isObject(result)) {
+    return { ok: false, decision_code: codes.invalid, reason: "transition_result_not_object" };
+  }
+  if (typeof unitAddress !== "string" || !UNIT_ADDRESS_PATTERN.test(unitAddress)) {
+    return { ok: false, decision_code: codes.bindingMismatch, reason: "unit_address_invalid" };
+  }
+  const [recordId, sliceId] = unitAddress.split("#");
+  const selected = result.selected_unit;
+  if (!isObject(selected) || selected.kind !== "slice" || selected.address !== unitAddress ||
+      selected.record_id !== recordId || selected.slice_id !== sliceId) {
+    return { ok: false, decision_code: codes.bindingMismatch, reason: "selected_unit_mismatch" };
+  }
+  if (result.valid !== true || (result.written !== true && result.no_op !== true)) {
+    return { ok: false, decision_code: codes.invalid, reason: "write_not_confirmed" };
+  }
+  if (result.status !== "review") {
+    return { ok: false, decision_code: codes.reviewUnconfirmed, reason: "review_state_not_confirmed" };
+  }
+  return {
+    ok: true,
+    decision_code: codes.valid,
+    reason: null,
+    status: "review",
+    written: result.written === true,
+    no_op: result.no_op === true
+  };
+}
+
 export function buildSliceReviewAcceptanceProof(input) {
   if (!isObject(input)) return refuse(CODES.malformed, "input is not an object");
 
+  const committedTargetAdmission = input.review_admission_kind === "canonical_committed_slice" ||
+    Object.prototype.hasOwnProperty.call(input, "committed_target_digest");
+  const inputFieldSet = committedTargetAdmission ? INPUT_FIELD_SET_V2 : INPUT_FIELD_SET;
   const unknownKeys = Object.keys(input)
-    .filter((key) => !INPUT_FIELD_SET.has(key))
+    .filter((key) => !inputFieldSet.has(key))
     .sort((left, right) => left.localeCompare(right));
   if (unknownKeys.length > 0) {
     return refuse(
@@ -149,6 +213,8 @@ export function buildSliceReviewAcceptanceProof(input) {
   const reviewedSha = normalizeStringEntry(input.reviewed_sha);
   const diffBaseSha = normalizeStringEntry(input.diff_base_sha);
   const sourceWorkerRunId = normalizeStringEntry(input.source_worker_run_id);
+  const reviewAdmissionKind = normalizeStringEntry(input.review_admission_kind);
+  const committedTargetDigest = normalizeStringEntry(input.committed_target_digest);
   const reviewRunId = normalizeStringEntry(input.review_run_id);
   const reviewMonitorHandle = normalizeStringEntry(input.review_monitor_handle);
   const reviewerRole = normalizeStringEntry(input.reviewer_role);
@@ -171,7 +237,14 @@ export function buildSliceReviewAcceptanceProof(input) {
   if (reviewedSha === diffBaseSha) {
     return refuse(CODES.malformed, "reviewed_sha and diff_base_sha must differ");
   }
-  if (!isRunToken(sourceWorkerRunId)) {
+  if (committedTargetAdmission) {
+    if (reviewAdmissionKind !== "canonical_committed_slice") {
+      return refuse(CODES.malformed, "review_admission_kind must identify canonical committed-slice admission");
+    }
+    if (!isSha256(committedTargetDigest)) {
+      return refuse(CODES.malformed, "committed_target_digest must be a sha256 digest");
+    }
+  } else if (!isRunToken(sourceWorkerRunId)) {
     return refuse(CODES.malformed, "source_worker_run_id must be a bounded run identifier");
   }
   if (!isRunToken(reviewRunId)) {
@@ -201,13 +274,17 @@ export function buildSliceReviewAcceptanceProof(input) {
   }
 
   const proof = {
-    schema_version: SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION,
+    schema_version: committedTargetAdmission
+      ? SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION_V2
+      : SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION,
     unit_address: unitAddress,
     initiative,
     slice_ref: sliceRef,
     reviewed_sha: reviewedSha,
     diff_base_sha: diffBaseSha,
-    source_worker_run_id: sourceWorkerRunId,
+    ...(committedTargetAdmission
+      ? { review_admission_kind: reviewAdmissionKind, committed_target_digest: committedTargetDigest }
+      : { source_worker_run_id: sourceWorkerRunId }),
     review_run_id: reviewRunId,
     review_monitor_handle: reviewMonitorHandle,
     reviewer_role: reviewerRole,
@@ -223,14 +300,21 @@ export function buildSliceReviewAcceptanceProof(input) {
 
 function isWellFormedSliceReviewAcceptanceProof(proof) {
   if (!isObject(proof)) return false;
-  if (proof.schema_version !== SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION) return false;
+  if (![SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION,
+    SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION_V2].includes(proof.schema_version)) return false;
+  const inputFields = proof.schema_version === SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION_V2
+    ? SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS_V2
+    : SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS;
+  const proofFields = proof.schema_version === SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION_V2
+    ? SLICE_REVIEW_ACCEPTANCE_PROOF_FIELDS_V2
+    : SLICE_REVIEW_ACCEPTANCE_PROOF_FIELDS;
   const keys = Object.keys(proof).sort((left, right) => left.localeCompare(right));
-  if (keys.length !== SLICE_REVIEW_ACCEPTANCE_PROOF_FIELDS.length) return false;
-  if (keys.some((key, index) => key !== SLICE_REVIEW_ACCEPTANCE_PROOF_FIELDS[index])) return false;
+  if (keys.length !== proofFields.length) return false;
+  if (keys.some((key, index) => key !== proofFields[index])) return false;
   if (!isSha256(proof.evidence_digest)) return false;
   const rebuilt = buildSliceReviewAcceptanceProof(
     Object.fromEntries(
-      SLICE_REVIEW_ACCEPTANCE_PROOF_INPUT_FIELDS.map((field) => [field, proof[field]])
+      inputFields.map((field) => [field, proof[field]])
     )
   );
   return rebuilt.ok === true && rebuilt.proof.evidence_digest === proof.evidence_digest;
@@ -256,7 +340,12 @@ export function validateSliceReviewAcceptanceProof(proof, expectation = {}) {
     ["slice_ref", expectation.slice_ref],
     ["reviewed_sha", expectation.reviewed_sha],
     ["diff_base_sha", expectation.diff_base_sha],
-    ["source_worker_run_id", expectation.source_worker_run_id],
+    ...(proof.schema_version === SLICE_REVIEW_ACCEPTANCE_SCHEMA_VERSION_V2
+      ? [
+          ["review_admission_kind", expectation.review_admission_kind],
+          ["committed_target_digest", expectation.committed_target_digest]
+        ]
+      : [["source_worker_run_id", expectation.source_worker_run_id]]),
     ["review_run_id", expectation.review_run_id]
   ];
   for (const [field, expected] of bound) {

@@ -283,6 +283,42 @@ gating visible. They must not be read as proof that the local launcher has
 established host security, and they must not let generated docs, worker reports,
 or dispatch artifacts present an unenforced run as sandboxed.
 
+## Terminal whole-WK candidate
+
+The terminal findings-only review is a review of the exact commit proposed for
+publication, not a review of the accumulated WK branch followed by a later
+squash. The launcher freezes canonical repository identity, landing ref/tip
+`L`, accumulated WK ref/tip `W`, and exactly one merge base `B`. It applies the
+complete `B..W` change conflict-detectingly to `L`, preserving landing-only
+content, and creates deterministic candidate `C` with sole parent `L`. A
+content-addressed candidate ref is created or recovered by compare-and-swap;
+the WK branch and its worktree remain unchanged.
+
+The launcher materializes a distinct private mode-0700 full detached checkout
+at `C`. Every declared whole-WK validation runs there before the findings-only
+review, and that reviewer is bound to `C` with `L` as its diff base and `W` as
+the accumulated source identity. Validation receives an empty-baseline,
+secret-free environment. Ordinary project dependencies are exposed only by a
+launcher-created sibling link to the canonical repository `node_modules` after
+manifest, lock, workspace, install-marker, realpath, and freshness checks before
+and after execution. Dependencies are neither installed nor copied.
+
+Candidate identity and its evidence remain exact: a change or uncertainty in
+`W`, `C`, the candidate tree or parent, candidate ref, checkout, dependency
+proof, canonical contract, reviewer identity, candidate branch, or proposed
+change head invalidates the affected evidence and requires a new candidate
+cycle. Advancement of the landing ref after candidate construction does not
+modify `C` or its frozen parent, does not invalidate completed validation or
+review, and does not block publication. Publication handoff publishes `C`
+byte-for-byte as the proposed change head and never rebases, replays, squashes,
+amends, or reconstructs it before publication. The configured merge actor and
+policy authority own merge readiness; conflict resolution or a policy-required
+candidate update creates a changed candidate that must be validated and reviewed
+before publication. Branch and proposed-change mutations are reobserved and
+accepted only when their exact repository/base/head/state is proven. This
+mechanism creates no generic provenance, Proof A/Proof B, receipt, or
+review-attestation authority.
+
 Current shared query/search covers:
 
 - lexical retrieval over canonical docs and wiki pages

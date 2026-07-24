@@ -11,10 +11,7 @@ import {
   LAUNCHER_COORDINATION_WRITE_ROOTS as CONTRACT_COORDINATION_WRITE_ROOTS,
   LAUNCHER_WRITE_POSTURES as CONTRACT_WRITE_POSTURES
 } from "./workspace-agent-launch-adapter-contract.mjs";
-import {
-  adaptFamilyBrokerRefusal,
-  evaluateFamilyModelDisposition
-} from "./workspace-agent-family-launch-policy.mjs";
+import { evaluateFamilyModelDisposition } from "./workspace-agent-family-launch-policy.mjs";
 
 export const FAMILY_MODEL_DISPOSITIONS = Object.freeze({
   ABSENT: "absent",
@@ -23,8 +20,7 @@ export const FAMILY_MODEL_DISPOSITIONS = Object.freeze({
 });
 
 export const FAMILY_REFUSAL_TRANSPORTS = Object.freeze({
-  IN_PROCESS: "in_process",
-  BROKER: "broker"
+  IN_PROCESS: "in_process"
 });
 
 export const FAMILY_MODEL_GATE_REFUSAL_REASONS = Object.freeze({
@@ -183,10 +179,7 @@ export function buildFamilyModelFlagArgs({ disposition, model, flag } = {}) {
 }
 
 function isValidTransport(transport) {
-  return (
-    transport === FAMILY_REFUSAL_TRANSPORTS.IN_PROCESS ||
-    transport === FAMILY_REFUSAL_TRANSPORTS.BROKER
-  );
+  return transport === FAMILY_REFUSAL_TRANSPORTS.IN_PROCESS;
 }
 
 export function buildFamilyModelRefusal({
@@ -200,7 +193,7 @@ export function buildFamilyModelRefusal({
       ok: false,
       error: {
         code: "invalid_refusal_transport",
-        message: "A valid in_process or broker refusal transport is required.",
+        message: "The in_process refusal transport is required.",
         diagnostics: buildModelDiagnostics({
           disposition: FAMILY_MODEL_DISPOSITIONS.REFUSE,
           details: [`transport:${typeof transport === "string" ? transport : typeof transport}`]
@@ -221,10 +214,6 @@ export function buildFamilyModelRefusal({
         })
       }
     };
-  }
-
-  if (transport === FAMILY_REFUSAL_TRANSPORTS.BROKER) {
-    return adaptFamilyBrokerRefusal({ reason, detail });
   }
 
   return {

@@ -35,10 +35,9 @@ export function buildCodexDispatchWorkerPlanArgs({
   worker_scope_authority = null,
   worktree_provisioning = null,
 
-  hostWriteAuthorityEndpoint = null,
-
   configRootDir = null,
-  trustedFrozenReviewContract = null
+  trustedFrozenReviewContract = null,
+  reviewerDependencyBinds = null
 }) {
   const planArgs = {
     role,
@@ -60,14 +59,14 @@ export function buildCodexDispatchWorkerPlanArgs({
   if (worktree_provisioning !== null) {
     planArgs.worktree_provisioning = worktree_provisioning;
   }
-  if (typeof hostWriteAuthorityEndpoint === "string" && hostWriteAuthorityEndpoint.length > 0) {
-    planArgs.hostWriteAuthorityEndpoint = hostWriteAuthorityEndpoint;
-  }
   if (typeof configRootDir === "string" && configRootDir.length > 0) {
     planArgs.config_root_dir = configRootDir;
   }
   if (trustedFrozenReviewContract !== null && trustedFrozenReviewContract !== undefined) {
     planArgs.trusted_frozen_review_contract = trustedFrozenReviewContract;
+  }
+  if (Array.isArray(reviewerDependencyBinds) && reviewerDependencyBinds.length > 0) {
+    planArgs.reviewer_dependency_binds = Object.freeze([...reviewerDependencyBinds]);
   }
   const serverProvisionedWorktreeGitBinding = resolveProvisionedWorktreeGitBinding({
     provisionedWorktreeGitBinding,

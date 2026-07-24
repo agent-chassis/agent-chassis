@@ -9,6 +9,7 @@ import {
 } from "../lib/workspace-agent-dispatch-backend.mjs";
 import {
   createCodexWorkspaceAgentLaunchExecutor,
+  CODEX_FAMILY_NATIVE_READ_CAPABILITY,
   CODEX_FAMILY_SOURCE_READ_MODE
 } from "../lib/workspace-agent-dispatch-codex-executor.mjs";
 import {
@@ -16,14 +17,6 @@ import {
   CLAUDE_FAMILY_SOURCE_READ_MODE,
   CLAUDE_FAMILY_NATIVE_READ_CAPABILITY
 } from "../lib/workspace-agent-dispatch-claude-executor.mjs";
-import {
-  createAgyWorkspaceAgentLaunchExecutor,
-  AGY_FAMILY_SOURCE_READ_MODE,
-  AGY_FAMILY_NATIVE_READ_CAPABILITY
-} from "../lib/workspace-agent-dispatch-agy-executor.mjs";
-import {
-  createLauncherOwnedSourceToolSurfacePreparer
-} from "../lib/agent-backend.mjs";
 
 import {
   buildFamilyExecutorRegistryEntry
@@ -43,15 +36,12 @@ validation. \`--model\` overrides only the selected app binding's default model.
 Options:
   --profile <profile>            Canonical launcher profile (worker, worker_spark)
   --app codex|claude             Override the profile's default app binding
-  --app agy                      Roadmap/WIP; dry-run planning only
+  --app agy                      Unsupported; fails closed
   --model <model>                Override the selected binding's default model
   --opus                         Alias for --model opus (Claude model shorthand)
   --sonnet                       Alias for --model sonnet (Claude model shorthand)
   --spark                        Shorthand for --profile worker_spark
   --family codex|claude|agy      Deprecated alias for --app
-  --operator-config <path>       Launcher registry path override (claude/agy)
-  --backend-key <key>            Override filesystem_mcp_backend_default
-                                 (claude/agy)
   --dry-run-json                 Emit canonical plan JSON without spawning
 
 --fast, --worker-fast, --worker_fast, positional worker-fast / worker_fast,
@@ -249,25 +239,20 @@ export function buildCliDispatchLaunchExecutors({ resolvedProfile = null } = {})
 
     codex: buildFamilyExecutorRegistryEntry({
       executor: createCodexWorkspaceAgentLaunchExecutor({ resolvedProfile }),
-      sourceReadMode: CODEX_FAMILY_SOURCE_READ_MODE
+      sourceReadMode: CODEX_FAMILY_SOURCE_READ_MODE,
+      nativeReadCapability: CODEX_FAMILY_NATIVE_READ_CAPABILITY
     }),
     claude: buildFamilyExecutorRegistryEntry({
       executor: createClaudeWorkspaceAgentLaunchExecutor(),
       sourceReadMode: CLAUDE_FAMILY_SOURCE_READ_MODE,
       nativeReadCapability: CLAUDE_FAMILY_NATIVE_READ_CAPABILITY
-    }),
-    agy: buildFamilyExecutorRegistryEntry({
-      executor: createAgyWorkspaceAgentLaunchExecutor(),
-      sourceReadMode: AGY_FAMILY_SOURCE_READ_MODE,
-      nativeReadCapability: AGY_FAMILY_NATIVE_READ_CAPABILITY
     })
   };
 }
 
 function createCliDispatchBackend({ resolvedProfile = null } = {}) {
   return createWorkspaceAgentDispatchBackend({
-    launchExecutors: buildCliDispatchLaunchExecutors({ resolvedProfile }),
-    prepareSourceToolSurface: createLauncherOwnedSourceToolSurfacePreparer()
+    launchExecutors: buildCliDispatchLaunchExecutors({ resolvedProfile })
   });
 }
 
@@ -277,29 +262,6 @@ function generateCliSessionId() {
 
 const CLI_LAUNCH_TIMEOUT_MS = 86400000;
 const CLI_POLL_INTERVAL_MS = 1000;
-
-export function buildAgentRoleArgv({ resolved, parsed }) {
-  const agentArgv = ["worker", resolved.app];
-  if (typeof parsed.unitAddress === "string") {
-    agentArgv.push(parsed.unitAddress);
-  }
-  if (
-    typeof resolved.backend_profile_key === "string"
-    && resolved.backend_profile_key.length > 0
-  ) {
-    agentArgv.push("--profile", resolved.backend_profile_key);
-  }
-  if (typeof resolved.model === "string" && resolved.model.length > 0) {
-    agentArgv.push("--model", resolved.model);
-  }
-  for (const option of parsed.agentBackendOptions) {
-    agentArgv.push(...option);
-  }
-  if (parsed.dryRunJson) {
-    agentArgv.push("--dry-run-json");
-  }
-  return agentArgv;
-}
 
 export function parseWorkerArgs(argv) {
   const result = {
@@ -401,21 +363,13 @@ export function parseWorkerArgs(argv) {
     }
     const operatorConfigOpt = consumeOption(argv, index, "operator-config");
     if (operatorConfigOpt) {
-      if (operatorConfigOpt.missing) {
-        result.errors.push("--operator-config requires a value");
-      } else {
-        result.agentBackendOptions.push(["--operator-config", operatorConfigOpt.value]);
-      }
+      result.errors.push("--operator-config is retired and forbidden");
       index += operatorConfigOpt.consumed;
       continue;
     }
     const backendKeyOpt = consumeOption(argv, index, "backend-key");
     if (backendKeyOpt) {
-      if (backendKeyOpt.missing) {
-        result.errors.push("--backend-key requires a value");
-      } else {
-        result.agentBackendOptions.push(["--backend-key", backendKeyOpt.value]);
-      }
+      result.errors.push("--backend-key is retired and forbidden");
       index += backendKeyOpt.consumed;
       continue;
     }

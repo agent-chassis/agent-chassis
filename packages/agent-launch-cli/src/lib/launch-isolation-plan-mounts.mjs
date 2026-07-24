@@ -1,5 +1,5 @@
 import path from "node:path";
-import { realpathSync, statSync } from "node:fs";
+import { lstatSync, realpathSync, statSync } from "node:fs";
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
   BubblewrapIsolationError,
@@ -54,6 +54,134 @@ function assertHomeWritableDstOutsideRepo(dst, repoReal, label) {
   }
 }
 
+const CANONICAL_DECISIONS_SEGMENTS = Object.freeze(["wiki", "decisions"]);
+
+function findWritableDecisionsCreatingPath(decisionsPath, {
+  writable,
+  runtime,
+  sparseWorkerNamespace
+}) {
+  const mutablePaths = [
+    ...writable,
+    ...runtime,
+    ...(sparseWorkerNamespace === null
+      ? []
+      : sparseWorkerNamespace.writable.map((entry) => entry.absolute))
+  ];
+  for (const mutable of mutablePaths) {
+    if (isWithinRepo(decisionsPath, mutable)) return mutable;
+  }
+  return null;
+}
+
+export function resolveDecisionsReadOnlyCarveout({
+  repoReal,
+  sparseWorkerNamespace,
+  maskTmpfsDirsResolved = [],
+  inRepoSecretFileMasks = [],
+  writable = [],
+  runtime = []
+}) {
+  const decisionsPath = path.join(repoReal, ...CANONICAL_DECISIONS_SEGMENTS);
+  let decisionsReal = null;
+  try {
+    const st = lstatSync(decisionsPath);
+    if (st.isSymbolicLink() || !st.isDirectory()) {
+      fail(
+        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
+        `canonical decisions subtree must be a real directory to be reimposed read-only: ${decisionsPath}`,
+        { decisionsPath }
+      );
+    }
+    decisionsReal = realpathSync(decisionsPath);
+  } catch (err) {
+    if (err instanceof BubblewrapIsolationError) throw err;
+
+    if (err?.code !== "ENOENT" && err?.code !== "ENOTDIR") {
+      fail(
+        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
+        `canonical decisions subtree could not be canonically resolved: ${decisionsPath}`,
+        { decisionsPath, errno: err?.code ?? null }
+      );
+    }
+    decisionsReal = null;
+  }
+
+  if (decisionsReal !== null && decisionsReal !== decisionsPath) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
+      `canonical decisions subtree must not resolve through a symlinked component: ${decisionsPath} -> ${decisionsReal}`,
+      { decisionsPath, decisionsReal }
+    );
+  }
+
+  const finalOverlayPaths = [
+    ...maskTmpfsDirsResolved,
+    ...inRepoSecretFileMasks.map((entry) => entry.dst)
+  ];
+  for (const masked of finalOverlayPaths) {
+    if (isWithinRepo(decisionsPath, masked)) return null;
+  }
+  for (const masked of finalOverlayPaths) {
+    if (isWithinRepo(masked, decisionsPath)) {
+      fail(
+        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
+        `canonical decisions subtree cannot be reimposed read-only without re-exposing a launcher mask: ${masked}`,
+        { decisionsReal: decisionsPath, masked }
+      );
+    }
+  }
+
+  if (decisionsReal === null) {
+    const creatingPath = findWritableDecisionsCreatingPath(decisionsPath, {
+      writable,
+      runtime,
+      sparseWorkerNamespace
+    });
+    if (creatingPath !== null) {
+      fail(
+        BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.SANDBOX_WRITE_DENIAL,
+        `canonical decisions subtree is absent while a writable visible path could create it: ${creatingPath}`,
+        { decisionsPath, creatingPath }
+      );
+    }
+    return null;
+  }
+
+  const directoryVisible = sparseWorkerNamespace === null
+    ? true
+    : [...sparseWorkerNamespace.readable, ...sparseWorkerNamespace.writable]
+        .some((entry) => isWithinRepo(decisionsReal, entry.absolute));
+
+  return Object.freeze({ decisionsReal, directoryVisible });
+}
+
+export function composeDecisionsReadOnlyOverlay(carveout, {
+  writable = [],
+  writableFileEntries = [],
+  runtime = []
+} = {}) {
+  if (carveout === null) return [];
+  const { decisionsReal, directoryVisible } = carveout;
+  if (directoryVisible) {
+    return [Object.freeze({ src: decisionsReal, dst: decisionsReal })];
+  }
+  const overlay = [];
+  const seen = new Set();
+  for (const candidate of [
+    ...writable,
+    ...writableFileEntries.map((entry) => entry.real),
+    ...runtime
+  ]) {
+    if (candidate === decisionsReal) continue;
+    if (!isWithinRepo(candidate, decisionsReal)) continue;
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+    overlay.push(Object.freeze({ src: candidate, dst: candidate }));
+  }
+  return overlay;
+}
+
 export function prepareBubblewrapPlanMounts({
   writableRoots,
   writableFiles,
@@ -68,8 +196,6 @@ export function prepareBubblewrapPlanMounts({
   cwd,
   repoReal,
   sparseWorkerNamespace,
-  mcpSandboxProfilePlan,
-  mcpReadOnlyRoots,
   resolvedCommand,
   familyRuntimeApprovedPrefixes,
   resolvedFamilyRuntimePolicyProfile
@@ -80,12 +206,8 @@ export function prepareBubblewrapPlanMounts({
       "writableRoots must be an array"
     );
   }
-  const effectiveWritableRoots = [
-    ...writableRoots,
-    ...(mcpSandboxProfilePlan?.writableRoots ?? [])
-  ];
 
-  const writable = collectRealpathDedupedRoots(effectiveWritableRoots, "writableRoots", {
+  const writable = collectRealpathDedupedRoots(writableRoots, "writableRoots", {
     requireInsideRepo: true,
     repoReal
   });
@@ -122,10 +244,7 @@ export function prepareBubblewrapPlanMounts({
       "writableFiles must be an array"
     );
   }
-  const effectiveWritableFiles = [
-    ...writableFiles,
-    ...(mcpSandboxProfilePlan?.writableFiles ?? [])
-  ];
+  const effectiveWritableFiles = [...writableFiles];
   if (!Array.isArray(runtimeRoots)) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
@@ -162,13 +281,6 @@ export function prepareBubblewrapPlanMounts({
     if (seenReadOnly.has(key)) continue;
     seenReadOnly.add(key);
     readOnly.push(bind);
-  }
-  for (let i = 0; i < mcpReadOnlyRoots.length; i += 1) {
-    const src = assertAbsoluteSafePath(mcpReadOnlyRoots[i], `mcpReadOnlyRoots[${i}]`);
-    const key = `${src}${BIND_DEDUP_SEPARATOR}${src}`;
-    if (seenReadOnly.has(key)) continue;
-    seenReadOnly.add(key);
-    readOnly.push({ src, dst: src });
   }
 
   for (let i = 0; i < resolvedCommand.extraReadOnlyRoots.length; i += 1) {

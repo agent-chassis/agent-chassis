@@ -12,7 +12,7 @@ Codex orchestrator profiles route through codex-role's buildOrchestratorPlan in
 resume mode, which reuses the repo-disambiguated thread name, refreshes the
 meta.env last_action/last_used fields, and re-applies the narrow orchestrator
 permissions profile. The \`orchestrator_claude\` profile routes through the
-launcher-owned Claude planner and sidecar path. resume sends no instructions;
+launcher-owned Claude planner and host-server conduit. resume sends no instructions;
 the resumed session carries its prior context.
 
 Options:

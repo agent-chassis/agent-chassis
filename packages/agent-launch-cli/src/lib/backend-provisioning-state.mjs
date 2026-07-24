@@ -1,12 +1,20 @@
 
 
-import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
+import {
+  RUNTIME_BLOCKER_CODES,
+  getRuntimeBlockerEntry
+} from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { BACKEND_REFUSAL_CODES } from "@agent-chassis/agent-launch-core";
 import {
   defaultRunGit,
   perWkBranchRef,
   sliceBranchRef
 } from "./worktree-substrate.mjs";
+
+import {
+  SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES,
+  SLICE_TIP_RECONCILE_STATES
+} from "./worktree-substrate-exact-unit.mjs";
 import {
   EXACT_IMPLEMENTATION_SLICE_RE,
   MANAGED_WORKER_ATTEMPT_STATE_SCHEMA_VERSION,
@@ -46,8 +54,48 @@ export function normalizeProvisioningConfig(config) {
 
 export const MANAGED_LIFECYCLE_REQUIRED = RUNTIME_BLOCKER_CODES.MANAGED_LIFECYCLE_REQUIRED;
 export const MANAGED_PROVISIONING_UNAVAILABLE = RUNTIME_BLOCKER_CODES.MANAGED_WORKTREE_PROVISIONING_UNAVAILABLE;
+
+export const MANAGED_SLICE_TIP_RECONCILE_REQUIRED =
+  RUNTIME_BLOCKER_CODES.MANAGED_SLICE_TIP_RECONCILE_REQUIRED;
 if (typeof MANAGED_LIFECYCLE_REQUIRED !== "string" || typeof MANAGED_PROVISIONING_UNAVAILABLE !== "string") {
   throw new Error("WK-1471 managed-lifecycle blocker interface is absent or incompatible");
+}
+if (typeof MANAGED_SLICE_TIP_RECONCILE_REQUIRED !== "string") {
+  throw new Error("WK-1694 slice-tip reconciliation blocker interface is absent or incompatible");
+}
+
+const SLICE_TIP_RECONCILE_TAXONOMY_ENTRY =
+  getRuntimeBlockerEntry(MANAGED_SLICE_TIP_RECONCILE_REQUIRED);
+if (SLICE_TIP_RECONCILE_TAXONOMY_ENTRY?.actor_recovery !== "coordinator" ||
+    typeof SLICE_TIP_RECONCILE_TAXONOMY_ENTRY?.recovery?.route !== "string") {
+  throw new Error("WK-1694 slice-tip reconciliation blocker entry is absent or incompatible");
+}
+
+const SLICE_TIP_RECONCILE_BLOCKING_STATES = Object.freeze([
+  SLICE_TIP_RECONCILE_STATES.ORPHANED
+]);
+
+function boundedString(value) {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function classifySliceTipReconcileRefusal(error) {
+  if (error?.code !== SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES.SLICE_TIP_RECONCILE_REQUIRED) return null;
+  const detail = error.detail;
+  if (!isPlainObject(detail)) return null;
+  if (!SLICE_TIP_RECONCILE_BLOCKING_STATES.includes(detail.reconcile_state)) return null;
+  const unit = typeof detail.unit_address === "string"
+    ? detail.unit_address.match(/^IN-\d{4}\/(WK-\d{4})\/(SLICE-\d{3})$/u)
+    : null;
+  if (unit === null) return null;
+  return {
+    subject: `${unit[1]}#${unit[2]}`,
+    reconcile_state: detail.reconcile_state,
+    slice_tip: boundedString(detail.slice_tip),
+    wk_base_ref: boundedString(detail.wk_base_ref),
+    wk_base_sha: boundedString(detail.wk_base_sha),
+    recovery_route: boundedString(detail.recovery_route)
+  };
 }
 
 export function managedRefusal(reason, detail = null) {
@@ -135,16 +183,41 @@ export function resolveExactSliceDependencies(mainRepo, subject, deps = {}) {
 }
 
 export function provisioningRefusal(error) {
+  const base = {
+    source_code: error?.code ?? null,
+    message: error?.message ?? String(error),
+    detail: error?.detail ?? null
+  };
+
+  const reconcile = classifySliceTipReconcileRefusal(error);
+  if (reconcile !== null) {
+    return {
+      accepted: false,
+      refusal: {
+        code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+        reason: MANAGED_SLICE_TIP_RECONCILE_REQUIRED,
+        detail: {
+          ...base,
+
+          reconcile_state: reconcile.reconcile_state,
+          slice_tip: reconcile.slice_tip,
+          wk_base_ref: reconcile.wk_base_ref,
+          wk_base_sha: reconcile.wk_base_sha,
+          recovery_route: reconcile.recovery_route,
+          actor_recovery: SLICE_TIP_RECONCILE_TAXONOMY_ENTRY.actor_recovery,
+          next_action: SLICE_TIP_RECONCILE_TAXONOMY_ENTRY.recovery.route,
+          next_action_args: { role: "reviewer", subject: reconcile.subject },
+          next_action_call: `${SLICE_TIP_RECONCILE_TAXONOMY_ENTRY.recovery.route}(role=reviewer, subject=${reconcile.subject})`
+        }
+      }
+    };
+  }
   return {
     accepted: false,
     refusal: {
       code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
       reason: MANAGED_PROVISIONING_UNAVAILABLE,
-      detail: {
-        source_code: error?.code ?? null,
-        message: error?.message ?? String(error),
-        detail: error?.detail ?? null
-      }
+      detail: base
     }
   };
 }

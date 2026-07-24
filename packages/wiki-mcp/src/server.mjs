@@ -2,7 +2,12 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  createLauncherObservingTransport,
+  createLauncherReadinessEventWriter
+} from "./lib/launcher-readiness-observer.mjs";
 import { z } from "zod";
+import { writeFileSync } from "node:fs";
 import {
   readContractFile,
   setWorkRecordStatusByUnit,
@@ -140,6 +145,7 @@ const DESCRIPTOR_LOAD_FAILURE_FREE_LOCAL_MCP_TOOL_NAMES = new Set([
   "workspace_agent_dispatch",
   "workspace_agent_run_status",
   "workspace_agent_run_wait",
+  "workspace_integrate_committed_slice",
   "workspace_runtime_blocker_taxonomy",
   "workspace_coordination_preflight",
 
@@ -249,7 +255,12 @@ async function registerTools(server) {
   const mcpToolTierRegistrationPolicy = await loadMcpToolTierRegistrationPolicy();
   const registeredToolNames = new Set();
 
-  const { dispatchBackend, dispatchSessionIdentity, wkForgeHandoffAdapter } =
+  const {
+    dispatchBackend,
+    dispatchSessionIdentity,
+    wkForgeHandoffAdapter,
+    runTerminalCandidateValidationForUnit
+  } =
     buildDispatchRuntime(process.env, { registeredTier });
   const toolUsageAuditBoundary = createToolUsageAuditBoundaryRecorder({
     origin: () => createProductionToolUsageAuditOrigin({ toolProfile, dispatchSessionIdentity }),
@@ -365,6 +376,7 @@ async function registerTools(server) {
     errorContent,
     resolveWorkspaceRepo,
     createCompactValidateDispatchResponse,
+    runTerminalCandidateValidationForUnit,
     registeredTier
   });
 
@@ -606,6 +618,11 @@ async function registerTools(server) {
     resolveWorkspaceRepo,
     section: "write-lint"
   });
+  return Object.freeze({
+    toolProfile,
+    registeredTier,
+    tools: Object.freeze([...registeredToolNames].sort())
+  });
 }
 
 async function main() {
@@ -622,10 +639,38 @@ async function main() {
     version: SERVER_VERSION
   });
 
-  await registerTools(server);
+  const registration = await registerTools(server);
   registerStaticResources(server, { readContractFile, jsonContent, errorContent });
 
-  const transport = new StdioServerTransport(process.stdin, process.stdout);
+  const launcherReadyFd = Number.parseInt(
+    String(process.env.WIKI_MCP_LAUNCHER_READY_FD ?? ""),
+    10
+  );
+
+  const launcherEventWriter = createLauncherReadinessEventWriter({
+    write: (event) => {
+      if (Number.isInteger(launcherReadyFd) && launcherReadyFd >= 3) {
+        writeFileSync(launcherReadyFd, `${JSON.stringify(event)}\n`);
+      }
+    },
+    onFailure: async (failure) => {
+      structuredLog({
+        level: "error",
+        message: "wiki-mcp launcher readiness channel failed",
+        code: failure.code,
+        ...failure.detail
+      });
+      await server.close();
+      process.exitCode = 1;
+    },
+    onCleanupTimeout: () => { process.exit(1); }
+  });
+  const writeLauncherEvent = (event) => { launcherEventWriter.emit(event); };
+
+  const transport = createLauncherObservingTransport(
+    new StdioServerTransport(process.stdin, process.stdout),
+    { emit: writeLauncherEvent }
+  );
 
   structuredLog({
     level: "info",
@@ -634,6 +679,21 @@ async function main() {
   });
 
   await server.connect(transport);
+  transport.assertObservationInstalled();
+
+  process.stdin.once("end", () => {
+    void server.close().finally(() => {
+      process.exitCode = 0;
+    });
+  });
+
+  writeLauncherEvent({
+    schema_version: "wiki-mcp-launcher-readiness.v1",
+    ready: true,
+    tool_profile: registration.toolProfile,
+    registered_tier: registration.registeredTier,
+    tools: registration.tools
+  });
 
   structuredLog({
     level: "info",

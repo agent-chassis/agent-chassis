@@ -12,9 +12,6 @@ import {
   mergeFamilyRuntimeReadOnlyRoots,
   resolveFamilyRuntimeExecutable
 } from "./launch-isolation.mjs";
-import {
-  buildOrchestratorMcpSandboxProfileRequest
-} from "./mcp-sandbox-profile.mjs";
 
 function fail(code, message, detail = null) {
   throw new BubblewrapIsolationError(`agent-launch isolation: ${message}`, { code, detail });
@@ -130,6 +127,7 @@ function buildOrchestratorBwrapPlanForPosture({
   familyRuntimeReadOnlyRoots = [],
   familyRuntimePolicyProfile = null,
   dispatchWorktreeRoot = null,
+  stdioMcpConduit = null,
   resolveExecutable = resolveFamilyRuntimeExecutable
 } = {}) {
   if (!isNonEmptyString(repo)) {
@@ -182,16 +180,17 @@ function buildOrchestratorBwrapPlanForPosture({
     env,
 
     envPolicy: null,
-    writableRoots: INTERACTIVE_ORCHESTRATOR_COORDINATION_WRITABLE_SUBPATHS.map((subpath) =>
-      path.join(repo, subpath)
-    ),
-    mcpSandboxProfile: buildOrchestratorMcpSandboxProfileRequest(),
+
+    writableRoots: INTERACTIVE_ORCHESTRATOR_COORDINATION_WRITABLE_SUBPATHS
+      .map((subpath) => path.join(repo, subpath)),
     readOnlyRoots: [managedWorktreeReadRoot],
     runtimeRoots,
     homePolicy,
     familyRuntimeReadOnlyRoots: mergedFamilyRuntimeReadOnlyRoots,
     commandResolution,
     familyRuntimePolicyProfile,
+
+    stdioMcpConduit,
     shareNet: true,
 
     newSession

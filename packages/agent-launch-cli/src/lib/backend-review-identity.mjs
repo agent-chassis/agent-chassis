@@ -20,6 +20,24 @@ const RETAINED_SLICE_REVIEWER_LAUNCH_IDENTITY_FIELDS = Object.freeze([
   "trusted_frozen_review_contract",
   "worktree_path"
 ]);
+const RETAINED_TERMINAL_CANDIDATE_REVIEWER_IDENTITY_FIELDS = Object.freeze([
+  "candidate_ref",
+  "candidate_sha",
+  "canonical_wk_digest",
+  "diff_head_sha",
+  "initiative",
+  "landing_ref",
+  "landing_sha",
+  "main_repo",
+  "record_id",
+  "review_identity_kind",
+  "review_slice_id",
+  "review_subject",
+  "trusted_frozen_review_contract",
+  "wk_ref",
+  "wk_sha",
+  "worktree_path"
+]);
 import {
   FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
   FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION
@@ -63,6 +81,26 @@ export function isPlainObject(value) {
 }
 
 export function createRetainedReviewerLaunchIdentity(context) {
+  if (context?.review_identity_kind === "terminal_candidate") {
+    return Object.freeze({
+      review_identity_kind: "terminal_candidate",
+      main_repo: context.main_repo,
+      review_subject: context.review_subject,
+      record_id: context.record_id,
+      review_slice_id: context.review_slice_id,
+      initiative: context.initiative,
+      candidate_ref: context.candidate_ref,
+      candidate_sha: context.candidate_sha,
+      landing_ref: context.landing_ref,
+      landing_sha: context.landing_sha,
+      wk_ref: context.wk_ref,
+      wk_sha: context.wk_sha,
+      worktree_path: context.worktree_path,
+      diff_head_sha: context.diff_head_sha,
+      canonical_wk_digest: context.canonical_wk_digest,
+      trusted_frozen_review_contract: context.trusted_frozen_review_contract
+    });
+  }
   return Object.freeze({
     main_repo: context.main_repo,
     review_subject: context.review_subject,
@@ -152,6 +190,34 @@ export function createRetainedSliceReviewerLaunchIdentity(context) {
 }
 
 function isStructurallyCompleteRetainedReviewerLaunchIdentity(identity) {
+  if (identity?.review_identity_kind === "terminal_candidate") {
+    if (!isPlainObject(identity) || !Object.isFrozen(identity) ||
+        !sameStringArray(Object.keys(identity).sort(), RETAINED_TERMINAL_CANDIDATE_REVIEWER_IDENTITY_FIELDS)) {
+      return false;
+    }
+    const contract = identity.trusted_frozen_review_contract;
+    return typeof identity.main_repo === "string" && path.isAbsolute(identity.main_repo) &&
+      typeof identity.review_subject === "string" && /^WK-\d{4}#SLICE-\d{3}$/u.test(identity.review_subject) &&
+      typeof identity.record_id === "string" && /^WK-\d{4}$/u.test(identity.record_id) &&
+      typeof identity.review_slice_id === "string" && /^SLICE-\d{3}$/u.test(identity.review_slice_id) &&
+      typeof identity.initiative === "string" && /^IN-\d{4}$/u.test(identity.initiative) &&
+      typeof identity.candidate_ref === "string" &&
+        /^refs\/agent-launch\/terminal-current\/WK-\d{4}$/u.test(identity.candidate_ref) &&
+      typeof identity.candidate_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.candidate_sha) &&
+      typeof identity.landing_ref === "string" && /^refs\/heads\//u.test(identity.landing_ref) &&
+      typeof identity.landing_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.landing_sha) &&
+      typeof identity.wk_ref === "string" && /^refs\/heads\/wk\/IN-\d{4}\/WK-\d{4}$/u.test(identity.wk_ref) &&
+      typeof identity.wk_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.wk_sha) &&
+      typeof identity.worktree_path === "string" && path.isAbsolute(identity.worktree_path) &&
+      identity.diff_head_sha === identity.candidate_sha &&
+      typeof identity.canonical_wk_digest === "string" && /^sha256:[0-9a-f]{64}$/u.test(identity.canonical_wk_digest) &&
+      isPlainObject(contract) && Object.isFrozen(contract) &&
+      sameStringArray(Object.keys(contract).sort(), FROZEN_REVIEW_CONTRACT_IDENTITY_FIELDS) &&
+      contract.schema_version === FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION &&
+      typeof contract.review_subject === "string" &&
+      typeof contract.canonical_parent_wk_contract === "string" &&
+      typeof contract.review_unit_contract === "string";
+  }
   if (!isPlainObject(identity) || !Object.isFrozen(identity) ||
       !sameStringArray(Object.keys(identity).sort(), RETAINED_REVIEWER_LAUNCH_IDENTITY_FIELDS)) {
     return false;
@@ -179,7 +245,10 @@ export function assertRetainedReviewerLaunchIdentityMatchesContext(identity, con
     throw new Error("consumed frozen whole-WK review context has no structurally complete retained reviewer launch identity");
   }
   const expected = createRetainedReviewerLaunchIdentity(context);
-  const flatFields = RETAINED_REVIEWER_LAUNCH_IDENTITY_FIELDS.filter(
+  const identityFields = context?.review_identity_kind === "terminal_candidate"
+    ? RETAINED_TERMINAL_CANDIDATE_REVIEWER_IDENTITY_FIELDS
+    : RETAINED_REVIEWER_LAUNCH_IDENTITY_FIELDS;
+  const flatFields = identityFields.filter(
     (field) => field !== "trusted_frozen_review_contract"
   );
   if (flatFields.some((field) => identity[field] !== expected[field]) ||

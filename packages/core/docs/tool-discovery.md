@@ -11,6 +11,59 @@ agent-chassis command or MCP function should handle a job. It exists so
 agents can choose a tool from structured data instead of guessing from wrapper
 filenames, package metadata, executable bits, or historical WK pages.
 
+The assembled corpus is exactly 99 tool entries. The manifest fragment counts
+are `17 + 11 + 4 + 2 + 1 + 29 + 18 + 6 + 10 + 1 + 0 = 99`; the checked-in
+manifest remains the source of truth for both values.
+
+## Initial managed implementation-worker discovery contract
+
+The managed implementation-worker contract is active for confined Claude and
+Codex launches whose backend and bubblewrap contracts validate. Discovery,
+router, FAQ, and runtime output must describe unsupported families or missing
+confinement prerequisites as typed fail-closed states, never as permission to
+fall back to a broader launch.
+
+For that contract, let `R` be the normalized union of the canonical unit's
+`read_scope` and `repo_paths`, and let `W` be the normalized canonical
+`write_scope`. The launcher freezes both sets before launch.
+the worker's repository visibility is exactly `R union W`, and repository
+mutation is permitted exactly within `W`; a target in `W` is visible without
+also appearing in `R`.
+
+The worker's prompt-governed Codex inspection shell is only a non-mutating way
+to inspect the visible `R union W` namespace. It is not policy authority and
+cannot widen the frozen binding. The initial implementation-worker profile
+exposes no worker validation or general MCP tools, including the discovery
+routes documented here. Its sole delivery authority is the closed-input commit
+capability in the trusted host/runtime boundary, using the server-resolved
+binding without giving the worker repository git metadata or a general commit
+shell.
+
+This worker-specific profile does not change the existing reviewer or redteam
+launcher-owned validation contracts. In particular, the reviewer/redteam
+`node_check` and confined `node_test` operations documented below remain
+available when authorized by their own declared validation. Discovery must not
+project those findings-only role capabilities into the initial implementation
+worker profile.
+
+Every supported family/backend path must preserve the same frozen namespace and
+worker tool surface. Unsupported families, backends, scope shapes, or
+confinement capabilities fail closed rather than falling back to broader
+visibility or mutation. The bootstrap posture retains readable
+launcher-provided Codex auth/sourceHome and `shareNet=true` model-API egress as
+operator-accepted residual risks under prompt governance; it is not a
+digest-bound or per-dispatch mechanical risk-acceptance mechanism.
+
+For each confined Claude or Codex dispatch, the launcher starts exactly one host
+wiki-MCP server and creates exactly two private named FIFOs. It binds those two
+objects into the final bubblewrap namespace and registers only the pinned
+copy-only relay: Claude uses launcher-authored strict MCP configuration; Codex
+uses the exact launcher-authored `mcp_servers.wiki` projection. The real client
+must complete `initialize` and `tools/list` against the launcher-derived role
+profile. Agy is unsupported and fails closed. No caller, prompt, repository/user
+configuration, environment, or arbitrary argv can select the server, FIFO, relay,
+tool profile, or lifecycle.
+
 This document is the durable operator contract for the discovery schema. The
 canonical checked-in registry is the set of JSON fragments under
 `packages/wiki-core/data/tool-discovery/`, assembled at load time into one
@@ -259,6 +312,28 @@ to:
 - work-record setter routes for status, closure, task, contract, acceptance, or
   slice writes
 
+Discovery classifies `workspace_validate_dispatch` as `workspace_write` only
+because a graph-required validation may refresh the ignored current-HEAD graph
+cache. Its write boundary is exactly the graph artifact, its sibling atomic
+temporary file, the advisory build-lock file, and the eight exclusively claimed
+candidate slots `.index.json.build-lock.json.slot-00.candidate` through
+`.index.json.build-lock.json.slot-07.candidate`. Candidate slots are attempted
+only during the initial absent-lock race, are never reused or authority, and
+remain untouched; an existing shared lock prevents further claims and slot
+exhaustion uses an independent atomic build. Concurrent refreshes coalesce only
+within one process and only between equivalent base builds; SCIP builds and all
+cross-process callers perform independent atomic builds. A follower resolves only
+on its captured leader's successful publication, so no pre-existing artifact and
+no failed leader can produce a coalesced result. It never writes canonical work
+records or evidence sidecars, lifecycle/runtime/dispatch/backend state, or result
+evidence, and it never launches an agent. Its existing
+orchestrator/operator-only role exposure is unchanged in both free-local and
+paid-CCE registrations.
+If bounded current-HEAD graph production fails, verbose readiness preserves the
+safe `graph_impact_failure` code and remediation; compact readiness preserves
+`graph_impact_failure_code` and uses that remediation as `next_action`, without
+forwarding raw causes.
+
 Initiative status is read-only and advisory: it does not dispatch, write
 records, set statuses, run lint, refresh metrics, write graph evidence,
 reinterpret policy, or parse closure prose as authority. Discovery must not
@@ -278,26 +353,26 @@ blockers for the coordinator's next action; it is not policy authority and must
 not be described as authorizing promotion, merge, rebase, lifecycle changes,
 worktree cleanup, or ref updates.
 
-`workspace_tool_usage_audit` is the compact read-only observability surface for
-agent tool-use policy adherence. Discovery should present it as an
+`workspace_tool_usage_audit` is the compact read-only observability surface that
+emits a NEUTRAL usage catalog of agent tool-use. Discovery should present it as an
 operator/coordinator measurement lens over bounded historical and live audit
 facts, not as a launch, mutation, lint/generate, routing, refusal, enforcement,
-or policy-authority route. Its output may help a coordinator see whether agents
-used compact-first reads, followed next-action signals, avoided unsupported
-bulk sampling, or triggered known misuse classifications, but the underlying
-domain tools still own read, search, work-record, dispatch, review, validation,
-and lint semantics.
+or policy-authority route. Its output is descriptive only -- counts, provenance,
+first-tool, and response-size indicators -- and renders no misuse or adherence
+verdict; assessing the catalog for misuse is an offline, out-of-band activity. The
+underlying domain tools still own read, search, work-record, dispatch, review,
+validation, and lint semantics.
 
-The audit surface bridges owned contracts without duplicating them inline.
-work record owns the `tool-use-policy.v1` misuse codes, evidence envelopes, source
-and confidence labels, redaction posture, and audit-only interpretation.
-work record owns routing-intent ids and replacement-call guidance through
-`tool-routing-intents.v1`, router output, and discovery metadata. Audit results
-may report work record misuse codes and coarse replacement families, and may cite
-work record routing-intent or replacement guidance only when that guidance is
-available from the work record-owned surfaces. Discovery text must not create a
-second routing taxonomy, expand misuse vocabulary in prose, or treat audit
-classifications as exact recommended-call authority by themselves.
+The audit surface reports neutral facts without duplicating owned contracts
+inline. work record owns the `tool-use-policy.v1` evidence envelopes, source and
+confidence labels, redaction posture, and audit-only interpretation; its misuse
+vocabulary remains only as offline reference data and is no longer reported by the
+runtime audit output (work record). work record owns routing-intent ids and
+replacement-call guidance through `tool-routing-intents.v1`, router output, and
+discovery metadata. The audit result does NOT report misuse codes, next-action
+adherence, or work record routing/replacement guidance -- that runtime coupling was
+removed (work record). Discovery text must not describe the audit surface as emitting
+misuse classifications or recommended-call authority.
 
 Keep the five policy surfaces distinct:
 
@@ -308,7 +383,9 @@ Keep the five policy surfaces distinct:
 - Historical backfill measurement reports only what old artifacts can prove,
   with confidence labels and unsupported-gap markers for MCP-specific questions
   the artifacts cannot establish.
-- Live audit measurement reports bounded observed adherence going forward.
+- Live audit measurement records bounded observed usage facts going forward
+  (provenance, response size, outcome) -- a neutral catalog, with no adherence or
+  misuse verdict.
 
 `workspace_tool_usage_audit` is canonical only for the compact audit facts it
 returns. It must not be documented as a reason to scrape `.agent-runs`, broad
@@ -594,6 +671,8 @@ rather than falling through to CCE text.
   basic dispatch-readiness and launch flow, but their free/local discovery and
   default output must not expose CCE LOC/threshold/blast-radius/multicluster,
   CCE-recovery, structural-admissibility, or structured review-artifact detail.
+  Validation may refresh only the ignored current-HEAD graph cache described
+  above; this cache write does not confer CCE authority or mutate the carrier.
 
 ### `agent-safe` / `agent-authoritative` are not tier labels
 
@@ -995,6 +1074,24 @@ taxonomy categories are `role_policy`, `caller_identity`,
 against those codes. See
 [Runtime Blocker Taxonomy And Coordination Preflight](tool-discovery-dispatch-runtime.md#runtime-blocker-taxonomy-and-coordination-preflight)
 for the detailed taxonomy and preflight contract.
+
+Its `capabilities` projection keeps nine planes separate:
+`structured_dispatch`, `native_edit`, `repository_read_boundary`, `commit`,
+`managed_worktree_provisioning`, `slice_to_wk_integration`,
+`wk_context_review`, `validation_ownership`, and
+`automatic_main_promotion`. Every plane includes a server-owned source and
+freshness state. Missing, unknown, or stale facts fail closed and are not
+inferred from neighboring planes. The current release reports repository read
+confinement, managed provisioning, slice integration, WK-context review, and
+automatic main promotion unavailable; it reports the other four planes
+available. Free/local and paid/CCE projections preserve identical capability
+meaning and differ only in enforcement metadata.
+
+The stable Phase-1 managed-lifecycle blockers are
+`managed_lifecycle_required` and
+`managed_worktree_provisioning_unavailable`. Their taxonomy entries identify
+the responsible actor and route recovery through
+`workspace_coordination_preflight`.
 
 ## Representative Coverage
 

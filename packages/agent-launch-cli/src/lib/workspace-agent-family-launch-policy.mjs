@@ -45,16 +45,6 @@ export function evaluateFamilyModelDisposition({
     : { disposition: "refuse", model: hint };
 }
 
-export function adaptFamilyBrokerRefusal({ reason, detail = null } = {}) {
-  return {
-    ok: false,
-    refusal: {
-      reason: reason ?? null,
-      detail: detail ?? null
-    }
-  };
-}
-
 const DEFAULT_TRANSPORT_SECRET_PLACEHOLDER = "[redacted]";
 
 function escapeRegExpLiteral(value) {

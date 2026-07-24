@@ -55,7 +55,7 @@ server should accept dispatch and report the lifecycle vocabulary
 `launching`, `running`, `succeeded`, `failed`, or `cancelled` (the
 `pending_launch` state no longer exists). If a future deployment needs
 authenticated cross-session dispatch, it must use a different transport or
-launcher-owned broker, not a wrapper_command row, inline env policy, bwrap
+launcher-owned in-process runtime, not a wrapper_command row, inline env policy, bwrap
 mount change, graph-impact side channel, registration frame, per-connection
 identity registry, or stdio prelude.
 
@@ -83,23 +83,34 @@ The enforceable current boundary is:
 - `review_purpose` defaults to `standalone`; only structural
   `terminal_whole_wk` can participate in terminal lifecycle review, and it
   carries no authority by itself
-- enforced CCE requires exact Proof A; free/local uses explicit non-audit
-  `policy_only` metadata and fabricates no reviewer, accepted binding, Proof A,
-  CCE verdict, or audit acceptance; mode consumes the tier frozen at launcher
-  plan registration and cannot change with later planning-env/API-key changes
-- trusted recovery uses locked append-only exact receipt events, re-resolves the
-  frozen contract/current lifecycle transition/identity/marker/refs/objects, and
-  on `enforced_cce` independently resolves persisted historical Proof A against
-  the frozen contract, structured result, exact runs, identity, and SHAs in both
-  backend and broker recovery; the broker reconstructs acceptance server-side for
-  the existing initial-integration gate, while `policy_only` fabricates no proof
-  or audit acceptance; readers share the publisher lock, live/stalled owners are
-  never displaced, and final/non-final already-integrated recovery is independent
-  of pre-integration admission; there is no integrate command,
-  raw-Git fallback, manual proof injection, request-carried proof, or caller
-  authority carrier
+- reviewer and redteam output is append-only advisory evidence. Clean or
+  findings-bearing results never admit, defer, or veto integration, and reviewer
+  completion never calls integration. The orchestrator may disposition comments
+  and request the separate `workspace_integrate_committed_slice` operation; that
+  request and those dispositions are not policy authorization
+- CCE alone owns a configured organization-policy decision for integration. Paid
+  tier presence configures no gate and implies no verdict. A configured gate fails
+  closed on a missing, unavailable, malformed, unratified, denied, or target-mismatched
+  decision; no configured gate follows decision free-substrate behavior and reports
+  non-audit posture
+- exact-review dispatch is plural: active and historical reviews never block another
+  reviewer or policy-allowed redteam for the same committed target; every run has a
+  distinct identity and independently retained exact-target receipt
+- trusted advisory projection uses locked append-only exact receipt events,
+  re-resolves the frozen contract/current lifecycle transition/identity/marker/refs/
+  objects, and loads the complete applicable set rather than a latest receipt. Clean,
+  findings, active, missing, and malformed review state never permits, defers, or
+  vetoes integration. Reviewer disagreement remains visible, and old receipt proof
+  fields are inert compatibility data. Readers share the publisher lock, live/stalled
+  owners are never displaced, and final/non-final already-integrated recovery is
+  independent of pre-integration admission. Integration is available only through
+  the separate structured coordinator continuation, with no raw-Git fallback,
+  manual proof injection, request-carried proof, or caller authority carrier
+- worker and reviewer concurrency is expected; launcher-minted attempt identity,
+  isolated runtime/worktree state, and exact ref/status CAS provide collision safety,
+  not singleton lifecycle consumption or historical subject reservations
 - exact-slice Claude review binds credentials read-only and produces no writable
-  host file/root in direct or broker bwrap plans; sandbox construction is required
+  host file/root in launcher-owned bwrap plans; sandbox construction is required
   and fails closed before spawn with no unenforced exact-review fallback; normal
   implementation workers retain their credential-refresh and fallback posture
 - exact `changes_requested` findings may reach an explicitly reissued same-slice

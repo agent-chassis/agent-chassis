@@ -3,20 +3,20 @@
 
 > Part of the [Agent Launch & Direct-Dispatch Reference](agent-launch-quickstart.md).
 
-This page documents the per-family launcher runtime-state facts (Codex, Claude, and Agy), the four runtime-state classes used to describe them, and the state-class summary table. The launcher lifecycle is converged; runtime state is per-family and described here honestly.
+This page documents the runtime-state facts for the supported Codex and Claude
+families, the four runtime-state classes used to describe them, and the explicit
+fail-closed Agy posture. The launcher lifecycle is converged; supported-family
+runtime state remains family-specific.
 
 ## Family Runtime State
 
 The launcher **lifecycle** is converged — one shared
 `superviseChildLaunch` child supervision / bounded capture / final-result path
-used by every family on both the in-process and host-write-authority broker
-paths (`broker-lifecycle-unification`, `family-adapter-contract-convergence`).
-Runtime state is **not** converged. Codex's private `CODEX_HOME`,
-Claude's credential/config mount, and Agy's Gemini state root are app-specific
-runtime facts, not a shared runtime-state implementation. This section
-documents those facts honestly; the `family-runtime-state-policy` slice is
-docs/tests only and changed no executor source, bwrap mounts, `CODEX_HOME`
-behavior, or Agy state behavior.
+used by supported families on the launcher-owned in-process path.
+Runtime state is **not** converged. Codex's private `CODEX_HOME` and Claude's
+credential/config mount are app-specific runtime facts, not a shared runtime-state
+implementation. Agy has no supported confined executor or registration adapter;
+the shared interface refuses it before launch and does not provision Gemini state.
 
 The shared part is the **vocabulary** used to classify per-family state, not a
 shared code path. Each family's runtime state falls into one of four classes:
@@ -51,8 +51,7 @@ shared code path. Each family's runtime state falls into one of four classes:
   under `<CODEX_HOME>/tmp/<run-dir>/`, written via Codex
   `--output-last-message`. This `finalPath` / private-`CODEX_HOME` pair is a
   kept Codex-specific fact, not permission to keep a separate launcher
-  lifecycle or capture pipeline — those were already unified by
-  `broker-lifecycle-unification`.
+  lifecycle or capture pipeline.
 
 **Claude** (`workspace-agent-dispatch-claude-executor.mjs`):
 
@@ -80,23 +79,14 @@ launcher-owned operator host home; it is not an agent-provided policy input.
   though the narrow runtime leaves above resolve under that host home.
 - **Result source is `stdout`**.
 
-**Agy** (`workspace-agent-dispatch-agy-executor.mjs`):
+**Agy**:
 
-The Agy family-runtime mounts resolve through the same launcher-owned
-host-home-derived runtime policy (`~` below is the operator host home, not an
-agent input).
-
-- The Gemini state root `~/.gemini` (`AGY_FAMILY_RUNTIME_WRITABLE_ROOTS`) is
-  bound **broad-writable** so Antigravity can refresh session state. This broad
-  writable real-home bind is a **non-blessed temporary exception**, authorized
-  by `decision`. It is not the target
-  runtime-state policy and must not be canonicalized as one.
-- Narrow read-only mounts: `~/.gemini/antigravity-cli` and `~/.gemini/config`
-  (`AGY_FAMILY_RUNTIME_READ_ONLY_ROOTS`), plus the network/CA roots.
-- Runtime approval stays narrow: GCP service-account credentials,
-  `~/gcp-credentials`, the broad host home (`$HOME`), and `~/.config/gcloud`
-  are never mounted.
-- **Result source is `stdout`**.
+Agy is unsupported for confined worker, reviewer, redteam, and orchestrator
+launches. Selection fails closed before model spawn. The launcher creates no
+wiki-MCP transport, repository write bind, Gemini credential/config bind, broad
+`~/.gemini` writable state, or result-capture lifecycle for Agy. Future support
+must reuse the same host-server and named-FIFO conduit interface; it cannot add a
+second transport.
 
 ### State-class summary
 
@@ -104,7 +94,7 @@ agent input).
 | --- | --- | --- | --- | --- |
 | Codex | `CODEX_SOURCE_HOME` (`~/.codex`) entries symlinked read-through | private `CODEX_HOME` = `<runtime-base>/codex-home` (`log`/`sessions`/`tmp`/`shell_snapshots`/`rules`, `final.md`) | per-run dirs inside the private `CODEX_HOME` | `finalPath` (`--output-last-message`) |
 | Claude | `~/.claude/.credentials.json`, `~/.local/share/claude` (read-only, host-home-derived) | run dir (stdout capture) | none in family-runtime mounts | `stdout` |
-| Agy | `~/.gemini/antigravity-cli`, `~/.gemini/config`, CA roots (read-only) | run dir (stdout capture) | `~/.gemini` (`decision`, temporary) | `stdout` |
+| Agy | unsupported | none | none | none; launch fails closed |
 
 In this table `~` / `$HOME` denotes the launcher-owned operator host home that
 the launcher discovers from trusted host facts (macOS `/Users/<user>`, Linux
@@ -132,4 +122,3 @@ fields, or run-status fields) whose names contain the literal `CODEX_HOME` or
 `codex_home_overlay`. Those tokens can trip forbidden-token scans tied to the
 removed prelude overlay. Documenting the env var `CODEX_HOME` in prose
 (as above) is fine; minting a JSON field named after it is not.
-

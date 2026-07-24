@@ -35,6 +35,11 @@ import {
   readPersistedWorkerAdmissionEvidenceSidecarEntry
 } from "../lib/work-record-admission-evidence-sidecar.mjs";
 import {
+  detectConcurrentCanonicalRecordChange,
+  evaluateAdmissionEvidenceEntryFreshness,
+  resolvedReviewedUnitDigestIssue
+} from "../lib/work-record-admission-evidence-freshness.mjs";
+import {
   canonicalizeWorkRecordReadScope,
   computeWorkRecordSourceDigest,
   validateWorkRecord
@@ -143,51 +148,13 @@ function getWorkerAdmissionDerivedEvidenceIssueForUnit(record, sourceDigest, req
   }
 
   for (const { entry, index } of matchingEntries) {
-    if (
-      typeof entry.schema_version === "string" &&
-      entry.schema_version !== WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SCHEMA_VERSION
-    ) {
-      return {
-        issue: {
-          code: "outdated_worker_admission_derived_evidence",
-          message: "worker-admission derived evidence schema version is outdated",
-          details: {
-            derived_evidence_index: index,
-            derived_evidence_schema_version: entry.schema_version
-          }
-        }
-      };
-    }
-
-    if (
-      isObject(entry.generator) &&
-      typeof entry.generator.version === "string" &&
-      entry.generator.version !== WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_GENERATOR.version
-    ) {
-      return {
-        issue: {
-          code: "outdated_worker_admission_derived_evidence",
-          message: "worker-admission derived evidence generator version is outdated",
-          details: {
-            derived_evidence_index: index,
-            derived_evidence_generator_version: entry.generator.version
-          }
-        }
-      };
-    }
-
-    if (typeof entry.source_record_digest === "string" && entry.source_record_digest !== sourceDigest) {
-      return {
-        issue: {
-          code: "stale_worker_admission_derived_evidence",
-          message: "worker-admission derived evidence is stale",
-          details: {
-            derived_evidence_index: index,
-            source_digest: entry.source_record_digest,
-            current_source_digest: sourceDigest
-          }
-        }
-      };
+    const issue = evaluateAdmissionEvidenceEntryFreshness(entry, index, {
+      expectedSchemaVersion: WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_SCHEMA_VERSION,
+      expectedGeneratorVersion: WORK_RECORD_ADMISSION_DERIVED_EVIDENCE_GENERATOR.version,
+      expectedSourceDigest: sourceDigest
+    });
+    if (issue) {
+      return { issue };
     }
   }
 
@@ -860,14 +827,59 @@ export async function evaluateWorkRecordAdmissionDerivedEvidenceById({
     };
   }
 
+  const evaluatedRecordId = loaded.record_id || loaded.record.id || id;
+  const refusalUnitAddress =
+    requestedUnit.unit.kind === "slice" ? requestedUnit.unit.address : null;
+  const refuse = (issue) => ({
+    ...loaded,
+    record_level_derived_evidence: null,
+    admission: null,
+    admission_refusal: createWorkerAdmissionDerivedEvidenceRefusal(
+      issue,
+      evaluatedRecordId,
+      refusalUnitAddress,
+      { structuredRefreshRouteAvailable }
+    )
+  });
+
   const sourceDigest = selectedUnitReviewedDigest(loaded.record, requestedUnit.unit);
+
+  const unresolvedUnitDigestIssue = resolvedReviewedUnitDigestIssue(
+    sourceDigest,
+    requestedUnit.unit.address
+  );
+  if (unresolvedUnitDigestIssue) {
+    return refuse(unresolvedUnitDigestIssue);
+  }
+
+  const finalizeAdmission = async (result) => {
+    const reverified = await loadWorkRecordById({
+      dir: targetDir,
+      id: requestedUnit.recordId,
+      recordStore
+    });
+    const concurrentChangeIssue = detectConcurrentCanonicalRecordChange({
+      observedSourceDigest: loaded.source_digest,
+      currentSourceDigest: reverified?.record ? reverified.source_digest : null,
+      observedUnitDigest: sourceDigest,
+      currentUnitDigest: reverified?.record
+        ? selectedUnitReviewedDigest(reverified.record, requestedUnit.unit)
+        : null,
+      unitAddress: requestedUnit.unit.address
+    });
+    if (concurrentChangeIssue) {
+      return refuse(concurrentChangeIssue);
+    }
+    return result;
+  };
+
   const issueOrEntry = getWorkerAdmissionDerivedEvidenceIssueForUnit(
     loaded.record,
     sourceDigest,
     requestedUnit.unit
   );
   if (issueOrEntry?.issue) {
-    const recordId = loaded.record_id || loaded.record.id || id;
+    const recordId = evaluatedRecordId;
     if (issueOrEntry.issue.code === "missing_worker_admission_derived_evidence") {
       const liveEvidence = await createLiveWorkerAdmissionDerivedEvidence({
         dir: targetDir,
@@ -875,7 +887,7 @@ export async function evaluateWorkRecordAdmissionDerivedEvidenceById({
         requestedUnit: requestedUnit.unit
       });
       if (liveEvidence.evidence) {
-        return {
+        return finalizeAdmission({
           ...loaded,
           selected_unit: requestedUnit.unit,
           record_level_derived_evidence: liveEvidence.evidence,
@@ -883,7 +895,7 @@ export async function evaluateWorkRecordAdmissionDerivedEvidenceById({
           admission: evaluateWorkRecordAdmissionDerivedEvidence(liveEvidence.evidence),
           admission_refusal: null,
           admission_source: "live_unmaterialized"
-        };
+        });
       }
       if (liveEvidence.issue) {
         return {
@@ -921,7 +933,7 @@ export async function evaluateWorkRecordAdmissionDerivedEvidenceById({
     });
     if (rehydratedEvidence) {
       const sidecarAdmission = evaluateWorkRecordAdmissionDerivedEvidence(rehydratedEvidence);
-      return {
+      return finalizeAdmission({
         ...loaded,
         selected_unit: requestedUnit.unit,
         record_level_derived_evidence: rehydratedEvidence,
@@ -929,18 +941,18 @@ export async function evaluateWorkRecordAdmissionDerivedEvidenceById({
         admission: sidecarAdmission,
         admission_refusal: null,
         admission_source: "rehydrated_admission_sidecar"
-      };
+      });
     }
   }
 
-  return {
+  return finalizeAdmission({
     ...loaded,
     selected_unit: requestedUnit.unit,
     record_level_derived_evidence: issueOrEntry.entry,
     record_level_derived_evidence_index: issueOrEntry.index,
     admission,
     admission_refusal: null
-  };
+  });
 }
 
 export function materializeWorkRecordAdmissionDerivedEvidence({

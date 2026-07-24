@@ -8,6 +8,8 @@ export const WORK_RECORD_DISPATCH_DECISION_CODES = Object.freeze([
   "not_implementation",
   "missing_write_scope",
   "invalid_write_scope",
+
+  "decisions_write_scope_forbidden",
   "stale_write_scope",
   "missing_validation",
   "missing_graph_impact",
@@ -31,6 +33,8 @@ const DECISION_PRECEDENCE = Object.freeze([
   "missing_json_record",
   "migration_review_required",
   "blocked_dependency",
+
+  "decisions_write_scope_forbidden",
   "invalid_write_scope",
   "stale_write_scope",
   "missing_write_scope",

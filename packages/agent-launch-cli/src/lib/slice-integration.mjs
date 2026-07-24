@@ -5,20 +5,15 @@ import path from "node:path";
 
 import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
 
-import {
-  resolveSliceReviewAcceptanceProof
-} from "@agent-chassis/wiki-core/src/operations/work-record-slice-review-acceptance.mjs";
-import {
-  SLICE_REVIEW_ACCEPTANCE_DECISION_CODES
-} from "@agent-chassis/wiki-core/src/lib/work-record-slice-review-acceptance.mjs";
-
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import { buildWkSliceMarkerTrailer } from "./commit-tool-exposure-guard.mjs";
 
 export const SLICE_INTEGRATION_SCHEMA_VERSION = "slice-integration.v1";
-export const SLICE_REVIEW_ENFORCEMENT_MODES = Object.freeze({
-  ENFORCED_CCE: "enforced_cce",
-  POLICY_ONLY: "policy_only"
+export const SLICE_INTEGRATION_BOUNDARY_AUTHORIZATION_SCHEMA_VERSION =
+  "slice-integration-boundary-authorization.v1";
+export const SLICE_INTEGRATION_POLICY_POSTURES = Object.freeze({
+  FREE_SUBSTRATE: "free_substrate",
+  CCE_POLICY: "cce_policy"
 });
 
 const MAX_WK_REF_CAS_ATTEMPTS = 8;
@@ -29,14 +24,23 @@ export const SLICE_INTEGRATION_DIAGNOSTIC_CODES = Object.freeze({
   BINDING_MISMATCH: "agent_launch.slice_integration.binding_mismatch.v1",
   WORKER_NOT_TERMINATED: "agent_launch.slice_integration.worker_not_terminated.v1",
   INDEX_RECONCILE_FAILED: "agent_launch.slice_integration.index_reconcile_failed.v1",
-  WORKTREE_DIRTY: "agent_launch.slice_integration.worktree_dirty.v1",
-  REVIEW_UNRESOLVED: "agent_launch.slice_integration.review_unresolved.v1",
-  DEPENDENCY_UNACCEPTED: "agent_launch.slice_integration.dependency_unaccepted.v1",
   SLICE_COMMIT_CONFLICT: "agent_launch.slice_integration.slice_commit_conflict.v1",
+  SLICE_COMMIT_READ_INDETERMINATE:
+    "agent_launch.slice_integration.slice_commit_read_indeterminate.v1",
+  SLICE_COMMIT_COMPENSATION_CAS_LOST:
+    "agent_launch.slice_integration.slice_commit_compensation_cas_lost.v1",
+  SLICE_COMMIT_COMPENSATION_FAILED:
+    "agent_launch.slice_integration.slice_commit_compensation_failed.v1",
   REBASE_CONFLICT: "agent_launch.slice_integration.rebase_conflict.v1",
   REBASE_RESTORE_FAILED: "agent_launch.slice_integration.rebase_restore_failed.v1",
   WK_ADVANCE_CONFLICT: "agent_launch.slice_integration.wk_advance_conflict.v1",
   REVIEW_FREEZE_FAILED: "agent_launch.slice_integration.review_freeze_failed.v1",
+  BOUNDARY_AUTHORIZATION_MISSING:
+    "agent_launch.slice_integration.boundary_authorization_missing.v1",
+  BOUNDARY_AUTHORIZATION_MALFORMED:
+    "agent_launch.slice_integration.boundary_authorization_malformed.v1",
+  CCE_POLICY_DENIED: "agent_launch.slice_integration.cce_policy_denied.v1",
+  CCE_POLICY_UNRATIFIED: "agent_launch.slice_integration.cce_policy_unratified.v1",
 
   RECORD_CAS_EXHAUSTED: "agent_launch.slice_integration.record_cas_exhausted.v1",
   RECORD_WRITE_FAILED: "agent_launch.slice_integration.record_write_failed.v1",
@@ -101,6 +105,41 @@ function revParse(runGit, repo, value) {
   return assertOid(oid, value);
 }
 
+function resolveTree(runGit, repo, rev) {
+  const oid = git(runGit, repo, ["rev-parse", "--verify", `${rev}^{tree}`], `could not resolve the tree of ${rev}`).stdout.trim();
+  return assertOid(oid, `${rev} tree`);
+}
+
+function sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wkTip }) {
+  const merged = runGit({
+    repo: mainRepo,
+    args: [
+      "merge-tree", "--write-tree", "--no-messages",
+      "--merge-base", baseSha,
+      wkTip,
+      commit
+    ]
+  });
+  if (!merged || merged.ok !== true) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_CONFLICT,
+      "the immutable exact-slice delivery conflicts with the current WK tip",
+      {
+        base_sha: baseSha,
+        slice_sha: commit,
+        wk_sha: wkTip,
+        stdout: String(merged?.stdout ?? "").slice(0, 8192),
+        stderr: String(merged?.stderr ?? merged?.error ?? "").slice(0, 8192)
+      }
+    );
+  }
+  const appliedTree = assertOid(
+    String(merged.stdout ?? "").split(/\r?\n/u)[0].trim(),
+    "applied slice tree"
+  );
+  return appliedTree === resolveTree(runGit, mainRepo, wkTip);
+}
+
 function assertExactWorktreeBinding(runGit, worktreePath, sliceRef, expectedHead) {
   if (typeof worktreePath !== "string" || !path.isAbsolute(worktreePath)) {
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.INVALID_ARG, "bound slice worktree path must be absolute");
@@ -119,21 +158,6 @@ function assertExactWorktreeBinding(runGit, worktreePath, sliceRef, expectedHead
   }
 }
 
-function reconcileAndAssertCleanExactWorktree(runGit, worktreePath, expectedHead) {
-
-  git(
-    runGit,
-    worktreePath,
-    ["reset", "--mixed", "--no-refresh", expectedHead],
-    "could not reconcile the retained slice worktree index",
-    SLICE_INTEGRATION_DIAGNOSTIC_CODES.INDEX_RECONCILE_FAILED
-  );
-  const status = git(runGit, worktreePath, ["status", "--porcelain=v1", "--untracked-files=all"], "could not inspect slice worktree dirtiness").stdout;
-  if (status.length > 0) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.WORKTREE_DIRTY, "slice worktree must be clean before trusted integration", { status });
-  }
-}
-
 function parseCanonicalRecord(mainRepo, wkId) {
   const recordPath = path.join(mainRepo, "wiki", "work-records", `${wkId}.json`);
   try {
@@ -142,34 +166,6 @@ function parseCanonicalRecord(mainRepo, wkId) {
     return record;
   } catch (error) {
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH, `canonical ${wkId} record is unavailable or incompatible`, { record_path: recordPath }, error);
-  }
-}
-
-function assertReviewAndDependencies(record, sliceId) {
-  if (record.status === "review") {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.REVIEW_UNRESOLVED, "another integration is refused while the WK review is unresolved", {
-      wk_id: record.id,
-      status: record.status
-    });
-  }
-  const slice = record.slices.find((entry) => entry?.id === sliceId);
-  if (!slice) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH, `canonical slice ${sliceId} is unresolved in ${record.id}`);
-  }
-  const dependencies = Array.isArray(slice.depends_on) ? slice.depends_on : [];
-  const unaccepted = [];
-  for (const dependency of dependencies) {
-    const localId = typeof dependency === "string" && dependency.includes("#")
-      ? dependency.split("#").at(-1)
-      : dependency;
-    if (typeof localId !== "string" || !/^SLICE-\d{3}$/u.test(localId)) continue;
-    const target = record.slices.find((entry) => entry?.id === localId);
-    if (!target || target.status !== "done") unaccepted.push(dependency);
-  }
-  if (unaccepted.length > 0) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.DEPENDENCY_UNACCEPTED, "dependent slice integration requires every declared local dependency to have accepted WK-context review", {
-      dependencies: unaccepted
-    });
   }
 }
 
@@ -216,29 +212,22 @@ function isLastIncompleteImplementationSlice(record, sliceId, runGit, mainRepo, 
   );
 }
 
-const REVIEW_ACCEPTANCE_CODES = SLICE_REVIEW_ACCEPTANCE_DECISION_CODES;
-
-const SLICE_REVIEW_BINDING_FIELDS = Object.freeze([
-  "unit_address",
-  "initiative",
-  "slice_ref",
-  "reviewed_sha",
-  "diff_base_sha",
-  "source_worker_run_id",
-  "review_run_id"
+const BOUNDARY_TARGET_FIELDS = Object.freeze([
+  "subject", "initiative", "slice_ref", "reviewed_sha", "diff_base_sha"
 ]);
 
-function assertSliceReviewObjectStoreProbes(runGit, mainRepo, binding) {
+function assertBoundaryObjectStoreProbes(runGit, mainRepo, target) {
   const probes = [
-    { name: "slice_ref_resolves_to_reviewed_sha", rev: `${binding.slice_ref}^{commit}`, expect: binding.reviewed_sha },
-    { name: "reviewed_commit_object_present", rev: `${binding.reviewed_sha}^{commit}`, expect: binding.reviewed_sha },
-    { name: "slice_diff_base_object_present", rev: `${binding.diff_base_sha}^{commit}`, expect: binding.diff_base_sha }
+    { name: "slice_ref_resolves_to_reviewed_sha", rev: `${target.slice_ref}^{commit}`, expect: target.reviewed_sha },
+    { name: "reviewed_commit_object_present", rev: `${target.reviewed_sha}^{commit}`, expect: target.reviewed_sha },
+    { name: "slice_diff_base_object_present", rev: `${target.diff_base_sha}^{commit}`, expect: target.diff_base_sha }
   ];
   for (const probe of probes) {
     const result = runGit({ repo: mainRepo, args: ["rev-parse", "--verify", probe.rev] });
     const actual = result && result.ok === true ? String(result.stdout ?? "").trim() : null;
     if (actual !== probe.expect) {
-      fail(REVIEW_ACCEPTANCE_CODES.targetStale, "slice-review object-store probe does not confirm the reviewed slice target", {
+      fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+        "boundary authorization no longer matches the exact slice target", {
         probe: probe.name,
         expected: probe.expect,
         actual
@@ -247,194 +236,435 @@ function assertSliceReviewObjectStoreProbes(runGit, mainRepo, binding) {
   }
 }
 
-function assertCanonicalSliceStillInReview(record, sliceId) {
-  if (record.status === "review") {
-    fail(REVIEW_ACCEPTANCE_CODES.targetStale, "parent WK entered whole-WK review; a slice-level acceptance no longer authorizes integration", {
-      wk_id: record.id,
-      parent_status: record.status
-    });
-  }
-  const slice = record.slices.find((entry) => entry?.id === sliceId);
-  const workKind = typeof slice?.work_kind === "string" && slice.work_kind.length > 0
-    ? slice.work_kind
-    : "implementation";
-  if (!slice || workKind !== "implementation" || slice.status !== "review") {
-    fail(REVIEW_ACCEPTANCE_CODES.reviewNotAccepted, "canonical slice is not an implementation slice under unresolved slice-level review", {
-      slice_id: sliceId,
-      work_kind: slice ? workKind : null,
-      slice_status: slice?.status ?? null
-    });
-  }
-}
-
-async function assertSliceReviewAcceptance({
+function assertSliceIntegrationBoundaryAuthorization({
   runGit,
   mainRepo,
-  record,
   sliceRef,
   wkId,
   sliceId,
   initiative,
+  baseSha,
   commit,
-  sliceReviewAcceptance,
-  deps
+  boundaryAuthorization
 }) {
-  const unitAddress = `${wkId}#${sliceId}`;
-  if (sliceReviewAcceptance === null || sliceReviewAcceptance === undefined) {
-    fail(REVIEW_ACCEPTANCE_CODES.missing, "integration requires the launcher-owned slice-review binding; no slice-level review has been accepted for this unit", {
-      unit_address: unitAddress
-    });
+  const subject = `${wkId}#${sliceId}`;
+  if (boundaryAuthorization === null || boundaryAuthorization === undefined) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BOUNDARY_AUTHORIZATION_MISSING,
+      "integration requires a launcher-owned configured-policy disposition", { subject });
   }
-  if (typeof sliceReviewAcceptance !== "object") {
-    fail(REVIEW_ACCEPTANCE_CODES.malformed, "slice-review binding must be an object", { unit_address: unitAddress });
+  if (typeof boundaryAuthorization !== "object" || Array.isArray(boundaryAuthorization)) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BOUNDARY_AUTHORIZATION_MALFORMED,
+      "integration boundary authorization must be an object", { subject });
   }
-  const missingField = SLICE_REVIEW_BINDING_FIELDS.find(
-    (field) => typeof sliceReviewAcceptance[field] !== "string" || sliceReviewAcceptance[field].length === 0
+  const target = boundaryAuthorization.target;
+  if (boundaryAuthorization.schema_version !==
+        SLICE_INTEGRATION_BOUNDARY_AUTHORIZATION_SCHEMA_VERSION ||
+      boundaryAuthorization.operation !== "integrate_committed_slice" ||
+      typeof target !== "object" || target === null || Array.isArray(target)) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BOUNDARY_AUTHORIZATION_MALFORMED,
+      "integration boundary authorization has an invalid schema", { subject });
+  }
+  const missingField = BOUNDARY_TARGET_FIELDS.find(
+    (field) => typeof target[field] !== "string" || target[field].length === 0
   );
   if (missingField !== undefined) {
-    fail(REVIEW_ACCEPTANCE_CODES.malformed, "slice-review binding is missing a required launcher-owned field", {
-      unit_address: unitAddress,
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BOUNDARY_AUTHORIZATION_MALFORMED,
+      "integration boundary authorization is missing an exact-target field", {
+      subject,
       field: missingField
     });
   }
-
-  if (sliceReviewAcceptance.unit_address !== unitAddress ||
-      sliceReviewAcceptance.initiative !== initiative ||
-      sliceReviewAcceptance.slice_ref !== sliceRef) {
-    fail(REVIEW_ACCEPTANCE_CODES.bindingMismatch, "slice-review binding does not identify the slice being integrated", {
-      expected: { unit_address: unitAddress, initiative, slice_ref: sliceRef },
+  if (target.subject !== subject || target.initiative !== initiative ||
+      target.slice_ref !== sliceRef || target.reviewed_sha !== commit) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+      "integration boundary authorization identifies a different target", {
+      expected: { subject, initiative, slice_ref: sliceRef, reviewed_sha: commit },
       actual: {
-        unit_address: sliceReviewAcceptance.unit_address,
-        initiative: sliceReviewAcceptance.initiative,
-        slice_ref: sliceReviewAcceptance.slice_ref
+        subject: target.subject,
+        initiative: target.initiative,
+        slice_ref: target.slice_ref,
+        reviewed_sha: target.reviewed_sha
       }
     });
   }
-
   const currentSliceSha = revParse(runGit, mainRepo, sliceRef);
-  if (currentSliceSha !== sliceReviewAcceptance.reviewed_sha || commit !== sliceReviewAcceptance.reviewed_sha) {
-    fail(REVIEW_ACCEPTANCE_CODES.targetStale, "the slice tip under integration is not the reviewed SHA; the review must be repeated", {
-      unit_address: unitAddress,
-      reviewed_sha: sliceReviewAcceptance.reviewed_sha,
+  if (currentSliceSha !== target.reviewed_sha || target.diff_base_sha !== baseSha) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+      "integration boundary authorization is stale for the exact target", {
+      subject,
+      reviewed_sha: target.reviewed_sha,
       current_slice_sha: currentSliceSha,
-      integrating_commit: commit
+      expected_diff_base_sha: baseSha,
+      authorized_diff_base_sha: target.diff_base_sha
     });
   }
-
-  assertSliceReviewObjectStoreProbes(runGit, mainRepo, sliceReviewAcceptance);
-  assertCanonicalSliceStillInReview(record, sliceId);
-
-  const resolve = deps.resolveSliceReviewAcceptanceProof ?? resolveSliceReviewAcceptanceProof;
-  const resolved = await resolve({
-    dir: mainRepo,
-    unit_address: unitAddress,
-    expectation: {
-      unit_address: unitAddress,
-      initiative: sliceReviewAcceptance.initiative,
-      slice_ref: sliceReviewAcceptance.slice_ref,
-      reviewed_sha: sliceReviewAcceptance.reviewed_sha,
-      diff_base_sha: sliceReviewAcceptance.diff_base_sha,
-      source_worker_run_id: sliceReviewAcceptance.source_worker_run_id,
-      review_run_id: sliceReviewAcceptance.review_run_id,
-      review_monitor_handle: sliceReviewAcceptance.review_monitor_handle,
-      reviewer_role: "reviewer",
-      review_outcome: sliceReviewAcceptance.review_outcome,
-      structured_result_digest: sliceReviewAcceptance.structured_result_digest,
-      current_slice_sha: currentSliceSha
+  if (boundaryAuthorization.policy_posture === SLICE_INTEGRATION_POLICY_POSTURES.CCE_POLICY) {
+    if (boundaryAuthorization.authority !== "cce" ||
+        boundaryAuthorization.policy_gate_configured !== true ||
+        boundaryAuthorization.decision !== "allow" ||
+        boundaryAuthorization.ratified !== true ||
+        boundaryAuthorization.attestation_valid !== true ||
+        boundaryAuthorization.audit_grade !== true) {
+      const code = boundaryAuthorization.decision === "deny"
+        ? SLICE_INTEGRATION_DIAGNOSTIC_CODES.CCE_POLICY_DENIED
+        : SLICE_INTEGRATION_DIAGNOSTIC_CODES.CCE_POLICY_UNRATIFIED;
+      fail(code, "configured CCE policy did not provide a ratified allow decision", { subject });
     }
-  });
-  if (!resolved || resolved.ok !== true) {
-    const code = typeof resolved?.decision_code === "string" && resolved.decision_code.length > 0
-      ? resolved.decision_code
-      : REVIEW_ACCEPTANCE_CODES.missing;
-    fail(code, "slice-review acceptance proof did not authorize this integration", {
-      unit_address: unitAddress,
-      decision_code: code,
-      reasons: Array.isArray(resolved?.reasons) ? resolved.reasons : []
-    });
+  } else if (boundaryAuthorization.policy_posture ===
+      SLICE_INTEGRATION_POLICY_POSTURES.FREE_SUBSTRATE) {
+    if (boundaryAuthorization.authority !== "none" ||
+        boundaryAuthorization.policy_gate_configured !== false ||
+        boundaryAuthorization.decision !== "not_gated" ||
+        boundaryAuthorization.ratified !== false ||
+        boundaryAuthorization.attestation_valid !== false ||
+        boundaryAuthorization.audit_grade !== false) {
+      fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BOUNDARY_AUTHORIZATION_MALFORMED,
+        "free-substrate posture must report that no CCE gate or audit verdict exists", { subject });
+    }
+  } else {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BOUNDARY_AUTHORIZATION_MALFORMED,
+      "integration boundary authorization has an unknown policy posture", { subject });
   }
+  assertBoundaryObjectStoreProbes(runGit, mainRepo, target);
+  return Object.freeze({ ...boundaryAuthorization, target: Object.freeze({ ...target }) });
+}
+
+function resolveExactSliceDeliveryIdentity(runGit, repo, commit, expectedSubject, baseSha) {
+  let tree;
+  let parents;
+  let message;
+  try {
+    tree = resolveTree(runGit, repo, commit);
+    const parentLine = git(
+      runGit,
+      repo,
+      ["rev-list", "-n", "1", "--parents", commit],
+      "could not resolve exact-slice delivery parents"
+    ).stdout.trim().split(/\s+/u).filter(Boolean);
+    parents = parentLine.slice(1);
+    message = git(
+      runGit,
+      repo,
+      ["show", "-s", "--format=%B", commit],
+      "could not resolve exact-slice delivery markers"
+    ).stdout.trimEnd();
+  } catch (error) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_READ_INDETERMINATE,
+      "exact-slice delivery identity could not be resolved",
+      { commit },
+      error
+    );
+  }
+  const requiredMessage =
+    `agent-launch worker delivery: ${expectedSubject} (base ${baseSha.slice(0, 12)})` +
+    `\n\n${buildWkSliceMarkerTrailer(expectedSubject)}`;
   return Object.freeze({
-    schema_version: "slice-review-acceptance-gate.v1",
-    unit_address: unitAddress,
-    reviewed_sha: sliceReviewAcceptance.reviewed_sha,
-    review_run_id: sliceReviewAcceptance.review_run_id,
-    evidence_digest: resolved.proof?.evidence_digest ?? null,
-    decision_code: resolved.decision_code
+    commit,
+    tree,
+    parents: Object.freeze(parents),
+    required_markers_present: message === requiredMessage
+  });
+}
+
+function exactSliceDeliveryEquivalent(identity, { baseSha, tree }) {
+  return identity.parents.length === 1 && identity.parents[0] === baseSha &&
+    identity.tree === tree && identity.required_markers_present === true;
+}
+
+function exactSliceCommitResult({ ref, baseSha, tree, commit, priorTip, idempotent, empty }) {
+  return Object.freeze({
+    ref,
+    base_sha: baseSha,
+    tree,
+    commit,
+    prior_tip: priorTip,
+    idempotent,
+    ref_advanced: !idempotent,
+    empty_delivery: empty === true
   });
 }
 
 export function commitSliceRef({ repo, sliceRef, baseSha, commit, tree, deps = {} } = {}) {
   const runGit = deps.runGit ?? defaultRunGit;
-  const { ref } = normalizeRef(sliceRef, SLICE_REF_RE, "sliceRef");
+  const { ref, match } = normalizeRef(sliceRef, SLICE_REF_RE, "sliceRef");
   assertOid(baseSha, "baseSha");
   assertOid(commit, "commit");
   assertOid(tree, "tree");
-  const current = revParse(runGit, repo, ref);
-  if (current === commit) {
-    return Object.freeze({ ref, base_sha: baseSha, commit, tree, idempotent: true });
+  const subject = `${match[2]}#${match[3]}`;
+  const candidate = resolveExactSliceDeliveryIdentity(runGit, repo, commit, subject, baseSha);
+  if (!exactSliceDeliveryEquivalent(candidate, { baseSha, tree })) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_CONFLICT,
+      "materialized commit does not match the authenticated exact-slice delivery identity",
+      {
+        ref,
+        base_sha: baseSha,
+        commit,
+        expected_tree: tree,
+        actual_tree: candidate.tree,
+        parent_matches: candidate.parents.length === 1 && candidate.parents[0] === baseSha,
+        required_markers_present: candidate.required_markers_present
+      }
+    );
   }
-  if (current !== baseSha) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_CONFLICT, "slice ref no longer equals the launcher-bound base", {
-      ref,
-      expected: baseSha,
-      actual: current
-    });
-  }
-  git(runGit, repo, ["update-ref", ref, commit, baseSha], "slice ref compare-and-swap failed", SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_CONFLICT);
-  return Object.freeze({ ref, base_sha: baseSha, commit, tree, idempotent: false });
-}
 
-function restorePreRebaseState(runGit, worktreePath, sliceRef, preRebaseSha) {
-  const failures = [];
-  const abort = runGit({ repo: worktreePath, args: ["rebase", "--abort"] });
-  if (!abort || abort.ok !== true) failures.push({ step: "rebase --abort", detail: abort?.stderr ?? abort?.error ?? abort?.status ?? null });
-  const reset = runGit({ repo: worktreePath, args: ["reset", "--hard", preRebaseSha] });
-  if (!reset || reset.ok !== true) failures.push({ step: "reset --hard pre-rebase", detail: reset?.stderr ?? reset?.error ?? reset?.status ?? null });
+  let current;
   try {
-    const head = revParse(runGit, worktreePath, "HEAD");
-    const tip = revParse(runGit, worktreePath, sliceRef);
-    if (head !== preRebaseSha || tip !== preRebaseSha) failures.push({ step: "verify restoration", head, tip, expected: preRebaseSha });
+    current = revParse(runGit, repo, ref);
   } catch (error) {
-    failures.push({ step: "verify restoration", detail: error.message });
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_READ_INDETERMINATE,
+      "exact slice ref could not be read before compare-and-swap",
+      { ref, base_sha: baseSha },
+      error
+    );
   }
-  if (failures.length > 0) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_RESTORE_FAILED, "failed to restore the exact pre-rebase slice state", {
-      slice_ref: sliceRef,
-      pre_rebase_sha: preRebaseSha,
-      failures
+
+  if (current !== baseSha) {
+    const winner = resolveExactSliceDeliveryIdentity(runGit, repo, current, subject, baseSha);
+    if (exactSliceDeliveryEquivalent(winner, { baseSha, tree })) {
+      return exactSliceCommitResult({
+        ref, baseSha, tree, commit: current, priorTip: baseSha, idempotent: true, empty: false
+      });
+    }
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_CONFLICT,
+      "slice ref carries a different authenticated delivery; it is never overwritten",
+      {
+        ref,
+        base_sha: baseSha,
+        tree,
+        observed_tip: current,
+        observed_tree: winner.tree,
+        observed_parent_matches: winner.parents.length === 1 && winner.parents[0] === baseSha,
+        observed_markers_match: winner.required_markers_present
+      }
+    );
+  }
+
+  let baseTree;
+  try {
+    baseTree = resolveTree(runGit, repo, baseSha);
+  } catch (error) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_READ_INDETERMINATE,
+      "launcher-bound base tree could not be resolved",
+      { ref, base_sha: baseSha },
+      error
+    );
+  }
+  if (baseTree === tree) {
+    return exactSliceCommitResult({
+      ref, baseSha, tree, commit: current, priorTip: current, idempotent: true, empty: true
     });
   }
+
+  const cas = runGit({ repo, args: ["update-ref", ref, commit, baseSha] });
+  if (cas && cas.ok === true) {
+    return exactSliceCommitResult({
+      ref, baseSha, tree, commit, priorTip: baseSha, idempotent: false, empty: false
+    });
+  }
+
+  let winnerSha;
+  try {
+    winnerSha = revParse(runGit, repo, ref);
+  } catch (error) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_READ_INDETERMINATE,
+      "slice ref compare-and-swap lost and the winner could not be read",
+      { ref, base_sha: baseSha, attempted_commit: commit },
+      error
+    );
+  }
+  const winner = resolveExactSliceDeliveryIdentity(runGit, repo, winnerSha, subject, baseSha);
+  if (exactSliceDeliveryEquivalent(winner, { baseSha, tree })) {
+    return exactSliceCommitResult({
+      ref, baseSha, tree, commit: winnerSha, priorTip: baseSha, idempotent: true, empty: false
+    });
+  }
+  fail(
+    SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_CONFLICT,
+    "slice ref compare-and-swap lost to a different delivery; the winner is never overwritten",
+    {
+      ref,
+      base_sha: baseSha,
+      attempted_commit: commit,
+      observed_tip: winnerSha,
+      observed_tree: winner.tree,
+      observed_parent_matches: winner.parents.length === 1 && winner.parents[0] === baseSha,
+      observed_markers_match: winner.required_markers_present
+    }
+  );
 }
 
-function restoreCompletedRebase(runGit, worktreePath, sliceRef, preRebaseSha) {
-  const reset = runGit({ repo: worktreePath, args: ["reset", "--hard", preRebaseSha] });
-  if (!reset || reset.ok !== true) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_RESTORE_FAILED, "failed to restore the retained slice after downstream integration failure", {
-      slice_ref: sliceRef,
-      pre_rebase_sha: preRebaseSha,
-      detail: reset?.stderr ?? reset?.error ?? reset?.status ?? null
+export function compensateCommittedSliceRef({
+  repo,
+  sliceRef,
+  publishedCommit,
+  priorTip,
+  deps = {}
+} = {}) {
+  const runGit = deps.runGit ?? defaultRunGit;
+  const { ref } = normalizeRef(sliceRef, SLICE_REF_RE, "sliceRef");
+  assertOid(publishedCommit, "publishedCommit");
+  assertOid(priorTip, "priorTip");
+
+  const readCurrent = () => {
+    try {
+      return revParse(runGit, repo, ref);
+    } catch (error) {
+      fail(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_COMPENSATION_FAILED,
+        "exact slice ref could not be read during compensation",
+        { ref, published_commit: publishedCommit, prior_tip: priorTip, observed_tip: null },
+        error
+      );
+    }
+  };
+  const before = readCurrent();
+  if (before !== publishedCommit) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_COMPENSATION_CAS_LOST,
+      "compensation refused because the exact slice ref moved concurrently",
+      { ref, published_commit: publishedCommit, prior_tip: priorTip, observed_tip: before }
+    );
+  }
+  const cas = runGit({ repo, args: ["update-ref", ref, priorTip, publishedCommit] });
+  if (!cas || cas.ok !== true) {
+    let observed = null;
+    try {
+      observed = revParse(runGit, repo, ref);
+    } catch {
+
+    }
+    const code = observed !== null && observed !== publishedCommit
+      ? SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_COMPENSATION_CAS_LOST
+      : SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_COMPENSATION_FAILED;
+    fail(code, "exact slice ref compensation compare-and-swap failed", {
+      ref,
+      published_commit: publishedCommit,
+      prior_tip: priorTip,
+      observed_tip: observed,
+      status: cas?.status ?? null
     });
   }
-  const head = revParse(runGit, worktreePath, "HEAD");
-  const tip = revParse(runGit, worktreePath, sliceRef);
-  if (head !== preRebaseSha || tip !== preRebaseSha) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_RESTORE_FAILED, "retained slice restoration did not recover the exact pre-rebase state", {
-      slice_ref: sliceRef,
-      pre_rebase_sha: preRebaseSha,
-      head,
-      tip
-    });
+  const after = readCurrent();
+  if (after !== priorTip) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.SLICE_COMMIT_COMPENSATION_CAS_LOST,
+      "exact slice ref moved after compensation",
+      { ref, published_commit: publishedCommit, prior_tip: priorTip, observed_tip: after }
+    );
   }
+  return Object.freeze({
+    compensated: true,
+    ref,
+    published_commit: publishedCommit,
+    restored_tip: priorTip
+  });
 }
 
-function advanceSliceRefCas({ runGit, mainRepo, worktreePath, sliceRef, wkRef, wkId, sliceId, baseSha, commit }) {
+function replayCommitRangeOnto({ runGit, mainRepo, baseSha, commit, onto }) {
+  const ancestry = runGit({ repo: mainRepo, args: ["merge-base", "--is-ancestor", baseSha, commit] });
+  if (!ancestry || ancestry.ok !== true) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+      "the exact slice target is not descended from its authenticated base", {
+        base_sha: baseSha,
+        commit
+      });
+  }
+  const range = git(
+    runGit,
+    mainRepo,
+    ["rev-list", "--reverse", "--topo-order", `${baseSha}..${commit}`],
+    "could not enumerate the exact authenticated delivery range"
+  ).stdout.split(/\r?\n/u).map((value) => value.trim()).filter(Boolean);
+  let originalParent = baseSha;
+  let replayedParent = onto;
+  for (const originalCommit of range) {
+    const parentLine = git(
+      runGit,
+      mainRepo,
+      ["rev-list", "-n", "1", "--parents", originalCommit],
+      "could not resolve an exact-slice delivery parent"
+    ).stdout.trim().split(/\s+/u);
+    if (parentLine.length !== 2 || parentLine[1] !== originalParent) {
+      fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+        "the exact slice delivery range must be one linear commit chain", {
+          commit: originalCommit,
+          expected_parent: originalParent,
+          parents: parentLine.slice(1)
+        });
+    }
+    const merge = runGit({
+      repo: mainRepo,
+      args: [
+        "merge-tree", "--write-tree", "--no-messages",
+        "--merge-base", originalParent,
+        replayedParent,
+        originalCommit
+      ]
+    });
+    if (!merge || merge.ok !== true) {
+      fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_CONFLICT,
+        "the immutable exact-slice delivery conflicts with the current WK tip", {
+          base_sha: originalParent,
+          slice_sha: originalCommit,
+          wk_sha: replayedParent,
+          stdout: String(merge?.stdout ?? "").slice(0, 8192),
+          stderr: String(merge?.stderr ?? merge?.error ?? "").slice(0, 8192)
+        });
+    }
+    const tree = assertOid(String(merge.stdout ?? "").split(/\r?\n/u)[0].trim(), "replayed tree");
+    const message = git(
+      runGit,
+      mainRepo,
+      ["show", "-s", "--format=%B", originalCommit],
+      "could not read exact-slice delivery markers"
+    ).stdout.trimEnd();
+    replayedParent = git(
+      runGit,
+      mainRepo,
+      [
+        "-c", "user.name=Agent Chassis",
+        "-c", "user.email=agent-chassis@localhost",
+        "commit-tree", tree, "-p", replayedParent, "-m", message
+      ],
+      "could not materialize the replayed exact-slice commit"
+    ).stdout.trim();
+    assertOid(replayedParent, "replayed commit");
+    originalParent = originalCommit;
+  }
+  return replayedParent;
+}
+
+function advanceSliceRefCas({ runGit, mainRepo, wkRef, wkId, sliceId, baseSha, commit }) {
   let lastExpected = null;
   for (let attempt = 1; attempt <= MAX_WK_REF_CAS_ATTEMPTS; attempt += 1) {
     const wkOld = revParse(runGit, mainRepo, wkRef);
+    if (sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wkTip: wkOld })) {
+      return {
+        integratedCommit: wkOld,
+        deliveryCommit: commit,
+        previousWkSha: wkOld,
+        rebased: false,
+        already_present: true,
+        empty_delivery: true
+      };
+    }
     const markerCommit = resolveSliceMarkerCommit(runGit, mainRepo, wkOld, wkId, sliceId);
     if (markerCommit !== null) {
 
-      return { integratedCommit: markerCommit, previousWkSha: wkOld, rebased: false, already_present: true };
+      return {
+        integratedCommit: markerCommit,
+        deliveryCommit: commit,
+        previousWkSha: wkOld,
+        rebased: false,
+        already_present: true,
+        empty_delivery: false
+      };
     }
     let integratedCommit;
     let rebased;
@@ -442,33 +672,32 @@ function advanceSliceRefCas({ runGit, mainRepo, worktreePath, sliceRef, wkRef, w
       integratedCommit = commit;
       rebased = false;
     } else {
-
-      const result = runGit({ repo: worktreePath, args: ["rebase", "--onto", wkOld, baseSha] });
-      if (!result || result.ok !== true) {
-        restorePreRebaseState(runGit, worktreePath, sliceRef, commit);
-        fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_CONFLICT, "trusted slice rebase conflicted; pre-rebase state restored and both refs preserved", {
-          slice_ref: sliceRef,
-          slice_sha: commit,
-          wk_ref: wkRef,
-          wk_sha: wkOld,
-          stderr: result?.stderr ?? result?.error ?? null
-        });
-      }
-      integratedCommit = revParse(runGit, worktreePath, "HEAD");
+      integratedCommit = replayCommitRangeOnto({
+        runGit,
+        mainRepo,
+        baseSha,
+        commit,
+        onto: wkOld
+      });
       rebased = true;
     }
 
     const ancestor = runGit({ repo: mainRepo, args: ["merge-base", "--is-ancestor", wkOld, integratedCommit] });
     if (!ancestor || ancestor.ok !== true) {
-      if (rebased) restoreCompletedRebase(runGit, worktreePath, sliceRef, commit);
       fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT, "integrated slice is not a fast-forward of the WK tip", { wk_ref: wkRef, prior_wk_sha: wkOld, integrated_sha: integratedCommit });
     }
     const cas = runGit({ repo: mainRepo, args: ["update-ref", wkRef, integratedCommit, wkOld] });
     if (cas && cas.ok === true) {
-      return { integratedCommit, previousWkSha: wkOld, rebased, already_present: false };
+      return {
+        integratedCommit,
+        deliveryCommit: commit,
+        previousWkSha: wkOld,
+        rebased,
+        already_present: false,
+        empty_delivery: false
+      };
     }
 
-    if (rebased) restoreCompletedRebase(runGit, worktreePath, sliceRef, commit);
     lastExpected = wkOld;
   }
   fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT, "bounded WK ref compare-and-swap retries exhausted (spurious lost race under replay herd; retryable)", {
@@ -541,7 +770,7 @@ async function driveRecordCasWrite({
       });
     }
     if (transition && transition.valid === true && (transition.written === true || transition.no_op === true)) {
-      return { reviewTarget, transition, finalSlice };
+      return { reviewTarget, transition, finalSlice, wkTip };
     }
     if (isStaleSourceDigestResult(transition)) {
       lastCurrent = transition?.current_source_digest ?? null;
@@ -577,13 +806,13 @@ export async function integrateCommittedSlice({
   transitionToReview,
   markSliceComplete,
 
-  sliceReviewAcceptance = null,
-
-  reviewEnforcementMode = SLICE_REVIEW_ENFORCEMENT_MODES.ENFORCED_CCE,
+  boundaryAuthorization = null,
   deps = {}
 } = {}) {
   const runGit = deps.runGit ?? defaultRunGit;
-  if (workerTerminated !== true) {
+  const coordinatorContinuation = boundaryAuthorization?.operation ===
+    "integrate_committed_slice";
+  if (workerTerminated !== true && !coordinatorContinuation) {
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.WORKER_NOT_TERMINATED, "trusted integration requires confirmed worker termination");
   }
   const slice = normalizeRef(sliceRef, SLICE_REF_RE, "sliceRef");
@@ -600,38 +829,37 @@ export async function integrateCommittedSlice({
   if (typeof transitionToReview !== "function") {
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.REVIEW_FREEZE_FAILED, "canonical review transition callback is required");
   }
-  assertExactWorktreeBinding(runGit, worktreePath, slice.ref, commit);
-  const record = (deps.loadCanonicalRecord ?? parseCanonicalRecord)(mainRepo, slice.match[2]);
-  assertReviewAndDependencies(record, slice.match[3]);
-  reconcileAndAssertCleanExactWorktree(runGit, worktreePath, commit);
+  const initialWkTip = revParse(runGit, mainRepo, wk.ref);
+  const emptyDelivery = sliceHasNoRemainingDelta({
+    runGit,
+    mainRepo,
+    baseSha,
+    commit,
+    wkTip: initialWkTip
+  });
 
+  if (!emptyDelivery) {
+    if (!coordinatorContinuation) {
+      assertExactWorktreeBinding(runGit, worktreePath, slice.ref, commit);
+    }
+  }
   const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
 
-  if (!Object.values(SLICE_REVIEW_ENFORCEMENT_MODES).includes(reviewEnforcementMode)) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.INVALID_ARG,
-      "launcher-owned slice review enforcement mode is invalid");
-  }
-
-  const reviewAcceptance = reviewEnforcementMode === SLICE_REVIEW_ENFORCEMENT_MODES.ENFORCED_CCE
-    ? await assertSliceReviewAcceptance({
-        runGit,
-        mainRepo,
-        record,
-        sliceRef: slice.ref,
-        wkId: slice.match[2],
-        sliceId: slice.match[3],
-        initiative: slice.match[1],
-        commit,
-        sliceReviewAcceptance,
-        deps
-      })
-    : null;
+  const appliedBoundaryAuthorization = assertSliceIntegrationBoundaryAuthorization({
+    runGit,
+    mainRepo,
+    sliceRef: slice.ref,
+    wkId: slice.match[2],
+    sliceId: slice.match[3],
+    initiative: slice.match[1],
+    baseSha,
+    commit,
+    boundaryAuthorization
+  });
 
   const advance = advanceSliceRefCas({
     runGit,
     mainRepo,
-    worktreePath,
-    sliceRef: slice.ref,
     wkRef: wk.ref,
     wkId: slice.match[2],
     sliceId: slice.match[3],
@@ -661,22 +889,14 @@ export async function integrateCommittedSlice({
     previous_wk_sha: wkOld,
     slice_ref: slice.ref,
     slice_sha: integratedCommit,
+    delivery_sha: advance.deliveryCommit,
     wk_ref: wk.ref,
-    wk_sha: integratedCommit,
+    wk_sha: write.wkTip,
+    empty_delivery: advance.empty_delivery,
 
     review_target: write.reviewTarget,
     transition: write.transition,
-
-    slice_review_acceptance: reviewAcceptance,
-
-    slice_review_policy: reviewEnforcementMode === SLICE_REVIEW_ENFORCEMENT_MODES.POLICY_ONLY
-      ? Object.freeze({
-          schema_version: "slice-review-policy-only.v1",
-          enforcement_mode: SLICE_REVIEW_ENFORCEMENT_MODES.POLICY_ONLY,
-          audit_grade: false,
-          review_evidence_required: false
-        })
-      : null
+    boundary_authorization: appliedBoundaryAuthorization
   });
 }
 
@@ -685,6 +905,7 @@ export function reconcileIntegratedSliceRecord({
   unitAddress,
   sliceRef,
   wkRef,
+  baseSha = null,
   deps = {}
 } = {}) {
   const runGit = deps.runGit ?? defaultRunGit;
@@ -699,18 +920,6 @@ export function reconcileIntegratedSliceRecord({
   }
   const wkTip = revParse(runGit, mainRepo, wk.ref);
   const markerSha = resolveSliceMarkerCommit(runGit, mainRepo, wkTip, slice.match[2], slice.match[3]);
-  if (markerSha === null) {
-    return null;
-  }
-  const sliceTip = revParse(runGit, mainRepo, slice.ref);
-  if (sliceTip !== markerSha) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
-      "integrated slice marker does not match the retained slice ref", {
-        slice_ref: slice.ref,
-        slice_tip: sliceTip,
-        marker_sha: markerSha
-      });
-  }
   const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
   const record = loadRecord(mainRepo, slice.match[2]);
   const sliceEntry = Array.isArray(record?.slices)
@@ -719,6 +928,69 @@ export function reconcileIntegratedSliceRecord({
   const sliceComplete = sliceEntry ? (sliceEntry.status === "done" || sliceEntry.status === "cancelled") : false;
   const wkInReview = record?.status === "review";
   const wkInTerminalRecoveryPosture = wkInReview || record?.status === "done";
+  if (markerSha === null) {
+
+    if (baseSha === null) return null;
+    assertOid(baseSha, "baseSha");
+    const sliceTip = revParse(runGit, mainRepo, slice.ref);
+    const baseInWk = runGit({ repo: mainRepo, args: ["merge-base", "--is-ancestor", baseSha, wkTip] });
+    if (sliceTip !== baseSha || !baseInWk || baseInWk.ok !== true ||
+        (!sliceComplete && !wkInTerminalRecoveryPosture)) {
+      return null;
+    }
+    const reviewTarget = wkInReview
+      ? buildCompleteWkReviewTarget({
+          runGit,
+          mainRepo,
+          initiative: slice.match[1],
+          wkId: slice.match[2],
+          wkRef: wk.ref,
+          wkTip
+        })
+      : null;
+    return Object.freeze({
+      schema_version: SLICE_INTEGRATION_SCHEMA_VERSION,
+      integrated: true,
+      recovered: true,
+      rebased: false,
+      previous_wk_sha: null,
+      slice_ref: slice.ref,
+      slice_sha: wkTip,
+      delivery_sha: sliceTip,
+      wk_ref: wk.ref,
+      wk_sha: wkTip,
+      empty_delivery: true,
+      review_target: reviewTarget,
+      transition: Object.freeze({
+        valid: true,
+        written: false,
+        no_op: true,
+        status: wkInReview ? "review" : "done",
+        recovered: true
+      }),
+      integrated_state: wkInTerminalRecoveryPosture ? "final" : "non_final"
+    });
+  }
+  const sliceTip = revParse(runGit, mainRepo, slice.ref);
+  if (sliceTip !== markerSha) {
+
+    const retainedMarker = resolveSliceMarkerCommit(
+      runGit,
+      mainRepo,
+      sliceTip,
+      slice.match[2],
+      slice.match[3]
+    );
+    if (retainedMarker !== sliceTip) {
+      fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+        "integrated slice marker does not match the retained slice delivery", {
+          slice_ref: slice.ref,
+          slice_tip: sliceTip,
+          marker_sha: markerSha,
+          retained_marker_sha: retainedMarker
+        });
+    }
+  }
   if (!sliceComplete && !wkInTerminalRecoveryPosture) {
 
     return null;
@@ -736,8 +1008,10 @@ export function reconcileIntegratedSliceRecord({
     previous_wk_sha: null,
     slice_ref: slice.ref,
     slice_sha: markerSha,
+    delivery_sha: sliceTip,
     wk_ref: wk.ref,
     wk_sha: wkTip,
+    empty_delivery: false,
     review_target: reviewTarget,
     transition: Object.freeze({
       valid: true,

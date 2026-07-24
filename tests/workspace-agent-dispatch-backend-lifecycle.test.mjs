@@ -125,7 +125,7 @@ test("executor refusal is translated to a stable backend refusal envelope", asyn
       refusal: {
         code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
         reason: "role_plan_missing_capability",
-        detail: { capability: "filesystem_mcp" }
+        detail: { capability: "stdio_mcp_conduit" }
       }
     })
   });
@@ -140,7 +140,7 @@ test("executor refusal is translated to a stable backend refusal envelope", asyn
   assert.equal(result.accepted, false);
   assert.equal(result.refusal.code, BACKEND_REFUSAL_CODES.LAUNCH_REFUSED);
   assert.equal(result.refusal.reason, "role_plan_missing_capability");
-  assert.deepEqual(result.refusal.detail, { capability: "filesystem_mcp" });
+  assert.deepEqual(result.refusal.detail, { capability: "stdio_mcp_conduit" });
 
   assert.deepEqual(backend.__snapshotRuns(), []);
 });

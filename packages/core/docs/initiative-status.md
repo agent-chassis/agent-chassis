@@ -82,9 +82,21 @@ unit and reason code, but it is not the full record reader.
 
 Use `workspace_validate_dispatch` when the next possible action is dispatch and
 the coordinator needs the authoritative readiness decision for that selected
-unit. The initiative-status surface can say "validate or dispatch this unit
-next"; the dispatch-readiness tool decides whether the unit is structurally
-dispatchable.
+unit. When the initiative-status layer's non-authoritative derived-evidence scan
+hints that admission evidence may be missing, stale, or incomplete, it recommends
+this read-only operation for the exact unit. It does not authenticate evidence
+carriers or sidecars, import or duplicate the admission-recovery classifier,
+label the evidence recoverable, or claim that the unit is dispatchable. It also
+does not synthesize malformed, ambiguous, provider-unavailable, integrity, or
+other recovery verdicts from the hint.
+
+The structured dispatch-readiness envelope remains the authority after
+validation: its result determines whether the coordinator may call
+`workspace_agent_dispatch` with `role=worker` or must inspect a typed blocker.
+The deprecated `workspace_work_record_refresh_admission_metrics` and
+`workspace_work_record_refresh_target_resolution_evidence` operations are not
+initiative-status readiness recommendations. `workspace_validate_dispatch`
+remains read-only and does not refresh derived evidence.
 
 Use `workspace_agent_dispatch` only after the selected unit is ready for the
 intended role. Dispatch remains MCP-only agent authority. If dispatch transport

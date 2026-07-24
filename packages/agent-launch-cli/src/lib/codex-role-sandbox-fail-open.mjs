@@ -164,13 +164,18 @@ export function prepareCodexRoleSandboxLaunch(plan, {
 } = {}) {
   let bwrapPlan;
   try {
-    bwrapPlan = buildBwrapPlan(plan);
+    bwrapPlan = buildBwrapPlan(plan, {
+      stdioMcpConduit: plan.stdioMcpConduit ?? null
+    });
     assertBackendAvailable({ env: plan.env, bwrapPath: bwrapPlan.bwrapPath });
   } catch (err) {
     if (!(err instanceof BubblewrapIsolationError)) {
       throw err;
     }
     const decision = resolveSandboxFailOpenPlan(plan, err);
+    if (plan.stdioMcpConduit) {
+      return { outcome: "refused", decision, error: err };
+    }
     if (decision.disposition === WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN) {
       return { outcome: "plain", decision, error: err };
     }

@@ -27,16 +27,15 @@ agent-launch redteam  --app <app> <unit>   # dispatch a findings-only redteam
 ```
 
 `<app>` is `codex` or `claude` for supported launches, and `<unit>` is a
-`WK-####[#slice]` address (or `IN-####` for an initiative-scoped redteam). AGY is
-a roadmap/WIP family: keep AGY usage to planning or `--dry-run-json` validation,
-not hardened support. Gemini has no supported operator path. `--spark` selects
+`WK-####[#slice]` address (or `IN-####` for an initiative-scoped redteam). Agy
+and Gemini have no supported confined operator path and fail closed, including
+dry-run planning. `--spark` selects
 the Codex Spark profile; `--dry-run-json` emits the structured plan without
 launching.
 
 ```bash
 agent-launch worker   --app codex  <WK-ID#slice>
 agent-launch worker   --app claude <WK-ID#slice>
-agent-launch worker   --app agy    <WK-ID#slice> --dry-run-json
 agent-launch review   --app codex  <WK-ID>
 agent-launch redteam  --app codex  initiative
 agent-launch worker   --app codex  --spark WK-0001
@@ -60,23 +59,21 @@ replace each with the supported `agent-launch` command below.
 | `claude-worker` | `agent-launch worker --app claude <unit>` |
 | `claude-review` | `agent-launch review --app claude <unit>` |
 | `claude-redteam` | `agent-launch redteam --app claude <unit-or-IN>` |
-| `agy-*` | roadmap/WIP — planning / `--dry-run-json` only |
+| `agy-*` | unsupported — no operator path |
 | `gemini-*` | unsupported — no operator path |
 
 ## Package bin entries (operator install state)
 
-The only commands declared in `packages/agent-launch-cli/package.json` `bin`
-that resolve on the operator `PATH` after install are the launcher
-infrastructure entrypoints below. No per-family worker/reviewer/redteam role
-wrapper and no family-named orchestrator wrapper is declared in `bin`.
+The only command declared in `packages/agent-launch-cli/package.json` `bin`
+that resolves on the operator `PATH` after install is the launcher entrypoint
+below. No backend endpoint, per-family worker/reviewer/redteam role wrapper, or
+family-named orchestrator wrapper is declared in `bin`.
 
 Installed operator commands:
 
 - `agent-launch` — launcher operational entrypoint (setup, cleanup, dry-run
   planning, the canonical `worker`/`review`/`redteam --app <family>` role
   commands, and the model-driven `orchestrator`/`resume` operator commands).
-- `agent-launch-filesystem-mcp-backend` — supporting filesystem-MCP backend
-  endpoint; launcher infrastructure, not a model role.
 
 No per-family worker/reviewer/redteam role wrapper, family-named orchestrator
 wrapper, or other historical script is installed outside that `bin` map.
@@ -109,12 +106,11 @@ attempts from any role kind other than `human_operator` with the refusal code
 
 ## Non-role operator surfaces
 
-`agent-launch` and `agent-launch-filesystem-mcp-backend` are the installed
-launcher CLI and the supporting filesystem-MCP backend endpoint — launcher
-infrastructure, not a model role. `codex-role` and `agent-role` remain internal
-compatibility/helper surfaces referenced by dry-run and legacy planning code;
-they are not the operator dispatch contract. For direct role smokes, operators
-use `agent-launch ... --app <family>`; agents use structured MCP dispatch.
+`agent-launch` is the sole installed launcher CLI. Its canonical role commands
+are `worker`, `review`, and `redteam` with a launcher-resolved `--app`. There is
+no separately installed backend endpoint or compatibility role command. For
+direct role smokes, operators use `agent-launch ... --app <family>`; agents use
+structured MCP dispatch.
 
 ## Agent dispatch authority
 

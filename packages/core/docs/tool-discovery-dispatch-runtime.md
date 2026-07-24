@@ -1,5 +1,4 @@
 
-
 # Tool Discovery Dispatch Runtime Contract
 
 Backlink: [Tool Discovery v1](tool-discovery.md).
@@ -56,7 +55,7 @@ server should accept dispatch and report the lifecycle vocabulary
 `launching`, `running`, `succeeded`, `failed`, or `cancelled` (the
 `pending_launch` state no longer exists). If a future deployment needs
 authenticated cross-session dispatch, it must use a different transport or
-launcher-owned broker, not a wrapper_command row, inline env policy, bwrap
+launcher-owned in-process runtime, not a wrapper_command row, inline env policy, bwrap
 mount change, graph-impact side channel, registration frame, per-connection
 identity registry, or stdio prelude.
 
@@ -78,6 +77,42 @@ The enforceable current boundary is:
   dispatch-readiness refuses reviewer units whose canonical JSON write scope is
   non-empty with `role_policy_violation` and diagnostic reason
   `reviewer_write_scope_nonempty`
+- the sole non-empty canonical-scope exception is a launcher-owned frozen
+  exact-slice review; backend admission re-verifies its context and Git target,
+  while the reviewer still launches read-only, and no request field selects it
+- `review_purpose` defaults to `standalone`; only structural
+  `terminal_whole_wk` can participate in terminal lifecycle review, and it
+  carries no authority by itself
+- reviewer and redteam output is append-only advisory evidence. Clean or
+  findings-bearing results never admit, defer, or veto integration, and reviewer
+  completion never calls integration. The orchestrator may disposition comments
+  and request the separate `workspace_integrate_committed_slice` operation; that
+  request and those dispositions are not policy authorization
+- CCE alone owns a configured organization-policy decision for integration. Paid
+  tier presence configures no gate and implies no verdict. A configured gate fails
+  closed on a missing, unavailable, malformed, unratified, denied, or target-mismatched
+  decision; no configured gate follows decision free-substrate behavior and reports
+  non-audit posture
+- exact-review dispatch is plural: active and historical reviews never block another
+  reviewer or policy-allowed redteam for the same target; every run has a distinct
+  identity and independently retained exact-target receipt
+- trusted advisory projection loads the complete applicable receipt set rather than
+  a latest receipt. Clean, findings, active, missing, and malformed review state
+  never permits, defers, or vetoes integration. Disagreement stays visible, and old
+  proof fields are inert compatibility data; readers are never displaced, and
+  final/non-final already-integrated recovery is independent of pre-integration
+  admission. Integration is available only through the separate structured
+  coordinator continuation, with no raw-Git fallback, manual acceptance injection,
+  request-carried authority, or caller authority carrier
+- worker and reviewer concurrency is expected; attempt isolation and exact ref/status
+  CAS provide collision safety, not singleton lifecycle consumption
+- exact-slice Claude review binds credentials read-only and produces no writable
+  host file/root in launcher-owned bwrap plans; sandbox construction is required
+  and fails closed before spawn with no unenforced exact-review fallback; normal
+  implementation workers retain their credential-refresh and fallback posture
+- exact `changes_requested` findings may reach an explicitly reissued same-slice
+  Codex or Claude worker prompt as launcher-owned corrective context; they grant
+  no admission, acceptance, relaunch, integration, or scope expansion
 - structured review-evidence routes are part of this boundary: no-findings
   review evidence is recorded through `workspace_record_review_attestation`,
   and changes-requested or other non-completion reviewer/redteam results are

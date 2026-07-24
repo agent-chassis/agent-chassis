@@ -2,6 +2,52 @@
 
 import { AGENT_ROLE_RESULT_REVIEWED_CONTROLS } from "@agent-chassis/agent-launch-core/src/lib/agent-role-result.mjs";
 
+import { STDIO_MCP_CLEANUP_BLOCKER_REASON } from "./stdio-mcp-conduit-contract.mjs";
+
+export const REVIEW_VERDICT_ELIGIBILITY = Object.freeze({
+
+  SUCCEEDED: "succeeded",
+
+  CLEANUP_ONLY: "cleanup_only_terminal_failure"
+});
+
+function hasValidatedStructuredVerdict(record) {
+  const evidence = record?.final_result?.structured_role_result;
+  return !!evidence && typeof evidence === "object" && !Array.isArray(evidence) &&
+    evidence.valid === true &&
+    evidence.claims?.reported_role === record.role &&
+    evidence.claims?.reported_subject === record.subject;
+}
+
+export function isCleanupOnlyReviewerVerdict(record) {
+  if (!record || typeof record !== "object") return false;
+
+  if (record.role !== "reviewer") return false;
+  if (record.terminal !== true || record.status !== "failed") return false;
+
+  const failure = record.launcher_conduit_terminal_failure;
+  if (!failure || typeof failure !== "object" || Array.isArray(failure)) return false;
+  if (failure.cleanup_only !== true) return false;
+
+  if (failure.reason !== STDIO_MCP_CLEANUP_BLOCKER_REASON) return false;
+
+  const exit = record.exit;
+  if (!exit || typeof exit !== "object" || Array.isArray(exit)) return false;
+  if (exit.code !== 0) return false;
+  if (exit.signal !== null && exit.signal !== undefined) return false;
+  return hasValidatedStructuredVerdict(record);
+}
+
+export function classifyReviewVerdictEligibility(record) {
+  if (!record || typeof record !== "object") return null;
+  if (record.role !== "reviewer" && record.role !== "redteam") return null;
+  if (record.terminal !== true) return null;
+  if (record.status === "succeeded") return REVIEW_VERDICT_ELIGIBILITY.SUCCEEDED;
+  return isCleanupOnlyReviewerVerdict(record)
+    ? REVIEW_VERDICT_ELIGIBILITY.CLEANUP_ONLY
+    : null;
+}
+
 function deriveTrustedReviewedControls(structuredRoleResult) {
   const controls = structuredRoleResult?.reviewed_controls;
   if (!Array.isArray(controls)) return [];
@@ -31,7 +77,8 @@ function hasBlockingReviewedControlResult(structuredRoleResult) {
 export function deriveBackendReviewResult(record) {
   if (!record || typeof record !== "object") return null;
   if (record.role !== "reviewer" && record.role !== "redteam") return null;
-  if (record.terminal !== true || record.status !== "succeeded") return null;
+
+  if (classifyReviewVerdictEligibility(record) === null) return null;
   const finalResult = record.final_result;
   if (!finalResult || typeof finalResult !== "object") return null;
   const structuredRoleResult = finalResult.structured_role_result;

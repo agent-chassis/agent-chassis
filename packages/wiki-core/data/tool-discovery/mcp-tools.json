@@ -763,7 +763,7 @@
       ],
       "authority": [
         "launcher_backend",
-        "runtime_env"
+        "work_record"
       ],
       "tier_visibility": [
         "free_local"
@@ -776,7 +776,7 @@
         "packages/wiki-mcp/src/lib/workspace-commit-tool.mjs",
         "packages/agent-launch-cli/src/lib/commit-tool-exposure-guard.mjs"
       ],
-      "notes": "Closed-input worker delivery primitive. Accepts no caller-supplied fields; the full commit binding (write_scope, subject, base_sha, output branch) is resolved from the launcher-minted server credential. Access is the central session-role-tool-access policy (worker), not this descriptor row."
+      "notes": "Closed-input worker delivery primitive hosted by the launcher-owned wiki-MCP server. Accepts no caller-supplied fields; the server resolves the frozen per-run binding (write_scope, subject, worktree identity, base_sha, and output branch) from launcher-owned state. No transport credential, path, ref, branch, Git API, shell, or writer selector is exposed. Access is the central session-role-tool-access policy (worker), not this descriptor row."
     },
     {
       "tool_name": "workspace_submit_for_review",

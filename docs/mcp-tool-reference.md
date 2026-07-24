@@ -14,10 +14,10 @@ mental-model entry point.
 
 ## Dispatch Identity And Bootstrap Review
 
-[Detailed dispatch identity, bootstrap review, run-status, host-write sidecar, and caller/session identity contract.](mcp-dispatch-runtime-contract.md#dispatch-identity-and-bootstrap-review)
+[Detailed dispatch identity, bootstrap review, run-status, launcher-owned host wiki-MCP conduit, and caller/session identity contract.](mcp-dispatch-runtime-contract.md)
 ### workspace_agent_dispatch And workspace_agent_run_status
 
-[Detailed dispatch and monitor contract.](mcp-dispatch-runtime-contract.md#workspace_agent_dispatch-and-workspace_agent_run_status)
+[Detailed dispatch and monitor contract.](mcp-dispatch-runtime-contract.md#launch-and-monitoring)
 
 In the free/local tier, `workspace_agent_run_wait` and `workspace_agent_run_status`
 may report terminal success while `structured_role_result.valid:false`, because
@@ -35,18 +35,18 @@ CCE-key posture is positively resolved. The registered tier is resolved from the
 canonical key posture (`decision`/`decision`/`decision`), never from caller input.
 See [docs/tool-discovery.md](tool-discovery.md) "Registered-Tier Exposure And
 Projection".
-### Host Write Authority Localhost Sidecar Endpoint
+### Launcher-Owned Host Wiki-MCP Conduit
 
-[Detailed localhost sidecar endpoint contract.](mcp-dispatch-runtime-contract.md)
+[Detailed host-server and named-FIFO stdio conduit contract.](mcp-integration.md#transport)
 ### Caller/Session Identity
 
-[Detailed caller/session identity contract.](mcp-dispatch-runtime-contract.md#caller-session-identity)
+[Detailed caller/session identity contract.](mcp-dispatch-runtime-contract.md#launch-and-monitoring)
 ## Runtime Blocker Taxonomy And Coordination Preflight
 
-[Detailed runtime blocker taxonomy and preflight contract.](mcp-dispatch-runtime-contract.md#runtime-blocker-taxonomy-and-coordination-preflight)
+[Detailed runtime blocker and fail-closed launch contract.](mcp-dispatch-runtime-contract.md#trusted-operation-ownership)
 ### MCP Tools
 
-[Runtime blocker/preflight MCP tool details.](mcp-dispatch-runtime-contract.md#mcp-tools)
+[Runtime blocker/preflight MCP tool details.](mcp-operation-reference.md)
 ## Available MCP Tools
 
 [Agent-facing MCP tool profile lists.](mcp-tool-registry-reference.md#available-mcp-tools)

@@ -10,28 +10,6 @@ import { fileExists, sha256, writeJsonAtomic } from "./filesystem.mjs";
 const INSTRUCTION_TRANSPORTS = new Set(["argv_path", "argv_content", "stdin"]);
 const RESPONSE_TRANSPORTS = new Set(["file", "stdout_capture"]);
 
-const FILESYSTEM_MCP_BACKEND_MODES = new Set(["advisory", "enforced"]);
-const FILESYSTEM_MCP_ENDPOINT_KINDS = new Set(["spawn", "unix_socket"]);
-const FILESYSTEM_MCP_HANDSHAKE_SOURCE_KINDS = new Set([
-  "spawn_stdout",
-  "unix_socket_reply"
-]);
-const FILESYSTEM_MCP_AGENT_FAMILIES = new Set(["claude", "codex", "gemini"]);
-const FILESYSTEM_MCP_PROFILE_ROLES = new Set([
-  "worker",
-  "code_review",
-  "redteam"
-]);
-const ENDPOINT_TO_HANDSHAKE_SOURCE = new Map([
-  ["spawn", "spawn_stdout"],
-  ["unix_socket", "unix_socket_reply"]
-]);
-
-const DEFAULT_FILESYSTEM_MCP_BACKEND_KEY = "default";
-
-export const DEFAULT_FILESYSTEM_MCP_BACKEND_ENDPOINT_COMMAND =
-  "agent-launch-filesystem-mcp-backend";
-
 export function createDefaultRegistry() {
   return {
     schema_version: 1,
@@ -49,7 +27,7 @@ export function createDefaultRegistry() {
             "--permission-mode",
             "default",
             "--disallowedTools",
-            "Edit Write NotebookEdit Bash"
+            "Edit Write NotebookEdit"
           ],
           response_writable: true
         }
@@ -67,36 +45,6 @@ export function createDefaultRegistry() {
           argv_suffix: ["--sandbox", "read-only"],
           response_writable: true
         }
-      }
-    },
-    filesystem_mcp_backend_default: DEFAULT_FILESYSTEM_MCP_BACKEND_KEY,
-    filesystem_mcp_backends: {
-      [DEFAULT_FILESYSTEM_MCP_BACKEND_KEY]: {
-        backend_id: "agent-launch.filesystem-mcp.default",
-        backend_version: "0.1.0-advisory",
-        mode: "advisory",
-        endpoint: {
-          kind: "spawn",
-          argv: [DEFAULT_FILESYSTEM_MCP_BACKEND_ENDPOINT_COMMAND]
-        },
-        supported_profiles: [
-          {
-            agent_family: "claude",
-            profile: "filesystem-mcp-default",
-            roles: ["worker", "code_review", "redteam"]
-          },
-          {
-            agent_family: "codex",
-            profile: "filesystem-mcp-default",
-            roles: ["worker", "code_review", "redteam"]
-          },
-          {
-            agent_family: "gemini",
-            profile: "filesystem-mcp-default",
-            roles: ["worker", "code_review", "redteam"]
-          }
-        ],
-        handshake_source: { kind: "spawn_stdout" }
       }
     }
   };
@@ -123,7 +71,6 @@ export async function loadRegistry({ registryPath: overridePath } = {}) {
   if (parsed.schema_version !== 1) {
     throw new Error("Unsupported launcher registry schema_version");
   }
-  validateFilesystemMcpBackends(parsed);
   return {
     path: registryPath,
     hash: sha256(raw),
@@ -160,151 +107,4 @@ export function resolveAgentConfig(registry, agentName, mode) {
     }
   }
   return agent;
-}
-
-export function resolveFilesystemMcpBackend(registry, { key } = {}) {
-  const backends = registry.data?.filesystem_mcp_backends;
-  if (!backends || typeof backends !== "object" || Object.keys(backends).length === 0) {
-    throw new Error("Launcher registry has no filesystem_mcp_backends configured");
-  }
-  const resolvedKey = key ?? registry.data?.filesystem_mcp_backend_default;
-  if (typeof resolvedKey !== "string" || resolvedKey.length === 0) {
-    throw new Error("Launcher registry filesystem_mcp_backend_default is missing or invalid");
-  }
-  const entry = backends[resolvedKey];
-  if (!entry) {
-    throw new Error(`Launcher registry filesystem_mcp_backends has no entry for ${resolvedKey}`);
-  }
-  return { key: resolvedKey, entry };
-}
-
-function validateFilesystemMcpBackends(parsed) {
-  const defaultKey = parsed.filesystem_mcp_backend_default;
-  const backends = parsed.filesystem_mcp_backends;
-  const hasDefault = Object.prototype.hasOwnProperty.call(parsed, "filesystem_mcp_backend_default");
-  const hasBackends = Object.prototype.hasOwnProperty.call(parsed, "filesystem_mcp_backends");
-  if (!hasDefault && !hasBackends) {
-    return;
-  }
-  if (!hasBackends || backends === null || typeof backends !== "object" || Array.isArray(backends)) {
-    throw new Error("Launcher registry filesystem_mcp_backends must be an object map");
-  }
-  const keys = Object.keys(backends);
-  if (keys.length === 0) {
-    throw new Error("Launcher registry filesystem_mcp_backends must declare at least one entry");
-  }
-  for (const key of keys) {
-    validateFilesystemMcpBackendEntry(key, backends[key]);
-  }
-  if (typeof defaultKey !== "string" || defaultKey.length === 0) {
-    throw new Error("Launcher registry filesystem_mcp_backend_default must be a non-empty string");
-  }
-  if (!Object.prototype.hasOwnProperty.call(backends, defaultKey)) {
-    throw new Error(`Launcher registry filesystem_mcp_backend_default references unknown backend ${defaultKey}`);
-  }
-}
-
-function validateFilesystemMcpBackendEntry(key, entry) {
-  const where = `filesystem_mcp_backends.${key}`;
-  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-    throw new Error(`${where} must be an object`);
-  }
-  if (typeof entry.backend_id !== "string" || entry.backend_id.length === 0) {
-    throw new Error(`${where}.backend_id must be a non-empty string`);
-  }
-  if (typeof entry.backend_version !== "string" || entry.backend_version.length === 0) {
-    throw new Error(`${where}.backend_version must be a non-empty string`);
-  }
-  if (!FILESYSTEM_MCP_BACKEND_MODES.has(entry.mode)) {
-    throw new Error(`${where}.mode must be one of: ${[...FILESYSTEM_MCP_BACKEND_MODES].join(", ")}`);
-  }
-  validateFilesystemMcpEndpoint(`${where}.endpoint`, entry.endpoint);
-  validateFilesystemMcpSupportedProfiles(`${where}.supported_profiles`, entry.supported_profiles);
-  validateFilesystemMcpHandshakeSource(
-    `${where}.handshake_source`,
-    entry.handshake_source,
-    entry.endpoint?.kind
-  );
-}
-
-function validateFilesystemMcpEndpoint(where, endpoint) {
-  if (!endpoint || typeof endpoint !== "object" || Array.isArray(endpoint)) {
-    throw new Error(`${where} must be an object`);
-  }
-  if (!FILESYSTEM_MCP_ENDPOINT_KINDS.has(endpoint.kind)) {
-    throw new Error(`${where}.kind must be one of: ${[...FILESYSTEM_MCP_ENDPOINT_KINDS].join(", ")}`);
-  }
-  if (endpoint.kind === "spawn") {
-    if (!Array.isArray(endpoint.argv) || endpoint.argv.length === 0) {
-      throw new Error(`${where}.argv must be a non-empty array for spawn endpoints`);
-    }
-    for (const arg of endpoint.argv) {
-      if (typeof arg !== "string" || arg.length === 0) {
-        throw new Error(`${where}.argv entries must be non-empty strings`);
-      }
-    }
-  } else if (endpoint.kind === "unix_socket") {
-    if (typeof endpoint.path !== "string" || endpoint.path.length === 0) {
-      throw new Error(`${where}.path must be a non-empty string for unix_socket endpoints`);
-    }
-  }
-}
-
-function validateFilesystemMcpSupportedProfiles(where, supportedProfiles) {
-  if (!Array.isArray(supportedProfiles) || supportedProfiles.length === 0) {
-    throw new Error(`${where} must be a non-empty array`);
-  }
-  const seen = new Set();
-  for (let index = 0; index < supportedProfiles.length; index += 1) {
-    const row = supportedProfiles[index];
-    const rowWhere = `${where}[${index}]`;
-    if (!row || typeof row !== "object" || Array.isArray(row)) {
-      throw new Error(`${rowWhere} must be an object`);
-    }
-    if (!FILESYSTEM_MCP_AGENT_FAMILIES.has(row.agent_family)) {
-      throw new Error(
-        `${rowWhere}.agent_family must be one of: ${[...FILESYSTEM_MCP_AGENT_FAMILIES].join(", ")}`
-      );
-    }
-    if (typeof row.profile !== "string" || row.profile.length === 0) {
-      throw new Error(`${rowWhere}.profile must be a non-empty string`);
-    }
-    if (!Array.isArray(row.roles) || row.roles.length === 0) {
-      throw new Error(`${rowWhere}.roles must be a non-empty array`);
-    }
-    const roleSet = new Set();
-    for (const role of row.roles) {
-      if (!FILESYSTEM_MCP_PROFILE_ROLES.has(role)) {
-        throw new Error(
-          `${rowWhere}.roles entries must be one of: ${[...FILESYSTEM_MCP_PROFILE_ROLES].join(", ")}`
-        );
-      }
-      if (roleSet.has(role)) {
-        throw new Error(`${rowWhere}.roles must be unique`);
-      }
-      roleSet.add(role);
-    }
-    const dedupKey = `${row.agent_family}\0${row.profile}`;
-    if (seen.has(dedupKey)) {
-      throw new Error(`${where} has duplicate (agent_family, profile) tuple for ${row.agent_family}/${row.profile}`);
-    }
-    seen.add(dedupKey);
-  }
-}
-
-function validateFilesystemMcpHandshakeSource(where, handshakeSource, endpointKind) {
-  if (!handshakeSource || typeof handshakeSource !== "object" || Array.isArray(handshakeSource)) {
-    throw new Error(`${where} must be an object`);
-  }
-  if (!FILESYSTEM_MCP_HANDSHAKE_SOURCE_KINDS.has(handshakeSource.kind)) {
-    throw new Error(
-      `${where}.kind must be one of: ${[...FILESYSTEM_MCP_HANDSHAKE_SOURCE_KINDS].join(", ")}`
-    );
-  }
-  const expected = ENDPOINT_TO_HANDSHAKE_SOURCE.get(endpointKind);
-  if (expected && handshakeSource.kind !== expected) {
-    throw new Error(
-      `${where}.kind ${handshakeSource.kind} is not compatible with endpoint.kind ${endpointKind}`
-    );
-  }
 }

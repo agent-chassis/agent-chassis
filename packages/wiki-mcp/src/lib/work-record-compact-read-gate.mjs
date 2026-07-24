@@ -1370,6 +1370,17 @@ function projectSelectedSummaryResult(fullSummaryResult, requestedIdentity) {
     selected_unit: selectedUnit,
     summary: selectedUnitSummary
   };
+
+  if (selectedUnitSummary === null) {
+    result.diagnostics = [
+      {
+        code: "missing_slice",
+        severity: "error",
+        message: `Selected slice ${requestedIdentity.slice_id} does not exist on the selected record`,
+        path: "unit"
+      }
+    ];
+  }
   return validateCompletedProjectionIdentity(result, requestedIdentity) ? result : null;
 }
 

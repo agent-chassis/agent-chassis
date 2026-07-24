@@ -61,9 +61,6 @@ export {
   LAUNCHER_DEFAULT_TERMINATION_SIGNAL,
   deriveTerminalStatus,
   normalizeExitEnvelope,
-  LAUNCHER_DISPATCH_SIDECAR_KIND,
-  LAUNCHER_DISPATCH_SIDECAR_LOOPBACK_HOST,
-  validateDispatchSidecarDescriptor,
   isOrchestratorPlanRole
 } from "./workspace-agent-launch-adapter-contract.mjs";
 
@@ -792,14 +789,12 @@ export * from './workspace-agent-launch-adapter-contract.mjs';
 export function buildLauncherPolicySeam({
   lifecycle = {},
   refusal = {},
-  terminal = {},
-  sidecar = {},
+  terminal = {}
 } = {}) {
   return {
     lifecycle: { ...lifecycle },
     refusal: { ...refusal },
-    terminal: { ...terminal },
-    sidecar: { ...sidecar },
+    terminal: { ...terminal }
   };
 }
 
@@ -807,15 +802,13 @@ export function buildLauncherRefusalPolicySeam({
   code = null,
   reason = null,
   details = null,
-  terminal = null,
-  sidecar = null,
+  terminal = null
 } = {}) {
   return {
     code,
     reason,
     details,
-    terminal,
-    sidecar,
+    terminal
   };
 }
 
@@ -835,21 +828,6 @@ export function buildLauncherTerminalPolicySeam({
   };
 }
 
-export function buildLauncherSidecarCompatibilityAdapter({
-  applyEndpointToPlan = null,
-  removeEndpointFromPlan = null,
-  applyContext = null,
-  removeContext = null,
-  descriptor = null,
-} = {}) {
-  return {
-    applyEndpointToPlan,
-    removeEndpointFromPlan,
-    applyContext,
-    removeContext,
-    descriptor,
-  };
-}
 const LAUNCH_CORE_SECRET_KEY_PATTERN =
   /(?:^|[_-])(?:token|secret|password|passwd|passphrase|api[_-]?key|auth|authorization|cookie|session|bearer|private[_-]?key|ssh[_-]?key)(?:$|[_-])/i;
 
@@ -1028,41 +1006,7 @@ export function redactLauncherTransportSecrets(payload) {
   return redactLauncherTransportSecretValue(payload);
 }
 
-function normalizeLauncherParityArm(arm) {
-  if (arm === null || arm === undefined) {
-    return null;
-  }
-
-  if (typeof arm === 'string') {
-    return { kind: 'string', value: arm };
-  }
-
-  if (!isPlainObjectLike(arm)) {
-    return { kind: typeof arm, value: arm };
-  }
-
-  return redactLauncherTransportSecretValue(arm);
-}
-
-export function buildLauncherBrokerInProcessParityShape({
-  broker = null,
-  inProcess = null,
-  launchMode = null,
-  role = null,
-  transport = null,
-} = {}) {
-  return {
-    kind: 'launcher_broker_in_process_parity_shape',
-    launchMode,
-    role,
-    transport: normalizeLauncherParityArm(transport),
-    broker: normalizeLauncherParityArm(broker),
-    inProcess: normalizeLauncherParityArm(inProcess),
-  };
-}
-
 export const LAUNCH_CORE_EXECUTOR_POLICY_HELPERS = Object.freeze({
-  buildLauncherBrokerInProcessParityShape,
   buildLauncherRefusalEnvelope,
   evaluateLauncherModelHintDisposition,
   redactLauncherTransportSecrets,

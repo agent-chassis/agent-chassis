@@ -4,8 +4,6 @@ import path from "node:path";
 import { mkdir } from "node:fs/promises";
 
 import { summarizeDispatchReadinessDependencies } from "@agent-chassis/agent-launch-core/src/lib/work-record-gate.mjs";
-import { HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR } from "./host-write-authority-substrate.mjs";
-import { resolveLauncherRegisteredTier } from "./orchestrator-dispatch-sidecar.mjs";
 import { assertFile } from "./codex-role-io.mjs";
 import { orchestratorPrompt } from "./codex-role-prompts.mjs";
 import {
@@ -19,7 +17,6 @@ import {
 } from "./orchestrator-launch-settings.mjs";
 
 import { resolveHeadlessLogTarget } from "./orchestrator-launch-runtime.mjs";
-import { CODEX_WIKI_MCP_SERVER_NAME } from "./codex-role-mcp-env.mjs";
 import { launcherRoleWritableRootPolicy } from "./workspace-agent-family-policy.mjs";
 import { codexModelArgs } from "./codex-role-reasoning-effort.mjs";
 import {
@@ -108,8 +105,6 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
     CODEX_ORCH_THREAD_NAME: threadName,
     CODEX_ORCH_RUNTIME_DIR: runtimeDir
   };
-
-  delete orchEnv[HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR];
   const isolation = buildCodexRoleIsolationInputs({
     role,
     repo,
@@ -126,15 +121,6 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
     });
   }
 
-  const dispatchSidecar = {
-    kind: "host_write_authority_localhost",
-    host: "127.0.0.1",
-    envVar: HOST_WRITE_AUTHORITY_SIDECAR_ENDPOINT_ENV_VAR,
-    registeredTier: resolveLauncherRegisteredTier(env),
-
-    mcpServerName: CODEX_WIKI_MCP_SERVER_NAME
-  };
-
   const headlessLogTarget = isHeadless
     ? resolveHeadlessLogTarget({ runtimeDir, logFileOverride: logFile })
     : null;
@@ -148,7 +134,6 @@ export async function buildOrchestratorPlan({ role, initiative, promptArgs, env,
     args: codexArgs,
     env: orchEnv,
     isolation,
-    dispatchSidecar,
     headless: isHeadless,
     headlessLogTarget
   };
