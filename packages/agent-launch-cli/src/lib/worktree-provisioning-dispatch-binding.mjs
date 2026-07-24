@@ -94,7 +94,13 @@ const COMPLETE_SPARSE_BINDING_FIELDS = Object.freeze([
   ...COMPLETE_EXACT_BINDING_FIELDS, "cone_dirs", "index_sparse"
 ]);
 
-const EXACT_NESTED_WK_BINDING_FIELDS = COMPLETE_EXACT_BINDING_FIELDS;
+const COMPLETE_WK_BINDING_FIELDS = Object.freeze([
+  ...COMPLETE_EXACT_BINDING_FIELDS, "wk_tip_sha"
+]);
+
+const WK_COMMIT_OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+const EXACT_NESTED_WK_BINDING_FIELDS = COMPLETE_WK_BINDING_FIELDS;
 const EXACT_NESTED_SLICE_BINDING_FIELDS = Object.freeze([
   ...COMPLETE_EXACT_BINDING_FIELDS,
   "read_scope", "repo_paths", "selected_unit", "source_digest", "source_version",
@@ -186,7 +192,7 @@ export function assertCompleteManagedBinding({
 
   const sliceMode = sparse ? discriminateSliceCheckoutMode(binding, "slice binding") : null;
   const required = !sparse
-    ? COMPLETE_EXACT_BINDING_FIELDS
+    ? COMPLETE_WK_BINDING_FIELDS
     : sliceMode === "full"
       ? COMPLETE_FULL_SLICE_BINDING_FIELDS
       : COMPLETE_SPARSE_BINDING_FIELDS;
@@ -201,6 +207,14 @@ export function assertCompleteManagedBinding({
         { field, unitAddress }
       );
     }
+  }
+
+  if (!sparse && !WK_COMMIT_OID_RE.test(binding.wk_tip_sha ?? "")) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      "WK binding wk_tip_sha is not a canonical commit id",
+      { wk_tip_sha: binding.wk_tip_sha ?? null }
+    );
   }
   const expectedName = deriveExactUnitName({ unitAddress, worktreeRoot });
   const expectedSliceId = expectedName.kind === "slice" ? expectedName.slice_id : null;
@@ -276,16 +290,35 @@ export function assertCompleteManagedBinding({
   const ref = runGit({ repo, args: ["rev-parse", "--verify", `${binding.output_branch}^{commit}`] });
   const headSha = head?.ok === true ? String(head.stdout ?? "").trim() : "";
   const refSha = ref?.ok === true ? String(ref.stdout ?? "").trim() : "";
-  if (!headSha || headSha !== refSha || headSha !== binding.base_sha) {
+
+  const expectedTip = sparse ? binding.base_sha : binding.wk_tip_sha;
+  if (!headSha || headSha !== refSha || headSha !== expectedTip) {
     fail(
       WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
-      "exact-unit worktree HEAD, bound ref, and commit base do not match",
+      sparse
+        ? "exact-unit worktree HEAD, bound ref, and commit base do not match"
+        : "WK worktree HEAD, bound ref, and moving wk_tip_sha do not match",
       {
         head: headSha || null,
         ref: refSha || null,
-        base_sha: binding.base_sha ?? null
+        base_sha: binding.base_sha ?? null,
+        wk_tip_sha: sparse ? undefined : (binding.wk_tip_sha ?? null)
       }
     );
+  }
+
+  if (!sparse) {
+    const ancestor = runGit({
+      repo,
+      args: ["merge-base", "--is-ancestor", binding.base_sha, binding.wk_tip_sha]
+    });
+    if (!ancestor || ancestor.ok !== true) {
+      fail(
+        WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+        "WK binding fixed base_sha is not a retained ancestor of the moving wk_tip_sha",
+        { base_sha: binding.base_sha ?? null, wk_tip_sha: binding.wk_tip_sha ?? null }
+      );
+    }
   }
 }
 

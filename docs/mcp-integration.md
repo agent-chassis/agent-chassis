@@ -98,3 +98,32 @@ separate post-integration outcome and does not undo or relabel the integration.
 
 When no trusted conduit plan is supplied, the generic bubblewrap planner and
 spawn primitive retain their ordinary behavior.
+
+## Tool input schema publication
+
+Every MCP tool registers through the single `createRegisterTool` boundary in
+`packages/wiki-mcp/src/lib/register-tool.mjs`. The SDK publishes a tool's
+`inputSchema` on `tools/list` only when it recognizes an object schema — through
+a zod v3 `.shape` or a zod v4 `_zod.def.type === "object"`. A zod v3 `ZodEffects`
+— what `.refine()` or `.superRefine()` on a `z.object()` produces — exposes
+neither, so the SDK substitutes an empty `{ "type": "object", "properties": {} }`
+sentinel that carries no `$schema` key. The affected tool then advertises "no
+arguments" even though the SDK's own `validateToolInput` falls back to the full
+schema and still enforces every field and refinement at call time. It is a
+publication-only defect: the advertised contract says "no arguments" while the
+enforced contract is the full strict object plus its cross-field guards.
+
+The boundary repairs this centrally, without editing any tool: when a tool's
+`inputSchema` is a `ZodEffects` that, after unwrapping any chained effects, wraps
+a `ZodObject`, `createRegisterTool` registers that inner `ZodObject` with the SDK
+so its properties, `$schema`, and `additionalProperties: false` (from `.strict()`)
+convert and publish, and re-runs the full effects schema inside the wrapped
+handler before delegating so every refinement still rejects exactly the inputs it
+rejected before (the offending field is still identified; only the rejection layer
+may move from schema to handler). Plain `ZodObject`, raw-shape, and genuine
+no-argument (`z.object({})`) inputSchemas are untouched, and because the fix is at
+the shared boundary a future tool authored with `.refine()` / `.superRefine()` is
+normalized automatically. Tool authors may therefore use refinements freely. The
+`$schema`-absent empty-object sentinel on `tools/list` is the symptom to watch
+for; `tests/mcp-startup-regression.test.mjs` fails on any argument-accepting tool
+that publishes it.

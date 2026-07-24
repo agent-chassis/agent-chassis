@@ -1,7 +1,6 @@
 
 
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
   computeWorkRecordSourceDigest,
@@ -67,6 +66,7 @@ import {
   defaultTerminalCandidateRunGit,
   freezeRecoveredTerminalWkCandidateInputs,
   freezeTerminalWkCandidateInputs,
+  projectTerminalWkCandidateFailure,
   readTerminalCandidateCurrentRef,
   verifyTerminalWkCandidateObjectBinding
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
@@ -399,16 +399,33 @@ function failTerminalCandidateRecovery(reason, cause = null) {
   throw error;
 }
 
-export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = {}) {
+function failTerminalCandidateConstruction(failure) {
+  const error = new Error(failure.message || "terminal_candidate_recovery_construction_failed");
+  error.code = "terminal_candidate_recovery_construction_failed";
+  error.terminal_candidate_failure = failure;
+  throw error;
+}
+
+export function createTerminalCandidateCoordinator({
+  mainRepo,
+  worktreeRoot,
+
+  runGit = defaultTerminalCandidateRunGit
+} = {}) {
   if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
-      typeof worktreeRoot !== "string" || !path.isAbsolute(worktreeRoot)) {
+      typeof worktreeRoot !== "string" || !path.isAbsolute(worktreeRoot) ||
+      typeof runGit !== "function") {
     throw new Error("terminal candidate coordinator requires launcher-owned repository and worktree roots");
   }
   const cycles = new Map();
 
-  const prepareTerminalCandidate = async ({ integration, reviewUnit, wkId, wkRef }) => {
+  const prepareTerminalCandidate = async ({ integration, reviewUnit, wkId, wkRef, baseSha, baseRef = "main" }) => {
     if (integration?.wk_ref !== wkRef || integration?.wk_sha == null || reviewUnit?.record_id !== wkId) {
       throw new Error("terminal candidate preparation does not match the exact integrated WK identity");
+    }
+
+    if (typeof baseSha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(baseSha)) {
+      throw new Error("terminal candidate preparation requires the launcher-bound WK lifecycle base");
     }
     const canonical = exactWkBoundContract({
       recordId: reviewUnit.record_id,
@@ -418,21 +435,22 @@ export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = 
     });
     const frozen = freezeTerminalWkCandidateInputs({
       mainRepo,
-      landingRef: "refs/heads/main",
+      baseSha,
+      baseRef,
       wkRef,
       canonicalWkId: wkId,
       canonicalWkDigest: canonical.digest,
-      runGit: defaultTerminalCandidateRunGit
+      runGit
     });
     if (frozen.wk_tip !== integration.wk_sha) {
       throw new Error("terminal candidate frozen WK tip disagrees with final integration");
     }
-    const binding = constructTerminalWkCandidate({ frozen, runGit: defaultTerminalCandidateRunGit });
+    const binding = constructTerminalWkCandidate({ frozen, runGit });
     const candidateRoot = path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate);
     const materialization = materializeTerminalCandidateCheckout({
       binding,
       candidateRoot,
-      runGit: defaultTerminalCandidateRunGit
+      runGit
     });
     const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
     const state = Object.freeze({
@@ -455,7 +473,7 @@ export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = 
       candidate = readTerminalCandidateCurrentRef({
         mainRepo,
         canonicalWkId: wkId,
-        runGit: defaultTerminalCandidateRunGit
+        runGit
       });
     } catch (error) {
       failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_unreadable", error);
@@ -465,53 +483,7 @@ export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = 
     try {
       if (candidate === null) {
 
-        let currentRecord;
-        try {
-          currentRecord = JSON.parse(readFileSync(
-            path.join(mainRepo, "wiki", "work-records", `${wkId}.json`),
-            "utf8"
-          ));
-        } catch (error) {
-          failTerminalCandidateRecovery(
-            "terminal_candidate_construction_canonical_wk_unavailable",
-            error
-          );
-        }
-        if (currentRecord?.id !== wkId || !/^IN-\d{4}$/u.test(currentRecord?.initiative ?? "")) {
-          failTerminalCandidateRecovery("terminal_candidate_construction_canonical_wk_unavailable");
-        }
-        const wkRef = `refs/heads/wk/${currentRecord.initiative}/${wkId}`;
-        const wkResult = defaultTerminalCandidateRunGit({
-          repo: mainRepo,
-          args: ["rev-parse", "--verify", `${wkRef}^{commit}`],
-          env: null
-        });
-        const wkSha = wkResult?.ok === true ? String(wkResult.stdout ?? "").trim() : null;
-        if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(wkSha ?? "")) {
-          failTerminalCandidateRecovery("terminal_candidate_construction_wk_ref_unavailable");
-        }
-        recoveredCanonical = exactWkBoundContract({
-          recordId: wkId,
-          initiative: currentRecord.initiative,
-          mainRepo,
-          wkSha
-        });
-        if (recoveredCanonical.review_unit === null) {
-          failTerminalCandidateRecovery("terminal_candidate_construction_canonical_wk_binding_disagrees");
-        }
-        const frozen = freezeTerminalWkCandidateInputs({
-          mainRepo,
-          landingRef: "refs/heads/main",
-          wkRef,
-          canonicalWkId: wkId,
-          canonicalWkDigest: recoveredCanonical.digest,
-          runGit: defaultTerminalCandidateRunGit
-        });
-        derived = constructTerminalWkCandidate({
-          frozen,
-          runGit: defaultTerminalCandidateRunGit
-        });
-        candidate = derived.candidate;
+        failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_absent");
       } else {
         recoveredCanonical = exactWkBoundContract({
           recordId: wkId,
@@ -524,15 +496,14 @@ export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = 
         const wkRef = `refs/heads/wk/${recoveredCanonical.initiative}/${wkId}`;
         const frozen = freezeRecoveredTerminalWkCandidateInputs({
           mainRepo,
-          landingRef: "refs/heads/main",
           wkRef,
           canonicalWkId: wkId,
           candidate,
-          runGit: defaultTerminalCandidateRunGit
+          runGit
         });
         derived = deriveRecoveredTerminalWkCandidateIdentity({
           frozen,
-          runGit: defaultTerminalCandidateRunGit
+          runGit
         });
       }
     } catch (error) {
@@ -541,7 +512,8 @@ export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = 
             error.code.startsWith("terminal_candidate_construction_"))) {
         throw error;
       }
-      failTerminalCandidateRecovery("terminal_candidate_recovery_exact_candidate_disagrees");
+
+      failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error));
     }
     if (derived.candidate !== candidate || derived.candidate_ref !== currentRef) {
       failTerminalCandidateRecovery("terminal_candidate_recovery_no_deterministic_match");
@@ -554,13 +526,13 @@ export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = 
     });
     verifyTerminalWkCandidateObjectBinding({
       binding,
-      runGit: defaultTerminalCandidateRunGit
+      runGit
     });
     const candidateRoot = path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate);
     const materialization = materializeTerminalCandidateCheckout({
       binding,
       candidateRoot,
-      runGit: defaultTerminalCandidateRunGit
+      runGit
     });
     const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
     const recoveredState = {
@@ -576,14 +548,14 @@ export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = 
       materialization,
       targets: recoveredState.canonical_targets,
       runtimeRoot: recoveredState.validation_runtime_root,
-      runGit: defaultTerminalCandidateRunGit
+      runGit
     });
     if (!Array.isArray(validations)) {
       failTerminalCandidateRecovery("terminal_candidate_recovery_validation_evidence_unavailable");
     }
     verifyTerminalWkCandidateObjectBinding({
       binding,
-      runGit: defaultTerminalCandidateRunGit
+      runGit
     });
     const state = Object.freeze({
       ...recoveredState,
@@ -598,7 +570,7 @@ export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = 
     materialization: terminalCandidate.materialization,
     targets: terminalCandidate.canonical_targets,
     runtimeRoot: terminalCandidate.validation_runtime_root,
-    runGit: defaultTerminalCandidateRunGit
+    runGit
   });
 
   const runTerminalCandidateValidationForUnit = async ({ unit, target }) => {
@@ -612,7 +584,7 @@ export function createTerminalCandidateCoordinator({ mainRepo, worktreeRoot } = 
       materialization: state.materialization,
       target,
       runtimeRoot: state.validation_runtime_root,
-      runGit: defaultTerminalCandidateRunGit
+      runGit
     });
   };
 
@@ -792,7 +764,7 @@ export function buildDispatchRuntime(env = process.env, {
                     schema_version: "workspace-agent-terminal-review-advisory-evidence.v1",
                     authority: "advisory_only",
                     candidate_sha: recovered.binding.candidate,
-                    landing_sha: recovered.binding.landing_tip,
+                    base_sha: recovered.binding.base,
                     wk_sha: recovered.binding.wk_tip,
                     reviews: Object.freeze([]),
                     observation: "review_history_not_required_for_restart_recovery"

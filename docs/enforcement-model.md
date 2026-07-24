@@ -666,7 +666,18 @@ their effect on integration.
 the structured create path, never hand-assigned. Spec completeness
 ("independently executable") is a human judgment owned by the coordinator
 design→review loop, not a machine-verified guarantee — a field that drives no
-check is documentation, not enforcement. Authorship trust has a stated
+check is documentation, not enforcement. Parent-WK *planning* completeness —
+parent acceptance arrays and a predeclared terminal whole-WK review unit — is
+coordination/CCE-owned policy in exactly this sense: it is an observable fact a
+configured CCE may weigh, consistent with `decision` / `decision` (local renders
+no admissibility verdict), not a free/local implementation-dispatch veto.
+Free/local dispatch of an otherwise-valid confined worker never refuses for its
+absence, and it never overturns a CCE decision. The canonical `IN-####`
+initiative is the exception: it is mechanical ref identity (`decision`), not
+planning policy — the launcher derives the exact `wk/IN/WK` and `slice/IN/WK` ref
+namespace from it, so a missing or non-canonical initiative is a narrow, typed
+local dispatch refusal (`missing_initiative_ref_namespace`) returned before any
+backend side effect, and it is not a CCE verdict. Authorship trust has a stated
 precondition: a single trusted work-record author. Once authorship goes
 multi-party, record prose flowing into a worker prompt becomes an untrusted input
 that must be typed, escaped at the prompt boundary, and validated at creation

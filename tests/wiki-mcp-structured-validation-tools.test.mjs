@@ -418,7 +418,7 @@ test("terminal whole-WK validation routes to launcher-owned candidate state whil
       return {
         ok: true,
         candidate: "c".repeat(40),
-        landing_tip: "l".repeat(40),
+        base: "b".repeat(40),
         wk_tip: "w".repeat(40),
         steps: [{ step: "candidate" }]
       };

@@ -578,7 +578,7 @@ test("resolveStructuralTargetResolverEvidenceFromExpectedEditTarget preserves de
   }
 });
 
-test("resolveStructuralTargetResolverEvidenceFromExpectedEditTarget preserves provider-unavailable diagnostics for unreadable and unsupported target cases", () => {
+test("resolveStructuralTargetResolverEvidenceFromExpectedEditTarget emits unsupported_kind for non-function/test_case kinds and preserves provider-unavailable diagnostics for unreadable and malformed targets", () => {
   const unreadableFunction = resolveStructuralTargetResolverEvidenceFromExpectedEditTarget(
     {
       target: {
@@ -614,40 +614,83 @@ test("resolveStructuralTargetResolverEvidenceFromExpectedEditTarget preserves pr
     target_resolution_candidates: []
   });
 
-  const unsupportedKind = resolveStructuralTargetResolverEvidenceFromExpectedEditTarget(
-    {
-      target: {
-        path: "packages/wiki-core/src/lib/sample-target.mjs",
-        kind: "module",
-        name: "alpha",
-        operation: "modify"
+  for (const unsupportedKindValue of ["module", "class"]) {
+    const unsupportedKind = resolveStructuralTargetResolverEvidenceFromExpectedEditTarget(
+      {
+        target: {
+          path: "packages/wiki-core/src/lib/sample-target.mjs",
+          kind: unsupportedKindValue,
+          name: "alpha",
+          operation: "modify"
+        }
+      },
+      {
+        hasExpectedEditTargets: true
       }
-    },
-    {
-      hasExpectedEditTargets: true
-    }
-  );
+    );
 
-  assert.deepEqual(unsupportedKind, {
-    target_resolution_evidence_status: "degraded",
-    target_resolution_provider: {
-      id: null,
-      version: null,
-      mode: "unavailable"
-    },
-    target_resolution_target: {
-      path: "packages/wiki-core/src/lib/sample-target.mjs",
-      kind: "module",
-      name: "alpha",
-      operation: "modify",
-      optional: false
-    },
-    target_resolution_status: "provider_unavailable",
-    target_resolution_status_reason: "no structural resolver configured",
-    target_resolution_span: null,
-    target_resolution_fanout: null,
-    target_resolution_candidates: []
-  });
+    assert.deepEqual(
+      unsupportedKind,
+      {
+        target_resolution_evidence_status: "degraded",
+        target_resolution_provider: null,
+        target_resolution_target: {
+          path: "packages/wiki-core/src/lib/sample-target.mjs",
+          kind: unsupportedKindValue,
+          name: "alpha",
+          operation: "modify",
+          optional: false
+        },
+        target_resolution_status: "unsupported_kind",
+        target_resolution_status_reason: "provider does not support the declared target kind",
+        target_resolution_span: null,
+        target_resolution_fanout: null,
+        target_resolution_candidates: []
+      },
+      unsupportedKindValue
+    );
+  }
+
+  for (const missingKindValue of [undefined, "   "]) {
+    const missingKind = resolveStructuralTargetResolverEvidenceFromExpectedEditTarget(
+      {
+        target: {
+          path: "packages/wiki-core/src/lib/sample-target.mjs",
+          kind: missingKindValue,
+          name: "alpha",
+          operation: "modify"
+        }
+      },
+      {
+        hasExpectedEditTargets: true
+      }
+    );
+
+    assert.deepEqual(
+      missingKind,
+      {
+        target_resolution_evidence_status: "degraded",
+        target_resolution_provider: {
+          id: null,
+          version: null,
+          mode: "unavailable"
+        },
+        target_resolution_target: {
+          path: "packages/wiki-core/src/lib/sample-target.mjs",
+          kind: null,
+          name: "alpha",
+          operation: "modify",
+          optional: false
+        },
+        target_resolution_status: "provider_unavailable",
+        target_resolution_status_reason: "no structural resolver configured",
+        target_resolution_span: null,
+        target_resolution_fanout: null,
+        target_resolution_candidates: []
+      },
+      String(missingKindValue)
+    );
+  }
 
   const malformedTestCaseCreate = (overrides) =>
     resolveStructuralTargetResolverEvidenceFromExpectedEditTarget(

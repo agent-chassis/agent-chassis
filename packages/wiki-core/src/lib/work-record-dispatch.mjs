@@ -13,10 +13,6 @@ import { SLICE_ID_PATTERN } from "./work-record-schema-constants.mjs";
 import { validateAcceptanceCriterionEntry } from "./work-record-schema-validators.mjs";
 import { buildNextCall } from "./next-calls-descriptor.mjs";
 import {
-  PARENT_LIFECYCLE_CONTRACT_FACTS,
-  evaluateWorkRecordParentLifecycleContract
-} from "./work-record-parent-lifecycle-contract.mjs";
-import {
   evaluateWorkRecordPolicy,
   normalizeWorkRecordPolicyPath
 } from "./work-record-policy.mjs";
@@ -106,11 +102,13 @@ export {
   WORK_RECORD_DISPATCH_RECOVERY_STATE_VALUES
 } from "./work-record-dispatch-readiness-shape.mjs";
 export { isBashWrapperPath } from "./work-record-dispatch-shared.mjs";
-export const PARENT_LIFECYCLE_CONTRACT_INCOMPLETE_DECISION_CODE =
-  "parent_lifecycle_contract_incomplete";
+
+export const MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE =
+  "missing_initiative_ref_namespace";
+
 export const WORK_RECORD_DISPATCH_DECISION_CODES = Object.freeze([
   ...BASE_WORK_RECORD_DISPATCH_DECISION_CODES,
-  PARENT_LIFECYCLE_CONTRACT_INCOMPLETE_DECISION_CODE
+  MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE
 ]);
 export {
   LOCAL_PREFLIGHT_NON_CLAIM_CONTRACT,
@@ -352,82 +350,33 @@ function maybeValidateSliceSelection(record, unit) {
   return { selectedUnit: createSelectedSliceUnit(record, selectedSlice), missingSlice: null };
 }
 
-function buildParentLifecycleContractNextCalls(recordId, evaluation) {
-  const missing = new Set(evaluation.missing_facts);
-  const ambiguous = new Set(evaluation.ambiguous_facts);
-  const calls = [];
+const CANONICAL_INITIATIVE_PATTERN = /^IN-\d{4}$/u;
 
-  if (missing.has(PARENT_LIFECYCLE_CONTRACT_FACTS.INITIATIVE)) {
-    calls.push(buildNextCall({
-      tool: "assign_work_record_to_initiative",
-      arguments: { unit: recordId },
-      recommended: true,
-      fact: PARENT_LIFECYCLE_CONTRACT_FACTS.INITIATIVE,
-      required_arguments: ["initiative"]
-    }));
-  }
-
-  const acceptanceFacts = [
-    PARENT_LIFECYCLE_CONTRACT_FACTS.ACCEPTANCE_CRITERIA,
-    PARENT_LIFECYCLE_CONTRACT_FACTS.ACCEPTANCE_VALIDATION
-  ].filter((fact) => missing.has(fact));
-  if (acceptanceFacts.length > 0) {
-    calls.push(buildNextCall({
-      tool: "workspace_work_record_set_acceptance",
-      arguments: { unit: recordId },
-      recommended: true,
-      facts: acceptanceFacts,
-      required_arguments: acceptanceFacts.map((fact) => fact.split(".").at(-1))
-    }));
-  }
-
-  if (missing.has(PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT)) {
-    calls.push(buildNextCall({
-      tool: "workspace_work_record_ready_slice",
-      arguments: {
-        unit: recordId,
-        shaping_mode: "reviewer",
-        review_purpose: "terminal_whole_wk"
-      },
-      recommended: true,
-      fact: PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT,
-      action: "create_terminal_review_contract_unit"
-    }));
-  } else if (ambiguous.has(PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT)) {
-    calls.push(buildNextCall({
-      tool: "workspace_work_record_ready_slice",
-      arguments: { unit: recordId },
-      recommended: true,
-      fact: PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT,
-      action: "repair_terminal_review_contract_unit_ambiguity",
-      required_arguments: ["slice_id"]
-    }));
-  }
-
-  return Object.freeze(calls.map(Object.freeze));
-}
-
-function buildParentLifecycleContractRefusal({ record, unit, evaluation, reportOnly }) {
-  const missing = evaluation.missing_facts.join(", ");
-  const ambiguous = evaluation.ambiguous_facts.join(", ");
-  const reasonParts = [
-    missing ? `missing: ${missing}` : null,
-    ambiguous ? `ambiguous: ${ambiguous}` : null
-  ].filter(Boolean);
+function buildMissingInitiativeRefNamespaceRefusal({ record, unit, reportOnly }) {
   const readiness = buildTerminalReadiness({
     recordId: record.id,
     unit,
     state: normalizeDispatchGraphState(null),
-    decisionCode: PARENT_LIFECYCLE_CONTRACT_INCOMPLETE_DECISION_CODE,
-    reason: `parent lifecycle contract is incomplete (${reasonParts.join("; ")})`,
+    decisionCode: MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE,
+    reason:
+      `canonical parent ${record.id} declares no canonical IN-#### initiative, so the ` +
+      `exact wk/IN/WK and slice/IN/WK ref namespace for ${unit.address} cannot be derived`,
     parserDiagnostics: [],
     reportOnly,
     dispatchRole: "implementation"
   });
   return {
     ...readiness,
-    parent_lifecycle_contract: evaluation,
-    next_calls: buildParentLifecycleContractNextCalls(record.id, evaluation)
+    next_calls: Object.freeze([
+      Object.freeze(
+        buildNextCall({
+          tool: "assign_work_record_to_initiative",
+          arguments: { unit: record.id },
+          recommended: true,
+          required_arguments: ["initiative"]
+        })
+      )
+    ])
   };
 }
 
@@ -1175,17 +1124,14 @@ export async function validateWorkRecordDispatchById(options = {}) {
   if (
     !readOnly &&
     parsedUnit.value.kind === "slice" &&
-    selectedUnit?.work_kind === "implementation"
+    selectedUnit?.work_kind === "implementation" &&
+    !CANONICAL_INITIATIVE_PATTERN.test(loaded.record?.initiative ?? "")
   ) {
-    const parentLifecycleContract = evaluateWorkRecordParentLifecycleContract(loaded.record);
-    if (!parentLifecycleContract.complete) {
-      return buildParentLifecycleContractRefusal({
-        record: loaded.record,
-        unit: parsedUnit.value,
-        evaluation: parentLifecycleContract,
-        reportOnly
-      });
-    }
+    return buildMissingInitiativeRefNamespaceRefusal({
+      record: loaded.record,
+      unit: parsedUnit.value,
+      reportOnly
+    });
   }
 
   const subject = selectedUnit || loaded.record;

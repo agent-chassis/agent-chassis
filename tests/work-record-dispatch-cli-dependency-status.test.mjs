@@ -44,6 +44,7 @@ function makeDependencyTrackerFixture() {
   return {
     schema_version: "work-record.v1",
     id: "WK-9301",
+    initiative: "IN-0030",
     repo: "agent-chassis/agent-chassis",
     title: "Tracker with slice-level depends_on",
     record_kind: "work_item",
@@ -152,6 +153,7 @@ function makeDependencyConsumerFixture() {
   return {
     schema_version: "work-record.v1",
     id: "WK-9302",
+    initiative: "IN-0030",
     repo: "agent-chassis/agent-chassis",
     title: "Implementation with inter-record depends_on",
     record_kind: "work_item",
@@ -201,6 +203,7 @@ function makeDependencyTargetFixture() {
   return {
     schema_version: "work-record.v1",
     id: "WK-9303",
+    initiative: "IN-0030",
     repo: "agent-chassis/agent-chassis",
     title: "Implementation target referenced by inter-record consumer",
     record_kind: "work_item",

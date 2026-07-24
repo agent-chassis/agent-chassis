@@ -288,6 +288,52 @@ function reconcileExistingSliceTip({
   return Object.freeze({ ...classified, wk_base_ref: wkBase.base_ref, wk_base_sha: wkBaseSha });
 }
 
+export function classifyExistingSliceTipForDispatch({
+  mainRepo,
+  unitAddress,
+  worktreeRoot,
+  deps = {}
+} = {}) {
+  const runGit = deps.runGit ?? defaultRunGit;
+  const repo = assertAbsolutePath(mainRepo, "mainRepo");
+  const root = assertAbsolutePath(worktreeRoot, "worktreeRoot");
+  const name = deriveExactUnitName({ unitAddress, worktreeRoot: root });
+  if (name.kind !== "slice") {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_UNIT_ADDRESS,
+      "early slice-tip reconciliation requires a slice unit_address"
+    );
+  }
+  const branch = name.output_branch;
+
+  if (!branchExists(runGit, repo, branch)) {
+    return Object.freeze({ state: SLICE_TIP_RECONCILE_STATES.ABSENT, slice_tip: null });
+  }
+  const resolveWkTip = deps.resolveWkBranchTipBase ?? resolveWkBranchTipBase;
+  const source = deps.resolveCorrectiveContinuationProof;
+  let capturedProof = null;
+  const capturingResolver = typeof source === "function"
+    ? (proofContext) => {
+        const proof = source(proofContext);
+        if (proof != null) capturedProof = proof;
+        return proof;
+      }
+    : undefined;
+  const verdict = reconcileExistingSliceTip({
+    runGit,
+    repo,
+    name,
+    branch,
+    worktreePath: name.worktree_path,
+    resolveWkTip,
+    resolveCorrectiveContinuationProof: capturingResolver
+  });
+  if (verdict.state === SLICE_TIP_RECONCILE_STATES.AUTHENTICATED_CONTINUATION && capturedProof !== null) {
+    return Object.freeze({ ...verdict, corrective_continuation_proof: capturedProof });
+  }
+  return verdict;
+}
+
 function assertNonNegativeRetryId(retryId) {
   if (!Number.isInteger(retryId) || retryId < 0) {
     fail(
@@ -751,6 +797,75 @@ export function allocateFullSliceExactUnitWorktree({
   return binding;
 }
 
+export const WK_FORK_REF_DIAGNOSTIC_CODES = Object.freeze({
+  WK_FORK_REF_MISSING: "agent_launch.worktree_substrate.wk_fork_ref_missing.v1",
+  WK_FORK_REF_DISAGREEMENT: "agent_launch.worktree_substrate.wk_fork_ref_disagreement.v1",
+  WK_FORK_REF_INVALID: "agent_launch.worktree_substrate.wk_fork_ref_invalid.v1"
+});
+
+export function wkForkRefName(initiative, wkId) {
+  return `refs/agent-launch/wk-forks/${initiative}/${wkId}`;
+}
+
+function resolveWkForkRef(runGit, repo, ref) {
+  const res = runGit({ repo, args: ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`] });
+  if (!res || res.ok !== true) return null;
+  const sha = String(res.stdout ?? "").trim();
+  return OID_RE.test(sha) ? sha : null;
+}
+
+function ensureWkForkRefAtFork(runGit, repo, ref, forkSha) {
+  const existing = resolveWkForkRef(runGit, repo, ref);
+  if (existing === forkSha) return { created: false };
+  if (existing !== null) {
+    fail(
+      WK_FORK_REF_DIAGNOSTIC_CODES.WK_FORK_REF_DISAGREEMENT,
+      "the launcher-owned WK fork ref disagrees with the fork being recorded",
+      { fork_ref: ref, expected_fork: forkSha, actual_fork: existing }
+    );
+  }
+  const res = runGit({ repo, args: ["update-ref", ref, forkSha, ""] });
+  if (!res || res.ok !== true) {
+
+    const raced = resolveWkForkRef(runGit, repo, ref);
+    if (raced === forkSha) return { created: false };
+    fail(
+      WK_FORK_REF_DIAGNOSTIC_CODES.WK_FORK_REF_DISAGREEMENT,
+      "failed to create the launcher-owned WK fork ref and it does not match the fork",
+      { fork_ref: ref, expected_fork: forkSha, actual_fork: raced, status: res?.status ?? null }
+    );
+  }
+  return { created: true };
+}
+
+function rollbackCreatedWkForkRef(runGit, repo, ref, forkSha) {
+  try { runGit({ repo, args: ["update-ref", "-d", ref, forkSha] }); } catch {   }
+}
+
+function recoverFixedWkFork(runGit, repo, ref, currentWkTip) {
+  const fork = resolveWkForkRef(runGit, repo, ref);
+  if (fork === null) {
+    fail(
+      WK_FORK_REF_DIAGNOSTIC_CODES.WK_FORK_REF_MISSING,
+      "the persistent WK branch has no launcher-owned fork ref; the original WK fork must be recorded before this WK can be adopted",
+      {
+        fork_ref: ref,
+        operator_remediation:
+          `record the original WK fork commit at ${ref} (git update-ref ${ref} <original-fork-sha>) before re-dispatching; the fork is never inferred from main, the current WK tip, a merge-base, or reflog`
+      }
+    );
+  }
+  const ancestor = runGit({ repo, args: ["merge-base", "--is-ancestor", fork, currentWkTip] });
+  if (!ancestor || ancestor.ok !== true) {
+    fail(
+      WK_FORK_REF_DIAGNOSTIC_CODES.WK_FORK_REF_INVALID,
+      "the launcher-owned WK fork is not an ancestor of the current WK tip",
+      { fork_ref: ref, fork, wk_tip: currentWkTip }
+    );
+  }
+  return fork;
+}
+
 export function allocateExactUnitWorktree({
   mainRepo,
   unitAddress,
@@ -812,6 +927,7 @@ export function allocateExactUnitWorktree({
     `failed to create exact-unit worktree/branch for ${name.unit_address}`
   );
 
+  const isWk = name.kind === "wk";
   const binding = Object.freeze({
     schema_version: WORKTREE_SUBSTRATE_SCHEMA_VERSION,
     launch_ref: launchRef,
@@ -826,14 +942,27 @@ export function allocateExactUnitWorktree({
     output_branch: branch,
     worktree_path: worktreePath,
     write_scope: writeScope,
-    write_scope_source: writeScopeSource
+    write_scope_source: writeScopeSource,
+    ...(isWk ? { wk_tip_sha: baseSha } : {})
   });
+
+  const forkRef = isWk ? wkForkRefName(name.initiative, wkId) : null;
+  let forkRefReceipt = null;
+  if (isWk) {
+    try {
+      forkRefReceipt = ensureWkForkRefAtFork(runGit, repo, forkRef, baseSha);
+    } catch (forkErr) {
+      rollbackWorktreeAndBranch(runGit, repo, worktreePath, branch, forkErr);
+      throw forkErr;
+    }
+  }
 
   const filePath = bindingFilePath(repo, launchRef, runId, retryId);
 
   try {
     writeBindingFile({ filePath, contents: `${JSON.stringify(binding, null, 2)}\n` });
   } catch (storeErr) {
+    if (forkRefReceipt?.created === true) rollbackCreatedWkForkRef(runGit, repo, forkRef, baseSha);
     rollbackWorktreeAndBranch(runGit, repo, worktreePath, branch, storeErr);
     throw storeErr;
   }
@@ -903,7 +1032,9 @@ export function allocateOrAdoptExactUnitWorktree({
     refuse("wrong-branch", "WK worktree is attached to a different branch", { attached_to: symHead });
   }
 
-  const baseSha = revParse(runGit, repo, branch);
+  const wkTipSha = revParse(runGit, repo, branch);
+  const forkRef = wkForkRefName(name.initiative, name.wk_id);
+  const baseSha = recoverFixedWkFork(runGit, repo, forkRef, wkTipSha);
   assertNoRefNamespaceCollisionExceptSelf(enumerateRefs(runGit, repo), fullRef);
 
   const { writeScope, source: writeScopeSource } = canonicalWriteScope(repo, name.wk_id, name.slice_id);
@@ -922,7 +1053,8 @@ export function allocateOrAdoptExactUnitWorktree({
     output_branch: branch,
     worktree_path: worktreePath,
     write_scope: writeScope,
-    write_scope_source: writeScopeSource
+    write_scope_source: writeScopeSource,
+    wk_tip_sha: wkTipSha
   });
 
   const filePath = bindingFilePath(repo, launchRef, runId, retryId);

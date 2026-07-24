@@ -287,17 +287,22 @@ or dispatch artifacts present an unenforced run as sandboxed.
 
 The terminal findings-only review is a review of the exact commit proposed for
 publication, not a review of the accumulated WK branch followed by a later
-squash. The launcher freezes canonical repository identity, landing ref/tip
-`L`, accumulated WK ref/tip `W`, and exactly one merge base `B`. It applies the
-complete `B..W` change conflict-detectingly to `L`, preserving landing-only
-content, and creates deterministic candidate `C` with sole parent `L`. A
-content-addressed candidate ref is created or recovered by compare-and-swap;
-the WK branch and its worktree remain unchanged.
+squash. The launcher freezes canonical repository identity, the launcher-bound
+base `B` of the persistent WK lifecycle (the fork point the WK branch was cut
+from, carried on the WK identity binding), and the accumulated WK ref/tip `W`. It
+creates the deterministic squash candidate `C` such that `tree(C) === tree(W)`
+and `C`'s sole parent is `B`. Candidate construction never resolves, reads,
+merges, or compares the current landing tip, and never invokes `merge-tree`:
+`tree(C)` is resolved directly from `W` and `C` is created with `commit-tree`.
+Current landing does not participate; git/forge owns landing merge readiness after
+publication, so a product-path conflict between the current landing and `W` can
+never block candidate construction. A content-addressed candidate ref is created
+or recovered by compare-and-swap; the WK branch and its worktree remain unchanged.
 
 The launcher materializes a distinct private mode-0700 full detached checkout
 at `C`. Every declared whole-WK validation runs there before the findings-only
-review, and that reviewer is bound to `C` with `L` as its diff base and `W` as
-the accumulated source identity. Validation receives an empty-baseline,
+review, and that reviewer is bound to `C` with `B` as its diff base (`B..C`) and
+`W` as the accumulated source identity. Validation receives an empty-baseline,
 secret-free environment. Ordinary project dependencies are exposed only by a
 launcher-created sibling link to the canonical repository `node_modules` after
 manifest, lock, workspace, install-marker, realpath, and freshness checks before
@@ -307,14 +312,20 @@ Candidate identity and its evidence remain exact: a change or uncertainty in
 `W`, `C`, the candidate tree or parent, candidate ref, checkout, dependency
 proof, canonical contract, reviewer identity, candidate branch, or proposed
 change head invalidates the affected evidence and requires a new candidate
-cycle. Advancement of the landing ref after candidate construction does not
-modify `C` or its frozen parent, does not invalidate completed validation or
-review, and does not block publication. Publication handoff publishes `C`
-byte-for-byte as the proposed change head and never rebases, replays, squashes,
-amends, or reconstructs it before publication. The configured merge actor and
-policy authority own merge readiness; conflict resolution or a policy-required
-candidate update creates a changed candidate that must be validated and reviewed
-before publication. Branch and proposed-change mutations are reobserved and
+cycle. Movement of the current landing before or after candidate construction
+does not modify `C` or its frozen base parent, does not invalidate completed
+validation or review, and does not block publication — deterministic `C` depends
+only on `B`, `W`, repository identity, and the canonical contract, never on the
+current landing tip. Publication handoff publishes `C` byte-for-byte as the
+proposed change head against the configured base branch and never rebases,
+replays, squashes, amends, or reconstructs it before publication; it does not
+require `C`'s parent to equal the current base-branch tip and does not preflight
+or locally resolve merge conflicts. Git/forge and the configured merge actor own
+merge readiness, so a conflicting or unmergeable PR is still a successfully
+handed-off exact candidate. Only a change to `B`, `W`, `C`, the candidate tree or
+parent, or the canonical contract yields a changed candidate that must be
+validated and reviewed anew. Branch and proposed-change mutations are reobserved
+and
 accepted only when their exact repository/base/head/state is proven. This
 mechanism creates no generic provenance, Proof A/Proof B, receipt, or
 review-attestation authority.

@@ -223,10 +223,12 @@ const RECOVERY_BINDING_FILE_RE = /^binding-[0-9a-f]{64}\.json$/u;
 const RECOVERY_SUBJECT_RE = /^(WK-\d{4})#(SLICE-\d{3})$/u;
 const RECOVERY_COMMIT_ID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const RECOVERY_SOURCE_DIGEST_RE = /^sha256:[0-9a-f]{64}$/u;
+
 const FULL_WK_BINDING_FIELDS = Object.freeze([
   "schema_version", "launch_ref", "run_id", "retry_id", "unit_address",
   "initiative", "record_id", "slice_id", "base_ref", "base_sha",
-  "output_branch", "worktree_path", "write_scope", "write_scope_source"
+  "output_branch", "worktree_path", "write_scope", "write_scope_source",
+  "wk_tip_sha"
 ]);
 const SPARSE_BINDING_SCALAR_FIELDS = Object.freeze([
   "schema_version", "launch_ref", "run_id", "retry_id", "unit_address",
@@ -384,6 +386,24 @@ function assertRecoveryBindingContract(binding, { filePath, mainRepo, allowMissi
       expected_output_branch: expectedBranch,
       expected_base_ref: expectedBaseRef
     });
+  }
+
+  if (!unitIsSlice) {
+    if (typeof binding.wk_tip_sha !== "string" || !RECOVERY_COMMIT_ID_RE.test(binding.wk_tip_sha)) {
+      recoveryBindingFailure(filePath, "WK binding wk_tip_sha is missing or not a canonical commit id", {
+        wk_tip_sha: binding.wk_tip_sha ?? null
+      });
+    }
+    const ancestor = defaultRunGit({
+      repo: mainRepo,
+      args: ["merge-base", "--is-ancestor", binding.base_sha, binding.wk_tip_sha]
+    });
+    if (!ancestor || ancestor.ok !== true) {
+      recoveryBindingFailure(filePath, "WK binding fixed base_sha is not a retained ancestor of the moving wk_tip_sha", {
+        base_sha: binding.base_sha,
+        wk_tip_sha: binding.wk_tip_sha
+      });
+    }
   }
   if (typeof binding.worktree_path !== "string" || !path.isAbsolute(binding.worktree_path) ||
       path.normalize(binding.worktree_path) !== binding.worktree_path ||
@@ -561,7 +581,6 @@ export function resolveUniqueManagedLifecycleBindingPairForRecovery({
       binding.record_id === wkId && binding.slice_id === null &&
       binding.initiative === slice.initiative &&
       binding.unit_address === `${slice.initiative}/${wkId}` &&
-      binding.base_sha === slice.base_sha &&
 
       binding.worktree_path !== slice.worktree_path
     );

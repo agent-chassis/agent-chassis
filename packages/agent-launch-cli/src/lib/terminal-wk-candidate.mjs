@@ -2,13 +2,15 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-export const TERMINAL_WK_CANDIDATE_SCHEMA_VERSION = "agent_launch.terminal_wk_candidate.v1";
+export const TERMINAL_WK_CANDIDATE_SCHEMA_VERSION = "agent_launch.terminal_wk_candidate.v2";
 
 export const TERMINAL_WK_CANDIDATE_CODES = Object.freeze({
   INVALID_ARGUMENT: "agent_launch.terminal_wk_candidate.invalid_argument.v1",
   GIT_FAILED: "agent_launch.terminal_wk_candidate.git_failed.v1",
-  MERGE_BASE_INVALID: "agent_launch.terminal_wk_candidate.merge_base_invalid.v1",
+
+  BASE_INVALID: "agent_launch.terminal_wk_candidate.base_invalid.v1",
   INPUT_MOVED: "agent_launch.terminal_wk_candidate.input_moved.v1",
+
   CONFLICT: "agent_launch.terminal_wk_candidate.conflict.v1",
   CANDIDATE_INVALID: "agent_launch.terminal_wk_candidate.candidate_invalid.v1",
   CANDIDATE_REF_DISAGREES: "agent_launch.terminal_wk_candidate.candidate_ref_disagrees.v1",
@@ -24,9 +26,11 @@ export const TERMINAL_WK_CANDIDATE_IDENTITY = Object.freeze({
 const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const WK_RE = /^WK-\d{4}$/u;
 const WK_REF_RE = /^refs\/heads\/wk\/IN-\d{4}\/WK-\d{4}$/u;
-const LANDING_REF_RE = /^refs\/heads\/(?!wk\/|slice\/|handoff\/)[A-Za-z0-9][A-Za-z0-9._\-/]*$/u;
+
+const BASE_REF_RE = /^[A-Za-z0-9][A-Za-z0-9._\-/]*$/u;
 const DIGEST_RE = /^sha256:[0-9a-f]{64}$/u;
-const CURRENT_CANDIDATE_REF_PREFIX = "refs/agent-launch/terminal-current";
+
+const CURRENT_CANDIDATE_REF_PREFIX = "refs/agent-launch/terminal-current-v2";
 
 export class TerminalWkCandidateError extends Error {
   constructor(message, { code, detail = null, cause = null } = {}) {
@@ -44,6 +48,43 @@ function fail(code, message, detail = null, cause = null) {
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function boundedFailureMessage(message) {
+  return String(message ?? "").slice(0, 4096);
+}
+
+function boundedMechanicalDetail(detail) {
+  if (!isPlainObject(detail)) return null;
+  const projected = {};
+  if (Array.isArray(detail.args)) {
+    projected.git_args = detail.args.slice(0, 32).map((arg) => String(arg).slice(0, 256));
+  }
+  if (detail.status !== undefined) {
+    projected.git_status = detail.status === null ? null : Number(detail.status);
+  }
+  if (detail.stderr !== undefined && detail.stderr !== null) {
+    projected.git_stderr = String(detail.stderr).slice(0, 8192);
+  }
+  return Object.keys(projected).length === 0 ? null : Object.freeze(projected);
+}
+
+export function projectTerminalWkCandidateFailure(error) {
+  if (error instanceof TerminalWkCandidateError) {
+    return Object.freeze({
+      kind: "typed_candidate_error",
+      code: typeof error.code === "string" ? error.code : null,
+      message: boundedFailureMessage(error.message),
+      detail: boundedMechanicalDetail(error.detail)
+    });
+  }
+  return Object.freeze({
+    kind: "unknown_cause",
+    code: typeof error?.code === "string" ? error.code.slice(0, 256) : null,
+    name: typeof error?.name === "string" ? error.name.slice(0, 256) : null,
+    message: boundedFailureMessage(error?.message ?? String(error)),
+    detail: null
+  });
 }
 
 export function defaultTerminalCandidateRunGit({ repo, args, env = null }) {
@@ -125,12 +166,12 @@ function resolveRef(runGit, repo, ref, field) {
   }), field);
 }
 
-function assertAncestor(runGit, repo, ancestor, descendant, label) {
-  const result = runGit({ repo, args: ["merge-base", "--is-ancestor", ancestor, descendant], env: null });
+function assertBaseAncestor(runGit, repo, base, wkTip) {
+  const result = runGit({ repo, args: ["merge-base", "--is-ancestor", base, wkTip], env: null });
   if (!result || result.ok !== true) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.MERGE_BASE_INVALID, `merge base is not an ancestor of ${label}`, {
-      ancestor,
-      descendant,
+    fail(TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID, "base is not an ancestor of the accumulated WK tip", {
+      base,
+      wk_tip: wkTip,
       status: result?.status ?? null
     });
   }
@@ -138,14 +179,16 @@ function assertAncestor(runGit, repo, ancestor, descendant, label) {
 
 export function freezeTerminalWkCandidateInputs({
   mainRepo,
-  landingRef,
+  baseSha,
+  baseRef = "main",
   wkRef,
   canonicalWkId,
   canonicalWkDigest,
   runGit = defaultTerminalCandidateRunGit
 } = {}) {
   if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) || path.normalize(mainRepo) !== mainRepo ||
-      typeof landingRef !== "string" || !LANDING_REF_RE.test(landingRef) ||
+      typeof baseSha !== "string" || !OID_RE.test(baseSha) || /^0+$/u.test(baseSha) ||
+      typeof baseRef !== "string" || !BASE_REF_RE.test(baseRef) ||
       typeof wkRef !== "string" || !WK_REF_RE.test(wkRef) ||
       typeof canonicalWkId !== "string" || !WK_RE.test(canonicalWkId) ||
       !wkRef.endsWith(`/${canonicalWkId}`) ||
@@ -154,49 +197,34 @@ export function freezeTerminalWkCandidateInputs({
     fail(TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT, "launcher-owned candidate inputs are incomplete or invalid");
   }
   const repository = resolveRepositoryIdentity(mainRepo, runGit);
-  const landingTip = resolveRef(runGit, mainRepo, landingRef, "landing tip");
+
+  const base = resolveRef(runGit, mainRepo, baseSha, "base");
   const wkTip = resolveRef(runGit, mainRepo, wkRef, "WK tip");
-  const baseResult = runGit({ repo: mainRepo, args: ["merge-base", "--all", landingTip, wkTip], env: null });
-  if (!baseResult || baseResult.ok !== true) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.MERGE_BASE_INVALID, "could not resolve merge base", {
-      status: baseResult?.status ?? null,
-      stderr: baseResult?.stderr ?? baseResult?.error ?? null
-    });
-  }
-  const bases = String(baseResult.stdout ?? "").split(/\r?\n/u).map((entry) => entry.trim()).filter(Boolean);
-  if (bases.length !== 1 || !OID_RE.test(bases[0]) || /^0+$/u.test(bases[0])) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.MERGE_BASE_INVALID, "exactly one canonical merge base is required", {
-      count: bases.length,
-      bases
-    });
-  }
-  const mergeBase = bases[0];
-  assertAncestor(runGit, mainRepo, mergeBase, landingTip, "landing tip");
-  assertAncestor(runGit, mainRepo, mergeBase, wkTip, "WK tip");
+
+  assertBaseAncestor(runGit, mainRepo, base, wkTip);
   return Object.freeze({
     schema_version: TERMINAL_WK_CANDIDATE_SCHEMA_VERSION,
     repository,
     main_repo: mainRepo,
     canonical_wk_id: canonicalWkId,
     canonical_wk_digest: canonicalWkDigest,
-    landing_ref: landingRef,
-    landing_tip: landingTip,
+    base_ref: baseRef,
+    base,
     wk_ref: wkRef,
-    wk_tip: wkTip,
-    merge_base: mergeBase
+    wk_tip: wkTip
   });
 }
 
 export function freezeRecoveredTerminalWkCandidateInputs({
   mainRepo,
-  landingRef,
+  baseRef = "main",
   wkRef,
   canonicalWkId,
   candidate,
   runGit = defaultTerminalCandidateRunGit
 } = {}) {
   if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) || path.normalize(mainRepo) !== mainRepo ||
-      typeof landingRef !== "string" || !LANDING_REF_RE.test(landingRef) ||
+      typeof baseRef !== "string" || !BASE_REF_RE.test(baseRef) ||
       typeof wkRef !== "string" || !WK_REF_RE.test(wkRef) ||
       typeof canonicalWkId !== "string" || !WK_RE.test(canonicalWkId) ||
       !wkRef.endsWith(`/${canonicalWkId}`) ||
@@ -222,10 +250,10 @@ export function freezeRecoveredTerminalWkCandidateInputs({
     fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID,
       "recovered candidate must have exactly one canonical parent");
   }
-  const landingTip = parentLine[1];
-  if (landingTip !== metadata.landing_tip) {
+  const base = parentLine[1];
+  if (base !== metadata.base) {
     fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID,
-      "recovered candidate parent disagrees with immutable landing metadata");
+      "recovered candidate parent disagrees with immutable base metadata");
   }
   const wkTip = resolveRef(runGit, mainRepo, wkRef, "WK tip");
   if (wkTip !== metadata.wk_tip) {
@@ -235,36 +263,17 @@ export function freezeRecoveredTerminalWkCandidateInputs({
         actual: wkTip
       });
   }
-  const baseResult = runGit({ repo: mainRepo, args: ["merge-base", "--all", landingTip, wkTip], env: null });
-  if (!baseResult || baseResult.ok !== true) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.MERGE_BASE_INVALID, "could not resolve recovered merge base", {
-      status: baseResult?.status ?? null,
-      stderr: baseResult?.stderr ?? baseResult?.error ?? null
-    });
-  }
-  const bases = String(baseResult.stdout ?? "").split(/\r?\n/u).map((entry) => entry.trim()).filter(Boolean);
-  if (bases.length !== 1 || !OID_RE.test(bases[0]) || /^0+$/u.test(bases[0])) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.MERGE_BASE_INVALID,
-      "exactly one recovered canonical merge base is required", { count: bases.length, bases });
-  }
-  const mergeBase = bases[0];
-  if (mergeBase !== metadata.merge_base) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID,
-      "recovered merge base disagrees with immutable candidate metadata");
-  }
-  assertAncestor(runGit, mainRepo, mergeBase, landingTip, "frozen candidate parent");
-  assertAncestor(runGit, mainRepo, mergeBase, wkTip, "WK tip");
+  assertBaseAncestor(runGit, mainRepo, base, wkTip);
   return Object.freeze({
     schema_version: TERMINAL_WK_CANDIDATE_SCHEMA_VERSION,
     repository,
     main_repo: mainRepo,
     canonical_wk_id: canonicalWkId,
     canonical_wk_digest: metadata.canonical_wk_digest,
-    landing_ref: landingRef,
-    landing_tip: landingTip,
+    base_ref: baseRef,
+    base,
     wk_ref: wkRef,
-    wk_tip: wkTip,
-    merge_base: mergeBase
+    wk_tip: wkTip
   });
 }
 
@@ -274,17 +283,15 @@ function assertFrozenShape(frozen) {
       !isPlainObject(frozen.repository) || !Object.isFrozen(frozen.repository) ||
       typeof frozen.main_repo !== "string" || !path.isAbsolute(frozen.main_repo) ||
       !WK_RE.test(frozen.canonical_wk_id ?? "") || !DIGEST_RE.test(frozen.canonical_wk_digest ?? "") ||
-      !LANDING_REF_RE.test(frozen.landing_ref ?? "") || !WK_REF_RE.test(frozen.wk_ref ?? "") ||
-      !OID_RE.test(frozen.landing_tip ?? "") || !OID_RE.test(frozen.wk_tip ?? "") ||
-      !OID_RE.test(frozen.merge_base ?? "")) {
+      !BASE_REF_RE.test(frozen.base_ref ?? "") || !WK_REF_RE.test(frozen.wk_ref ?? "") ||
+      !OID_RE.test(frozen.base ?? "") || !OID_RE.test(frozen.wk_tip ?? "")) {
     fail(TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT, "frozen candidate tuple is incomplete or untrusted");
   }
   return frozen;
 }
 
-function assertTerminalWkCandidateFactsUnmoved({
+export function assertTerminalWkCandidateInputsUnmoved({
   frozen,
-  requireLandingRefAtFrozenTip,
   runGit = defaultTerminalCandidateRunGit
 } = {}) {
   assertFrozenShape(frozen);
@@ -293,13 +300,6 @@ function assertTerminalWkCandidateFactsUnmoved({
     ["repository", observedRepository.digest, frozen.repository.digest],
     ["wk_tip", resolveRef(runGit, frozen.main_repo, frozen.wk_ref, "WK tip"), frozen.wk_tip]
   ];
-  if (requireLandingRefAtFrozenTip) {
-    checks.push([
-      "landing_tip",
-      resolveRef(runGit, frozen.main_repo, frozen.landing_ref, "landing tip"),
-      frozen.landing_tip
-    ]);
-  }
   const mismatch = checks.find(([, actual, expected]) => actual !== expected);
   if (mismatch) {
     fail(TERMINAL_WK_CANDIDATE_CODES.INPUT_MOVED, `frozen ${mismatch[0]} moved`, {
@@ -309,26 +309,11 @@ function assertTerminalWkCandidateFactsUnmoved({
   return frozen;
 }
 
-export function assertTerminalWkCandidateInputsUnmoved({
-  frozen,
-  runGit = defaultTerminalCandidateRunGit
-} = {}) {
-  return assertTerminalWkCandidateFactsUnmoved({
-    frozen,
-    requireLandingRefAtFrozenTip: true,
-    runGit
-  });
-}
-
 export function assertTerminalWkCandidatePublicationFactsUnmoved({
   frozen,
   runGit = defaultTerminalCandidateRunGit
 } = {}) {
-  return assertTerminalWkCandidateFactsUnmoved({
-    frozen,
-    requireLandingRefAtFrozenTip: false,
-    runGit
-  });
+  return assertTerminalWkCandidateInputsUnmoved({ frozen, runGit });
 }
 
 export function deriveTerminalCandidateCurrentRef({ canonicalWkId } = {}) {
@@ -392,11 +377,10 @@ export function casTerminalCandidateCurrentRef({
 
 function deterministicMessage(frozen) {
   return [
-    `${frozen.canonical_wk_id}: terminal landing candidate`,
+    `${frozen.canonical_wk_id}: terminal squash candidate`,
     "",
-    `Landing: ${frozen.landing_tip}`,
+    `Base: ${frozen.base}`,
     `WK: ${frozen.wk_tip}`,
-    `Merge-base: ${frozen.merge_base}`,
     `Repository: ${frozen.repository.digest}`,
     `Contract: ${frozen.canonical_wk_digest}`,
     ""
@@ -408,7 +392,7 @@ function deterministicCommitBytes({ frozen, tree }) {
   const identity = `${TERMINAL_WK_CANDIDATE_IDENTITY.name} <${TERMINAL_WK_CANDIDATE_IDENTITY.email}> ${timestamp} +0000`;
   return [
     `tree ${tree}`,
-    `parent ${frozen.landing_tip}`,
+    `parent ${frozen.base}`,
     `author ${identity}`,
     `committer ${identity}`,
     "",
@@ -427,11 +411,10 @@ export function readTerminalWkCandidateMetadata({
   const commitBytes = gitRaw(runGit, mainRepo, ["cat-file", "commit", candidate], {
     message: "could not read exact terminal candidate commit bytes"
   });
-  const firstLine = /^((?:WK-\d{4})): terminal landing candidate$/mu.exec(commitBytes);
+  const firstLine = /^((?:WK-\d{4})): terminal squash candidate$/mu.exec(commitBytes);
   const fields = Object.fromEntries([
-    ["landing_tip", /^Landing: ([0-9a-f]{40}|[0-9a-f]{64})$/gmu],
+    ["base", /^Base: ([0-9a-f]{40}|[0-9a-f]{64})$/gmu],
     ["wk_tip", /^WK: ([0-9a-f]{40}|[0-9a-f]{64})$/gmu],
-    ["merge_base", /^Merge-base: ([0-9a-f]{40}|[0-9a-f]{64})$/gmu],
     ["repository_digest", /^Repository: (sha256:[0-9a-f]{64})$/gmu],
     ["canonical_wk_digest", /^Contract: (sha256:[0-9a-f]{64})$/gmu]
   ].map(([field, pattern]) => {
@@ -448,24 +431,17 @@ export function readTerminalWkCandidateMetadata({
 
 function deriveTerminalWkCandidateIdentityWithGuard({ frozen, runGit, assertFacts }) {
   assertFacts({ frozen, runGit });
-  const merge = runGit({
-    repo: frozen.main_repo,
-    args: [
-      "merge-tree", "--write-tree", "--no-messages",
-      "--merge-base", frozen.merge_base,
-      frozen.landing_tip,
-      frozen.wk_tip
-    ],
-    env: null
-  });
-  if (!merge || merge.ok !== true) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.CONFLICT, "complete WK change conflicts with the frozen landing tip", {
-      status: merge?.status ?? null,
-      stdout: String(merge?.stdout ?? "").slice(0, 8192),
-      stderr: String(merge?.stderr ?? merge?.error ?? "").slice(0, 8192)
+
+  const treeArgs = ["rev-parse", "--verify", `${frozen.wk_tip}^{tree}`];
+  const treeResult = runGit({ repo: frozen.main_repo, args: treeArgs, env: null });
+  if (!treeResult || treeResult.ok !== true) {
+    fail(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, "could not resolve the accumulated WK tree", {
+      args: treeArgs,
+      status: treeResult?.status ?? null,
+      stderr: String(treeResult?.stderr ?? treeResult?.error ?? "").slice(0, 8192)
     });
   }
-  const tree = canonicalOid(String(merge.stdout ?? "").split(/\r?\n/u)[0], "candidate tree");
+  const tree = canonicalOid(String(treeResult.stdout ?? "").split(/\r?\n/u)[0], "candidate tree");
   assertFacts({ frozen, runGit });
   const objectFormat = git(runGit, frozen.main_repo, ["rev-parse", "--show-object-format"], {
     message: "could not resolve repository object format"
@@ -487,7 +463,7 @@ function deriveTerminalWkCandidateIdentityWithGuard({ frozen, runGit, assertFact
     ...frozen,
     candidate,
     candidate_tree: tree,
-    candidate_parent: frozen.landing_tip,
+    candidate_parent: frozen.base,
     candidate_ref: deriveTerminalCandidateCurrentRef({ canonicalWkId: frozen.canonical_wk_id }),
     candidate_ref_state: "derived"
   });
@@ -530,7 +506,7 @@ export function deriveTerminalWkCandidate({ frozen, runGit = defaultTerminalCand
     GIT_COMMITTER_DATE: TERMINAL_WK_CANDIDATE_IDENTITY.date
   };
   const candidate = canonicalOid(git(runGit, frozen.main_repo, [
-    "commit-tree", identity.candidate_tree, "-p", frozen.landing_tip, "-m", deterministicMessage(frozen)
+    "commit-tree", identity.candidate_tree, "-p", frozen.base, "-m", deterministicMessage(frozen)
   ], { message: "could not create deterministic terminal candidate", env: commitEnv }), "candidate commit");
   if (candidate !== identity.candidate) {
     fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID,
@@ -545,12 +521,12 @@ export function deriveTerminalWkCandidate({ frozen, runGit = defaultTerminalCand
   const observedTree = git(runGit, frozen.main_repo, ["rev-parse", `${candidate}^{tree}`], {
     message: "could not verify candidate tree"
   });
-  if (parentLine.length !== 2 || parentLine[0] !== candidate || parentLine[1] !== frozen.landing_tip ||
+  if (parentLine.length !== 2 || parentLine[0] !== candidate || parentLine[1] !== frozen.base ||
       observedTree !== identity.candidate_tree) {
-    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID, "candidate does not have the exact tree and sole landing parent", {
+    fail(TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID, "candidate does not have the exact tree and sole base parent", {
       candidate,
       parents: parentLine.slice(1),
-      expected_parent: frozen.landing_tip,
+      expected_parent: frozen.base,
       tree: identity.candidate_tree,
       observed_tree: observedTree
     });
@@ -585,7 +561,7 @@ export function verifyTerminalWkCandidateObjectBinding({ binding, runGit = defau
   if (!isPlainObject(binding) || !Object.isFrozen(binding) ||
       binding.schema_version !== TERMINAL_WK_CANDIDATE_SCHEMA_VERSION ||
       !OID_RE.test(binding.candidate ?? "") || !OID_RE.test(binding.candidate_tree ?? "") ||
-      binding.candidate_parent !== binding.landing_tip ||
+      binding.candidate_parent !== binding.base ||
       binding.candidate_ref !== deriveTerminalCandidateCurrentRef({ canonicalWkId: binding.canonical_wk_id })) {
     fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH, "candidate binding shape is invalid");
   }
@@ -602,9 +578,9 @@ export function verifyTerminalWkCandidateObjectBinding({ binding, runGit = defau
     ]
   ];
   const parentLine = git(runGit, binding.main_repo, ["rev-list", "--parents", "-n", "1", binding.candidate]).split(/\s+/u);
-  if (parentLine.length !== 2 || parentLine[1] !== binding.landing_tip) {
+  if (parentLine.length !== 2 || parentLine[1] !== binding.base) {
     fail(TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH, "candidate parent binding moved or disagrees", {
-      expected: binding.landing_tip,
+      expected: binding.base,
       actual: parentLine.slice(1)
     });
   }

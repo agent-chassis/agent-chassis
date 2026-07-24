@@ -280,19 +280,16 @@ export function resolveCommittedSliceReviewAdmission({
     runGit, mainRepo, diffBaseSha, wkSha, reviewedSha
   });
   const emptyDelivery = remaining.changedPaths.length === 0;
-  const changedRaw = emptyDelivery
-    ? { ok: true, stdout: "" }
-    : runGit({
-        repo: mainRepo,
-        args: ["diff", "--name-only", "-z", diffBaseSha, reviewedSha, "--"]
-      });
+  const changedRaw = runGit({
+    repo: mainRepo,
+    args: ["diff", "--name-only", "-z", diffBaseSha, reviewedSha, "--"]
+  });
   if (changedRaw?.ok !== true) fail("committed_slice_diff_unresolvable");
   const changedPaths = parseNulList(changedRaw.stdout);
-  const commits = emptyDelivery
-    ? Object.freeze([])
-    : assertServerMintedCommitChain({
-        runGit, mainRepo, subject, baseSha: diffBaseSha, reviewedSha
-      });
+
+  const commits = assertServerMintedCommitChain({
+    runGit, mainRepo, subject, baseSha: diffBaseSha, reviewedSha
+  });
   if (changedPaths.some((entry) => !pathInWriteScope(entry, writeScope))) {
     fail("trusted_commit_scope_mismatch", { changed_paths: changedPaths });
   }

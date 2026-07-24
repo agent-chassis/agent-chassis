@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { z } from "zod";
+
+import { registerDispatchTools } from "./dispatch-tools.mjs";
+import { createWorkspaceAgentDispatchBackend } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
 
 import {
   assessManagedRunProcessIdentity,
@@ -1541,4 +1545,146 @@ test("WK-1691#SLICE-002 the reconstruction seam omits unsafe detail just like th
   );
   assert.equal(Object.hasOwn(status.slice_lifecycle, "postcheck_mismatch_field"), false);
   assert.equal(JSON.stringify(status).includes("secret.mjs"), false);
+});
+
+function registerStandaloneRedteamDispatchFixture(t, { slice, slices, recordId = "WK-9733", subjectSliceId = "SLICE-001" } = {}) {
+  const repo = mkdtempSync(path.join(tmpdir(), "wk1725-registered-"));
+  const worktrees = mkdtempSync(path.join(tmpdir(), "wk1725-registered-wt-"));
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+  t.after(() => rmSync(worktrees, { recursive: true, force: true }));
+  mkdirSync(path.join(repo, "wiki", "work-records"), { recursive: true });
+  const subject = `${recordId}#${subjectSliceId}`;
+  writeFileSync(path.join(repo, "wiki", "work-records", `${recordId}.json`), JSON.stringify({
+    id: recordId,
+    initiative: "IN-0030",
+    status: "todo",
+    acceptance: {
+      criteria: ["Adversarially review the standalone unit."],
+      validation: ["node --test packages/wiki-mcp/src/lib/dispatch-tools-slice-lifecycle.test.mjs"]
+    },
+    slices: slices ?? [slice ?? {
+      id: "SLICE-001",
+      title: "Standalone findings-only redteam",
+      work_kind: "redteam",
+      status: "todo",
+      write_scope: [],
+      dispatch_intent: { intended_agent_role: "redteam", target_unit: "slice" },
+      acceptance: { criteria: ["Report adversarial findings; modify nothing."] }
+    }]
+  }));
+
+  const executorInputs = [];
+  let recoveryCalls = 0;
+  const backend = createWorkspaceAgentDispatchBackend({
+    launchExecutor: async (input) => {
+      executorInputs.push({ role: input.role, subject: input.subject, workspace_dir: input.workspace_dir });
+      return { accepted: true, status: "launching" };
+    },
+    worktreeProvisioning: { mainRepo: repo, worktreeRoot: worktrees },
+
+    recoverTerminalCandidate: async () => { recoveryCalls += 1; return null; }
+  });
+
+  const tools = new Map();
+  registerDispatchTools({
+    registerTool: (name, config, handler) => tools.set(name, { config, handler }),
+    registeredToolNames: new Set(["workspace_agent_dispatch"]),
+    workspaceRepos: [{ repo: "agent-chassis", dir: repo }],
+    z,
+    jsonContent: (value) => value,
+    errorContent: (value) => value,
+    resolveWorkspaceRepo: () => ({ repo: "agent-chassis", dir: repo }),
+    validateDispatch: async () => ({
+      schema_version: "dispatch-readiness.v1",
+      record_id: recordId,
+      unit: { kind: "slice", address: subject, record_id: recordId, slice_id: "SLICE-001" },
+      dispatch_role: "read_only",
+      dispatchable: true,
+      decision_code: "dispatchable",
+      reasons: [],
+      recovery: { graph_impact: "not_required", admission_metrics: "fresh", target_resolution: "fresh" },
+      state: { graph_state: {}, graph_auto_recoverable: false },
+      validation_hints: []
+    }),
+    dispatchBackend: backend,
+    dispatchSessionIdentity: "session-wk1725-registered"
+  });
+
+  return {
+    repo,
+    subject,
+    executorInputs,
+    recoveryCalls: () => recoveryCalls,
+    dispatch: (role = "redteam") =>
+      tools.get("workspace_agent_dispatch").handler({ role, subject, app: "codex" })
+  };
+}
+
+test("WK-1725#SLICE-001 the registered dispatch handler launches a standalone redteam through the generic route with zero terminal recovery", async (t) => {
+  const fixture = registerStandaloneRedteamDispatchFixture(t);
+  const result = await fixture.dispatch("redteam");
+  assert.equal(result.accepted, true, JSON.stringify(result));
+  assert.equal(result.role, "redteam");
+  assert.equal(result.subject, fixture.subject);
+  assert.equal(fixture.executorInputs.length, 1, "the registered handler reaches the family executor exactly once");
+  assert.equal(fixture.executorInputs[0].role, "redteam");
+  assert.equal(fixture.executorInputs[0].workspace_dir, fixture.repo);
+  assert.equal(fixture.recoveryCalls(), 0, "a registered standalone redteam must never invoke terminal-candidate recovery");
+});
+
+test("WK-1725#SLICE-001 registered dispatch readiness and backend admission agree: repeated standalone redteam attempts are never singleton-blocked", async (t) => {
+  const fixture = registerStandaloneRedteamDispatchFixture(t);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await fixture.dispatch("redteam");
+    assert.equal(result.accepted, true, `attempt ${attempt}: ${JSON.stringify(result)}`);
+  }
+  assert.equal(fixture.executorInputs.length, 3, "every registered standalone redteam attempt reaches the executor");
+  assert.equal(fixture.recoveryCalls(), 0);
+});
+
+test("WK-1725#SLICE-001 the registered seam routes a standalone redteam generically even when a terminal unit exists elsewhere", async (t) => {
+
+  const fixture = registerStandaloneRedteamDispatchFixture(t, {
+    recordId: "WK-9744",
+    subjectSliceId: "SLICE-001",
+    slices: [
+      {
+        id: "SLICE-001",
+        title: "Standalone findings-only redteam",
+        work_kind: "redteam",
+        status: "todo",
+        write_scope: [],
+        dispatch_intent: { intended_agent_role: "redteam", target_unit: "slice" },
+        acceptance: { criteria: ["Report adversarial findings; modify nothing."] }
+      },
+      {
+        id: "SLICE-050",
+        title: "implementation",
+        work_kind: "implementation",
+        status: "review",
+        write_scope: ["feature.txt"]
+      },
+      {
+        id: "SLICE-099",
+        title: "Terminal whole-WK review",
+        work_kind: "review",
+        review_purpose: "terminal_whole_wk",
+        status: "todo",
+        write_scope: [],
+        dispatch_intent: { intended_agent_role: "reviewer", target_unit: "slice" },
+        acceptance: { criteria: ["Findings-only review of C against L."] }
+      }
+    ]
+  });
+  const result = await fixture.dispatch("redteam");
+  assert.equal(result.accepted, true, JSON.stringify(result));
+  assert.equal(result.role, "redteam");
+  assert.equal(result.subject, fixture.subject);
+  assert.equal(fixture.executorInputs.length, 1, "the standalone redteam reaches the family executor exactly once");
+  assert.equal(fixture.executorInputs[0].workspace_dir, fixture.repo);
+  assert.equal(
+    fixture.recoveryCalls(),
+    0,
+    "a terminal unit elsewhere must not drag the registered standalone redteam into terminal recovery"
+  );
 });

@@ -8,9 +8,19 @@ import {
   evaluateWorkRecordParentLifecycleContract
 } from "../packages/wiki-core/src/lib/work-record-parent-lifecycle-contract.mjs";
 import {
-  PARENT_LIFECYCLE_CONTRACT_INCOMPLETE_DECISION_CODE,
+  MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE,
+  WORK_RECORD_DISPATCH_DECISION_CODES,
   validateWorkRecordDispatchById
 } from "../packages/wiki-core/src/lib/work-record-dispatch.mjs";
+
+const CLEAN_GRAPH = Object.freeze({
+  graph_available: true,
+  graph_state: "available",
+  staleness: "fresh",
+  dirty_state: "clean"
+});
+
+const PARENT_LIFECYCLE_INCOMPLETE_CODE = "parent_lifecycle_contract_incomplete";
 
 function terminalReviewSlice(id = "SLICE-002") {
   return {
@@ -97,7 +107,7 @@ function completeRecord() {
     },
     sections: {
       summary: "Parent lifecycle fixture.",
-      why_it_matters: "Pins pre-spawn completeness.",
+      why_it_matters: "Pins non-authorizing parent lifecycle facts.",
       scope: { items: ["dispatch"], out_of_scope: ["organization policy"] },
       tasks: [{ text: "Validate dispatch.", status: "todo" }],
       references: ["AGENTS.md"],
@@ -129,6 +139,17 @@ async function withRecord(t, record) {
   return dir;
 }
 
+async function dispatchSlice(t, record, overrides = {}) {
+  const dir = await withRecord(t, record);
+  return validateWorkRecordDispatchById({
+    dir,
+    unitAddress: `${record.id}#SLICE-001`,
+    graph_state: CLEAN_GRAPH,
+    graph_import_adjacency: [],
+    ...overrides
+  });
+}
+
 test("WK-1715 failure shape is a closed ordered incomplete result", () => {
   const record = completeRecord();
   delete record.initiative;
@@ -147,7 +168,7 @@ test("WK-1715 failure shape is a closed ordered incomplete result", () => {
   });
 });
 
-test("each required parent fact is an independent mutation witness", () => {
+test("each required parent fact is an independent projection witness", () => {
   const mutations = [
     ["initiative", (record) => { delete record.initiative; }],
     ["acceptance.criteria", (record) => { record.acceptance.criteria = []; }],
@@ -161,7 +182,7 @@ test("each required parent fact is an independent mutation witness", () => {
     assert.deepEqual(
       evaluateWorkRecordParentLifecycleContract(record),
       { complete: false, missing_facts: [fact], ambiguous_facts: [] },
-      `removing ${fact} must fail its dedicated regression`
+      `removing ${fact} must fail its dedicated projection regression`
     );
   }
 });
@@ -210,61 +231,171 @@ test("parent status and plural advisory attempt evidence do not affect completen
   }
 });
 
-test("implementation-slice refusal precedes graph and CCE evaluation and carries exact actions", async (t) => {
-  const record = completeRecord();
-  delete record.initiative;
-  record.acceptance.criteria = [];
-  record.slices = [implementationSlice()];
-  const dir = await withRecord(t, record);
-  let graphCalls = 0;
-  let cceCalls = 0;
+test("parent_lifecycle_contract_incomplete is not a dispatch decision code", () => {
 
-  const readiness = await validateWorkRecordDispatchById({
-    dir,
-    unitAddress: `${record.id}#SLICE-001`,
-    graph_resolver: async () => {
-      graphCalls += 1;
-      throw new Error("graph must not run");
-    },
-    node_engine_admissibility: {
-      resolver: async () => {
-        cceCalls += 1;
-        throw new Error("CCE must not run");
-      }
-    }
-  });
-
-  assert.equal(readiness.dispatchable, false);
-  assert.equal(readiness.decision_code, PARENT_LIFECYCLE_CONTRACT_INCOMPLETE_DECISION_CODE);
-  assert.deepEqual(readiness.parent_lifecycle_contract, {
-    complete: false,
-    missing_facts: ["initiative", "acceptance.criteria", "terminal_review_contract_unit"],
-    ambiguous_facts: []
-  });
-  assert.deepEqual(readiness.next_calls.map((call) => call.tool), [
-    "assign_work_record_to_initiative",
-    "workspace_work_record_set_acceptance",
-    "workspace_work_record_ready_slice"
-  ]);
-  assert.equal(graphCalls, 0);
-  assert.equal(cceCalls, 0);
+  assert.equal(
+    WORK_RECORD_DISPATCH_DECISION_CODES.includes(PARENT_LIFECYCLE_INCOMPLETE_CODE),
+    false
+  );
 });
 
-test("a complete parent contract leaves implementation-slice structural dispatch ready", async (t) => {
+test("missing_initiative_ref_namespace is the narrow initiative refusal code", () => {
+  assert.equal(MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE, "missing_initiative_ref_namespace");
+  assert.equal(
+    WORK_RECORD_DISPATCH_DECISION_CODES.includes(MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE),
+    true
+  );
+});
+
+test("implementation-slice dispatch refuses when the parent initiative is absent", async (t) => {
+
   const record = completeRecord();
-  const dir = await withRecord(t, record);
-  const readiness = await validateWorkRecordDispatchById({
-    dir,
-    unitAddress: `${record.id}#SLICE-001`,
-    graph_state: {
-      graph_available: true,
-      graph_state: "available",
-      staleness: "fresh",
-      dirty_state: "clean"
-    },
-    graph_import_adjacency: []
-  });
+  delete record.initiative;
+  const readiness = await dispatchSlice(t, record);
+  assert.equal(readiness.dispatchable, false, JSON.stringify(readiness));
+  assert.equal(readiness.decision_code, MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE);
+  assert.equal(Object.hasOwn(readiness, "parent_lifecycle_contract"), false);
+});
+
+test("implementation-slice dispatch refuses a non-canonical parent initiative", async (t) => {
+  for (const initiative of ["IN-30", "IN-00300", "INITIATIVE-0030", "0030", "", "in-0030"]) {
+    const record = completeRecord();
+    record.initiative = initiative;
+    const readiness = await dispatchSlice(t, record);
+    assert.equal(readiness.dispatchable, false, `${JSON.stringify(initiative)}: ${JSON.stringify(readiness)}`);
+    assert.equal(
+      readiness.decision_code,
+      MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE,
+      JSON.stringify(initiative)
+    );
+  }
+});
+
+test("implementation-slice dispatch proceeds with missing parent acceptance.criteria", async (t) => {
+
+  const record = completeRecord();
+  record.acceptance = { criteria: [], validation: [] };
+  const readiness = await dispatchSlice(t, record);
   assert.equal(readiness.dispatchable, true, JSON.stringify(readiness));
   assert.equal(readiness.decision_code, "dispatchable");
   assert.equal(Object.hasOwn(readiness, "parent_lifecycle_contract"), false);
+});
+
+test("implementation-slice dispatch proceeds with missing parent acceptance.validation", async (t) => {
+
+  const record = completeRecord();
+  record.acceptance = { criteria: [], validation: [] };
+  const readiness = await dispatchSlice(t, record);
+  assert.equal(readiness.dispatchable, true, JSON.stringify(readiness));
+  assert.equal(readiness.decision_code, "dispatchable");
+});
+
+test("implementation-slice dispatch proceeds with no terminal-review unit", async (t) => {
+  const record = completeRecord();
+  record.slices = [implementationSlice()];
+  const readiness = await dispatchSlice(t, record);
+  assert.equal(readiness.dispatchable, true, JSON.stringify(readiness));
+  assert.equal(readiness.decision_code, "dispatchable");
+});
+
+test("implementation-slice dispatch proceeds with multiple terminal-review units", async (t) => {
+
+  const record = completeRecord();
+  record.slices.push(terminalReviewSlice("SLICE-003"));
+  const readiness = await dispatchSlice(t, record);
+  assert.equal(readiness.dispatchable, true, JSON.stringify(readiness));
+  assert.equal(readiness.decision_code, "dispatchable");
+});
+
+test("implementation-slice dispatch proceeds with every parent PLANNING fact absent", async (t) => {
+
+  const record = completeRecord();
+  record.acceptance = { criteria: [], validation: [] };
+  record.slices = [implementationSlice()];
+  const readiness = await dispatchSlice(t, record);
+  assert.equal(readiness.dispatchable, true, JSON.stringify(readiness));
+  assert.equal(readiness.decision_code, "dispatchable");
+  assert.notEqual(readiness.decision_code, PARENT_LIFECYCLE_INCOMPLETE_CODE);
+  assert.notEqual(readiness.decision_code, MISSING_INITIATIVE_REF_NAMESPACE_DECISION_CODE);
+  assert.equal(Object.hasOwn(readiness, "parent_lifecycle_contract"), false);
+});
+
+test("a complete parent contract also leaves implementation-slice structural dispatch ready", async (t) => {
+  const readiness = await dispatchSlice(t, completeRecord());
+  assert.equal(readiness.dispatchable, true, JSON.stringify(readiness));
+  assert.equal(readiness.decision_code, "dispatchable");
+  assert.equal(Object.hasOwn(readiness, "parent_lifecycle_contract"), false);
+});
+
+test("missing parent PLANNING facts no longer short-circuit before CCE evaluation", async (t) => {
+
+  const record = completeRecord();
+  record.acceptance = { criteria: [], validation: [] };
+  record.slices = [implementationSlice()];
+  const readiness = await dispatchSlice(t, record, { node_engine_admissibility: true });
+  assert.equal(readiness.dispatchable, true, JSON.stringify(readiness));
+  assert.notEqual(readiness.decision_code, PARENT_LIFECYCLE_INCOMPLETE_CODE);
+  assert.equal(readiness.admissibility?.admissible, true, JSON.stringify(readiness.admissibility));
+  assert.equal(readiness.admissibility?.authority, "local_only_config");
+});
+
+test("empty selected-slice acceptance still refuses before dispatch", async (t) => {
+  const record = completeRecord();
+  record.slices[0].acceptance = { criteria: [], validation: [] };
+  const readiness = await dispatchSlice(t, record);
+  assert.equal(readiness.dispatchable, false, JSON.stringify(readiness));
+  assert.equal(readiness.decision_code, "missing_validation");
+});
+
+test("missing selected-slice acceptance.criteria still refuses before dispatch", async (t) => {
+  const record = completeRecord();
+  record.slices[0].acceptance = {
+    criteria: [],
+    validation: ["node --test tests/work-record-parent-lifecycle-readiness.test.mjs"]
+  };
+  const readiness = await dispatchSlice(t, record);
+  assert.equal(readiness.dispatchable, false, JSON.stringify(readiness));
+  assert.equal(readiness.decision_code, "missing_validation");
+});
+
+test("missing selected-slice acceptance.validation still refuses before dispatch", async (t) => {
+  const record = completeRecord();
+  record.slices[0].acceptance = {
+    criteria: ["Implement the requested dispatch guard."],
+    validation: []
+  };
+  const readiness = await dispatchSlice(t, record);
+  assert.equal(readiness.dispatchable, false, JSON.stringify(readiness));
+  assert.equal(readiness.decision_code, "missing_validation");
+});
+
+test("a malformed selected-unit slice id still refuses before dispatch", async (t) => {
+  const readiness = await validateWorkRecordDispatchById({
+    dir: await withRecord(t, completeRecord()),
+    unitAddress: "WK-9716#SLICE-XYZ",
+    graph_state: CLEAN_GRAPH,
+    graph_import_adjacency: []
+  });
+  assert.equal(readiness.dispatchable, false);
+  assert.equal(readiness.decision_code, "invalid_record");
+  assert.notEqual(readiness.decision_code, PARENT_LIFECYCLE_INCOMPLETE_CODE);
+});
+
+test("a missing selected slice still refuses before dispatch", async (t) => {
+  const readiness = await validateWorkRecordDispatchById({
+    dir: await withRecord(t, completeRecord()),
+    unitAddress: "WK-9716#SLICE-404",
+    graph_state: CLEAN_GRAPH,
+    graph_import_adjacency: []
+  });
+  assert.equal(readiness.dispatchable, false);
+  assert.equal(readiness.decision_code, "missing_slice");
+});
+
+test("an empty write scope on the implementation slice still refuses", async (t) => {
+  const record = completeRecord();
+  record.slices[0].write_scope = [];
+  const readiness = await dispatchSlice(t, record);
+  assert.equal(readiness.dispatchable, false);
+  assert.equal(readiness.decision_code, "missing_write_scope");
 });

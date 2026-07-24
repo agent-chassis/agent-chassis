@@ -317,6 +317,13 @@ export function resolveStructuralTargetResolverEvidenceFromExpectedEditTarget(va
     );
   }
 
+  if (targetKind !== null && targetKind !== "function" && targetKind !== "test_case") {
+    return normalizeStructuralTargetResolverEvidence(
+      { target, target_resolution_status: "unsupported_kind" },
+      options
+    );
+  }
+
   return normalizeStructuralTargetResolverEvidence(value, options);
 }
 

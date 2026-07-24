@@ -91,6 +91,7 @@ function makeFixture(t) {
   writeFileSync(path.join(repo, "base.txt"), "base\n");
   git(repo, "add", "-A");
   git(repo, "commit", "-q", "-m", "base");
+  const B = git(repo, "rev-parse", "HEAD");
   git(repo, "branch", "wk/IN-0030/WK-1634");
   git(repo, "checkout", "-q", "wk/IN-0030/WK-1634");
   writeFileSync(path.join(repo, "wk.txt"), "complete WK delta\n");
@@ -104,7 +105,7 @@ function makeFixture(t) {
   const L = git(repo, "rev-parse", "HEAD");
   mkdirSync(path.join(repo, "node_modules"));
   writeFileSync(path.join(repo, "node_modules", ".package-lock.json"), lock);
-  return { root, repo, worktrees, record, L, W };
+  return { root, repo, worktrees, record, B, L, W };
 }
 
 async function reviewedCycle(state) {
@@ -121,7 +122,9 @@ async function reviewedCycle(state) {
     integration: { wk_ref: "refs/heads/wk/IN-0030/WK-1634", wk_sha: state.W },
     reviewUnit,
     wkId: "WK-1634",
-    wkRef: "refs/heads/wk/IN-0030/WK-1634"
+    wkRef: "refs/heads/wk/IN-0030/WK-1634",
+    baseSha: state.B,
+    baseRef: "main"
   });
   const validations = await coordinator.validateTerminalCandidate({ terminalCandidate });
   assert.equal(validations.length, 1);
@@ -136,8 +139,8 @@ async function reviewedCycle(state) {
     initiative: "IN-0030",
     candidate_ref: target.candidate_ref,
     candidate_sha: target.candidate_sha,
-    landing_ref: target.landing_ref,
-    landing_sha: target.landing_sha,
+    base_ref: target.base_ref,
+    base_sha: target.base_sha,
     wk_ref: target.wk_ref,
     wk_sha: target.wk_sha,
     worktree_path: target.worktree_path,
@@ -212,9 +215,9 @@ test("same exact C/L/W passes validation, final-review binding, and byte-identic
   assert.equal(published.ok, true, JSON.stringify(published));
   assert.equal(reviewed.validation.candidate, reviewed.binding.candidate);
   assert.equal(reviewed.reviewer_identity.candidate_sha, reviewed.binding.candidate);
-  assert.equal(reviewed.reviewer_identity.landing_sha, state.L);
+  assert.equal(reviewed.reviewer_identity.base_sha, state.B);
   assert.equal(published.result.commit, reviewed.binding.candidate);
-  assert.equal(published.result.parent, state.L);
+  assert.equal(published.result.parent, state.B);
   assert.equal(git(state.repo, "rev-parse", "refs/heads/wk/IN-0030/WK-1634"), state.W);
 });
 
@@ -223,7 +226,8 @@ test("cold restart re-derives L/W/B/C and mints a fresh projection without monit
 
   const frozen = freezeTerminalWkCandidateInputs({
     mainRepo: state.repo,
-    landingRef: "refs/heads/main",
+    baseSha: state.B,
+    baseRef: "main",
     wkRef: "refs/heads/wk/IN-0030/WK-1634",
     canonicalWkId: "WK-1634",
     canonicalWkDigest: `sha256:${"ab".repeat(32)}`
@@ -238,10 +242,10 @@ test("cold restart re-derives L/W/B/C and mints a fresh projection without monit
   });
   const recovered = await freshCoordinator.recoverTerminalCandidate("WK-1634");
   assert.equal(recovered.binding.candidate, original.candidate);
-  assert.equal(recovered.binding.landing_tip, state.L);
+  assert.equal(recovered.binding.base, state.B);
   assert.equal(recovered.binding.wk_tip, state.W);
   assert.equal(recovered.binding.candidate_tree, original.candidate_tree);
-  assert.equal(recovered.binding.candidate_parent, state.L);
+  assert.equal(recovered.binding.candidate_parent, state.B);
   assert.equal(recovered.binding.candidate_ref_state, "recovered");
   assert.equal(git(state.repo, "count-objects", "-v"), objectsBeforeRecovery,
     "restart recovery must not write a Git object");

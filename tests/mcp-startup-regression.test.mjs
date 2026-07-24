@@ -39,7 +39,7 @@ function freeLocalServerEnv(profile) {
   return env;
 }
 
-async function listServerToolNames(serverPath, profile) {
+async function listServerTools(serverPath, profile) {
   const child = spawn(process.execPath, [serverPath], {
     cwd: REPO_ROOT,
     env: freeLocalServerEnv(profile),
@@ -58,7 +58,7 @@ async function listServerToolNames(serverPath, profile) {
     if (message.error) {
       throw new Error(`production tools/list refused for ${profile}: ${JSON.stringify(message.error)}`);
     }
-    return message.result.tools.map((tool) => tool.name).sort();
+    return message.result.tools;
   } finally {
     child.stdin.end();
     if (!reader.exitInfo) child.kill("SIGKILL");
@@ -67,8 +67,16 @@ async function listServerToolNames(serverPath, profile) {
   }
 }
 
+async function listServerToolNames(serverPath, profile) {
+  return (await listServerTools(serverPath, profile)).map((tool) => tool.name).sort();
+}
+
 async function listFreeLocalServerToolNames(profile) {
   return listServerToolNames("packages/wiki-mcp/src/server.mjs", profile);
+}
+
+async function listFreeLocalServerTools(profile) {
+  return listServerTools("packages/wiki-mcp/src/server.mjs", profile);
 }
 
 const STDIO_FDS = new Set(["0", "1", "2"]);
@@ -248,3 +256,64 @@ test("production stdio exposes committed-slice integration only to coordinator r
   const reviewer = await listFreeLocalServerToolNames("reviewer");
   assert.equal(reviewer.includes("workspace_integrate_committed_slice"), false);
 });
+
+function publishesSchemaAbsentEmptyObjectSentinel(inputSchema) {
+  if (!inputSchema || typeof inputSchema !== "object") return false;
+  if (inputSchema.type !== "object") return false;
+
+  if ("$schema" in inputSchema) return false;
+  const properties = inputSchema.properties;
+  const propertyCount =
+    properties && typeof properties === "object" ? Object.keys(properties).length : 0;
+  return propertyCount === 0;
+}
+
+test("WK-1697: no registered tool publishes the $schema-absent empty-object inputSchema sentinel",
+  async () => {
+
+    const ZOD_EFFECTS_TOOLS = new Set([
+      "workspace_read_page",
+      "workspace_get_record",
+      "workspace_work_record_summary",
+      "workspace_work_record_ready_slice",
+      "workspace_tool_router_recommend",
+      "workspace_initiative_status"
+    ]);
+    const repairedToolsSeen = new Set();
+
+    for (const profile of ["orchestrator", "reviewer", "redteam", "worker", "operator"]) {
+      const tools = await listFreeLocalServerTools(profile);
+      for (const tool of tools) {
+        assert.equal(
+          publishesSchemaAbsentEmptyObjectSentinel(tool.inputSchema),
+          false,
+          `${profile}: tool ${tool.name} publishes the $schema-absent EMPTY_OBJECT_JSON_SCHEMA ` +
+            "sentinel; a ZodEffects inputSchema must be normalized to its inner ZodObject at the " +
+            "registerTool boundary so its properties publish"
+        );
+        if (ZOD_EFFECTS_TOOLS.has(tool.name)) {
+          repairedToolsSeen.add(tool.name);
+          const schema = tool.inputSchema;
+          assert.ok(
+            schema && typeof schema === "object" && "$schema" in schema,
+            `${profile}: ${tool.name} inputSchema must carry a $schema key`
+          );
+          assert.ok(
+            schema.properties && Object.keys(schema.properties).length > 0,
+            `${profile}: ${tool.name} inputSchema must publish non-empty properties`
+          );
+          assert.equal(
+            schema.additionalProperties,
+            false,
+            `${profile}: ${tool.name} must preserve .strict() additionalProperties:false in publication`
+          );
+        }
+      }
+    }
+
+    assert.deepEqual(
+      [...repairedToolsSeen].sort(),
+      [...ZOD_EFFECTS_TOOLS].sort(),
+      "every repaired ZodEffects tool must be exposed to at least one role profile and verified"
+    );
+  });

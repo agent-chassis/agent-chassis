@@ -25,27 +25,56 @@ and monitor handles are launcher-minted correlation values and never accepted
 as caller authority. Cancellation or any client, relay, host-server, or model
 exit tears down the same per-dispatch lifecycle.
 
-### Parent lifecycle completeness precedes implementation-slice launch
+### The canonical initiative gates dispatch; other parent facts are observations
 
-Implementation-slice readiness mechanically evaluates the canonical parent WK
-before graph recovery, CCE policy evaluation, reservation, provisioning,
-worktree allocation or mutation, backend launch, and spawn. The parent must
-carry a canonical `IN-####` initiative, non-empty parent
-`acceptance.criteria` and `acceptance.validation`, and exactly one eligible
-findings-only review slice whose `review_purpose` is `terminal_whole_wk`, whose
-write scope is empty, whose dispatch intent selects the reviewer slice role,
-and whose status is neither `done` nor `cancelled`. An incomplete or ambiguous
-contract refuses as `parent_lifecycle_contract_incomplete`, reports only the
-missing or ambiguous facts, and supplies structured repair actions.
+The canonical parent `IN-####` initiative is **mechanical ref identity**. The
+launcher derives and verifies the exact `wk/IN/WK` and `slice/IN/WK` ref
+namespace an implementation-slice launch commits into from it, so an
+implementation-slice dispatch whose canonical parent declares no initiative, or a
+non-canonical one, cannot name that namespace and is refused with the stable,
+typed `missing_initiative_ref_namespace` decision code. That refusal is returned
+before graph recovery, CCE policy evaluation, reservation, provisioning, worktree
+allocation or mutation, backend launch, and spawn; the backend is reached zero
+times. It is derived solely from the canonical record — never from caller input,
+prompt text, or environment — accepts only the `IN-####` shape, and is **not** CCE
+policy (local renders no admissibility verdict and cannot overturn a configured
+CCE decision). It is the ONLY parent-level fact that gates local dispatch.
 
-This is execution routing completeness, not organization policy. It does not
-gate on parent status, validation success, dependencies, reviewer agreement, or
-any review/redteam result, receipt, count, finding, or outcome, and it does not
-move a CCE-owned decision into the local chassis. Exactly one
-`terminal_whole_wk` contract unit gives the terminal review route one canonical
-identity. It does **not** limit execution attempts: concurrent and historical
-reviewer and redteam runs against that contract remain unlimited, plural, and
+The remaining parent-lifecycle facts — non-empty parent `acceptance.criteria` and
+`acceptance.validation`, and a predeclared, singular terminal whole-WK
+findings-only review unit — are **not** a free/local implementation-dispatch
+admission veto. An otherwise-valid implementation unit (with a canonical
+initiative) reaches graph recovery, CCE policy evaluation, reservation,
+provisioning, worktree allocation or mutation, backend launch, and spawn even when
+its parent WK lacks parent acceptance arrays, or has no — or more than one —
+`terminal_whole_wk` review unit. Parent review planning is organizational
+coordination policy, not a technical prerequisite for spawning a confined
+implementation worker; there is no `parent_lifecycle_contract_incomplete` dispatch
+refusal.
+
+Parent acceptance and terminal-review completeness remain an **observable
+projection** that coordination or a configured CCE may consult, surfaced as a
+non-authorizing fact — never as mechanical integrity or execution readiness. They
+cannot set `dispatchable:false` locally, cannot prevent provisioning, reservation,
+or spawn, and cannot overturn a CCE decision.
+
+Terminal whole-WK review routing keeps its exact findings-target classification.
+An eligible terminal review unit has `review_purpose` `terminal_whole_wk`, an
+empty write scope, a reviewer slice dispatch intent, and a status that is neither
+`done` nor `cancelled`. When exactly one exists it gives the terminal review
+route one canonical identity; its absence is reported, never fabricated, and its
+plurality is not an implementation-admission failure. Standalone and exact
+committed-slice findings units keep their own classification, and reviewer and
+redteam attempts against any of these targets remain unlimited, plural, and
 advisory.
+
+Removing the parent-planning veto does not weaken genuine pre-spawn technical
+barriers: a missing or non-canonical initiative, the selected slice's own
+acceptance and validation, malformed selected-unit input, invalid or non-canonical
+paths, an invalid scope shape, unsupported confinement, missing
+executable/backend/runtime capabilities, forged caller authority, a conflicting
+live reservation, and exact subject or repository identity failure all still
+refuse before spawn.
 
 Managed worktrees are provisioned in-process from canonical launcher roots.
 Before an existing slice branch is adopted, its tip is reconciled against the
@@ -54,6 +83,31 @@ reaching an executor additionally requires that no prior managed attempt is live
 partially published, ambiguous, or unresolved. The two gates are independent and
 have separate owners — see *Orphaned and ahead slice tips refuse before mutation*
 and *Durable managed-run process identity* below.
+
+The dispatch-time canonical WK-record snapshot is committed onto the WK branch
+without any disposable full-repository scratch checkout. The launcher seeds a
+private throwaway index from the exact launcher-bound moving WK tip
+(`wk_tip_sha`), replaces exactly `wiki/work-records/<WK>.json` with the freshly
+hashed canonical blob, writes an immutable tree proven to differ from that tip at
+that path alone, constructs one deterministic child commit whose sole parent is
+`wk_tip_sha`, and advances the WK ref by expected-old compare-and-swap against
+that same tip. The fixed WK fork in `base_sha` is unchanged and remains the
+terminal candidate's parent. Nothing but the moving-tip tree and that one blob
+is ever staged, so unrelated main-worktree or persistent-WK bytes cannot enter
+the commit. The compare-and-swap preserves whether this transaction advanced the
+ref or converged
+on an equivalent concurrent winner; only an owned advance is ever rolled back, an
+equivalent winner is never rewound, and a within-scope no-op that finds the WK tip
+already at the exact record-only child converges on it rather than stacking
+another commit. After the compare-and-swap the launcher proves ref-level coherence
+— WK branch ref, the persistent worktree's HEAD symbolic-ref and branch
+association, the atomically rebound binding, and the returned committed tip name
+one state. The persistent WK worktree stays materialized-once (decision): its
+index and working files may remain at a mechanically proven cleanly-older parent,
+and provisioning performs no read-tree, reset, checkout, or other file
+rematerialization against it. Failure compensation runs in reverse acquisition
+order and restores only transaction-owned state; persistent WK resources are never
+removed merely because one attempt failed.
 
 An existing correctly associated deterministic exact-slice worktree is a resume
 surface, not a clean-room allocation. Provisioning preserves and admits any
@@ -78,6 +132,15 @@ stable typed reconcile diagnostic before the WK tip is adopted as anything,
 before any worktree is created or reused, before an attempt binding is published,
 and therefore before any spawn. A canonical base that cannot be resolved is also
 a refusal — an unresolvable base is never read as "nothing to compare against".
+
+This classification runs twice, from one authority, with no time-of-check gap.
+The provisioner runs it first at the very top of the per-WK critical section,
+using only launcher-derived ref/ancestry probes — no worktree add or remove, no
+`git status`, and no full-index scan — so an ahead, diverged, or orphaned tip
+refuses before the worktree root is created, before the WK is adopted, before the
+record is committed, and before any binding is written. The slice allocator then
+re-runs the identical gate at use, so the early check is a fast-fail optimization
+and is never sole authority.
 
 The refusal reports Git facts only. It never infers that the prior worker
 finished, never deletes or moves a ref, and never offers the unreviewed tip as a
@@ -150,6 +213,19 @@ recycled pid for the exact persisted tuple is a dead verdict by `starttime`
 mismatch; an unavailable `/proc` is indeterminate and never reads as death. No
 bare-pid liveness exists anywhere in the protocol.
 
+For a durable BOUND attempt the bound outer sandbox identity is the worker
+execution identity and is the SOLE authority on whether worker execution is still
+live: a live sandbox is LIVE, a dead sandbox is a proven death, and an
+indeterminate sandbox is unresolved. The launcher is a long-lived lifecycle
+coordinator that may legitimately remain alive after worker execution has ended,
+so its liveness is retained only as diagnostic evidence and never turns a
+known-dead worker into LIVE — a bound attempt whose sandbox is dead is proven
+dead even while its launcher still runs. Launcher liveness stays authoritative
+only before the sandbox is bound: a PENDING record is a partial publication that
+refuses under every reading, and an abandoned pre-attempt reservation is
+reclaimable only when its owning launcher is proven dead and it published nothing
+that could still be running.
+
 One canonical constructor owns the tuple, and publication and recovery both use
 it. The run id in the tuple is the launcher-minted WORKER run id. The retained
 worktree bindings of one attempt carry that id plus a launcher-minted suffix, so
@@ -218,6 +294,55 @@ authorization above so the unit converges to a retryable state. That path is
 disjoint from committed review and cannot prepare a review surface, integrate,
 mint acceptance, or launch a replacement worker itself.
 
+### Subject-addressed restart convergence
+
+Managed exact-slice dispatch converges after ordinary orchestrator and backend
+restarts. A restarted coordinator holds no process-local monitor handle, no
+unique historical binding, and performs no operator repair: it re-issues the same
+structured dispatch for the same canonical subject, and continuation is derived
+only from configured repository identity, the exact canonical subject, durable
+current reservation and attempt state, and canonical Git and WK state. The subject
+reservation names the current attempt, so a plurality of accumulated historical
+records is assessed mechanically and is never, by count alone, `ambiguous` or an
+operator-recovery state; ranking, guessing, deletion, and uniqueness across
+history are not required.
+
+A mechanically live current attempt is never duplicated. It is returned as an
+observable continuation that re-exposes the launcher-minted run and monitor
+identity from durable current state, so the new orchestrator needs no prior
+possession of the handle and is never told to recover the subject by supplying a
+prior launch ref. The re-exposed handle is an observation only: the supported
+convergence action is a subject-addressed re-issue of `workspace_agent_dispatch`
+for the same canonical subject, which observes the still-live attempt and asks the
+coordinator to reissue that dispatch once it settles. A restarted coordinator is
+never directed to `workspace_agent_run_status` or `workspace_agent_run_wait` with
+the old process-local handle — a cold backend holds no in-memory run for it and
+would answer only `monitor_handle_unknown`, so neither the refusal `recovery_route`
+nor the continuation `next_action` for a live current attempt names those routes.
+A committed delivery continues from canonical exact-slice state
+— either a mechanically authenticated corrective supersession of the delivered
+tip, or, when that is not applicable, a committed-review continuation — and
+consults no worker monitor memory or historical-binding uniqueness. A proven-dead
+no-delivery attempt (its slice ref still equal to its authenticated base, proven
+from the retained binding resolved through the durable record's own launch ref,
+never a caller-supplied handle) is retired through subject-addressed durable
+facts, its reservation released and replaced atomically, and the exact subject
+made launchable again without the old monitor handle.
+
+Within restart-state convergence specifically, the refusals are a closed set:
+invalid caller input, attributable corrupt current state (an exact current record
+that exists but cannot be read; an unrelated corrupt or historical file for a
+different attempt never blocks a subject whose current record is readable),
+contradictory immutable Git facts, or a genuinely indeterminate live conflict that
+cannot be safely duplicated. Caller-supplied handles, tuples, bindings, liveness,
+environment, or recovery claims still grant no authority. This closed list scopes
+only convergence; it does not narrow or suppress the ordinary typed pre-spawn
+blockers — malformed selected-unit input, invalid or non-canonical paths, an
+invalid scope shape, unsupported confinement or sandbox, missing
+executable/backend/runtime capabilities, MCP/server transport gaps, credential
+failures, forged caller authority, and the identity-enforcement-unavailable
+composition fault — which remain separate and unchanged.
+
 Delivery, reviewer admission, and integration use distinct authority. The
 launcher-minted worker run identity authenticates the closed-input commit call.
 That successful exact-slice commit advances only the slice ref and durably
@@ -243,15 +368,19 @@ and reports its non-audit posture. If a gate is configured, missing, unavailable
 malformed, unratified, denied, or target-mismatched CCE evidence refuses before ref
 or status mutation. Review completion itself never calls or authorizes integration.
 When the WK becomes terminal and quiescent, the runtime freezes repository
-identity plus `L`, `W`, and unique `B`; constructs deterministic one-parent
-candidate `C` by applying the complete `B..W` change to `L`; creates or recovers
-the fixed `refs/agent-launch/terminal-current/<WK>` ref by expected-old CAS; and materializes a separate private mode-0700
-full detached checkout. The WK ref and worktree remain assembly state and are
-not the terminal review checkout.
+identity plus the launcher-bound base `B` of the persistent WK lifecycle
+(propagated from the WK identity binding's `base_sha`, base_ref `main`) and the
+accumulated WK tip `W`; constructs the deterministic squash candidate `C` such
+that `tree(C) === tree(W)` and `C`'s sole parent is `B` (`tree(C)` is resolved
+directly with `rev-parse <W>^{tree}` and `C` is created with `commit-tree` — no
+`merge-tree`, no current-landing-tip resolution); creates or recovers the fixed
+`refs/agent-launch/terminal-current-v2/<WK>` ref by expected-old CAS; and
+materializes a separate private mode-0700 full detached checkout. The WK ref and
+worktree remain assembly state and are not the terminal review checkout.
 
-The runtime verifies the complete `L/W/B/C/tree/parent/ref/checkout` binding,
+The runtime verifies the complete `B/W/C/tree/parent/ref/checkout` binding,
 runs every canonical whole-WK validation against `C` in the read-only reviewer
-composition, then binds the final findings-only reviewer to `C` with `L` as diff base. Public
+composition, then binds the final findings-only reviewer to `C` with `B` as diff base (`B..C`). Public
 `workspace_run_validation` input remains exactly `{unit,target}`; candidate,
 checkout, dependency, process, environment, argument, and ref authority is
 launcher-resolved. Reviewer result consumption rechecks the same frozen
@@ -259,6 +388,24 @@ contract and candidate binding. Validation and reviewer output are advisory;
 passing evidence does not admit and failing evidence does not veto integration.
 A result belongs only to that exact cycle;
 restart uncertainty causes validation and review to run again.
+
+A technical failure while constructing or restart-recovering `C` refuses reviewer
+dispatch **before spawn** and preserves the real cause rather than fabricating an
+exact-candidate disagreement. Candidate `C` is the deterministic squash of the
+launcher-bound base `B` and the accumulated WK tip `W` (`tree(C) === tree(W)`,
+sole parent `B`); construction and recovery run only ordinary object-store
+operations — `rev-parse`, `cat-file`, `rev-list`, and `commit-tree` — and never a
+landing content merge, so no `merge-tree` runs and the retained `conflict`
+taxonomy code is unreachable in v2. A typed candidate error keeps its exact stable
+`agent_launch.terminal_wk_candidate.*` code (for example `git_failed` from a
+nonzero Git execution such as status 128 / read-only object store) and its bounded
+mechanical Git detail (operation/args, exit status, bounded stderr), classified by
+the command's mechanical result rather than by parsing prose; an unexpected cause
+is retained as its bounded `unknown_cause` code/name and message. Neither
+projection exposes stdout, environment, credentials, or stack traces. The
+refusal returns `accepted:false` with no reviewer run, monitor handle, executor
+invocation, fallback candidate, or alternate ref, and grants no review,
+integration, publication, validation, or CCE authority.
 
 ## Post-spawn conduit failure is a terminal run outcome
 
@@ -366,7 +513,7 @@ historical receipt state never block another dispatch. Restart does not turn rev
 history into an admission latch.
 
 Receipts are append-only per-run evidence bound to the exact subject, committed
-SHA/tree, diff base or landing parent, role, run identity, monitor handle,
+SHA/tree, diff base or base parent, role, run identity, monitor handle,
 structured-result digest, and terminal disposition. The complete applicable set is
 evaluated; a latest-receipt projection is never review admission or the complete
 review set. Target movement makes old evidence inapplicable without rewriting or
@@ -461,14 +608,42 @@ are written before any check, so every check binds to one immutable object rathe
 than to a re-read worktree. An empty trusted changed-path set is not a third
 commit blocker: once structural write-scope containment succeeds, the exact-slice
 delivery performs the same implementation-to-review transaction as any other
-delivery. Because the authenticated prior tip already represents the delivered
-tree, the exact-ref primitive leaves the ref there rather than publishing a
-same-tree no-op suffix. A replay based on a prior real delivery likewise leaves
-that exact delivery reachable and unchanged; an empty request can neither hide,
-discard, nor replace it.
+delivery. A within-scope zero-delta delivery still publishes an authenticated
+server-minted child — its single parent is the launcher-authenticated base and
+its tree equals that base tree — and advances the exact slice ref to that child
+through the expected-old compare-and-swap. `empty_delivery` is reported from tree
+equality, never from an unchanged ref. A replay materialized from a prior real
+delivery leaves that exact delivery reachable as the new child's ancestor; an
+equivalent same-tree child converges idempotently on the already-published winner
+and never hides, discards, or replaces it.
 
-For a non-empty delivery, exact-ref publication and canonical review persistence
-form one truthful success boundary. The ref is advanced only by
+When a managed worker terminates successfully, the post-worker lifecycle
+mechanically separates an authenticated delivery from a missing one before any
+review or integration, and the exact slice ref is the witness: an unchanged ref
+is ALWAYS the absence of a committed delivery, and any authenticated delivery —
+empty or not — has advanced it. An **authenticated delivery commit** is a slice
+ref advanced past its launcher-bound base with a server-minted commit chain. It
+may carry a nonempty delta or be a **genuine zero-delta child** whose tree equals
+the base tree; either way it advanced through the expected-old compare-and-swap
+and takes the full real-delivery path, retaining server-minted chain
+verification, write-scope containment, object and target-stability checks, and
+the exact-parent assertion — which a same-tree child satisfies because its sole
+parent is the launcher-bound base. `empty_delivery` is that tree equality, not
+ref identity. A **missing delivery** is an unchanged slice ref with no
+authenticated closed-input delivery at all: the worker changed authorized files
+but never invoked the closed-input commit, so the delta is unpublished. A missing
+delivery is not a committed slice. It enters neither review-surface preparation,
+slice-level review, nor integration; it moves no ref; it preserves every
+unpublished worktree byte untouched; and it is retired only through the exact
+proven-dead `no_commit_base_equal` path into a finalized, non-integrated,
+retryable continuation the coordinator clears by re-dispatch — no ref deletion,
+worktree cleanup, historical binding enumeration, or operator repair. Canonical
+status, worker liveness, process exit, monitor possession, and reviewer output
+are never delivery authority.
+
+For every authenticated delivery — nonempty or zero-delta — exact-ref
+publication and canonical review persistence form one truthful success boundary.
+The ref is advanced only by
 `update-ref <slice-ref> <new-commit> <authenticated-prior-tip>`. If the canonical
 implementation-to-review write throws, returns an invalid result, or does not
 prove that the exact selected slice reached `review`, the server compensates only
@@ -626,44 +801,56 @@ taxonomy. There is no compatibility route to another process boundary.
 exact-candidate-bound advisory review evidence. Clean output does not authorize
 publication, findings do not veto it, and missing or mixed review output does not
 decide the boundary. The orchestrator request is also non-authorizing. CCE alone
-decides a configured organization-policy gate bound to exact `C/L/W`; missing,
+decides a configured organization-policy gate bound to exact `C/B/W`; missing,
 unavailable, malformed, unratified, denied, or target-mismatched CCE evidence
 fails closed. Paid-tier presence alone configures no gate. With no configured
 gate, decision free-substrate publication proceeds with an explicit non-audit
-posture. The host publishes exact `C` without merge-base calculation, merge-tree,
-commit-tree, replay, rebase, squash, amend, or other reconstruction. The exact
-remote candidate branch is observed around publication as forge transport
-integrity. Movement of the landing ref after C was
-constructed neither changes C's frozen parent L nor blocks publication; merge
-readiness belongs to the configured merge actor and CCE policy. Absent candidate
+posture. The host publishes exact `C` against the configured base branch without
+merge-base calculation, merge-tree, commit-tree, replay, rebase, squash, amend, or
+other reconstruction; it does not require `C`'s parent to equal the current
+base-branch tip and does not preflight or locally resolve merge conflicts. The
+exact remote candidate branch is observed around publication as forge transport
+integrity. Movement of the current landing after `C` was constructed neither
+changes `C`'s frozen base parent `B` nor blocks publication; git/forge and the
+configured merge actor own merge readiness, so a conflicting or unmergeable PR is
+still a successfully handed-off exact candidate. Absent candidate
 branches may be created, exact branches reused, and differing branch targets are
-reported as transport disagreement. The chassis does not list, count, create,
-recover, classify, or veto on pull-request state; proposal idempotency and merge
-state remain entirely with the configured forge and human merge actor. The
+reported as transport disagreement. Handoff observes the exact
+repository/base/head proposal set and creates at most one pull request when none
+exists, recovering a single exact open or already-merged proposal without
+duplication; an ambiguous, identity-mismatched, closed-unmerged, or unobservable
+proposal state refuses. Mergeability is never a local veto — an exact open but
+conflicting or unmergeable proposal is still a successful handoff — and merging,
+approval, rebasing, branch updating, and conflict resolution remain with the
+configured forge and human merge actor. The
 operation does not merge.
 
 Loss of process memory, a monitor handle, or a prior in-memory binding does not
 invalidate the terminal cycle. On restart, trusted runtime first reads exactly the
-fixed `refs/agent-launch/terminal-current/<WK>` ref. When present, it mechanically
-verifies the target. Immutable `C` metadata binds repository identity, `L`, `W`,
-unique `B`, the canonical contract digest, expected tree, and sole parent.
-Recovery hashes the complete deterministic commit bytes in the repository object
-format and compares that identity with the current-ref target while `W` remains
-unchanged. Current landing-ref movement is not candidate movement: frozen `L`
-comes from C's verified sole parent. Present-ref recovery does not invoke
-`commit-tree`, create an object, move a ref, or compare current WK status,
-dependencies, or record bytes with the frozen contract.
+fixed `refs/agent-launch/terminal-current-v2/<WK>` ref. When present, it
+mechanically verifies the target. Immutable `C` metadata binds repository
+identity, the base `B`, `W`, the canonical contract digest, expected tree, and
+sole parent. Recovery hashes the complete deterministic commit bytes in the
+repository object format and compares that identity with the current-ref target
+while `W` remains unchanged. Current landing movement is not candidate movement
+and is never consulted: frozen `B` comes from `C`'s verified sole parent (the
+candidate's `Base:` metadata line), never from current landing or a computed merge
+base. Present-ref recovery does not invoke `commit-tree`, create an object, move a
+ref, or compare current WK status, dependencies, or record bytes with the frozen
+contract. A v1 candidate — whose message marker and landing parent differ — fails
+the v2 metadata reader and is never recovered as a valid v2 candidate.
 
-An absent fixed current ref is normal construction state, not a recovery error.
-The launcher resolves the canonical WK coordinate, freezes current `L/W/B` and
-the canonical contract digest stored in immutable W, deterministically constructs
-C, and creates the fixed ref with expected-old absent-ref CAS. It then performs
-the same materialization, dependency verification, validation, and exact-SHA
-review binding. This is the first candidate cycle, restart-before-CAS path, and
-transition path for repositories that still contain only legacy candidate refs.
-Legacy per-candidate refs are never read, enumerated, counted, ranked, validated,
-migrated, preserved, or interpreted. Any number may remain physically present
-without affecting construction, review, restart, or publication.
+An absent fixed current ref means no candidate was ever published for this WK.
+Cold recovery has no launcher-bound base to reconstruct one from — and `B` may not
+come from current landing or a guessed merge base — so cold recovery fails closed
+rather than constructing a guessed candidate. The hot post-worker lifecycle, which
+holds the WK identity binding's `base_sha`, is the sole constructor of a new
+candidate: it freezes `B` and `W`, deterministically constructs `C`, and creates
+or advances the fixed ref with expected-old CAS (covering the first candidate
+cycle and the restart-before-CAS path). Legacy per-candidate refs are never read,
+enumerated, counted, ranked, validated, migrated, preserved, or interpreted. Any
+number may remain physically present without affecting construction, review,
+restart, or publication.
 
 Construction snapshots the fixed ref's exact old value before materializing `C`
 and advances it only with `update-ref <fixed> <C> <expected-old>`. Same-input races
@@ -684,11 +871,12 @@ Before selecting any generic findings-only route, the backend resolves the one
 canonical `terminal_whole_wk` contract unit. An existing in-memory context is
 used only while its exact candidate, checkout, canonical contract, and immutable
 installation-bound dependency projection still verify. If that context is
-absent or invalid, launcher-owned recovery reconstructs and re-verifies the
-durable `repository/unit/C/L/W/B/ref/tree/sole-parent/checkout/dependency`
-binding, reruns the canonical validation targets through that projection, and
-binds the reviewer to the private detached candidate checkout with `L..C` as its
-only review range and no repository write authority.
+absent or invalid, launcher-owned recovery re-verifies the durable
+`repository/unit/C/B/W/ref/tree/sole-parent/checkout/dependency` binding from the
+existing candidate, reruns the canonical validation targets through that
+projection, and binds the reviewer to the private detached candidate checkout with
+`B..C` as its only review range and no repository write authority. An absent fixed
+ref fails closed here as well; only the hot lifecycle constructs a candidate.
 
 Parent WK status does not select candidate identity, recovery authority, the
 reviewer checkout, or fallback behavior. Missing process memory never permits a

@@ -593,7 +593,8 @@ test("WK-1694#SLICE-002 the dispatch surface consults durable identity BEFORE an
     assert.equal(refused.accepted, false, verdict);
     assert.equal(refused.refusal.reason, `managed_run_prior_attempt_${verdict}`, verdict);
     assert.equal(refused.refusal.detail.verdict, verdict, verdict);
-    assert.equal(refused.refusal.detail.recovery_route, "workspace_agent_run_status", verdict);
+
+    assert.equal(refused.refusal.detail.recovery_route, "workspace_agent_dispatch", verdict);
     assert.equal(executorCalls.length, 0, verdict);
     assert.deepEqual(publications, [], verdict);
   }

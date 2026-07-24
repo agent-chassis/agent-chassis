@@ -51,7 +51,10 @@ test("WK-1718 production recovery has no historical-ref enumeration or compatibi
   assert.equal(coordinatorSource.includes(
     "terminal_candidate_recovery_current_ref_unavailable"
   ), false);
-  assert.match(coordinatorSource, /candidate === null[\s\S]*constructTerminalWkCandidate/u);
+
+  assert.equal(candidateSource.includes("merge-tree"), false);
+
+  assert.match(coordinatorSource, /candidate === null[\s\S]*terminal_candidate_recovery_current_ref_absent/u);
 });
 
 function setup() {
@@ -82,33 +85,38 @@ function setup() {
   return { root, repo, base, wk, landing };
 }
 
-function freeze(repo) {
+function freeze(repo, base) {
   return freezeTerminalWkCandidateInputs({
     mainRepo: repo,
-    landingRef: "refs/heads/main",
+    baseSha: base,
+    baseRef: "main",
     wkRef: "refs/heads/wk/IN-0030/WK-1634",
     canonicalWkId: "WK-1634",
     canonicalWkDigest: `sha256:${"a".repeat(64)}`
   });
 }
 
-test("WK-1634 candidate deterministically preserves landing and the complete WK delta", () => {
-  const { repo, base, wk, landing } = setup();
-  const frozen = freeze(repo);
-  assert.equal(frozen.merge_base, base);
+test("WK-1634 candidate is the deterministic squash of B..W and excludes landing content", () => {
+  const { repo, base, wk } = setup();
+  const frozen = freeze(repo, base);
+  assert.equal(frozen.base, base);
   assert.equal(frozen.wk_tip, wk);
-  assert.equal(frozen.landing_tip, landing);
+  assert.equal(frozen.base_ref, "main");
 
   const first = constructTerminalWkCandidate({ frozen });
   const second = constructTerminalWkCandidate({ frozen });
   assert.equal(second.candidate, first.candidate);
   assert.equal(second.candidate_ref_state, "current");
-  assert.equal(first.candidate_ref, "refs/agent-launch/terminal-current/WK-1634");
+  assert.equal(first.candidate_ref, "refs/agent-launch/terminal-current-v2/WK-1634");
+  assert.equal(first.candidate_parent, base);
+  assert.equal(first.candidate_tree, git(repo, "rev-parse", `${wk}^{tree}`),
+    "tree(C) === tree(W)");
   assert.deepEqual(git(repo, "rev-list", "--parents", "-n", "1", first.candidate).split(" "), [
     first.candidate,
-    landing
+    base
   ]);
-  assert.equal(git(repo, "show", `${first.candidate}:landing-only.txt`), "landing stays");
+
+  assert.throws(() => git(repo, "cat-file", "-e", `${first.candidate}:landing-only.txt`));
   assert.equal(git(repo, "show", `${first.candidate}:wk-only.txt`), "whole WK delta");
   assert.equal(git(repo, "show", `${first.candidate}:shared.txt`), "base\nwk");
   assert.throws(() => git(repo, "cat-file", "-e", `${first.candidate}:delete.txt`));
@@ -121,39 +129,49 @@ test("WK-1634 candidate deterministically preserves landing and the complete WK 
   verifyTerminalWkCandidateObjectBinding({ binding: first });
 });
 
-test("WK-1634 candidate merge conflicts fail closed without a candidate ref", () => {
-  const { repo } = setup();
+test("WK-1634 a landing/W product conflict does not block the squash candidate", () => {
+  const { repo, base, wk } = setup();
   git(repo, "checkout", "wk/IN-0030/WK-1634");
   writeFileSync(path.join(repo, "shared.txt"), "wk replacement\n");
-  commit(repo, "wk conflict");
+  const conflictingW = commit(repo, "wk conflict");
   git(repo, "checkout", "main");
   writeFileSync(path.join(repo, "shared.txt"), "landing replacement\n");
   commit(repo, "landing conflict");
-  const frozen = freeze(repo);
+  const frozen = freeze(repo, base);
+  const binding = constructTerminalWkCandidate({ frozen });
+  assert.equal(binding.candidate_parent, base);
+  assert.equal(binding.wk_tip, conflictingW);
+  assert.equal(binding.candidate_tree, git(repo, "rev-parse", `${conflictingW}^{tree}`));
+  assert.equal(git(repo, "show", `${binding.candidate}:shared.txt`), "wk replacement");
+  assert.notEqual(conflictingW, wk);
+  verifyTerminalWkCandidateObjectBinding({ binding });
+});
+
+test("WK-1634 landing movement never changes deterministic C; WK movement invalidates", () => {
+  const { repo, base } = setup();
+  const first = constructTerminalWkCandidate({ frozen: freeze(repo, base) });
+
+  git(repo, "checkout", "main");
+  writeFileSync(path.join(repo, "landing-extra.txt"), "moved after\n");
+  commit(repo, "advance landing");
+  const again = constructTerminalWkCandidate({ frozen: freeze(repo, base) });
+  assert.equal(again.candidate, first.candidate,
+    "landing movement must not change deterministic C");
+  verifyTerminalWkCandidateObjectBinding({ binding: first });
+
+  const frozen = freeze(repo, base);
+  git(repo, "checkout", "wk/IN-0030/WK-1634");
+  writeFileSync(path.join(repo, "wk-moved.txt"), "moved\n");
+  commit(repo, "move WK tip");
   assert.throws(() => constructTerminalWkCandidate({ frozen }), (error) => {
-    assert.ok(error instanceof TerminalWkCandidateError);
-    assert.equal(error.code, TERMINAL_WK_CANDIDATE_CODES.CONFLICT);
+    assert.equal(error.code, TERMINAL_WK_CANDIDATE_CODES.INPUT_MOVED);
     return true;
   });
 });
 
-test("WK-1634 moved landing or WK tips invalidate the frozen tuple", () => {
-  for (const branch of ["main", "wk/IN-0030/WK-1634"]) {
-    const { repo } = setup();
-    const frozen = freeze(repo);
-    git(repo, "checkout", branch);
-    writeFileSync(path.join(repo, `${branch === "main" ? "landing" : "wk"}-moved.txt`), "moved\n");
-    commit(repo, "move frozen input");
-    assert.throws(() => constructTerminalWkCandidate({ frozen }), (error) => {
-      assert.equal(error.code, TERMINAL_WK_CANDIDATE_CODES.INPUT_MOVED);
-      return true;
-    });
-  }
-});
-
 test("WK-1718 current candidate ref uses expected-old CAS and same-input convergence", () => {
-  const { repo } = setup();
-  const binding = constructTerminalWkCandidate({ frozen: freeze(repo) });
+  const { repo, base } = setup();
+  const binding = constructTerminalWkCandidate({ frozen: freeze(repo, base) });
   const exact = casTerminalCandidateCurrentRef({
     mainRepo: repo,
     canonicalWkId: "WK-1634",
@@ -178,8 +196,8 @@ test("WK-1718 current candidate ref uses expected-old CAS and same-input converg
 });
 
 test("WK-1718 crash before CAS leaves an inert object and crash after CAS recovers from the fixed ref", () => {
-  const { repo } = setup();
-  const frozen = freeze(repo);
+  const { repo, base } = setup();
+  const frozen = freeze(repo, base);
   const inert = deriveTerminalWkCandidate({ frozen });
   assert.equal(git(repo, "cat-file", "-t", inert.candidate), "commit");
   assert.throws(() => git(repo, "rev-parse", inert.candidate_ref));
@@ -192,18 +210,18 @@ test("WK-1718 crash before CAS leaves an inert object and crash after CAS recove
 });
 
 test("WK-1718 W movement constructs and CAS-advances one fixed ref while legacy refs stay unread", () => {
-  const { repo } = setup();
-  const first = constructTerminalWkCandidate({ frozen: freeze(repo) });
+  const { repo, base } = setup();
+  const first = constructTerminalWkCandidate({ frozen: freeze(repo, base) });
   const legacyA = `refs/agent-launch/terminal-candidates/WK-1634/${first.candidate}`;
   const legacyB = `refs/agent-launch/terminal-candidates/WK-1634/${"f".repeat(40)}`;
   git(repo, "update-ref", legacyA, first.candidate);
-  git(repo, "update-ref", legacyB, first.landing_tip);
+  git(repo, "update-ref", legacyB, first.base);
 
   git(repo, "checkout", "wk/IN-0030/WK-1634");
   writeFileSync(path.join(repo, "remediation.txt"), "replacement\n");
   const replacementW = commit(repo, "remediation");
   git(repo, "checkout", "main");
-  const replacement = constructTerminalWkCandidate({ frozen: freeze(repo) });
+  const replacement = constructTerminalWkCandidate({ frozen: freeze(repo, base) });
 
   assert.notEqual(replacement.candidate, first.candidate);
   assert.equal(replacement.wk_tip, replacementW);
@@ -211,12 +229,12 @@ test("WK-1718 W movement constructs and CAS-advances one fixed ref while legacy 
   assert.equal(replacement.candidate_ref_state, "advanced");
   assert.equal(git(repo, "rev-parse", replacement.candidate_ref), replacement.candidate);
   assert.equal(git(repo, "rev-parse", legacyA), first.candidate);
-  assert.equal(git(repo, "rev-parse", legacyB), first.landing_tip);
+  assert.equal(git(repo, "rev-parse", legacyB), first.base);
 });
 
 test("WK-1634 materializes a private full detached checkout and rejects drift", () => {
-  const { root, repo, wk } = setup();
-  const binding = constructTerminalWkCandidate({ frozen: freeze(repo) });
+  const { root, repo, base, wk } = setup();
+  const binding = constructTerminalWkCandidate({ frozen: freeze(repo, base) });
   const candidateRoot = path.join(root, "private", binding.candidate);
   const materialization = materializeTerminalCandidateCheckout({
     binding,
@@ -241,24 +259,74 @@ test("WK-1634 materializes a private full detached checkout and rejects drift", 
   });
 });
 
-test("WK-1634 ambiguous merge-base output is refused before construction", () => {
-  const { repo } = setup();
-  const real = (input) => {
-    if (input.args[0] === "merge-base" && input.args[1] === "--all") {
-      return { ok: true, stdout: `${"1".repeat(40)}\n${"2".repeat(40)}\n` };
-    }
-    const result = execFileSync("git", ["-C", input.repo, ...input.args], { encoding: "utf8" });
-    return { ok: true, stdout: result };
+test("WK-1634 candidate construction issues no merge-tree and no current-landing resolution", () => {
+  const { repo, base } = setup();
+  const seen = [];
+  const runGit = (input) => {
+    seen.push(input.args);
+    return defaultTerminalCandidateRunGit(input);
   };
-  assert.throws(() => freezeTerminalWkCandidateInputs({
+  const frozen = freezeTerminalWkCandidateInputs({
     mainRepo: repo,
-    landingRef: "refs/heads/main",
+    baseSha: base,
+    baseRef: "main",
     wkRef: "refs/heads/wk/IN-0030/WK-1634",
     canonicalWkId: "WK-1634",
     canonicalWkDigest: `sha256:${"a".repeat(64)}`,
-    runGit: real
+    runGit
+  });
+  constructTerminalWkCandidate({ frozen, runGit });
+  assert.equal(seen.some((args) => args[0] === "merge-tree"), false, "no merge-tree");
+  assert.equal(seen.some((args) => args[0] === "merge-base" && args[1] === "--all"), false,
+    "no merge-base --all");
+
+  assert.equal(
+    seen.some((args) => args.some((a) => typeof a === "string" &&
+      (/refs\/heads\/main\b/u.test(a) || a === "main" || /\bmain\^\{/u.test(a)))),
+    false,
+    "no current-landing-tip resolution"
+  );
+});
+
+test("WK-1717 commit-tree execution failure is a typed Git failure with bounded detail", () => {
+  const { repo, base } = setup();
+  const frozen = freeze(repo, base);
+  const runGit = (input) => {
+    if (input.args[0] === "commit-tree") {
+      return {
+        ok: false,
+        status: 128,
+        stdout: "",
+        stderr: "fatal: failed to write object: Read-only file system"
+      };
+    }
+    return defaultTerminalCandidateRunGit(input);
+  };
+  assert.throws(() => constructTerminalWkCandidate({ frozen, runGit }), (error) => {
+    assert.ok(error instanceof TerminalWkCandidateError);
+    assert.equal(error.code, TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED);
+    assert.notEqual(error.code, TERMINAL_WK_CANDIDATE_CODES.CONFLICT);
+    assert.equal(error.detail.status, 128);
+    assert.match(error.detail.stderr, /Read-only file system/u);
+    assert.equal(error.detail.args[0], "commit-tree");
+    return true;
+  });
+  assert.throws(() => git(repo, "rev-parse", "--verify",
+    deriveTerminalCandidateCurrentRef({ canonicalWkId: "WK-1634" })));
+});
+
+test("WK-1634 a base that is not an ancestor of W fails closed", () => {
+  const { repo, landing } = setup();
+
+  assert.throws(() => freezeTerminalWkCandidateInputs({
+    mainRepo: repo,
+    baseSha: landing,
+    baseRef: "main",
+    wkRef: "refs/heads/wk/IN-0030/WK-1634",
+    canonicalWkId: "WK-1634",
+    canonicalWkDigest: `sha256:${"a".repeat(64)}`
   }), (error) => {
-    assert.equal(error.code, TERMINAL_WK_CANDIDATE_CODES.MERGE_BASE_INVALID);
+    assert.equal(error.code, TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID);
     return true;
   });
 });

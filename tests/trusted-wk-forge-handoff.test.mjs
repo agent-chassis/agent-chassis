@@ -13,6 +13,7 @@ import {
 import { materializeTerminalCandidateCheckout } from
   "../packages/agent-launch-cli/src/lib/terminal-review-materialization.mjs";
 import {
+  PULL_REQUEST_PAGE_LIMIT,
   defaultWkForgeHandoff,
   resolveWkForgeHandoffBoundaryAuthorization
 } from "../packages/agent-launch-cli/src/lib/wk-forge-handoff.mjs";
@@ -27,6 +28,9 @@ const REPOSITORY = Object.freeze({
   name: "agent-chassis",
   https_url: "https://github.com/agent-chassis/agent-chassis.git"
 });
+
+const BASE_BRANCH = "main";
+const handoffBranch = (candidate) => `handoff/wk/IN-0034/WK-1718/${candidate}`;
 
 function git(repo, ...args) {
   return execFileSync("git", ["-C", repo, ...args], {
@@ -83,7 +87,8 @@ function fixture(t) {
   const L = commit(repo, "landing");
   const frozen = freezeTerminalWkCandidateInputs({
     mainRepo: repo,
-    landingRef: "refs/heads/main",
+    baseSha: B,
+    baseRef: "main",
     wkRef: "refs/heads/wk/IN-0034/WK-1718",
     canonicalWkId: "WK-1718",
     canonicalWkDigest: `sha256:${"a".repeat(64)}`
@@ -97,38 +102,64 @@ function fixture(t) {
   return { root, repo, record, B, L, W, binding, materialization };
 }
 
-function fakeForge(candidate, { branchSha = null, prs = [] } = {}) {
-  const branches = new Map(branchSha === null ? [] : [[`handoff/wk/IN-0034/WK-1718/${candidate}`, branchSha]]);
+function pullRequest(candidate, overrides = {}) {
+  const number = Object.hasOwn(overrides, "number") ? overrides.number : 7;
+  return {
+    number,
+    state: "open",
+    merged: false,
+    url: `https://example.invalid/pull/${number}`,
+    mergeable_state: "clean",
+    base_ref: BASE_BRANCH,
+    head_ref: handoffBranch(candidate),
+    head_sha: candidate,
+    repository: REPOSITORY,
+    ...overrides
+  };
+}
+
+function fakeForge(candidate, {
+  branchSha = null,
+  prs = [],
+
+  filterExact = true,
+  listPage = null,
+  create = null
+} = {}) {
+  const branches = new Map(branchSha === null ? [] : [[handoffBranch(candidate), branchSha]]);
   const pullRequests = [...prs];
+  const calls = { publish: 0, list: 0, create: 0 };
   return {
     repository: REPOSITORY,
-    probe: () => ({ state: "authenticated", default_branch: "main" }),
+    calls,
+    pullRequests,
+    probe: () => ({ state: "authenticated", default_branch: BASE_BRANCH }),
     observeRemoteBranch: async ({ branch }) => branches.has(branch)
       ? { kind: "present", sha: branches.get(branch) }
       : { kind: "absent" },
     publishBranchIfAbsent: async ({ branch, commit: sha }) => {
+      calls.publish += 1;
       if (!branches.has(branch)) branches.set(branch, sha);
       return { kind: "published" };
     },
-    listPullRequestPage: async ({ base, head }) => ({
-      kind: "ok",
-      items: pullRequests.filter((entry) => entry.base_ref === base && entry.head_ref === head),
-      has_next: false
-    }),
+    listPullRequestPage: async (input) => {
+      calls.list += 1;
+      if (listPage !== null) return listPage(input);
+      const items = filterExact
+        ? pullRequests.filter((entry) => entry.base_ref === input.base && entry.head_ref === input.head)
+        : [...pullRequests];
+      return { kind: "ok", items, has_next: false };
+    },
     createPullRequest: async ({ base, head }) => {
-      const pr = {
+      calls.create += 1;
+      if (create !== null) return create({ base, head, pullRequests });
+      const created = pullRequest(candidate, {
         number: pullRequests.length + 1,
-        state: "open",
-        merged: false,
-        url: "https://example.invalid/pr",
-        mergeable_state: "unknown",
         base_ref: base,
-        head_ref: head,
-        head_sha: candidate,
-        repository: REPOSITORY
-      };
-      pullRequests.push(pr);
-      return { kind: "created", pull_request: pr };
+        head_ref: head
+      });
+      pullRequests.push(created);
+      return { kind: "created", pull_request: created };
     }
   };
 }
@@ -164,10 +195,225 @@ test("exact candidate publication sends C byte-for-byte and performs no reconstr
   const result = await publish(state, { runGit });
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.result.commit, state.binding.candidate);
-  assert.equal(result.result.parent, state.L);
+  assert.equal(result.result.parent, state.B);
   assert.equal(result.result.tree, state.binding.candidate_tree);
   assert.equal(result.result.boundary_authorization.policy_posture, "free_substrate");
   assert.equal(calls.some((args) => new Set(["commit-tree", "merge-tree", "merge-base"]).has(args[0])), false);
+});
+
+test("absent branch is published and a single exact pull request is created automatically", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate);
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.result.kind, "handed_off");
+  assert.equal(forge.calls.publish, 1);
+  assert.equal(forge.calls.create, 1);
+  assert.equal(forge.pullRequests.length, 1);
+  assert.equal(result.result.branch, handoffBranch(state.binding.candidate));
+  assert.equal(result.result.base_branch, BASE_BRANCH);
+  assert.equal(result.result.pull_request_state, "open_exact");
+  assert.equal(result.result.pull_request.number, 1);
+  assert.equal(result.result.pull_request.head_sha, state.binding.candidate);
+  assert.equal(result.result.pull_request.state, "open");
+  assert.equal(result.result.pull_request.merged, false);
+});
+
+test("an existing exact branch and exact open pull request are recovered without creation", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, {
+    branchSha: state.binding.candidate,
+    prs: [pullRequest(state.binding.candidate, { number: 42 })]
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(forge.calls.publish, 0);
+  assert.equal(forge.calls.create, 0);
+  assert.equal(result.result.pull_request_state, "open_exact");
+  assert.equal(result.result.pull_request.number, 42);
+});
+
+test("an exact already-merged pull request recovers as a typed successful handoff", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, {
+    branchSha: state.binding.candidate,
+    prs: [pullRequest(state.binding.candidate, { number: 9, state: "closed", merged: true })]
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.result.kind, "handed_off");
+  assert.equal(forge.calls.create, 0);
+  assert.equal(result.result.pull_request_state, "already_merged");
+  assert.equal(result.result.pull_request.merged, true);
+  assert.equal(result.result.pull_request.number, 9);
+});
+
+test("repeating the handoff recovers the same proposal and never opens a duplicate", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate);
+  const first = await publish(state, { forge });
+  const second = await publish(state, { forge });
+  assert.equal(first.ok, true, JSON.stringify(first));
+  assert.equal(second.ok, true, JSON.stringify(second));
+  assert.equal(forge.calls.create, 1);
+  assert.equal(forge.calls.publish, 1);
+  assert.equal(forge.pullRequests.length, 1);
+  assert.equal(second.result.pull_request.number, first.result.pull_request.number);
+});
+
+test("an uncertain create is reobserved: one exact observation recovers", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, {
+
+    create: ({ base, head, pullRequests }) => {
+      pullRequests.push(pullRequest(state.binding.candidate, { number: 5, base_ref: base, head_ref: head }));
+      return { kind: "uncertain" };
+    }
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(forge.calls.create, 1);
+  assert.equal(result.result.pull_request.number, 5);
+  assert.equal(result.result.pull_request_state, "open_exact");
+});
+
+test("an uncertain create with zero exact observations refuses instead of retrying", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, { create: () => ({ kind: "uncertain" }) });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE);
+  assert.equal(result.detail.reason, "pull_request_not_exactly_observable_after_create");
+  assert.equal(forge.calls.create, 1);
+});
+
+test("a thrown create is treated as uncertain and reobserved, never retried", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, {
+    create: () => { throw new Error("forge proposal transport exploded"); }
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE);
+  assert.equal(result.detail.reason, "pull_request_not_exactly_observable_after_create");
+  assert.equal(forge.calls.create, 1);
+});
+
+test("an uncertain create with multiple exact observations refuses", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, {
+    create: ({ base, head, pullRequests }) => {
+      pullRequests.push(pullRequest(state.binding.candidate, { number: 5, base_ref: base, head_ref: head }));
+      pullRequests.push(pullRequest(state.binding.candidate, { number: 6, base_ref: base, head_ref: head }));
+      return { kind: "uncertain" };
+    }
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT);
+  assert.equal(result.detail.reason, "multiple_exact_pull_requests_after_create");
+});
+
+test("multiple pre-existing exact pull requests fail closed without creating another", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, {
+    branchSha: state.binding.candidate,
+    prs: [
+      pullRequest(state.binding.candidate, { number: 1 }),
+      pullRequest(state.binding.candidate, { number: 2 })
+    ]
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT);
+  assert.equal(result.detail.reason, "multiple_exact_pull_requests");
+  assert.equal(forge.calls.create, 0);
+});
+
+test("a pull request whose head SHA is not the exact candidate fails closed", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, {
+    branchSha: state.binding.candidate,
+    prs: [pullRequest(state.binding.candidate, { head_sha: state.L })]
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT);
+  assert.equal(result.detail.reason, "pull_request_head_sha_disagrees");
+  assert.equal(result.detail.expected, state.binding.candidate);
+  assert.equal(result.detail.observed, state.L);
+});
+
+test("a pull request outside the exact repository, base, head, or number identity fails closed", async (t) => {
+  const state = fixture(t);
+  const mismatches = {
+    repository: { repository: { host: "github.com", owner: "someone-else", name: "agent-chassis" } },
+    base: { base_ref: "release/1.x" },
+    head: { head_ref: "handoff/wk/IN-0034/WK-1718/deadbeef" },
+    number: { number: 0 }
+  };
+  for (const [label, overrides] of Object.entries(mismatches)) {
+    await t.test(label, async (st) => {
+      const inner = fixture(st);
+      const forge = fakeForge(inner.binding.candidate, {
+        branchSha: inner.binding.candidate,
+        filterExact: false,
+        prs: [pullRequest(inner.binding.candidate, overrides)]
+      });
+      const result = await publish(inner, { forge });
+      assert.equal(result.ok, false, JSON.stringify(result));
+      assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT);
+      assert.equal(result.detail.reason, "observed_pull_request_identity_mismatch");
+      assert.equal(forge.calls.create, 0);
+    });
+  }
+});
+
+test("a closed and unmerged exact pull request fails closed", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, {
+    branchSha: state.binding.candidate,
+    prs: [pullRequest(state.binding.candidate, { state: "closed", merged: false })]
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT);
+  assert.equal(result.detail.reason, "closed_unmerged_or_unknown_pull_request_state");
+  assert.equal(result.detail.state, "closed");
+});
+
+test("unusable pagination and proposal transport uncertainty fail closed", async (t) => {
+  const cases = [
+    ["transport", () => { throw new Error("gh exploded"); }, "pull_request_transport_failed"],
+    ["unusable", () => ({ kind: "unusable" }), "pull_request_observation_unusable"],
+    ["non-array", () => ({ kind: "ok", items: "not-a-list", has_next: false }), "pull_request_observation_unusable"],
+    ["page-limit", () => ({ kind: "ok", items: [], has_next: true }), "pull_request_page_limit_exceeded"]
+  ];
+  for (const [label, listPage, reason] of cases) {
+    await t.test(label, async (st) => {
+      const state = fixture(st);
+      const forge = fakeForge(state.binding.candidate, { branchSha: state.binding.candidate, listPage });
+      const result = await publish(state, { forge });
+      assert.equal(result.ok, false, JSON.stringify(result));
+      assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE);
+      assert.equal(result.detail.stage, "pull_request");
+      assert.equal(result.detail.reason, reason);
+      assert.equal(forge.calls.create, 0);
+      if (label === "page-limit") assert.equal(forge.calls.list, PULL_REQUEST_PAGE_LIMIT);
+    });
+  }
+});
+
+test("publishing the exact branch alone can never produce handed_off", async (t) => {
+  const state = fixture(t);
+
+  const forge = fakeForge(state.binding.candidate, { create: () => ({ kind: "uncertain" }) });
+  const result = await publish(state, { forge });
+  assert.equal(forge.calls.publish, 1, "the exact branch was published");
+  assert.equal(forge.calls.create, 1, "exactly one create was attempted");
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.notEqual(result.result?.kind, "handed_off");
+  assert.equal(result.detail.stage, "pull_request");
 });
 
 test("legacy refs, landing movement, current-ref membership, WK status/dependencies, validation, and findings do not veto publication", async (t) => {
@@ -192,8 +438,47 @@ test("legacy refs, landing movement, current-ref membership, WK status/dependenc
     });
     assert.equal(result.ok, true, JSON.stringify(result));
     assert.equal(result.result.commit, state.binding.candidate);
+    assert.equal(result.result.pull_request_state, "open_exact");
   }
   assert.equal(git(state.repo, "rev-parse", "refs/heads/main"), movedLanding);
+});
+
+test("an open proposal the forge reports as conflicting or unmergeable is still a successful handoff", async (t) => {
+  const state = fixture(t);
+  for (const mergeableState of ["dirty", "blocked", "behind", "unknown"]) {
+    const forge = fakeForge(state.binding.candidate, {
+      branchSha: state.binding.candidate,
+      prs: [pullRequest(state.binding.candidate, { number: 3, mergeable_state: mergeableState })]
+    });
+    const result = await publish(state, { forge });
+    assert.equal(result.ok, true, `${mergeableState}: ${JSON.stringify(result)}`);
+    assert.equal(result.result.kind, "handed_off");
+    assert.equal(result.result.pull_request.mergeable_state, mergeableState);
+  }
+});
+
+test("the handed_off result carries bounded proposal detail and no credential or raw process output", async (t) => {
+  const state = fixture(t);
+  const result = await publish(state, {
+    forge: fakeForge(state.binding.candidate, {
+      branchSha: state.binding.candidate,
+      prs: [pullRequest(state.binding.candidate, { number: 11 })]
+    })
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepEqual(
+    Object.keys(result.result.pull_request).sort(),
+    ["head_sha", "merged", "mergeable_state", "number", "state", "url"].sort()
+  );
+  assert.equal(result.result.pull_request.url, "https://example.invalid/pull/11");
+  assert.equal(result.result.proposal_authority, "configured_forge_and_human_merge_actor");
+  const serialized = JSON.stringify(result);
+  for (const carrier of [
+    "ghp_", "gho_", "github_pat_", "x-access-token", "password", "stdout", "stderr", "spawn_error",
+    "credential", "GIT_TERMINAL_PROMPT", "auth status"
+  ]) {
+    assert.equal(serialized.includes(carrier), false, `result must not carry ${carrier}`);
+  }
 });
 
 test("missing current-candidate resolver has no compatibility construction fallback", async (t) => {
@@ -265,36 +550,43 @@ test("configured CCE alone decides the exact forge boundary", async (t) => {
     binding: state.binding,
     initiative: "IN-0034",
     repository: REPOSITORY,
-    landing: "main",
-    branch: `handoff/wk/IN-0034/WK-1718/${state.binding.candidate}`
+    landing: BASE_BRANCH,
+    branch: handoffBranch(state.binding.candidate)
   });
   assert.equal(allowed.ok, true);
   assert.equal(allowed.authorization.authority, "cce");
 });
 
-test("forge proposal state is not consulted or converted into a local veto", async (t) => {
+test("a denied CCE boundary never reaches the forge proposal surface", async (t) => {
   const state = fixture(t);
-  const forge = fakeForge(state.binding.candidate, {
-    prs: [
-      { state: "closed", merged: false },
-      { state: "open", merged: false }
-    ]
+  const forge = fakeForge(state.binding.candidate);
+  const denied = await publish(state, {
+    forge,
+    forgeHandoffCcePolicy: {
+      configured: true,
+      authorize: async (value) => ({
+        schema_version: WK_FORGE_HANDOFF_CCE_POLICY_DECISION_SCHEMA_VERSION,
+        decision_id: "deny-2",
+        decision: "deny",
+        ratified: true,
+        attestation_valid: true,
+        target: value.target
+      })
+    }
   });
-  forge.listPullRequestPage = async () => {
-    throw new Error("proposal state must remain forge-owned");
-  };
-  forge.createPullRequest = async () => {
-    throw new Error("proposal creation must remain forge-owned");
-  };
-  const result = await publish(state, { forge });
-  assert.equal(result.ok, true, JSON.stringify(result));
-  assert.equal(result.result.commit, state.binding.candidate);
-  assert.equal(result.result.proposal_authority, "configured_forge_and_human_merge_actor");
+  assert.equal(denied.ok, false);
+  assert.equal(denied.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.CCE_POLICY);
+  assert.equal(forge.calls.publish, 0);
+  assert.equal(forge.calls.list, 0);
+  assert.equal(forge.calls.create, 0);
 });
 
 test("remote branch disagreement remains a forge transport refusal", async (t) => {
   const state = fixture(t);
-  const result = await publish(state, { forge: fakeForge(state.binding.candidate, { branchSha: state.L }) });
+  const forge = fakeForge(state.binding.candidate, { branchSha: state.L });
+  const result = await publish(state, { forge });
   assert.equal(result.ok, false);
   assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT);
+  assert.equal(result.detail.stage, "branch");
+  assert.equal(forge.calls.create, 0);
 });

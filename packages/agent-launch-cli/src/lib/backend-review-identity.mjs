@@ -21,13 +21,13 @@ const RETAINED_SLICE_REVIEWER_LAUNCH_IDENTITY_FIELDS = Object.freeze([
   "worktree_path"
 ]);
 const RETAINED_TERMINAL_CANDIDATE_REVIEWER_IDENTITY_FIELDS = Object.freeze([
+  "base_ref",
+  "base_sha",
   "candidate_ref",
   "candidate_sha",
   "canonical_wk_digest",
   "diff_head_sha",
   "initiative",
-  "landing_ref",
-  "landing_sha",
   "main_repo",
   "record_id",
   "review_identity_kind",
@@ -91,8 +91,8 @@ export function createRetainedReviewerLaunchIdentity(context) {
       initiative: context.initiative,
       candidate_ref: context.candidate_ref,
       candidate_sha: context.candidate_sha,
-      landing_ref: context.landing_ref,
-      landing_sha: context.landing_sha,
+      base_ref: context.base_ref,
+      base_sha: context.base_sha,
       wk_ref: context.wk_ref,
       wk_sha: context.wk_sha,
       worktree_path: context.worktree_path,
@@ -202,10 +202,10 @@ function isStructurallyCompleteRetainedReviewerLaunchIdentity(identity) {
       typeof identity.review_slice_id === "string" && /^SLICE-\d{3}$/u.test(identity.review_slice_id) &&
       typeof identity.initiative === "string" && /^IN-\d{4}$/u.test(identity.initiative) &&
       typeof identity.candidate_ref === "string" &&
-        /^refs\/agent-launch\/terminal-current\/WK-\d{4}$/u.test(identity.candidate_ref) &&
+        /^refs\/agent-launch\/terminal-current-v2\/WK-\d{4}$/u.test(identity.candidate_ref) &&
       typeof identity.candidate_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.candidate_sha) &&
-      typeof identity.landing_ref === "string" && /^refs\/heads\//u.test(identity.landing_ref) &&
-      typeof identity.landing_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.landing_sha) &&
+      typeof identity.base_ref === "string" && /^[A-Za-z0-9][A-Za-z0-9._\-/]*$/u.test(identity.base_ref) &&
+      typeof identity.base_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.base_sha) &&
       typeof identity.wk_ref === "string" && /^refs\/heads\/wk\/IN-\d{4}\/WK-\d{4}$/u.test(identity.wk_ref) &&
       typeof identity.wk_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.wk_sha) &&
       typeof identity.worktree_path === "string" && path.isAbsolute(identity.worktree_path) &&

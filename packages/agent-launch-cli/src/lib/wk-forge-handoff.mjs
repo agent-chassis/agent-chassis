@@ -22,6 +22,9 @@ export { WK_FORGE_HANDOFF_FAILURE_CATEGORIES };
 
 export const FORGE_LANDING_BRANCH_ENV_VAR = "AGENT_LAUNCH_FORGE_LANDING_BRANCH";
 
+export const PULL_REQUEST_PAGE_LIMIT = 20;
+export const PULL_REQUEST_PAGE_SIZE = 100;
+
 const WK_RECORD_RE = /^WK-\d{4}$/u;
 const INITIATIVE_RE = /^IN-\d{4}$/u;
 const OBJECT_ID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
@@ -58,8 +61,8 @@ function buildForgeHandoffPolicyTarget({ binding, initiative, repository, landin
     candidate_sha: binding.candidate,
     candidate_tree: binding.candidate_tree,
     candidate_ref: binding.candidate_ref,
-    landing_ref: binding.landing_ref,
-    landing_sha: binding.landing_tip,
+    base_ref: binding.base_ref,
+    base_sha: binding.base,
     wk_ref: binding.wk_ref,
     wk_sha: binding.wk_tip,
     canonical_wk_digest: binding.canonical_wk_digest,
@@ -386,8 +389,115 @@ export function buildGhForge({ repository, mainRepo, deps = {} }) {
       const stderr = typeof res?.stderr === "string" ? res.stderr : "";
       if (/stale info|fetch first|rejected/iu.test(stderr)) return { kind: "lease_failed" };
       return { kind: "uncertain" };
+    },
+
+    listPullRequestPage({ base, head, page, per_page: perPage }) {
+      const headSelector = `${owner}:${head}`;
+      const res = runGh({
+        args: [
+          "api", ...hostArgs,
+          `repos/${owner}/${name}/pulls?state=all&base=${base}&head=${headSelector}&per_page=${perPage}&page=${page}`
+        ]
+      });
+      if (res.spawn_error || res.ok !== true) throw new Error("pull_request_list_transport_failed");
+      let items;
+      try {
+        items = JSON.parse(res.stdout);
+      } catch {
+        return { kind: "unusable" };
+      }
+      if (!Array.isArray(items)) return { kind: "unusable" };
+      const mapped = items.map((item) => ({
+        number: item?.number,
+        state: typeof item?.state === "string" ? item.state : null,
+        merged: item?.merged === true || typeof item?.merged_at === "string",
+        url: typeof item?.html_url === "string" ? item.html_url : null,
+        mergeable_state: typeof item?.mergeable_state === "string" ? item.mergeable_state : null,
+        base_ref: item?.base?.ref ?? null,
+        head_ref: item?.head?.ref ?? null,
+        head_sha: item?.head?.sha ?? null,
+        repository: { host, owner, name }
+      }));
+
+      return { kind: "ok", items: mapped, has_next: mapped.length >= perPage };
+    },
+
+    createPullRequest({ base, head, title, body }) {
+      const res = runGh({
+        args: [
+          "api", ...hostArgs, "--method", "POST", `repos/${owner}/${name}/pulls`,
+          "-f", `title=${title}`, "-f", `head=${head}`, "-f", `base=${base}`, "-f", `body=${body}`
+        ]
+      });
+      if (res.spawn_error || res.ok !== true) return { kind: "uncertain" };
+      let item;
+      try {
+        item = JSON.parse(res.stdout);
+      } catch {
+        return { kind: "uncertain" };
+      }
+      return {
+        kind: "created",
+        pull_request: {
+          number: item?.number,
+          state: typeof item?.state === "string" ? item.state : null,
+          merged: item?.merged === true,
+          url: typeof item?.html_url === "string" ? item.html_url : null,
+          mergeable_state: typeof item?.mergeable_state === "string" ? item.mergeable_state : null,
+          base_ref: item?.base?.ref ?? null,
+          head_ref: item?.head?.ref ?? null,
+          head_sha: item?.head?.sha ?? null,
+          repository: { host, owner, name }
+        }
+      };
     }
   };
+}
+
+function validateObservedPullRequest({ item, repository, base, head }) {
+  if (!isPlainObject(item)) return null;
+  if (typeof item.number !== "number" || !Number.isInteger(item.number) || item.number <= 0) return null;
+  if (!sameForgeRepository(item.repository, repository)) return null;
+  if (item.base_ref !== base || item.head_ref !== head) return null;
+  return Object.freeze({
+    number: item.number,
+    state: typeof item.state === "string" ? item.state : null,
+    merged: item.merged === true,
+    url: typeof item.url === "string" ? item.url : null,
+    mergeable_state: typeof item.mergeable_state === "string" ? item.mergeable_state : null,
+    head_sha: typeof item.head_sha === "string" ? item.head_sha : null
+  });
+}
+
+async function observeExactPullRequests({ forge, repository, base, head }) {
+  const matches = [];
+  for (let page = 1; page <= PULL_REQUEST_PAGE_LIMIT; page += 1) {
+    let response;
+    try {
+      response = await forge.listPullRequestPage({ base, head, page, per_page: PULL_REQUEST_PAGE_SIZE });
+    } catch {
+      return { ok: false, reason: "pull_request_transport_failed" };
+    }
+    if (!isPlainObject(response) || response.kind !== "ok" || !Array.isArray(response.items)) {
+      return { ok: false, reason: "pull_request_observation_unusable" };
+    }
+    for (const item of response.items) {
+      const validated = validateObservedPullRequest({ item, repository, base, head });
+      if (validated === null) {
+        return { ok: false, reason: "observed_pull_request_identity_mismatch" };
+      }
+      matches.push(validated);
+    }
+    if (response.has_next !== true) return { ok: true, matches };
+  }
+  return { ok: false, reason: "pull_request_page_limit_exceeded" };
+}
+
+function pullRequestObservationRefusal(observation, extra = {}) {
+  const category = observation.reason === "observed_pull_request_identity_mismatch"
+    ? WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT
+    : WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE;
+  return refuse(category, { stage: "pull_request", reason: observation.reason, ...extra });
 }
 
 async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, deps }) {
@@ -439,14 +549,8 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
         reason: probe.state === "error" ? probe.reason : "authenticated_forge_required_for_terminal_candidate"
       }) };
     }
+
     const landing = probe.default_branch;
-    if (`refs/heads/${landing}` !== binding.landing_ref) {
-      return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.REMOTE_INVALID, {
-        reason: "forge_landing_branch_disagrees_with_terminal_candidate",
-        expected: binding.landing_ref,
-        observed: landing
-      });
-    }
     const constraint = (deps.env ?? process.env)[FORGE_LANDING_BRANCH_ENV_VAR];
     if (typeof constraint === "string" && constraint.length > 0 && constraint !== landing) {
       return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.REMOTE_INVALID, {
@@ -510,17 +614,81 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
 
     moved = guard();
     if (moved !== null) return moved;
+    let observedPrs = await observeExactPullRequests({ forge, repository, base: landing, head: branch });
+    moved = guard();
+    if (moved !== null) return moved;
+    if (observedPrs.ok !== true) return pullRequestObservationRefusal(observedPrs);
+    if (observedPrs.matches.length > 1) {
+      return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
+        stage: "pull_request", reason: "multiple_exact_pull_requests", matched: observedPrs.matches.length
+      });
+    }
+    if (observedPrs.matches.length === 0) {
+      moved = guard();
+      if (moved !== null) return moved;
+
+      try {
+        await forge.createPullRequest({
+          base: landing,
+          head: branch,
+          title: `${wk}: ${String(candidateRecord.record.title ?? "terminal candidate").trim()}`,
+          body: `Exact validated terminal candidate ${binding.candidate} for ${wk}; reviewer and redteam evidence is advisory.\n`
+        });
+      } catch {
+
+      }
+      moved = guard();
+      if (moved !== null) return moved;
+      observedPrs = await observeExactPullRequests({ forge, repository, base: landing, head: branch });
+      moved = guard();
+      if (moved !== null) return moved;
+      if (observedPrs.ok !== true) return pullRequestObservationRefusal(observedPrs, { after_create: true });
+      if (observedPrs.matches.length > 1) {
+        return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
+          stage: "pull_request",
+          reason: "multiple_exact_pull_requests_after_create",
+          matched: observedPrs.matches.length
+        });
+      }
+      if (observedPrs.matches.length !== 1) {
+        return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE, {
+          stage: "pull_request", reason: "pull_request_not_exactly_observable_after_create"
+        });
+      }
+    }
+    const pullRequest = observedPrs.matches[0];
+    if (pullRequest.head_sha !== binding.candidate) {
+      return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
+        stage: "pull_request",
+        reason: "pull_request_head_sha_disagrees",
+        expected: binding.candidate,
+        observed: pullRequest.head_sha
+      });
+    }
+
+    if (pullRequest.merged !== true && pullRequest.state !== "open") {
+      return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
+        stage: "pull_request",
+        reason: "closed_unmerged_or_unknown_pull_request_state",
+        state: pullRequest.state
+      });
+    }
+
+    moved = guard();
+    if (moved !== null) return moved;
     return { ok: true, result: buildResult(WK_FORGE_HANDOFF_RESULT_KINDS.HANDED_OFF, {
       assigned_unit: wk,
       initiative,
       branch,
       commit: binding.candidate,
       tree: binding.candidate_tree,
-      parent: binding.landing_tip,
+      parent: binding.base,
       base_branch: landing,
       repository: { host: repository.host, owner: repository.owner, name: repository.name },
       boundary_authorization: boundaryAuthorization,
       advisory_review_evidence: candidateState.advisory_review_evidence ?? null,
+      pull_request_state: pullRequest.merged === true ? "already_merged" : "open_exact",
+      pull_request: pullRequest,
       proposal_authority: "configured_forge_and_human_merge_actor"
     }) };
   } catch (error) {

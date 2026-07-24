@@ -24,15 +24,15 @@ import {
 import {
   jsonContent,
   errorContent,
-  guardToolHandler,
   installProcessErrorGuards,
   readSpilledMcpContentReference
 } from "./lib/mcp-response.mjs";
 import {
   parseToolProfile,
-  shouldExposeTool,
   resolveRegisteredTier
 } from "./lib/tool-profile.mjs";
+
+import { createRegisterTool } from "./lib/register-tool.mjs";
 import {
   loadToolDiscoveryDescriptor,
   resolveToolTierVisibility
@@ -277,31 +277,15 @@ async function registerTools(server) {
     }
   });
 
-  function registerTool(name, config, handler) {
-
-    if (!shouldExposeTool(toolProfile, name)) {
-      return;
-    }
-
-    if (
-      registeredTier !== "paid_cce" &&
-      mcpToolTierRegistrationPolicy.descriptorLoaded === true &&
-      !mcpToolTierRegistrationPolicy.freeLocalToolNames?.has(name)
-    ) {
-      return;
-    }
-    if (
-      registeredTier !== "paid_cce" &&
-      mcpToolTierRegistrationPolicy.freeLocalFallbackToolNames instanceof Set &&
-      !mcpToolTierRegistrationPolicy.freeLocalFallbackToolNames.has(name)
-    ) {
-      return;
-    }
-
-    const auditedHandler = toolUsageAuditBoundary.wrapHandler(name, handler);
-    server.registerTool(name, config, guardToolHandler(auditedHandler, { name, log: structuredLog }));
-    registeredToolNames.add(name);
-  }
+  const registerTool = createRegisterTool({
+    server,
+    toolProfile,
+    registeredTier,
+    mcpToolTierRegistrationPolicy,
+    toolUsageAuditBoundary,
+    registeredToolNames,
+    structuredLog
+  });
 
   registerTool(
     "workspace_read_mcp_content_reference",

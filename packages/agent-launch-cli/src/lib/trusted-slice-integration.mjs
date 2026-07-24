@@ -10,8 +10,11 @@ import { verifyExactSliceCommitBinding } from "./exact-slice-commit-binding.mjs"
 const EXACT_WK_IDENTITY_BINDING_FIELDS = Object.freeze([
   "schema_version", "launch_ref", "run_id", "retry_id", "unit_address",
   "initiative", "record_id", "slice_id", "base_ref", "base_sha",
-  "output_branch", "worktree_path", "write_scope", "write_scope_source"
+  "output_branch", "worktree_path", "write_scope", "write_scope_source",
+  "wk_tip_sha"
 ]);
+
+const WK_TIP_SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
 export const SLICE_INTEGRATION_REBASE_RESTORE_FAILED_CODE =
   "agent_launch.slice_integration.rebase_restore_failed.v1";
@@ -107,10 +110,12 @@ export async function defaultIntegrateManagedWorkerSlice({
   const worktreeIdentityDigest = digestTrustedExactReviewEvidence(rawSliceBinding);
   const [initiative, wkId, sliceId] = String(sliceBinding.unit_address).split("/");
   const wkBinding = resolveWorktreeBinding({ mainRepo, launchRef, runId: `${runId}.wk`, retryId });
+
   if (!isPlainObject(wkBinding) ||
       typeof wkBinding.worktree_path !== "string" || !path.isAbsolute(wkBinding.worktree_path) ||
-      wkBinding.base_sha !== sliceBinding.base_sha) {
-    throw new SliceIntegrationError("agent-launch trusted integration: full WK binding is missing or does not share the exact frozen base", {
+      typeof wkBinding.wk_tip_sha !== "string" || !WK_TIP_SHA_RE.test(wkBinding.wk_tip_sha) ||
+      wkBinding.wk_tip_sha !== sliceBinding.base_sha) {
+    throw new SliceIntegrationError("agent-launch trusted integration: full WK binding is missing or its moving wk_tip_sha does not match the slice's frozen base", {
       code: codes.BINDING_MISMATCH
     });
   }
