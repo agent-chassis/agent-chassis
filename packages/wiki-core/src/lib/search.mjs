@@ -9,7 +9,7 @@ import {
   resolveContractContext
 } from "./wiki.mjs";
 
-export const SEARCH_INDEX_VERSION = 2;
+export const SEARCH_INDEX_VERSION = 3;
 const SEARCH_CACHE_DIR = path.join(".cache", "wiki-search");
 const SEARCH_INDEX_FILE = "index.json";
 
@@ -70,6 +70,25 @@ export function tokenizeSearchText(value) {
     .filter((token) => token.length >= 2);
 }
 
+const OPAQUE_HANDLE_PATTERN = /^(?:wkmh|wkdb)_[a-z0-9][a-z0-9._:-]*$/i;
+const OPAQUE_RECORD_ID_PATTERN = /^(?:wk|in|dec|src)-\d+$/i;
+const OPAQUE_HEX_PATTERN = /^[a-f0-9]{7,64}$/i;
+const OPAQUE_DIGEST_PATTERN =
+  /^(?:sha(?:1|224|256|384|512)|blake2b|blake3)[:_-][a-z0-9+/=_-]{16,}$/i;
+
+function isOpaqueIdentifierQuery(value) {
+  const normalized = normalizeSearchText(value);
+  if (!normalized || /\s/.test(normalized)) {
+    return false;
+  }
+  return (
+    OPAQUE_HANDLE_PATTERN.test(normalized) ||
+    OPAQUE_RECORD_ID_PATTERN.test(normalized) ||
+    OPAQUE_HEX_PATTERN.test(normalized) ||
+    OPAQUE_DIGEST_PATTERN.test(normalized)
+  );
+}
+
 export function inferPageKind(page) {
   const relativePath = page.relativePath;
   if (relativePath.startsWith("docs/")) {
@@ -121,17 +140,194 @@ export function resolveLocalMarkdownTarget(targetDir, page, rawTarget) {
   return path.relative(targetDir, absolutePath).replaceAll(path.sep, "/");
 }
 
-export function computePageAuthority(targetDir, state) {
-  const pages = [
+const WORK_RECORD_PROSE_KEYS = [
+  "summary",
+  "closure",
+  "tasks",
+  "references",
+  "agent_notes"
+];
+
+const WORK_RECORD_PROSE_LEAF_KEYS = new Set([
+  "summary",
+  "closure",
+  "tasks",
+  "references",
+  "agent_notes",
+  "why_it_matters",
+  "acceptance",
+  "criteria",
+  "validation",
+  "follow_ups",
+  "items",
+  "out_of_scope",
+  "title",
+  "description",
+  "rationale",
+  "notes",
+  "text",
+  "content",
+  "prose"
+]);
+
+function collectProseStrings(value, output = [], leafKey = "", keyPath = [leafKey]) {
+  if (typeof value === "string") {
+    const hasPermittedPath = keyPath.every((key, index) => (
+      index === 0
+        ? WORK_RECORD_PROSE_KEYS.includes(key) || WORK_RECORD_PROSE_LEAF_KEYS.has(key)
+        : WORK_RECORD_PROSE_LEAF_KEYS.has(key)
+    ));
+    if (hasPermittedPath) {
+      const text = normalizeSearchText(value);
+      if (text && !output.includes(text)) {
+        output.push(text);
+      }
+    }
+  } else if (Array.isArray(value)) {
+    value.forEach((entry) => collectProseStrings(entry, output, leafKey, keyPath));
+  } else if (value && typeof value === "object") {
+    Object.entries(value).forEach(([key, entry]) => {
+      collectProseStrings(entry, output, key, [...keyPath, key]);
+    });
+  }
+  return output;
+}
+
+function collectRecordRegion(record, key) {
+  const values = [];
+  collectProseStrings(record?.sections?.[key], values, key);
+  collectProseStrings(record?.[key], values, key);
+  return values;
+}
+
+function collectAcceptanceRegion(record, key) {
+  return collectProseStrings(record?.acceptance?.[key], [], key);
+}
+
+function makeWorkRecordText(record, heading, prose) {
+  return [
+    String(record.id || ""),
+    String(record.title || ""),
+    `status: ${record.status || ""}`,
+    `priority: ${record.priority || ""}`,
+    `owner: ${record.owner || ""}`,
+    record.initiative ? `initiative: ${record.initiative}` : "",
+    record.area ? `area: ${record.area}` : "",
+    heading,
+    ...prose
+  ].filter(Boolean).join("\n");
+}
+
+function workRecordSections(record) {
+  const sections = [];
+  for (const key of ["summary", "closure", "tasks", "references", "agent_notes"]) {
+    const prose = collectRecordRegion(record, key);
+    if (prose.length > 0) {
+      sections.push({
+        heading: key,
+        text: makeWorkRecordText(record, key, prose),
+        preview: prose.join(" ")
+      });
+    }
+  }
+  for (const key of ["criteria", "validation"]) {
+    const prose = collectAcceptanceRegion(record, key);
+    if (prose.length > 0) {
+      sections.push({
+        heading: `acceptance.${key}`,
+        text: makeWorkRecordText(record, `acceptance.${key}`, prose),
+        preview: prose.join(" ")
+      });
+    }
+  }
+  for (const slice of Array.isArray(record.slices) ? record.slices : []) {
+    const prose = [String(slice.title || "")];
+    collectProseStrings(slice?.acceptance, prose, "acceptance");
+    for (const key of WORK_RECORD_PROSE_KEYS) {
+      collectProseStrings(slice?.sections?.[key], prose, key);
+      collectProseStrings(slice?.[key], prose, key);
+    }
+    const uniqueProse = [...new Set(prose.map(normalizeSearchText).filter(Boolean))];
+    if (uniqueProse.length > 0) {
+      sections.push({
+        heading: `slice ${slice.id || ""}`.trim(),
+        text: makeWorkRecordText(record, `slice ${slice.id || ""}`.trim(), uniqueProse),
+        preview: uniqueProse.join(" ")
+      });
+    }
+  }
+  if (sections.length === 0) {
+    sections.push({
+      heading: "metadata",
+      text: makeWorkRecordText(record, "metadata", []),
+      preview: String(record.title || record.id || "")
+    });
+  }
+  return sections;
+}
+
+function projectWorkRecordToPage(load) {
+  if (!load?.valid || !load.record) {
+    return null;
+  }
+  const record = load.record;
+  const relativePath = load.source_path_relative;
+  const frontmatter = {
+    id: record.id,
+    title: record.title,
+    type: record.record_kind || record.work_kind || "work_item",
+    status: record.status,
+    priority: record.priority,
+    owner: record.owner,
+    area: record.area,
+    initiative: record.initiative,
+    docs: record.docs || record.read_scope || [],
+    related: record.related || [],
+    related_docs: record.related_docs || []
+  };
+  const prose = workRecordSections(record);
+  const body = prose.map((section) => `## ${section.heading}\n${section.preview}`).join("\n\n");
+  return {
+    path: load.source_path,
+    relativePath,
+    title: record.title || record.id,
+    body,
+    frontmatter,
+    markdownLinks: [],
+    retrievalFacets: {
+      canonicality: "canonical",
+      retrieval_role: ["record"],
+      knowledge_role: "work",
+      maintenance_mode: "operational",
+      retrieval_visibility: "default",
+      lifecycle: "active",
+      sensitivity: "normal"
+    },
+    workRecordSections: prose
+  };
+}
+
+function assembleSupersededPages(state) {
+  const canonicalRecords = (state.workRecords || [])
+    .map(projectWorkRecordToPage)
+    .filter(Boolean);
+  const canonicalIds = new Set(canonicalRecords.map((page) => String(page.frontmatter.id)));
+  const markdownPages = [
     ...state.docs,
     ...state.decisions,
     ...state.areas,
-    ...state.issues,
+    ...state.issues.filter((page) => !canonicalIds.has(String(page.frontmatter?.id || ""))),
     ...state.initiatives,
     ...state.sources,
     ...state.wikiPages,
     ...(state.extensionPages || [])
   ];
+  return [...markdownPages, ...canonicalRecords].filter(
+    (page) => !GENERATED_VIEW_NAMES.has(path.basename(page.relativePath))
+  );
+}
+
+export function computePageAuthority(targetDir, state, pages = assembleSupersededPages(state)) {
   const pagesByPath = new Map(pages.map((page) => [page.relativePath, page]));
   const pagesById = new Map(
     pages
@@ -345,24 +541,15 @@ export function extractSectionChunks(page) {
   return sections;
 }
 
-export function buildSearchChunks(targetDir, state) {
+export function buildSearchChunks(targetDir, state, pages = assembleSupersededPages(state)) {
   const facetContext = state.context || {};
-  const pageAuthority = computePageAuthority(targetDir, state);
-  const pages = [
-    ...state.docs,
-    ...state.decisions,
-    ...state.areas,
-    ...state.issues,
-    ...state.initiatives,
-    ...state.sources,
-    ...state.wikiPages,
-    ...(state.extensionPages || [])
-  ].filter((page) => !GENERATED_VIEW_NAMES.has(path.basename(page.relativePath)));
+  const pageAuthority = computePageAuthority(targetDir, state, pages);
 
   return pages.flatMap((page) => {
     const pageKind = inferPageKind(page);
-    const retrievalFacets = resolvePageFacets(page, facetContext).effective;
-    return extractSectionChunks(page).map((section, index) => ({
+    const retrievalFacets = page.retrievalFacets || resolvePageFacets(page, facetContext).effective;
+    const sections = page.workRecordSections || extractSectionChunks(page);
+    return sections.map((section, index) => ({
       chunkId: `${page.relativePath}#${index}`,
       pageKind,
       relativePath: page.relativePath,
@@ -412,7 +599,8 @@ export async function buildLexicalSearchIndex(
     manifest: context.manifest,
     metadata: context.metadata
   };
-  const chunks = buildSearchChunks(targetDir, state);
+  const pages = assembleSupersededPages(state);
+  const chunks = buildSearchChunks(targetDir, state, pages);
   const sourceSignature = await computeSearchSourceSignature(targetDir, chunks);
 
   return {
@@ -666,7 +854,11 @@ export function scoreLexicalMatch(query, queryTokens, chunk) {
     }
   }
 
-  score += chunk.authority * 4;
+  if (score <= 0) {
+    return 0;
+  }
+
+  score += (Number(chunk.authority) || 0) * 4;
   return Number(score.toFixed(4));
 }
 
@@ -688,7 +880,9 @@ function normalizeSearchOffset(offset) {
 
 function rankLexicalSearchResults(index, { query, filters = {} }) {
   const normalizedQuery = normalizeSearchText(query);
-  const queryTokens = tokenizeSearchText(normalizedQuery);
+  const queryTokens = isOpaqueIdentifierQuery(normalizedQuery)
+    ? [normalizedQuery.toLowerCase()]
+    : tokenizeSearchText(normalizedQuery);
 
   if (!normalizedQuery || queryTokens.length === 0) {
     throw new Error("search requires a non-empty textual query");

@@ -1,7 +1,7 @@
 
 
 import path from "node:path";
-import { realpathSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
@@ -10,9 +10,28 @@ import {
   spawnIsolated as defaultSpawnIsolated
 } from "./launch-isolation.mjs";
 import { buildValidationConfinementPlan as defaultBuildValidationConfinementPlan } from "./workspace-agent-family-bwrap-plan.mjs";
+
+import {
+  assertSelectedDependencyMountIntegrity,
+  selectOptionalReviewerDependencyProjection
+} from "./terminal-wk-candidate-validation.mjs";
+import {
+  assertTrustedManagedWorkerTestRunAuthority
+} from "./managed-worker-test-run-authority.mjs";
+
 const AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS = Object.freeze({
-  node_check: Object.freeze({ operation: "node_check", node_flag: "--check", executes_target: false }),
-  node_test: Object.freeze({ operation: "node_test", node_flag: "--test", executes_target: true })
+  node_check: Object.freeze({
+    operation: "node_check",
+    node_flag: "--check",
+    executes_target: false,
+    execution_context: "parse_only_zero_ace"
+  }),
+  node_test: Object.freeze({
+    operation: "node_test",
+    node_flag: "--test",
+    executes_target: true,
+    execution_context: "confined_target_execution"
+  })
 });
 
 export const WORKSPACE_AGENT_VALIDATION_RUN_RESULT_SCHEMA_VERSION =
@@ -21,7 +40,13 @@ export const WORKSPACE_AGENT_VALIDATION_RUN_REFUSAL_SCHEMA_VERSION =
   "workspace-agent-validation-run-refusal.v1";
 
 export const DEFAULT_VALIDATION_TIMEOUT_MS = 30000;
-export const DEFAULT_VALIDATION_OUTPUT_CAP_BYTES = 65536;
+
+export const DEFAULT_VALIDATION_OUTPUT_CAP_BYTES = 262144;
+
+export const LEGACY_VALIDATION_OUTPUT_CAP_BYTES = 65536;
+
+const OUTPUT_HEAD_CAP_FRACTION = 4;
+const OUTPUT_ELISION_MARKER_RESERVE_BYTES = 160;
 
 export const WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES = Object.freeze({
   INVALID_INPUT: "workspace_agent_validation_runner.invalid_input.v1",
@@ -171,37 +196,113 @@ export function authorizeValidationTarget({ workspaceDir, target, authorizedTarg
   return { ok: true, repoReal, posixRelative: normalized.posixRelative, absolute };
 }
 
-function createBoundedSink(capBytes) {
-  const chunks = [];
-  let bytes = 0;
-  let truncated = false;
+export function resolveValidationOutputBounds({
+  outputCapBytes = null,
+  outputHeadCapBytes = null,
+  outputTailCapBytes = null
+} = {}) {
+  const positive = (value) => (Number.isInteger(value) && value > 0 ? value : null);
+  const head = positive(outputHeadCapBytes);
+  const tail = positive(outputTailCapBytes);
+  if (head !== null || tail !== null) {
+    return {
+      headCapBytes: head ?? 0,
+      tailCapBytes: tail ?? 0,
+      totalCapBytes: (head ?? 0) + (tail ?? 0) + OUTPUT_ELISION_MARKER_RESERVE_BYTES
+    };
+  }
+  const total = positive(outputCapBytes) ?? DEFAULT_VALIDATION_OUTPUT_CAP_BYTES;
+  const headCapBytes = Math.max(1, Math.floor(total / OUTPUT_HEAD_CAP_FRACTION));
+  const tailCapBytes = Math.max(
+    0,
+    total - headCapBytes - OUTPUT_ELISION_MARKER_RESERVE_BYTES
+  );
+  return { headCapBytes, tailCapBytes, totalCapBytes: total };
+}
+
+function elisionMarker(elidedBytes, headCapBytes, tailCapBytes) {
+  return (
+    `\n[launcher output bound: ${elidedBytes} byte(s) elided from the middle; ` +
+    `first ${headCapBytes} and last ${tailCapBytes} byte(s) retained]\n`
+  );
+}
+
+function createBoundedSink({ headCapBytes, tailCapBytes }) {
+  const headChunks = [];
+  let headBytes = 0;
+
+  let tailChunks = [];
+  let tailBytes = 0;
+  let elidedBytes = 0;
+
+  function pushTail(buf) {
+    if (tailCapBytes === 0) {
+      elidedBytes += buf.length;
+      return;
+    }
+    tailChunks.push(buf);
+    tailBytes += buf.length;
+    while (tailBytes > tailCapBytes) {
+      const overflow = tailBytes - tailCapBytes;
+      const front = tailChunks[0];
+      if (front.length <= overflow) {
+        tailChunks.shift();
+        tailBytes -= front.length;
+        elidedBytes += front.length;
+      } else {
+        tailChunks[0] = front.subarray(overflow);
+        tailBytes -= overflow;
+        elidedBytes += overflow;
+      }
+    }
+  }
+
   return {
     push(chunk) {
       const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), "utf8");
-      if (bytes >= capBytes) {
-        truncated = true;
+      if (buf.length === 0) return;
+      if (headBytes < headCapBytes) {
+        const room = headCapBytes - headBytes;
+        if (buf.length <= room) {
+          headChunks.push(buf);
+          headBytes += buf.length;
+          return;
+        }
+        headChunks.push(buf.subarray(0, room));
+        headBytes = headCapBytes;
+        pushTail(buf.subarray(room));
         return;
       }
-      if (bytes + buf.length > capBytes) {
-        chunks.push(buf.subarray(0, capBytes - bytes));
-        bytes = capBytes;
-        truncated = true;
-        return;
-      }
-      chunks.push(buf);
-      bytes += buf.length;
+      pushTail(buf);
     },
     result() {
-      return { text: Buffer.concat(chunks).toString("utf8"), truncated };
+      const head = Buffer.concat(headChunks);
+      const tail = Buffer.concat(tailChunks);
+      if (elidedBytes === 0) {
+        return {
+          text: Buffer.concat([head, tail]).toString("utf8"),
+          truncated: false,
+          elided_bytes: 0
+        };
+      }
+      const marker = Buffer.from(
+        elisionMarker(elidedBytes, headCapBytes, tailCapBytes),
+        "utf8"
+      );
+      return {
+        text: Buffer.concat([head, marker, tail]).toString("utf8"),
+        truncated: true,
+        elided_bytes: elidedBytes
+      };
     }
   };
 }
 
-function spawnAndCapture(plan, { spawnIsolated, parentEnv, timeoutMs, outputCapBytes, clock }) {
+function spawnAndCapture(plan, { spawnIsolated, parentEnv, timeoutMs, outputBounds, clock }) {
   const child = spawnIsolated(plan, { stdio: ["ignore", "pipe", "pipe"], env: parentEnv });
   return new Promise((resolve) => {
-    const stdoutSink = createBoundedSink(outputCapBytes);
-    const stderrSink = createBoundedSink(outputCapBytes);
+    const stdoutSink = createBoundedSink(outputBounds);
+    const stderrSink = createBoundedSink(outputBounds);
     let settled = false;
     let timedOut = false;
 
@@ -287,10 +388,11 @@ export async function runWorkspaceAgentValidation(input = {}) {
     Number.isInteger(input.timeoutMs) && input.timeoutMs > 0
       ? input.timeoutMs
       : DEFAULT_VALIDATION_TIMEOUT_MS;
-  const outputCapBytes =
-    Number.isInteger(input.outputCapBytes) && input.outputCapBytes > 0
-      ? input.outputCapBytes
-      : DEFAULT_VALIDATION_OUTPUT_CAP_BYTES;
+  const outputBounds = resolveValidationOutputBounds({
+    outputCapBytes: input.outputCapBytes ?? null,
+    outputHeadCapBytes: input.outputHeadCapBytes ?? null,
+    outputTailCapBytes: input.outputTailCapBytes ?? null
+  });
 
   const flag = operationSpec.node_flag;
   const nodeBinary = process.execPath;
@@ -330,6 +432,14 @@ export async function runWorkspaceAgentValidation(input = {}) {
       command: nodeBinary,
       args: [flag, authorized.absolute],
       env: planEnv,
+
+      dependencyReadOnlyBinds: Array.isArray(input.dependencyReadOnlyBinds)
+        ? input.dependencyReadOnlyBinds
+        : [],
+
+      ...(input.maskAgentLaunchDirWhenPresent === true
+        ? { agentLaunchDirExists: existsSync }
+        : {}),
       buildBubblewrapLaunchPlan: buildBwrap
     });
   } catch (err) {
@@ -355,7 +465,7 @@ export async function runWorkspaceAgentValidation(input = {}) {
       spawnIsolated,
       parentEnv: envSource,
       timeoutMs,
-      outputCapBytes,
+      outputBounds,
       clock
     });
   } catch (err) {
@@ -402,10 +512,294 @@ export async function runWorkspaceAgentValidation(input = {}) {
     timed_out: capture.timedOut,
     spawn_error: capture.spawnError,
     output_truncated: capture.stdout.truncated || capture.stderr.truncated,
+    output_elided_bytes: capture.stdout.elided_bytes + capture.stderr.elided_bytes,
+    output_bounds: Object.freeze({
+      head_cap_bytes: outputBounds.headCapBytes,
+      tail_cap_bytes: outputBounds.tailCapBytes,
+      retains: "head_and_tail"
+    }),
     stdout: capture.stdout.text,
     stderr: capture.stderr.text,
     started_at_ms: startedAtMs,
     ended_at_ms: capture.endedAtMs,
     duration_ms: capture.endedAtMs - startedAtMs
+  });
+}
+
+export const MANAGED_WORKER_DECLARED_TEST_RESULT_SCHEMA_VERSION =
+  "managed-worker-declared-test-result.v1";
+
+export const MANAGED_WORKER_DECLARED_TEST_DEPENDENCY_DIR_NAME =
+  ".worker-declared-test-dependency";
+
+export const MANAGED_WORKER_DECLARED_TEST_DEPENDENCY_REASONS = Object.freeze({
+  PROJECTION_ROOT_UNAVAILABLE:
+    "managed_worker_declared_test.dependency_projection_root_unavailable.v1",
+  SELECTION_FAILED: "managed_worker_declared_test.dependency_selection_failed.v1",
+  MOUNTPOINT_UNAVAILABLE:
+    "managed_worker_declared_test.dependency_mountpoint_unavailable.v1",
+
+  MOUNT_IDENTITY_CHANGED:
+    "managed_worker_declared_test.dependency_mount_identity_changed.v1"
+});
+
+export function deriveManagedWorkerDependencyProjectionRoot(authority) {
+  const worktreeRoot = path.dirname(authority.worktree_path);
+  return path.join(
+    worktreeRoot,
+    MANAGED_WORKER_DECLARED_TEST_DEPENDENCY_DIR_NAME,
+    path.basename(authority.worktree_path)
+  );
+}
+
+function isWithinPath(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function selectDeclaredTestDependencyMount(authority) {
+  const projectionRoot = deriveManagedWorkerDependencyProjectionRoot(authority);
+  if (!path.isAbsolute(projectionRoot) ||
+      isWithinPath(authority.main_repo, projectionRoot) ||
+      isWithinPath(authority.worktree_path, projectionRoot)) {
+    return Object.freeze({
+      selected: false,
+      reason_code: MANAGED_WORKER_DECLARED_TEST_DEPENDENCY_REASONS.PROJECTION_ROOT_UNAVAILABLE,
+      detail: { projection_root: projectionRoot },
+      projection: null
+    });
+  }
+  try {
+    const selection = selectOptionalReviewerDependencyProjection({
+      mainRepo: authority.main_repo,
+      checkoutPath: authority.worktree_path,
+      projectionRoot
+    });
+    return Object.freeze({
+      selected: selection.selected === true,
+      reason_code: selection.reason_code,
+      detail: null,
+      projection: selection.projection
+    });
+  } catch (error) {
+
+    return Object.freeze({
+      selected: false,
+      reason_code: MANAGED_WORKER_DECLARED_TEST_DEPENDENCY_REASONS.SELECTION_FAILED,
+      detail: {
+        error_code: typeof error?.code === "string" ? error.code : null,
+        error_message: error?.message ?? String(error)
+      },
+      projection: null
+    });
+  }
+}
+
+function dependencyMountProof(selection) {
+  const projection = selection.projection;
+  return Object.freeze({
+    projection_selected: selection.selected === true,
+    projection_root: projection?.projection_root ?? null,
+    projection_identity: projection?.projection_identity ?? null,
+    dependency_installation_digest: projection?.installation_digest ?? null,
+    reviewer_read_only_bind: projection?.read_only_bind ?? null,
+    reviewer_read_only_binds: projection?.read_only_binds ?? Object.freeze([])
+  });
+}
+
+export async function runManagedWorkerDeclaredTest(input = {}) {
+  if (!isPlainObject(input)) {
+    return buildRefusal(
+      WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.INVALID_INPUT,
+      "runManagedWorkerDeclaredTest requires an object input"
+    );
+  }
+
+  const forbiddenKeys = [
+    ...FORBIDDEN_RAW_EXEC_INPUT_KEYS,
+    "dependencyReadOnlyBinds",
+    "dependency_read_only_binds",
+    "maskAgentLaunchDirWhenPresent",
+    "workspaceDir",
+    "workspace_dir"
+  ];
+  for (const key of forbiddenKeys) {
+    if (Object.hasOwn(input, key)) {
+      return buildRefusal(
+        WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.RAW_EXEC_FORBIDDEN,
+        `the declared-test capability forbids caller-supplied execution authority: ${key}`,
+        { forbidden_key: key }
+      );
+    }
+  }
+
+  let authority;
+  try {
+    authority = assertTrustedManagedWorkerTestRunAuthority(input.authority);
+  } catch (error) {
+    return buildRefusal(
+      WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.WORKSPACE_INVALID,
+      error?.message ?? String(error),
+      { error_code: typeof error?.code === "string" ? error.code : null }
+    );
+  }
+
+  const authorized = authorizeValidationTarget({
+    workspaceDir: authority.worktree_path,
+    target: input.target,
+    authorizedTargets: input.authorizedTargets
+  });
+  if (isWorkspaceAgentValidationRunRefusal(authorized)) {
+    return authorized;
+  }
+
+  const selection = selectDeclaredTestDependencyMount(authority);
+  let mountProof = dependencyMountProof(selection);
+  let dependencyBinds = mountProof.projection_selected
+    ? [...mountProof.reviewer_read_only_binds]
+    : [];
+  let dependencyReason = selection.reason_code;
+  let dependencyDetail = selection.detail;
+
+  const mountpoint = path.join(authority.worktree_path, "node_modules");
+  let createdMountpoint = false;
+  if (mountProof.projection_selected && !existsSync(mountpoint)) {
+    try {
+      mkdirSync(mountpoint, { mode: 0o700 });
+      createdMountpoint = true;
+    } catch (error) {
+
+      dependencyBinds = [];
+      dependencyReason = MANAGED_WORKER_DECLARED_TEST_DEPENDENCY_REASONS.MOUNTPOINT_UNAVAILABLE;
+      dependencyDetail = {
+        mountpoint,
+        error_code: typeof error?.code === "string" ? error.code : null
+      };
+      mountProof = dependencyMountProof({ selected: false, projection: null });
+    }
+  }
+
+  if (mountProof.projection_selected) {
+
+    try {
+      assertSelectedDependencyMountIntegrity(mountProof);
+    } catch (error) {
+      dependencyBinds = [];
+      dependencyReason = MANAGED_WORKER_DECLARED_TEST_DEPENDENCY_REASONS.SELECTION_FAILED;
+      dependencyDetail = {
+        error_code: typeof error?.code === "string" ? error.code : null,
+        error_message: error?.message ?? String(error)
+      };
+      mountProof = dependencyMountProof({ selected: false, projection: null });
+    }
+  }
+
+  const stepInput = {
+    workspaceDir: authority.worktree_path,
+    target: authorized.posixRelative,
+    authorizedTargets: input.authorizedTargets,
+    env: input.env ?? undefined,
+    timeoutMs: input.timeoutMs,
+    outputCapBytes: input.outputCapBytes,
+    outputHeadCapBytes: input.outputHeadCapBytes,
+    outputTailCapBytes: input.outputTailCapBytes,
+    dependencyReadOnlyBinds: dependencyBinds,
+    maskAgentLaunchDirWhenPresent: true,
+    buildValidationConfinementPlan: input.buildValidationConfinementPlan,
+    buildBubblewrapLaunchPlan: input.buildBubblewrapLaunchPlan,
+    spawnIsolated: input.spawnIsolated,
+    clock: input.clock
+  };
+
+  let mountIdentityChanged = null;
+  const assertMountStillValid = () => {
+    if (!mountProof.projection_selected) return true;
+    try {
+      assertSelectedDependencyMountIntegrity(mountProof);
+      return true;
+    } catch (error) {
+      mountIdentityChanged = {
+        error_code: typeof error?.code === "string" ? error.code : null,
+        error_message: error?.message ?? String(error)
+      };
+      return false;
+    }
+  };
+
+  const mountChangedStep = (operation, flag) => Object.freeze({
+    schema_version: WORKSPACE_AGENT_VALIDATION_RUN_RESULT_SCHEMA_VERSION,
+    operation,
+    command: "node",
+    normalized_argv: Object.freeze(["node", flag, authorized.posixRelative]),
+    target: authorized.posixRelative,
+    raw_exec_enabled: false,
+    ran: false,
+    skipped: false,
+    disposition: WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN,
+    ok: false,
+    blocker_code: MANAGED_WORKER_DECLARED_TEST_DEPENDENCY_REASONS.MOUNT_IDENTITY_CHANGED,
+    blocker_message: mountIdentityChanged?.error_message ?? "dependency mount identity changed"
+  });
+
+  let check;
+  let testStep;
+  try {
+    check = assertMountStillValid()
+      ? await runWorkspaceAgentValidation({ ...stepInput, operation: "node_check" })
+      : mountChangedStep("node_check", "--check");
+    if (check.ok !== true) {
+      testStep = Object.freeze({
+        schema_version: WORKSPACE_AGENT_VALIDATION_RUN_RESULT_SCHEMA_VERSION,
+        operation: "node_test",
+        command: "node",
+        normalized_argv: Object.freeze(["node", "--test", authorized.posixRelative]),
+        target: authorized.posixRelative,
+        raw_exec_enabled: false,
+        ran: false,
+        skipped: true,
+        skipped_reason: "node --check did not pass; node --test not run",
+        disposition: WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN,
+        ok: false
+      });
+    } else {
+      testStep = assertMountStillValid()
+        ? await runWorkspaceAgentValidation({ ...stepInput, operation: "node_test" })
+        : mountChangedStep("node_test", "--test");
+    }
+  } finally {
+    if (createdMountpoint) {
+      rmSync(mountpoint, { recursive: true, force: true });
+    }
+  }
+
+  const ranStep = testStep.ran === true ? testStep : check;
+  return Object.freeze({
+    schema_version: MANAGED_WORKER_DECLARED_TEST_RESULT_SCHEMA_VERSION,
+    unit: authority.unit_address,
+    target: authorized.posixRelative,
+
+    dependency: Object.freeze({
+      mount_selected: mountProof.projection_selected,
+      unavailable_reason: mountProof.projection_selected ? null : (dependencyReason ?? null),
+      detail: mountProof.projection_selected ? null : (dependencyDetail ?? null),
+      projection_identity: mountProof.projection_identity,
+      installation_digest: mountProof.dependency_installation_digest,
+
+      mount_identity_changed: mountIdentityChanged,
+      advisory: true
+    }),
+    steps: Object.freeze([check, testStep]),
+    disposition: ranStep.disposition,
+    ok: check.ok === true && testStep.ok === true,
+    exit_code: ranStep.exit_code ?? null,
+    timed_out: check.timed_out === true || testStep.timed_out === true,
+    output_truncated: check.output_truncated === true || testStep.output_truncated === true,
+    stdout: ranStep.stdout ?? "",
+    stderr: ranStep.stderr ?? "",
+
+    advisory: true,
+    admission_effect: "none",
+    review_effect: "none",
+    closure_effect: "none"
   });
 }

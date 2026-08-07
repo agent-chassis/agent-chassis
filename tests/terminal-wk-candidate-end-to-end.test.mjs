@@ -273,6 +273,102 @@ test("cold restart re-derives L/W/B/C and mints a fresh projection without monit
   assert.equal(published.result.boundary_authorization.policy_posture, "free_substrate");
 });
 
+const NON_GATING_DEPENDENCY_CASES = Object.freeze([
+  ["a version-only package.json bump", (state) => {
+    writeFileSync(path.join(state.repo, "package.json"),
+      JSON.stringify({ name: "wk1634-e2e", private: true, version: "0.5.5" }));
+  }],
+  ["a real dependency declaration change", (state) => {
+    writeFileSync(path.join(state.repo, "package.json"), JSON.stringify({
+      name: "wk1634-e2e", private: true, dependencies: { "brand-new-dep": "^4.2.0" }
+    }));
+  }],
+  ["a lockfile change", (state) => {
+    writeFileSync(path.join(state.repo, "package-lock.json"), JSON.stringify({
+      name: "wk1634-e2e", lockfileVersion: 3,
+      packages: { "": { name: "wk1634-e2e", dependencies: { "brand-new-dep": "^4.2.0" } } }
+    }));
+  }],
+  ["a workspace-manifest change", (state) => {
+    writeFileSync(path.join(state.repo, "package.json"), JSON.stringify({
+      name: "wk1634-e2e", private: true, workspaces: ["packages/*"]
+    }));
+  }],
+  ["an absent installed dependency tree", (state) => {
+    rmSync(path.join(state.repo, "node_modules"), { recursive: true, force: true });
+  }],
+  ["an absent install marker", (state) => {
+    rmSync(path.join(state.repo, "node_modules", ".package-lock.json"), { force: true });
+  }],
+
+  ["an unavailable declared project-test target", (state) => {
+    git(state.repo, "checkout", "-q", "wk/IN-0030/WK-1634");
+    rmSync(path.join(state.repo, "tests", "whole-wk.test.mjs"), { force: true });
+    git(state.repo, "add", "-A");
+    git(state.repo, "commit", "-q", "-m", "the WK drops the declared project test");
+    state.W = git(state.repo, "rev-parse", "HEAD");
+    git(state.repo, "checkout", "-q", "main");
+  }, { targetAvailable: false }]
+]);
+
+for (const [label, drift, expected = {}] of NON_GATING_DEPENDENCY_CASES) {
+  test(`${label} neither invalidates the exact candidate nor blocks handoff`, async (t) => {
+    const state = makeFixture(t);
+    drift(state);
+    const coordinator = createTerminalCandidateCoordinator({
+      mainRepo: state.repo,
+      worktreeRoot: state.worktrees
+    });
+    const terminalCandidate = await coordinator.prepareTerminalCandidate({
+      integration: { wk_ref: "refs/heads/wk/IN-0030/WK-1634", wk_sha: state.W },
+      reviewUnit: { record_id: "WK-1634", initiative: "IN-0030" },
+      wkId: "WK-1634",
+      wkRef: "refs/heads/wk/IN-0030/WK-1634",
+      baseSha: state.B,
+      baseRef: "main"
+    });
+
+    assert.equal(terminalCandidate.binding.base, state.B);
+    assert.equal(terminalCandidate.binding.candidate_parent, state.B);
+    assert.equal(terminalCandidate.binding.wk_tip, state.W);
+    assert.equal(git(state.repo, "rev-parse", `${terminalCandidate.binding.candidate}^{tree}`),
+      git(state.repo, "rev-parse", `${state.W}^{tree}`));
+    assert.equal(
+      git(state.repo, "rev-list", "--parents", "-n", "1", terminalCandidate.binding.candidate)
+        .split(/\s+/).length,
+      2
+    );
+
+    const validations = await coordinator.validateTerminalCandidate({ terminalCandidate });
+    assert.equal(validations.length, 1);
+    assert.equal(validations[0].advisory, true);
+    assert.equal(validations[0].integration_effect, "none");
+    assert.equal(validations[0].candidate, terminalCandidate.binding.candidate);
+    if (expected.targetAvailable !== undefined) {
+      assert.equal(validations[0].target_available, expected.targetAvailable);
+      assert.deepEqual(validations[0].steps.map((step) => step.ran), [false, false]);
+    }
+
+    const published = await defaultWkForgeHandoff({
+      mainRepo: state.repo,
+      assignedUnit: "WK-1634",
+      deps: {
+        forge: forgeFor(state, terminalCandidate.binding.candidate),
+        resolveTerminalCandidatePublicationState: async () => ({
+          binding: terminalCandidate.binding,
+          materialization: terminalCandidate.materialization,
+          advisory_review_evidence: { authority: "advisory_only", reviews: [] }
+        })
+      }
+    });
+    assert.equal(published.ok, true, JSON.stringify(published));
+    assert.equal(published.result.commit, terminalCandidate.binding.candidate);
+    assert.equal(published.result.parent, state.B);
+    assert.equal(published.result.boundary_authorization.policy_posture, "free_substrate");
+    assert.equal(git(state.repo, "rev-parse", "refs/heads/wk/IN-0030/WK-1634"), state.W);
+  });
+}
+
 for (const movement of ["wk", "checkout"]) {
   test(`post-review ${movement} movement invalidates publication`, async (t) => {
     const state = makeFixture(t);

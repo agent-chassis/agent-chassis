@@ -11,9 +11,9 @@ agent-chassis command or MCP function should handle a job. It exists so
 agents can choose a tool from structured data instead of guessing from wrapper
 filenames, package metadata, executable bits, or historical WK pages.
 
-The assembled corpus is exactly 99 tool entries. The manifest fragment counts
-are `17 + 11 + 4 + 2 + 1 + 29 + 18 + 6 + 10 + 1 + 0 = 99`; the checked-in
-manifest remains the source of truth for both values.
+The assembled corpus is exactly 100 tool entries. The manifest fragment counts
+are `17 + 11 + 4 + 2 + 1 + 6 + 7 + 9 + 7 + 18 + 7 + 10 + 1 + 0 = 100`; the
+checked-in manifest remains the source of truth for both values.
 
 ## Initial managed implementation-worker discovery contract
 
@@ -97,8 +97,18 @@ family:
   initiative and integration status coordination tools.
 - `packages/wiki-core/data/tool-discovery/tool-usage-audit-tools.json` —
   tool-use audit observability tools.
-- `packages/wiki-core/data/tool-discovery/work-record-tools.json` —
-  work-record create/edit/validate/migrate routes across MCP and CLI.
+- `packages/wiki-core/data/tool-discovery/work-record-core-mcp-tools.json` —
+  MCP work-record create, validate, status, task, closure, and summary routes.
+- `packages/wiki-core/data/tool-discovery/work-record-core-cli-tools.json` —
+  operator-shell wiki CLI fallbacks for work-record summary, issue creation,
+  validate, status, task, closure, and Markdown-to-JSON migration.
+- `packages/wiki-core/data/tool-discovery/work-record-edit-mcp-tools.json` —
+  MCP work-record derived-evidence refresh/cleanup and structured slice,
+  list-field, acceptance, and review-unit editing tools.
+- `packages/wiki-core/data/tool-discovery/work-record-edit-cli-tools.json` —
+  operator-shell wiki CLI fallbacks for work-record derived-evidence
+  refresh/cleanup and structured slice, list-field, acceptance, and review-unit
+  editing.
 - `packages/wiki-core/data/tool-discovery/code-index-tools.json` — code-index
   and graph-impact tools across MCP and CLI.
 - `packages/wiki-core/data/tool-discovery/launcher-tools.json` — dispatch,
@@ -128,12 +138,22 @@ directory listing order, or glob expansion. The canonical order is:
 3. `mcp-launcher-tools.json`
 4. `mcp-coordination-tools.json`
 5. `tool-usage-audit-tools.json`
-6. `work-record-tools.json`
-7. `code-index-tools.json`
-8. `launcher-tools.json`
-9. `cli-commands.json`
-10. `integration-tools.json` when listed by the manifest
-11. `wrapper-commands.json`
+6. `work-record-core-mcp-tools.json`
+7. `work-record-core-cli-tools.json`
+8. `work-record-edit-mcp-tools.json`
+9. `work-record-edit-cli-tools.json`
+10. `code-index-tools.json`
+11. `launcher-tools.json`
+12. `cli-commands.json`
+13. `integration-tools.json` when listed by the manifest
+14. `wrapper-commands.json`
+
+The four `work-record-*` fragments occupy, in that order, the single manifest
+position the former `work-record-tools.json` held. They were split apart along
+surface and family boundaries (core lifecycle vs. structured editing, MCP vs.
+CLI fallback) so no single fragment sits against the write-scope LOC deny band
+that would make it unwritable. Because the split preserved entry order, the
+assembled corpus and `descriptor.digest` are unchanged by it.
 
 The loader assembles fragments strictly in manifest order so the assembled
 descriptor — and therefore its digest — is reproducible across machines and

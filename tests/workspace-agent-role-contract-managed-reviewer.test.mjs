@@ -36,7 +36,11 @@ test("managed reviewer (canonicalRepo present) drops the submit mandate and stat
     /Complete by returning your terminal structured findings result for trusted-runtime capture/
   );
 
-  assert.match(contract, /You have no repository write grant: do not modify any file or the work record\./);
+  assert.equal(
+    contract.split(LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER).length - 1,
+    1
+  );
+  assert.ok(!contract.includes("AGENTS.md"));
   assert.ok(!contract.toLowerCase().includes("apply_patch"));
   assert.ok(!contract.toLowerCase().includes("closed-input commit"));
   assert.ok(!contract.includes("native edit"));

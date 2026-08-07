@@ -10,7 +10,9 @@ import {
 } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { ensureLauncherRuntimeStateDir } from "@agent-chassis/agent-launch-core/src/lib/config.mjs";
+import {
+  ensureLauncherOwnedWorkspaceDurableStateRoot
+} from "@agent-chassis/agent-launch-core/src/lib/durable-runtime-state.mjs";
 
 export const EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION =
   "workspace-agent-exact-slice-review-receipt.v1";
@@ -783,16 +785,27 @@ function assertConsistentEventHistory(events) {
   }
 }
 
+async function ensureDurableExactSliceReviewReceiptRoot({ workspaceDir } = {}) {
+  return ensureLauncherOwnedWorkspaceDurableStateRoot({ workspaceDir });
+}
+
 export function createExactSliceReviewReceiptStore({
   workspaceDir,
   env = process.env,
-  ensureRuntimeStateDir = ensureLauncherRuntimeStateDir,
+  ensureRuntimeStateDir = ensureDurableExactSliceReviewReceiptRoot,
   faultInjector = null
 } = {}) {
   async function receiptDirectory() {
     const ensured = await ensureRuntimeStateDir({ workspaceDir, env });
     if (ensured?.ok !== true) {
-      throw new Error(ensured?.reason ?? "launcher runtime state unavailable for exact review receipts");
+
+      const failure = new Error(
+        ensured?.reason ?? "launcher runtime state unavailable for exact review receipts"
+      );
+      if (typeof ensured?.code === "string" && ensured.code.length > 0) {
+        failure.code = ensured.code;
+      }
+      throw failure;
     }
 
     await mkdir(ensured.dir, { recursive: true, mode: 0o700 });

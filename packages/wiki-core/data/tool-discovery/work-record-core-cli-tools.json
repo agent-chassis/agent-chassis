@@ -1,0 +1,241 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "work-record-core-cli-tools.json",
+  "summary": "Operator-shell wiki CLI fallbacks for work-record summary, issue creation, validate, status, task, closure, and Markdown-to-JSON migration.",
+  "tool_count": 7,
+  "tools": [
+    {
+      "tool_name": "wiki-work-records-summary",
+      "display_name": "Summarize work record",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records summary --unit <WK-ID|WK-ID#slice> --json",
+      "task_ids": [
+        "summarize-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 90,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-summary.mjs"
+      ],
+      "notes": "Compact CLI fallback for work-record summary lookups. It returns the bounded summary view rather than full canonical record JSON."
+    },
+    {
+      "tool_name": "wiki-create-issue",
+      "display_name": "Create work record issue",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- create issue <title>",
+      "task_ids": [
+        "create-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/create.mjs",
+        "packages/wiki-cli/src/run.mjs"
+      ],
+      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agent create-record should use workspace_create_record. If the MCP route is unavailable, agent-facing discovery should report `missing_structured_create_route` rather than treating this CLI command as the preferred route."
+    },
+    {
+      "tool_name": "wiki-work-records-validate",
+      "display_name": "Validate work records",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records validate --id <WK-ID> --json",
+      "task_ids": [
+        "validate-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-schema.mjs"
+      ],
+      "notes": "Compact CLI fallback for canonical work-record validation. It returns structured diagnostics only rather than a full record body."
+    },
+    {
+      "tool_name": "wiki-work-records-set-status",
+      "display_name": "Set work-record status",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records set-status --unit <WK-ID|WK-ID#slice> --status <status> --json",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 89,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs"
+      ],
+      "notes": "Operator-shell fallback only. This command is not agent dispatch authority; agents should use workspace_work_record_set_status when the MCP surface is available."
+    },
+    {
+      "tool_name": "wiki-work-records-set-task",
+      "display_name": "Set work-record task",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records set-task --unit <WK-ID|WK-ID#slice> (--text <task text> | --index <n>) --json",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 88,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs"
+      ],
+      "notes": "Operator-shell fallback only. This command is not agent dispatch authority; agents should use workspace_work_record_set_task when the MCP surface is available."
+    },
+    {
+      "tool_name": "wiki-work-records-set-closure",
+      "display_name": "Set work-record closure",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-records set-closure --unit <WK-ID|WK-ID#slice> --json",
+      "task_ids": [
+        "create-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 90,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-schema.mjs"
+      ]
+    },
+    {
+      "tool_name": "wiki-work-record-migration",
+      "display_name": "Migrate work-record markdown",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- work-record-migration --id <WK-ID> --write",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/work-record-migration.mjs",
+        "packages/wiki-core/src/lib/work-record-migration.mjs"
+      ]
+    }
+  ]
+}

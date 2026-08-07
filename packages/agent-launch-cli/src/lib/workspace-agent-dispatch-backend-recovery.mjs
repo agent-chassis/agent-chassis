@@ -20,6 +20,10 @@ export function createBackendRecovery(ctx) {
 
   const bindFrozenReviewContext = (args) => ctx.bindFrozenReviewContext(args);
   const bindFrozenSliceReviewContext = (args) => ctx.bindFrozenSliceReviewContext(args);
+  const resolveCommittedSliceIntegrationContinuation =
+    typeof ctx.resolveCommittedSliceIntegrationContinuation === "function"
+      ? (args) => ctx.resolveCommittedSliceIntegrationContinuation(args)
+      : null;
   const resolveManagedWorkerProvenDeath = (args) => ctx.resolveManagedWorkerProvenDeath(args);
   const retireManagedWorkerIdentity = (args) => ctx.retireManagedWorkerIdentity(args);
 
@@ -81,6 +85,10 @@ export function createBackendRecovery(ctx) {
               resolveCanonicalSliceReviewUnit: ({ mainRepo, subject: sliceSubject }) =>
                 resolveCanonicalSliceReviewUnit(mainRepo, sliceSubject),
               bindFrozenSliceReviewContext,
+
+              ...(resolveCommittedSliceIntegrationContinuation === null
+                ? {}
+                : { resolveCommittedSliceIntegrationContinuation }),
 
               resolveManagedWorkerProvenDeath,
 

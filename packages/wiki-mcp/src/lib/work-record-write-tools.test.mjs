@@ -98,17 +98,18 @@ function createToolRegistry(workspaceDir) {
 }
 
 test("workspace_work_record_set_status still works when expected_source_digest is omitted", async () => {
-  const { tempDir } = await createTempWorkspace();
+
+  const { tempDir, record } = await createTempWorkspace();
   try {
     const tools = createToolRegistry(tempDir);
     const response = await tools.get("workspace_work_record_set_status").handler({
       repo: WORKSPACE_REPO,
       unit: "WK-1160",
-      status: "todo"
+      status: record.status
     });
 
     const structured = parseStructuredResponse(response);
-    assert.equal(structured.status, "todo");
+    assert.equal(structured.status, record.status);
     assert.equal(structured.no_op, true);
     assert.equal(structured.written, false);
     assert.equal(structured.valid, true);
@@ -172,6 +173,41 @@ test("workspace_work_record_set_task still works when expected_source_digest is 
     assert.equal(structured.current_source_digest, undefined);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("workspace_work_record_set_status projects the core forge completion refusal without mutation", async () => {
+  const forge = (record) => {
+    record.status = "review";
+    record.completion_policy = "forge_confirmed_merge";
+  };
+  const sliceUnit = `WK-1160#${(await loadFixtureRecord()).slices[0].id}`;
+
+  for (const [name, mutateRecord, unit, refusal] of [
+    ["forge parent done refused", forge, "WK-1160", "forge_confirmed_completion_required"],
+    ["non-forge parent done unchanged", (record) => { record.status = "review"; }, "WK-1160", null],
+    ["forge slice done unchanged", (record) => { forge(record); record.slices[0].status = "review"; }, sliceUnit, null]
+  ]) {
+    const { tempDir, workspaceRecordPath } = await createTempWorkspace({ mutateRecord });
+    try {
+      const before = await readFile(workspaceRecordPath, "utf8");
+      const structured = parseStructuredResponse(
+        await createToolRegistry(tempDir).get("workspace_work_record_set_status").handler({
+          repo: WORKSPACE_REPO,
+          unit,
+          status: "done"
+        })
+      );
+      assert.equal(structured.valid, !refusal, name);
+      assert.equal(structured.written, !refusal, name);
+      assert.equal(structured.no_op, false, name);
+      if (refusal) {
+        assert.equal(structured.diagnostics[0].code, refusal, name);
+        assert.equal(await readFile(workspaceRecordPath, "utf8"), before, name);
+      }
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   }
 });
 

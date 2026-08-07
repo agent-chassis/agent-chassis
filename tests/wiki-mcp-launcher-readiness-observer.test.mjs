@@ -1,17 +1,37 @@
 
 
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 
 import {
   LAUNCHER_READINESS_EVENT_WRITE_FAILED_CODE,
+  LAUNCHER_READINESS_PROTOCOL_GENERATION,
   LAUNCHER_READINESS_SCHEMA_VERSIONS,
   LauncherReadinessEventWriteError,
   LauncherReadinessObservationError,
   createLauncherObservingTransport,
   createLauncherReadinessEventWriter
 } from "../packages/wiki-mcp/src/lib/launcher-readiness-observer.mjs";
+import {
+  STDIO_MCP_CONDUIT_ERROR_CODES,
+  STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION
+} from "../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-contract.mjs";
+import {
+  __testing as conduitCoreTesting
+} from "../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-core.mjs";
+
+test("WK-1780: readiness producer exposes the shared immutable lifecycle generation", () => {
+  assert.equal(LAUNCHER_READINESS_PROTOCOL_GENERATION,
+    STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION);
+  assert.equal(LAUNCHER_READINESS_SCHEMA_VERSIONS.SERVER_READY,
+    "wiki-mcp-launcher-readiness.v2");
+  assert.equal(LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_CLOSED,
+    "wiki-mcp-launcher-client-closed.v1");
+  assert.equal(Object.isFrozen(LAUNCHER_READINESS_SCHEMA_VERSIONS), true);
+});
 
 function createFakeInnerTransport() {
   const sent = [];
@@ -66,6 +86,19 @@ test("WK-1678: the observer forwards every message and call unchanged", async ()
   inner.onerror(new Error("boom"));
   assert.equal(closed, 1);
   assert.equal(errored.message, "boom");
+});
+
+test("WK-1745 SLICE-006: transport close emits launcher-owned client-first evidence", () => {
+  const inner = createFakeInnerTransport();
+  const { transport, events } = attach(inner);
+  let forwarded = 0;
+  transport.onclose = () => { forwarded += 1; };
+  inner.onclose();
+  assert.equal(forwarded, 1);
+  assert.deepEqual(events, [{
+    schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_CLOSED,
+    closed: true
+  }]);
 });
 
 test("WK-1678: readiness events reflect the REAL exchange, not the server's own list",
@@ -132,6 +165,57 @@ test("WK-1678: a second initialize is reported as a client relay restart", async
     (event) => event.schema_version === LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_RESTARTED);
   assert.equal(restarts.length, 2);
   assert.equal(restarts[1].restart_count, 2);
+});
+
+test("WK-1780: duplicate initialize before the initialized notification fails readiness", async () => {
+  const child = new EventEmitter();
+  const ready = new PassThrough();
+  child.stdio = [null, null, null, ready];
+  const lifecycle = conduitCoreTesting.observeConduitLifecycle({
+    child,
+    role: "worker",
+    serverStartupTimeoutMs: 5_000,
+    clientReadinessTimeoutMs: 5_000,
+    expectedToolNames: ["commit"]
+  });
+  lifecycle.serverReady.catch(() => {});
+  lifecycle.clientReady.catch(() => {});
+  ready.write(`${JSON.stringify({
+    schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.SERVER_READY,
+    lifecycle_protocol_generation: STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION,
+    ready: true,
+    tools: ["commit"]
+  })}\n`);
+  await lifecycle.serverReady;
+  lifecycle.beginClientReadiness();
+
+  const inner = createFakeInnerTransport();
+  const events = [];
+  const transport = createLauncherObservingTransport(inner, {
+    emit(event) {
+      events.push(event);
+      ready.write(`${JSON.stringify(event)}\n`);
+    }
+  });
+  transport.onmessage = () => {};
+  inner.deliver(INITIALIZE);
+  inner.deliver({ ...INITIALIZE, id: 42 });
+  inner.deliver(INITIALIZED);
+  inner.deliver(TOOLS_LIST);
+  await transport.send({ jsonrpc: "2.0", id: 1, result: {} });
+  await transport.send(toolsResult(2, ["commit"]));
+
+  assert.deepEqual(events, [{
+    schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_RESTARTED,
+    restarted: true,
+    restart_count: 1
+  }], "no ordinary initialized or tools-listed success follows restart evidence");
+  const failure = await lifecycle.failureSettlement;
+  assert.equal(failure.code, STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_RELAY_RESTARTED);
+  await assert.rejects(lifecycle.clientReady, (error) => error === failure);
+  assert.equal(lifecycle.isClientReady(), false,
+    "the real consumer never authenticates delivery after duplicate initialize");
+  ready.destroy();
 });
 
 test("WK-1678: observation installation fails closed instead of degrading", () => {

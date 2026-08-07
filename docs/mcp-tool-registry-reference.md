@@ -62,6 +62,7 @@ The default `full` profile exposes:
 - `workspace_docs_policy_validate`
 - `workspace_work_record_summary`
 - `workspace_work_record_validate`
+- `workspace_preflight_dispatch`
 - `workspace_validate_dispatch`
 - `workspace_run_validation`
 - `workspace_initiative_status`
@@ -116,6 +117,7 @@ The `agent-safe` profile exposes only:
 - `workspace_docs_policy_validate`
 - `workspace_work_record_summary`
 - `workspace_work_record_validate`
+- `workspace_preflight_dispatch`
 - `workspace_validate_dispatch`
 - `workspace_run_validation`
 - `workspace_agent_faq`

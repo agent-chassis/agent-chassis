@@ -22,6 +22,10 @@ import {
 import {
   compactRuntimeBlockerTaxonomy
 } from "./dispatch-tool-helpers.mjs";
+import {
+  STDIO_MCP_CONDUIT_COMPOSITION_FACT_SOURCE,
+  buildManagedStdioMcpCompositionRefusal
+} from "@agent-chassis/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs";
 
 const CAPABILITY_FRESHNESS_FRESH = "fresh";
 
@@ -68,7 +72,7 @@ function normalizeCapabilityFact(name, fact) {
   const authoritative = typeof fact?.source === "string" && fact.source.length > 0;
   const fresh = freshnessState === CAPABILITY_FRESHNESS_FRESH;
   const available = authoritative && fresh && fact?.available === true;
-  return {
+  const normalized = {
     name,
     available,
     status: available ? "available" : fresh && authoritative && fact?.available === false
@@ -83,9 +87,39 @@ function normalizeCapabilityFact(name, fact) {
         basis: fact?.freshness?.basis ?? null
       }
     },
-    blockers: available ? [] : [CAPABILITY_BLOCKER[name]],
-    recovery: available ? null : CAPABILITY_RECOVERY
+    blockers: available ? [] : [fact?.blocker?.code ?? CAPABILITY_BLOCKER[name]],
+    recovery: available ? null : fact?.blocker?.recovery ?? CAPABILITY_RECOVERY
   };
+  return name === "structured_dispatch"
+    ? {
+        ...normalized,
+        cause: available ? null : fact?.blocker?.cause ?? null,
+        gate_outcome: fact?.gate_outcome ?? null,
+        composition_compatibility: fact?.composition_compatibility ?? null
+      }
+    : normalized;
+}
+
+function missingCompositionProjection() {
+  return Object.freeze({
+    available: false,
+    gate_outcome: "missing_fact",
+    fact: null,
+    blocker: buildManagedStdioMcpCompositionRefusal("missing_fact")
+  });
+}
+
+function compositionCapabilityFact(projection) {
+  return Object.freeze({
+    available: projection?.available === true,
+    source: STDIO_MCP_CONDUIT_COMPOSITION_FACT_SOURCE,
+    freshness: Object.freeze({ state: "fresh", basis: "current_backend_generation" }),
+    composition_compatibility: projection?.fact ?? null,
+    gate_outcome: projection?.gate_outcome ?? "malformed_fact",
+    blocker: projection?.available === true
+      ? null
+      : projection?.blocker ?? buildManagedStdioMcpCompositionRefusal("malformed_fact")
+  });
 }
 
 export function projectManagedLifecycleCapabilities({
@@ -93,16 +127,31 @@ export function projectManagedLifecycleCapabilities({
   isPaidTier = false,
   authorityFacts = {}
 } = {}) {
+  const routeRegistration = runtimeRouteFact(registeredToolNames, AGENT_DISPATCH_TOOL_NAME);
+  const composition = authorityFacts.structured_dispatch ?? Object.freeze({
+    available: false,
+    source: STDIO_MCP_CONDUIT_COMPOSITION_FACT_SOURCE,
+    freshness: Object.freeze({ state: "fresh", basis: "current_backend_generation" }),
+    composition_compatibility: null,
+    gate_outcome: "missing_fact",
+    blocker: buildManagedStdioMcpCompositionRefusal("missing_fact")
+  });
   const facts = {
-    structured_dispatch: runtimeRouteFact(registeredToolNames, AGENT_DISPATCH_TOOL_NAME),
     validation_ownership: runtimeRouteFact(registeredToolNames, "workspace_run_validation"),
-    ...authorityFacts
+    ...authorityFacts,
+    structured_dispatch: {
+      ...composition,
+      available: routeRegistration.available === true && composition.available === true
+    }
   };
   return {
     schema_version: "managed-lifecycle-capabilities.v1",
     enforcement: isPaidTier
       ? { tier: "paid_cce", mode: "cce_enforced", audit_grade: true }
       : { tier: "free_local", mode: "free_substrate", audit_grade: false },
+    route_registration: Object.freeze({
+      structured_dispatch: Object.freeze({ ...routeRegistration })
+    }),
     planes: MANAGED_LIFECYCLE_CAPABILITY_NAMES.map((name) =>
       normalizeCapabilityFact(name, facts[name])
     )
@@ -252,6 +301,10 @@ export function registerDiagnosticRoutes(ctx) {
         if (dispatchAvailable && reviewerAvailable) {
           availableRoutes.push("workspace_agent_dispatch:reviewer");
         }
+        const structuredDispatchCompatibility =
+          typeof dispatchBackend?.getManagedStdioMcpCompositionCompatibility === "function"
+            ? dispatchBackend.getManagedStdioMcpCompositionCompatibility()
+            : missingCompositionProjection();
         const preflight = await runCoordinationPreflight({
           dir: workspace.dir,
           role: args?.role ?? "coordinator",
@@ -260,6 +313,7 @@ export function registerDiagnosticRoutes(ctx) {
           identity: identity,
           subject: args?.subject ?? null,
           available_structured_routes: availableRoutes,
+          structured_dispatch_compatibility: structuredDispatchCompatibility,
           graph_impact_state: args?.graph_impact_state ?? null
         });
         const bootstrap = evaluateBootstrapReviewState({
@@ -275,17 +329,37 @@ export function registerDiagnosticRoutes(ctx) {
           mcp_dispatch_reviewer_available: reviewerAvailable,
           graph_impact_persistence_available: graphImpactPersistence
         };
-        const authorityFacts =
+        const backendAuthorityFacts =
           typeof dispatchBackend?.getManagedLifecycleCapabilityAuthorityFacts === "function"
             ? await dispatchBackend.getManagedLifecycleCapabilityAuthorityFacts()
             : {};
+
+        const authorityFacts = {
+          ...backendAuthorityFacts,
+          structured_dispatch: compositionCapabilityFact(
+            structuredDispatchCompatibility
+          )
+        };
         const capabilities = projectManagedLifecycleCapabilities({
           registeredToolNames,
           isPaidTier,
           authorityFacts
         });
         if (args?.verbose === true) {
-          return jsonContent({ ...fullEnvelope, capabilities, verbose: true });
+          return jsonContent({
+            ...fullEnvelope,
+            dispatch_route_registered: dispatchAvailable,
+            reviewer_dispatch_route_registered: dispatchAvailable && reviewerAvailable,
+            redteam_dispatch_route_registered: dispatchAvailable,
+            dispatch_available: dispatchAvailable &&
+              structuredDispatchCompatibility.available === true,
+            reviewer_dispatch_available: reviewerAvailable &&
+              structuredDispatchCompatibility.available === true,
+            redteam_dispatch_available: dispatchAvailable &&
+              structuredDispatchCompatibility.available === true,
+            capabilities,
+            verbose: true
+          });
         }
 
         const routes = Array.isArray(preflight.available_structured_routes)
@@ -312,13 +386,20 @@ export function registerDiagnosticRoutes(ctx) {
           docs_writable: preflight.docs_writable,
           wiki_writable: preflight.wiki_writable,
           implementation_test_edits_forbidden: preflight.implementation_test_edits_forbidden,
-          dispatch_available: dispatchAvailable,
-          reviewer_dispatch_available: reviewerAvailable,
-          redteam_dispatch_available: dispatchAvailable,
+          dispatch_route_registered: dispatchAvailable,
+          reviewer_dispatch_route_registered: dispatchAvailable && reviewerAvailable,
+          redteam_dispatch_route_registered: dispatchAvailable,
+          dispatch_available: dispatchAvailable &&
+            structuredDispatchCompatibility.available === true,
+          reviewer_dispatch_available: reviewerAvailable &&
+            structuredDispatchCompatibility.available === true,
+          redteam_dispatch_available: dispatchAvailable &&
+            structuredDispatchCompatibility.available === true,
           validate_dispatch_available: validateDispatchAvailable,
           route_count: routes.length,
           allowed_surface_count: allowedSurfaces.length,
           forbidden_surface_count: forbiddenSurfaces.length,
+          structured_dispatch: preflight.structured_dispatch,
           writeback: preflight.writeback,
           blockers: preflight.blockers,
           analysis_blocked: preflight.analysis_blocked,

@@ -16,17 +16,21 @@ const EXPECTED_FRAGMENTS = [
   ['mcp-tools.json', 17],
 
   ['mcp-work-record-tools.json', 11],
-  ['mcp-launcher-tools.json', 4],
+  ['mcp-launcher-tools.json', 5],
   ['mcp-coordination-tools.json', 2],
   ['tool-usage-audit-tools.json', 1],
-  ['work-record-tools.json', 29],
+
+  ['work-record-core-mcp-tools.json', 6],
+  ['work-record-core-cli-tools.json', 7],
+  ['work-record-edit-mcp-tools.json', 9],
+  ['work-record-edit-cli-tools.json', 7],
   ['code-index-tools.json', 18],
-  ['launcher-tools.json', 6],
+  ['launcher-tools.json', 7],
   ['cli-commands.json', 10],
   ['integration-tools.json', 1],
   ['wrapper-commands.json', 0],
 ];
-const EXPECTED_TOOL_COUNT = 99;
+const EXPECTED_TOOL_COUNT = 101;
 
 async function readJson(url) {
   return JSON.parse(await readFile(url, 'utf8'));

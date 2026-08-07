@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/wiki-core",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -20,6 +20,7 @@
   ],
   "exports": {
     ".": "./src/index.mjs",
+    "./src/lib/sidecar-graph-impact-artifact.mjs": null,
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },

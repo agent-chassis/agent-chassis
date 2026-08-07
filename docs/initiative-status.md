@@ -41,6 +41,15 @@ docs lists, closure prose, long diagnostics, or raw evidence payloads. Use
 explicit verbose or selected-action disclosure only when the compact action row
 is insufficient to decide which structured tool to call next.
 
+Compact `top_actions` rows carry only `target_unit`, `reason_code`, and
+`suggested_tool`; compact `next_action` uses the same projection, and the other
+action fields are available through explicit verbose disclosure. The default
+action channel is independently bounded by the requested count (five by
+default) and a 1,000-byte pretty-JSON
+row budget. `top_actions_total`, `top_actions_returned`, and
+`top_actions_truncated` distinguish the complete ranked population from the
+returned projection even when the byte budget is reached before the count cap.
+
 For initiative frontier scans, start with `workspace_initiative_status` before
 sampling individual `workspace_work_record_summary` results. Use work-record
 summaries only for the selected unit or narrow follow-up called for by the
@@ -67,11 +76,18 @@ arrays). `parked` parents are intentionally out of scope: terminal here means
 `done` or `cancelled` only, and an open slice under a parked parent stays in the
 actionable units.
 
-The `consistency` array is always present in scan mode (empty when there is no
-mismatch), giving callers a stable contract. In single-unit mode (`unit` is
-supplied) it is omitted: that lens is a frontier-only action view for one
-selected record/slice and is not authoritative on initiative-wide
-actionability.
+Compact consistency rows retain only the mismatch `kind` and deduplicated unit
+`address`; record and slice fields derivable from that identity are verbose-only.
+The default channel is independently bounded to ten rows and a 600-byte
+pretty-JSON row budget. `consistency_total`, `consistency_returned`, and
+`consistency_truncated` report the exact complete and returned populations.
+Explicit `verbose: true` preserves the complete consistency detail.
+
+The `consistency` array and its metadata are always present in scan mode (empty
+and zeroed when there is no mismatch), giving callers a stable contract. In
+single-unit mode (`unit` is supplied) they are omitted: that lens is a
+frontier-only action view for one selected record/slice and is not authoritative
+on initiative-wide actionability.
 
 ## Tool Boundaries
 

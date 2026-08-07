@@ -6,10 +6,15 @@ import Ajv from "ajv";
 
 import { resolveAgentRoleResultSchemaPath } from "../packages/agent-launch-core/src/lib/agent-role-result-schema-path.mjs";
 import {
-  AGENT_ROLE_RESULT_REVIEWED_CONTROLS,
   parseAgentRoleResult,
   validateAgentRoleResult
 } from "../packages/agent-launch-core/src/lib/agent-role-result.mjs";
+
+const FIXTURE_CONTROL_IDS = Object.freeze([
+  "write_scope_total_loc",
+  "max_write_file_loc",
+  "validation_command_count"
+]);
 
 const zeroCounts = Object.freeze({
   total: 0,
@@ -30,7 +35,7 @@ function basePayload(overrides = {}) {
     summary: "No findings.",
     findings: [],
     finding_counts: { ...zeroCounts },
-    reviewed_controls: AGENT_ROLE_RESULT_REVIEWED_CONTROLS.map((control_id) => ({
+    reviewed_controls: FIXTURE_CONTROL_IDS.map((control_id) => ({
       control_id,
       result: "pass"
     })),
@@ -84,23 +89,6 @@ function assertSchemaInvalid(validateSchema, payload) {
   assert.equal(validateSchema(payload), false, `schema unexpectedly accepted ${JSON.stringify(payload)}`);
 }
 
-const DEC_0099_REVIEWED_CONTROLS = Object.freeze([
-  "write_scope_total_loc",
-  "max_write_file_loc",
-  "write_scope_count",
-  "acceptance_criteria_count",
-  "validation_command_count",
-  "expected_changed_line_budget",
-  "declared_runtime_mode_count",
-  "artifact_kind_count"
-]);
-
-test("reviewed_controls vocabulary is exactly the DEC-0099 eight review-threshold control ids", () => {
-  assert.deepEqual(AGENT_ROLE_RESULT_REVIEWED_CONTROLS, DEC_0099_REVIEWED_CONTROLS);
-  assert.equal(AGENT_ROLE_RESULT_REVIEWED_CONTROLS.length, 8);
-  assert.equal(new Set(AGENT_ROLE_RESULT_REVIEWED_CONTROLS).size, 8);
-});
-
 test("parses valid worker raw JSON as child evidence only", () => {
   const payload = basePayload({
     reported_role: "worker",
@@ -129,7 +117,7 @@ test("parses a valid reviewer terminal marked block with reviewed controls", () 
   assert.equal(result.candidate.kind, "marked_fence");
   assert.deepEqual(
     result.result.reviewed_controls.map((control) => control.control_id),
-    AGENT_ROLE_RESULT_REVIEWED_CONTROLS
+    FIXTURE_CONTROL_IDS
   );
 });
 
@@ -351,9 +339,9 @@ test("rejects outcome conflicts with structured findings and detectable summary-
   );
 });
 
-test("reviewer/redteam payloads accept each reviewed_controls id in the closed vocabulary", () => {
+test("reviewer/redteam payloads accept each reviewed_controls id", () => {
   for (const reported_role of ["reviewer", "redteam"]) {
-    for (const control_id of AGENT_ROLE_RESULT_REVIEWED_CONTROLS) {
+    for (const control_id of FIXTURE_CONTROL_IDS) {
       const result = validateAgentRoleResult(basePayload({
         reported_role,
         reviewed_controls: [{ control_id, result: "pass" }]
@@ -369,17 +357,17 @@ test("reviewer/redteam payloads accept each reviewed_controls id in the closed v
   }
 });
 
-test("reviewer payload accepts the full reviewed_controls vocabulary in one result", () => {
+test("reviewer payload accepts several reviewed_controls in one result", () => {
   const result = validateAgentRoleResult(basePayload());
 
   assert.equal(result.valid, true);
   assert.deepEqual(
     result.result.reviewed_controls.map((control) => control.control_id),
-    AGENT_ROLE_RESULT_REVIEWED_CONTROLS
+    FIXTURE_CONTROL_IDS
   );
 });
 
-test("rejects unknown, generic, duplicate, prose-like, namespaced, and empty reviewed_controls", () => {
+test("carries unrecognised, generic, namespaced, prose-like, and wrong-case reviewed_controls", () => {
   for (const control_id of [
     "unknown_control",
     "review",
@@ -387,8 +375,25 @@ test("rejects unknown, generic, duplicate, prose-like, namespaced, and empty rev
     "node-engine:validation_command_count",
     "write scope total loc",
     "artifact kind count",
-    ""
+    "Write_Scope_Total_Loc",
+    "MAX_WRITE_FILE_LOC",
+    "sibling_visibility_count"
   ]) {
+    const result = validateAgentRoleResult(basePayload({
+      reviewed_controls: [{ control_id, result: "pass" }]
+    }));
+
+    assert.equal(
+      result.valid,
+      true,
+      `${control_id} should be carried, got ${JSON.stringify(result.diagnostics)}`
+    );
+    assert.deepEqual(result.result.reviewed_controls, [{ control_id, result: "pass" }]);
+  }
+});
+
+test("still refuses empty, wrong-type, malformed, and duplicate reviewed_controls", () => {
+  for (const control_id of ["", "   ", 42, null, true, {}, []]) {
     assertInvalid(
       validateAgentRoleResult(basePayload({
         reviewed_controls: [{ control_id, result: "pass" }]
@@ -398,28 +403,31 @@ test("rejects unknown, generic, duplicate, prose-like, namespaced, and empty rev
   }
 
   assertInvalid(
-    validateAgentRoleResult(basePayload({
-      reviewed_controls: [
-        { control_id: "validation_command_count", result: "pass" },
-        { control_id: "validation_command_count", result: "pass" }
-      ]
-    })),
-    "duplicate_reviewed_control"
+    validateAgentRoleResult(basePayload({ reviewed_controls: "write_scope_total_loc" })),
+    "invalid_reviewed_controls"
   );
-});
+  assertInvalid(
+    validateAgentRoleResult(basePayload({
+      reviewed_controls: [{ control_id: "unknown_control", result: "pass", extra: true }]
+    })),
+    "unknown_field"
+  );
+  assertInvalid(
+    validateAgentRoleResult(basePayload({
+      reviewed_controls: [{ control_id: "unknown_control", result: "warn" }]
+    })),
+    "invalid_reviewed_control_result"
+  );
 
-test("rejects wrong-case reviewed_controls outside the exact closed vocabulary", () => {
-  for (const control_id of [
-    "Write_Scope_Total_Loc",
-    "MAX_WRITE_FILE_LOC",
-    "Validation_Command_Count",
-    "Artifact_Kind_Count"
-  ]) {
+  for (const control_id of ["validation_command_count", "unknown_control"]) {
     assertInvalid(
       validateAgentRoleResult(basePayload({
-        reviewed_controls: [{ control_id, result: "pass" }]
+        reviewed_controls: [
+          { control_id, result: "pass" },
+          { control_id, result: "pass" }
+        ]
       })),
-      "invalid_reviewed_control"
+      "duplicate_reviewed_control"
     );
   }
 });
@@ -443,22 +451,17 @@ test("preserves result:\"fail\" reviewed_controls as valid parser evidence for t
   ]);
 });
 
-test("classifies invalid reviewed_controls as namespaced, generic, prose_like, or unknown", () => {
-  const cases = [
-    ["node-engine:validation_command_count", "namespaced"],
-    ["review", "generic"],
-    ["write scope count", "prose_like"],
-    ["totally_made_up_control", "unknown"]
-  ];
-  for (const [control_id, reason] of cases) {
-    const result = validateAgentRoleResult(basePayload({
-      reviewed_controls: [{ control_id, result: "pass" }]
-    }));
+test("still refuses a reviewed_controls payload over the declared byte bound", () => {
+  const oversized = basePayload({
+    reviewed_controls: Array.from({ length: 400 }, (_, index) => ({
+      control_id: `unrecognised_control_${index}`,
+      result: "pass"
+    }))
+  });
 
-    assertInvalid(result, "invalid_reviewed_control");
-    const diagnostic = result.diagnostics.find((entry) => entry.code === "invalid_reviewed_control");
-    assert.equal(diagnostic.detail.reason, reason, `${control_id} should classify as ${reason}`);
-  }
+  const result = parseAgentRoleResult(terminalFence(oversized), { maxPayloadBytes: 512 });
+
+  assertInvalid(result, "payload_oversized");
 });
 
 test("rejects worker review fields and does not treat worker output as attestation evidence", () => {
@@ -476,7 +479,7 @@ test("rejects worker review fields and does not treat worker output as attestati
 });
 
 test("worker payload rejects every reviewed_controls id and never becomes attestation evidence", () => {
-  for (const control_id of AGENT_ROLE_RESULT_REVIEWED_CONTROLS) {
+  for (const control_id of [...FIXTURE_CONTROL_IDS, "unknown_control", "node-engine:review"]) {
     const result = validateAgentRoleResult(basePayload({
       reported_role: "worker",
       reported_outcome: "completed",
@@ -556,7 +559,7 @@ test("agent-role-result JSON Schema is a conservative superset (post-normalizati
       reported_outcome: "no_findings",
       findings: [],
       finding_counts: { ...zeroCounts },
-      reviewed_controls: AGENT_ROLE_RESULT_REVIEWED_CONTROLS.map((control_id) => ({
+      reviewed_controls: FIXTURE_CONTROL_IDS.map((control_id) => ({
         control_id,
         result: "pass"
       }))
@@ -656,9 +659,6 @@ test("agent-role-result JSON Schema rejects structural, enum, and authority-fiel
   assertSchemaInvalid(validateSchema, basePayload({ status: "done" }));
   assertSchemaInvalid(validateSchema, basePayload({ reported_role: "orchestrator" }));
   assertSchemaInvalid(validateSchema, basePayload({
-    reviewed_controls: [{ control_id: "node-engine:write_scope_total_loc", result: "pass" }]
-  }));
-  assertSchemaInvalid(validateSchema, basePayload({
     reviewed_controls: [{ control_id: "write_scope_total_loc", result: "warn" }]
   }));
   assertSchemaInvalid(validateSchema, basePayload({
@@ -676,6 +676,74 @@ test("agent-role-result JSON Schema rejects structural, enum, and authority-fiel
   }));
   assertSchemaInvalid(validateSchema, basePayload({
     reviewed_controls: [{ control_id: "write_scope_total_loc", result: "pass", extra: true }]
+  }));
+});
+
+test("emitted input_schema accepts an unenumerated reviewed control", async () => {
+  const { validateSchema } = await compileAgentRoleResultSchema();
+
+  for (const control_id of [
+    "write_scope_test_count",
+    "sibling_visibility_count",
+    "node-engine:write_scope_total_loc",
+    "Write_Scope_Total_Loc",
+    "totally_made_up_control"
+  ]) {
+    const payload = basePayload({
+      reviewed_controls: [{ control_id, result: "pass" }],
+      findings: []
+    });
+
+    assertSchemaValid(validateSchema, normalizeForStrictSchema(payload));
+    const result = validateAgentRoleResult(payload);
+    assert.equal(result.valid, true, `${control_id}: ${JSON.stringify(result.diagnostics)}`);
+    assert.deepEqual(result.result.reviewed_controls, [{ control_id, result: "pass" }]);
+  }
+
+  const findingPayload = basePayload({
+    reported_outcome: "changes_requested",
+    summary: "1 high finding.",
+    findings: [finding({ severity: "high", blocking: true, control_id: "write_scope_test_count" })],
+    finding_counts: { ...zeroCounts, total: 1, blocking: 1, high: 1 },
+    reviewed_controls: [{ control_id: "write_scope_test_count", result: "fail" }]
+  });
+  assertSchemaValid(validateSchema, normalizeForStrictSchema(findingPayload));
+  assert.equal(validateAgentRoleResult(findingPayload).valid, true);
+});
+
+test("emitted input_schema still refuses empty control ids and shape violations", async () => {
+  const { validateSchema } = await compileAgentRoleResultSchema();
+
+  assertSchemaInvalid(validateSchema, basePayload({
+    reviewed_controls: [{ control_id: "", result: "pass" }]
+  }));
+  assertSchemaInvalid(validateSchema, basePayload({
+    reviewed_controls: [{ control_id: 42, result: "pass" }]
+  }));
+  assertSchemaInvalid(validateSchema, basePayload({
+    reviewed_controls: [{ control_id: null, result: "pass" }]
+  }));
+  assertSchemaInvalid(validateSchema, basePayload({
+    reviewed_controls: [{ control_id: "write_scope_test_count", result: "warn" }]
+  }));
+  assertSchemaInvalid(validateSchema, basePayload({
+    reviewed_controls: [{ control_id: "write_scope_test_count", result: "pass", extra: true }]
+  }));
+  assertSchemaInvalid(validateSchema, basePayload({
+    reviewed_controls: [{ control_id: "write_scope_test_count" }]
+  }));
+
+  assertSchemaValid(validateSchema, normalizeForStrictSchema(basePayload({
+    reported_outcome: "changes_requested",
+    summary: "1 high finding.",
+    findings: [finding({ severity: "high", blocking: true, control_id: null })],
+    finding_counts: { ...zeroCounts, total: 1, blocking: 1, high: 1 }
+  })));
+  assertSchemaInvalid(validateSchema, basePayload({
+    reported_outcome: "changes_requested",
+    summary: "1 high finding.",
+    findings: [finding({ severity: "high", blocking: true, control_id: "" })],
+    finding_counts: { ...zeroCounts, total: 1, blocking: 1, high: 1 }
   }));
 });
 

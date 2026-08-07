@@ -53,6 +53,8 @@ const FRAGMENT_EXPECTATIONS = {
     'workspace_node_engine_admission_runtime_diagnostic',
     'workspace_run_validation',
     'workspace_validate_dispatch',
+
+    'workspace_worker_run_declared_test',
   ],
   'mcp-coordination-tools.json': [
     'workspace_initiative_status',
@@ -478,10 +480,11 @@ test('WK-1438 hot MCP tools carry compact routing guidance metadata', async () =
 });
 
 test('ready-slice descriptor is installed supported free-local and role policy is orchestrator/operator only', async () => {
-  const fragment = await readFragment('work-record-tools.json');
+
+  const fragment = await readFragment('work-record-edit-mcp-tools.json');
   const tool = findTool(fragment, 'workspace_work_record_ready_slice');
   assert.equal(fragment.tool_count, fragment.tools.length);
-  assert.equal(fragment.tool_count, 29);
+  assert.equal(fragment.tool_count, 9);
   assertRichToolEntry(tool);
   assert.equal(tool.install_state, 'installed');
   assert.equal(tool.runtime_posture, 'supported');
@@ -506,13 +509,20 @@ test('ready-slice descriptor is installed supported free-local and role policy i
 
   const manifest = await readJson(new URL('./manifest.json', import.meta.url));
   const workRecordRow = manifest.fragments.find(
-    (entry) => entry.file === 'work-record-tools.json',
+    (entry) => entry.file === 'work-record-edit-mcp-tools.json',
   );
-  assert.equal(workRecordRow.tool_count, 29);
+  assert.equal(workRecordRow.tool_count, 9);
+
+  assert.equal(
+    manifest.fragments
+      .filter((entry) => entry.file.startsWith('work-record-'))
+      .reduce((total, entry) => total + entry.tool_count, 0),
+    29,
+  );
   assert.equal(
     manifest.expected_tool_count,
     manifest.fragments.reduce((total, entry) => total + entry.tool_count, 0),
   );
 
-  assert.equal(manifest.expected_tool_count, 99);
+  assert.equal(manifest.expected_tool_count, 101);
 });

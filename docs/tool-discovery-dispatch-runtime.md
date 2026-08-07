@@ -202,3 +202,21 @@ runtime filesystem facts. Caller-supplied identity carriers are refused
 with a stable code at the MCP boundary; `role` and
 `caller_session_role` are caller-asserted contract introspection knobs
 until launcher-minted identity is wired.
+
+Managed route registration and effective `structured_dispatch` are distinct.
+The route catalog and `dispatch_route_registered` report live MCP registration;
+effective dispatch additionally requires the backend's authenticated current-
+generation `stdio-mcp-conduit-composition-compatibility.v1` fact to be
+`compatible`. The compact and verbose projections expose the same frozen
+six-key fact and gate outcome. `incompatible`, `unknown`, `missing_fact`,
+`malformed_fact`, `stale_fact`, and `backend_generation_mismatch` all publish
+the taxonomy-backed `operator_recovery_needed` blocker with cause
+`stdio_mcp_lifecycle_protocol_incompatible` and recovery to deploy one coherent
+build and restart the long-lived backend. Diagnostics do not reconstruct this
+authority from route registration, packages, files, environment, or run history.
+Only the `structured_dispatch` plane is affected; the other eight managed-
+lifecycle planes retain their independently sourced values and blockers.
+The fact describes the coherently loaded backend composition, not an executed
+server probe. The mandatory per-dispatch readiness exchange remains authoritative
+for the separate server process and safely rejects partial or hot deployment
+drift after preflight.

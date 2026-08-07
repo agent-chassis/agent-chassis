@@ -94,14 +94,136 @@ launch. The worker can see exactly `R union W` repository content and can mutate
 exactly `W`. Including `W` in visibility is deliberate: an authorized write
 target does not also need to be duplicated in `read_scope` or `repo_paths`.
 
+#### Which commit scope-path existence is resolved against
+
+Freezing `R` and `W` requires deciding whether each declared path exists and what
+kind of entry it is. That question has exactly one authority: **the commit the
+slice worktree will be cut from, read as a Git tree.** One rule with two
+branches, neither of which is a fallback for the other:
+
+- the unit's persistent **WK branch exists** → its current tip;
+- the **WK branch is absent** → the configured base tip it will be cut from,
+  resolved through the same base resolution the allocator's create-fresh-off-base
+  path uses.
+
+An absent WK branch is not an error condition — it is the first slice of a new
+WK, and refusing it would make every new WK permanently undispatchable. A live
+working directory, caller input, `HEAD`, and a worktree path are **never** the
+authority, and an unresolvable or unstable base refuses rather than reverting to
+the ambient checkout. A worktree is always cut from a resolved SHA and can never
+be built from uncommitted state, so the hazard this rule guards is naming the
+wrong commit, not the filesystem as such.
+
+This matters because work accumulates on a per-WK branch that the landing
+checkout never sees until the WK merges. A path created by an
+already-integrated prerequisite exists on the WK branch and not on landing;
+resolving existence against landing refused legitimate scopes. The converse
+holds too and is equally deliberate: a path that landed **after** the WK forked
+is absent at the base and is refused, because the WK branch never absorbs
+landing (`decision` clauses 1-2, `decision`).
+
+Between scope freeze and slice allocation the launcher interposes a
+record-snapshot commit, so the commit the worktree is cut from is a **child** of
+the freeze-time commit whose only permitted tree delta is
+`wiki/work-records/<WK>.json`; a foreign path in that delta fails closed. The
+freeze tip and the provisioning base are therefore parent and child, never equal.
+
+**Canonical record content and digest authority stay on landing.** The canonical
+work record is read, digested, and re-checked against the landing checkout, and
+an exact `wiki/work-records/<WK>.json` entry appearing in `read_scope` or
+`repo_paths` resolves under that same landing record authority — it is the one file the
+provisioner is about to write, hence the one path guaranteed stale at freeze
+time. Every other declared path resolves at the base commit.
+
+At the base commit, a blob is a file, a tree is a directory, and modes `120000`
+(symlink) and `160000` (gitlink) are refused at both terminal and intermediate
+positions. A missing entry follows the existing rules: a missing leaf is allowed
+only for a writable target (or a read entry that is also a write target), and a
+missing intermediate component always refuses. Wildcard semantics are unchanged
+and now stated: a root-wide wildcard is refused, any wildcard in `write_scope` is
+refused, and for `read_scope` / `repo_paths` only the pre-wildcard prefix is
+validated.
+
+This is a scope-freezing authority only. `inspectAuthorityPath` in the isolation
+layer remains an independent second filesystem check over the checkout produced
+from that same base.
+
 The actual family command tool is available without interactive approval:
 Codex receives `exec_command` and Claude receives `Bash`. Commands may inspect,
 generate, format, and mutate inside the namespace. There is no read-only command
 classifier or command allowlist; bubblewrap is the filesystem authority and
-cannot be widened by a command. This tranche exposes no worker validation or general
-MCP tools. Delivery uses only the closed-input commit capability in the trusted
+cannot be widened by a command. This tranche exposes no general worker MCP tools.
+Delivery uses only the closed-input commit capability in the trusted
 host/runtime boundary, with the server-resolved binding as its input; the worker
 does not receive the repository gitdir, index, refs, or a general commit shell.
+
+#### The launcher-owned worker declared-test capability
+
+A managed worker's namespace is exactly `R union W` over a tmpfs skeleton and
+carries no dependency tree, so it cannot execute any test whose system under test
+imports a workspace package by bare specifier. Projecting dependencies **into**
+the worker's namespace was tried and reverted: an unconditional dependency
+precondition on the launch path took managed dispatch down repository-wide. The
+supported answer is the opposite direction, and it rests on an asymmetry — the
+worktree **on disk** is dense (`checkout_mode: full`), while the worker's
+**namespace** is sparse.
+
+`workspace_worker_run_declared_test` is a launcher-owned capability that runs the
+unit's declared test **launcher-side**, in a separate confined process against
+that dense worktree, and returns the output. The worker's own namespace is
+untouched: no path is bound, mounted, stat-able, or readable inside it that was
+not already, so a launcher-side runner structurally cannot leak one into it, and
+the worker's mutation set stays exactly `W`.
+
+`decision` clause 3 is the authority: a worker's baseline is extended by "a
+launcher-owned capability", what the capability **confers** on the worker is
+bounded by `decision` clause 2, and "what the capability itself reads or executes
+is bounded by its own confinement, not the worker's." `decision` clause 4 permits
+the purpose — executing a test to check your own delivery is not the
+coordinator-owned acceptance validation. `decision` clause 4 covers the
+dependency mount: launcher-provided non-repository runtime infrastructure is not
+repository content and is not bounded by a role's repository entitlement, so it
+needs no scope declaration.
+
+What is launcher-bound, and why it has to be:
+
+- **The unit and the worktree** resolve from the dispatched run's launcher-minted
+  identity binding — the same carrier the closed-input commit capability is bound
+  to — and never from caller input. The coordinator route
+  (`workspace_run_validation`) takes a caller-supplied unit address and resolves
+  its workspace from server config; reusing that path here would let a worker
+  select targets from any record's `allowed[]` and run them against the landing
+  checkout. A caller-supplied unit, record, repository, workspace, worktree, cwd,
+  base, or target set is **refused**, not silently overridden by the bound value.
+- **The targets** come from the bound unit's
+  `sections.structured_validation.allowed[]` entries with command `node_test`.
+  They are neither derived from `write_scope` nor auto-discovered, and an
+  undeclared target refuses rather than widening to something broader.
+- **The argv, node binary, cwd, env, timeout, and output bounds** are launcher
+  facts. No arbitrary command string, argv, environment, or working directory is
+  accepted from any source.
+
+Confinement of the run: the repository is mounted **read-only with no writable
+`W`**, secrets are masked, the network is denied, the environment is
+launcher-minted and clean, and the **only** writable location is an ephemeral
+tmpfs `TMPDIR` outside the repository. The read-only repository bind is the
+intended final posture rather than a gap — it makes it structurally impossible
+for a test byproduct to land inside the write scope, be staged by the delivery
+`add -A`, and ship silently in the worker's delivery commit.
+
+The dependency mount is **fail-soft**. A managed worktree has no `node_modules`
+(it is gitignored), so a launcher-owned, read-only, identity-pinned mount is what
+makes a bare-specifier workspace import resolve at all; it reuses the reviewer
+projection mechanism, including the host-side creation of the mount destination
+that bubblewrap cannot create inside a read-only bind. An unavailable, stale, or
+mismatched dependency tree **degrades that run and is recorded as advisory
+evidence**. It never refuses a dispatch.
+
+The result carries no admission, review, or closure authority, adds no admission
+metric, and neither satisfies the mandatory findings-only review nor authorizes
+integration. Output retains the head **and** the tail of each stream so a failing
+assertion's diagnostics survive a chatty passing run; the elided middle is
+byte-accounted rather than silently dropped.
 
 Every family/backend path claimed as supported must enact this same binding.
 Unsupported families, backends, scope shapes, or confinement capabilities fail
@@ -118,11 +240,12 @@ derived from **role policy**, never composed from the subject unit:
 
 - **Implementation worker — exactly `R union W`, writes only `W`.** As above:
   the launcher freezes `R` and `W` from the canonical unit and the bwrap
-  namespace binds only those entries; everything else is absent (decision).
+  namespace binds only those entries; everything else is absent (decision
+  clause 2).
 - **Reviewer / redteam — the FULL repository, read-only, writes nothing.**
   Reviewer and redteam are findings-only roles whose repository READ visibility
   is the whole repository, matching orchestrator read visibility — NOT the
-  `R union W` of the unit under review (decision clause 3, decision clause 2).
+  `R union W` of the unit under review (decision clause 2, decision clause 2).
   Deriving a findings role's read scope from the selected WK/slice would hide the
   canonical decisions, durable docs, and undeclared sibling implementation/test
   paths a reviewer or redteam must inspect, so the read root is the repository
@@ -661,6 +784,26 @@ review owns declared validation against the exact committed target, in a read-on
 reviewer namespace with isolated writable scratch and bounded structured output.
 Passing and failing results are advisory evidence; coordinator/CCE policy decides
 their effect on integration.
+
+**Project-test execution is an optional capability; mechanical candidate and
+confinement enforcement is not.** The same "test availability and success are not
+prerequisites" rule holds at the terminal whole-WK boundary. Ordinary project
+dependencies and declared project tests are exposed to a findings-only reviewer when
+the launcher can expose them, and their absence changes only what evidence exists.
+Concretely, none of the following is enforcement: whether the candidate's
+`package.json`, lockfile, or workspace manifest matches the landing checkout's
+installed dependency root; whether an install marker is present or fresh; whether a
+dependency projection can be built at all; whether a declared project-test command
+exists in the candidate. Treating any of them as a refusal would be exactly the
+local admissibility judgment `decision` and `decision` place outside this layer, and
+`decision` already settles that review is not a required floor. What remains
+mechanically enforced is repository identity, the exact `C/B/W` binding,
+`tree(C) === tree(W)`, `C`'s sole parent `B`, candidate-ref and checkout identity,
+rejection of caller-supplied candidate authority, reviewer write confinement, and —
+only when a dependency mount is actually selected — that mount's exact source
+identity, read-only mode, absence of writable overlap, and freedom from an identity
+swap between verification and spawn. Current-landing mergeability is owned by
+git/forge, never by a local check.
 
 **Inputs are typed where it matters.** Identifiers are allocator-minted through
 the structured create path, never hand-assigned. Spec completeness

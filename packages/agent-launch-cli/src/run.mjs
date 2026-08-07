@@ -1,4 +1,5 @@
 import { runCleanup } from "./commands/cleanup.mjs";
+import { runForgeMerge } from "./commands/forge-merge.mjs";
 import {
   runCodexOrchestratorList,
   runCodexRole
@@ -15,6 +16,7 @@ import { runReview } from "./commands/review.mjs";
 import { runRoleGuard } from "./commands/role-guard.mjs";
 import { runRoleGuardClaudeHook } from "./commands/role-guard-claude-hook.mjs";
 import { runWorker } from "./commands/worker.mjs";
+import { WIKI_MCP_WORKSPACE_DIR_ENV_VAR } from "./lib/codex-role-mcp-env.mjs";
 
 const HELP_TEXT = `agent-launch <command> [options]
 
@@ -46,6 +48,7 @@ selects a canonical launcher profile (default: same name as the role);
 \`--family\` is a deprecated alias for \`--app\`.
 
 Maintenance and supporting commands:
+  forge-merge WK-####                         Merge the exact reviewed pull request
   init-config [--force]                      Write a default local launcher registry
   initiative <status|start|redteam> <IN-ID>  Plan initiative workflows; dispatch is internal/deferred
   install-drift-check [--target-dir <path>] [--json]
@@ -72,7 +75,7 @@ Maintenance and supporting commands:
 const TEMPORAL_WRAPPER_UNSUPPORTED_MESSAGE =
   "temporal-wrapper-dry-run is an internal/deferred Temporal surface and is not a supported agent-launch operator command in this release.";
 
-export async function run(argv) {
+export async function run(argv, { cwd = process.cwd(), env = process.env, io = {} } = {}) {
   const [command, ...rest] = argv;
 
   switch (command) {
@@ -84,6 +87,15 @@ export async function run(argv) {
       return;
     case "worker":
       await runWorker(rest);
+      return;
+    case "forge-merge":
+
+      await runForgeMerge(rest, io, null, {
+        env: {
+          ...env,
+          [WIKI_MCP_WORKSPACE_DIR_ENV_VAR]: cwd
+        }
+      });
       return;
     case "review":
       await runReview(rest);

@@ -1,23 +1,30 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import {
   SIDECAR_ARTIFACT_SCHEMA_FIELD,
   SIDECAR_ARTIFACT_SCHEMA_VERSION,
+  createSidecarDirtyDetails,
   createSidecarResultEnvelope
 } from "./sidecar-schema.mjs";
 import { extractSidecarGraph } from "./sidecar-graph-extractors.mjs";
-import { buildScipOverlay, SCIP_DEFAULT_CACHE_DIR } from "./sidecar-scip-overlay.mjs";
+import {
+  buildScipOverlayFromCommittedSnapshot,
+  SCIP_DEFAULT_CACHE_DIR,
+  snapshotScipOptions
+} from "./sidecar-scip-provision.mjs";
 import { filterSidecarSourcePaths, normalizeSidecarRepoPath } from "./sidecar-paths.mjs";
 import {
   SIDECAR_DEFAULT_ARTIFACT_FILE,
   SIDECAR_DEFAULT_CACHE_DIR,
   isSidecarCachePathIgnored,
-  discoverSidecarGitState,
   runSidecarGit
 } from "./sidecar-status.mjs";
+import { computeSidecarGeneratorIdentity } from "./sidecar-generator-identity.mjs";
+import { SIDECAR_GRAPH_SCHEMA_VERSION, validateSidecarGraphSection } from "./sidecar-graph-schema.mjs";
+import { readSidecarArtifactBytes } from "./sidecar-artifact-bytes.mjs";
 import {
   SIDECAR_BUILD_LOCK_SUFFIX,
   acquireSidecarBuildLock,
@@ -27,7 +34,8 @@ import {
   releaseSidecarBuildLock,
   settleSidecarBuildLeadershipFailed,
   settleSidecarBuildLeadershipPublished,
-  waitForCoalescedSidecarArtifact
+  waitForCoalescedSidecarArtifact, acquireSidecarBuildLease, followSidecarBuildLease,
+  publishSidecarBuildLease, releaseSidecarBuildLease, renewSidecarBuildLease
 } from "./sidecar-build-lock.mjs";
 
 export class SidecarBuildRefusalError extends Error {
@@ -66,6 +74,49 @@ async function assertCachePathIgnored({ repoRoot, cacheDir, artifactRelativePath
   }
 }
 
+async function captureBuildGitState(dir) {
+  let repoRoot;
+  try {
+    repoRoot = await runSidecarGit(dir, ["rev-parse", "--show-toplevel"]);
+  } catch {
+    throw new SidecarBuildRefusalError("sidecar build requires one committed repository HEAD", {
+      code: "sidecar_head_unstable"
+    });
+  }
+  const generatorIdentity = await computeSidecarGeneratorIdentity({ repoRoot });
+  const indexHead = generatorIdentity.committed_head;
+  const [indexTree, branchName, statusText, gitlinkText] = await Promise.all([
+    runSidecarGit(repoRoot, ["--no-replace-objects", "rev-parse", `${indexHead}^{tree}`]),
+    runSidecarGit(repoRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"]).catch(() => "HEAD"),
+    runSidecarGit(repoRoot, [
+      "status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"
+    ]),
+    runSidecarGit(repoRoot, ["ls-files", "-s"]).catch(() => "")
+  ]);
+  const gitlinks = new Set(gitlinkText.split("\n").filter((line) => line.startsWith("160000 "))
+    .map((line) => line.slice(line.indexOf("\t") + 1)));
+  const dirtyDetails = createSidecarDirtyDetails({ detached_head: branchName === "HEAD" });
+  for (const line of statusText.split("\n").filter(Boolean)) {
+    if (line.startsWith("?? ")) {
+      dirtyDetails.untracked += 1;
+      continue;
+    }
+    const [staged, unstaged] = line;
+    if (staged !== " ") dirtyDetails.staged += 1;
+    if (unstaged !== " ") dirtyDetails.unstaged += 1;
+    if (staged === "D" || unstaged === "D") dirtyDetails.deleted_tracked += 1;
+    if (/[m?]/.test(`${staged}${unstaged}`) || gitlinks.has(line.slice(3).split(" -> ").pop())) {
+      dirtyDetails.submodule_changes += 1;
+    }
+  }
+  const dirtyCount = dirtyDetails.staged + dirtyDetails.unstaged +
+    dirtyDetails.deleted_tracked + dirtyDetails.untracked + dirtyDetails.submodule_changes;
+  return {
+    gitState: { repoRoot, index_head: indexHead, index_tree: indexTree,
+      dirty_state: dirtyCount > 0 ? "dirty_worktree" : "clean", dirty_details: dirtyDetails },
+    generatorIdentity
+  };
+}
 function parseTreeRecord(record) {
   const tabIndex = record.indexOf("\t");
   if (tabIndex === -1) {
@@ -91,7 +142,7 @@ async function getSymlinkTarget(repoRoot, objectId) {
 
 async function collectTrackedSources(repoRoot, treeIsh = "HEAD") {
 
-  const raw = await runSidecarGit(repoRoot, ["ls-tree", "-r", "-z", treeIsh], {
+  const raw = await runSidecarGit(repoRoot, ["--no-replace-objects", "ls-tree", "-r", "-z", treeIsh], {
     maxBuffer: 1024 * 1024 * 64
   });
   const trackedRecords = raw ? raw.split("\0").filter(Boolean).map(parseTreeRecord) : [];
@@ -163,7 +214,7 @@ function isGraphTextSource(relativePath) {
 
 function runBatchCatFile(repoRoot, oids) {
   return new Promise((resolve, reject) => {
-    const child = spawn("git", ["-C", repoRoot, "cat-file", "--batch"], {
+    const child = spawn("git", ["-C", repoRoot, "--no-replace-objects", "cat-file", "--batch"], {
       stdio: ["pipe", "pipe", "pipe"]
     });
     const stdoutChunks = [];
@@ -242,7 +293,12 @@ async function collectGraphSources({ repoRoot, sources }) {
   });
 }
 
-function createBuildArtifact({ gitState, artifactPaths, sources, graph, scipOverlay = null }) {
+function createBuildArtifact({ gitState, generatorIdentity, artifactPaths, sources, graph,
+  scipOverlay = null, authoritative = true }) {
+  const publishedGraph = {
+    ...graph,
+    ...(authoritative ? { generator_identity: generatorIdentity.generator_identity } : {})
+  };
   return {
     schema_version: SIDECAR_ARTIFACT_SCHEMA_VERSION,
     index_head: gitState.index_head,
@@ -259,9 +315,9 @@ function createBuildArtifact({ gitState, artifactPaths, sources, graph, scipOver
       symlink_count: sources.symlinks.length,
       gitlink_count: sources.gitlinks.length,
       rejected_source_count: sources.rejected.length,
-      graph_schema_version: graph.graph_schema_version,
-      graph_node_count: graph.graph_nodes.length,
-      graph_edge_count: graph.graph_edges.length,
+      graph_schema_version: publishedGraph.graph_schema_version,
+      graph_node_count: publishedGraph.graph_nodes.length,
+      graph_edge_count: publishedGraph.graph_edges.length,
 
       ...(scipOverlay
         ? {
@@ -275,7 +331,7 @@ function createBuildArtifact({ gitState, artifactPaths, sources, graph, scipOver
         : {})
     },
     sources,
-    graph,
+    graph: publishedGraph,
 
     ...(scipOverlay ? { scip_overlay: scipOverlay } : {})
   };
@@ -370,10 +426,9 @@ async function publishArtifactAtomically({
   artifactDirPath,
   artifactPath,
   artifactFile,
-  artifact,
+  serialized,
   operations
 }) {
-  const serialized = `${JSON.stringify(artifact, null, 2)}\n`;
   const tempPath = path.join(
     artifactDirPath,
     `.${artifactFile}.${process.pid}.${randomUUID()}.tmp`
@@ -396,60 +451,198 @@ async function publishArtifactAtomically({
   }
 }
 
-export async function buildSidecarIndex({
-  dir = ".",
-  cacheDir = SIDECAR_DEFAULT_CACHE_DIR,
-  artifactFile = SIDECAR_DEFAULT_ARTIFACT_FILE,
-  rebuild = false,
+const CROSS_PROCESS_LEASE_MS = 60_000, CROSS_PROCESS_POLL_MS = 50,
+  CROSS_PROCESS_MAX_ATTEMPTS = 100;
+const EMPTY_ARTIFACT_DIGEST = createHash("sha256").update("").digest("hex");
+const digestBytes = (value) => createHash("sha256").update(value).digest("hex");
 
-  scip = false,
-  scipOptions = {},
-  buildHooks = null
-} = {}) {
+function createCrossProcessIdentity({ gitState, generatorIdentity, scip }) {
+  const scipInput = scip ? { index_head: gitState.index_head,
+    generator_identity: generatorIdentity.generator_identity } : null;
+  const identity = {
+    repository_identity: gitState.repoRoot,
+    head_commit: gitState.index_head,
+    schema_identity: `${SIDECAR_ARTIFACT_SCHEMA_VERSION}:${SIDECAR_GRAPH_SCHEMA_VERSION}`,
+    generator_identity: generatorIdentity.generator_identity,
+    scip_input_identity: JSON.stringify(scipInput ?? { kind: "no-scip" })
+  };
+  return { identity, identityDigest: digestBytes(JSON.stringify(identity)), scipInput };
+}
+
+function followerArtifactMatches(artifact, { identity, scipInput }) {
+  const overlayIdentity = artifact?.scip_overlay?.input_identity;
+  return Boolean(artifact && artifact.schema_version === SIDECAR_ARTIFACT_SCHEMA_VERSION &&
+    artifact.index_head === identity.head_commit &&
+    artifact.cache_metadata?.[SIDECAR_ARTIFACT_SCHEMA_FIELD] === SIDECAR_ARTIFACT_SCHEMA_VERSION &&
+    artifact.cache_metadata?.graph_schema_version === SIDECAR_GRAPH_SCHEMA_VERSION &&
+    validateSidecarGraphSection(artifact.graph,
+      { expectedGeneratorIdentity: identity.generator_identity }).length === 0 &&
+    (scipInput ? JSON.stringify(overlayIdentity) === JSON.stringify(scipInput)
+      : !Object.prototype.hasOwnProperty.call(artifact, "scip_overlay")));
+}
+
+async function followCrossProcessBuild({ follow, artifactPath, crossProcess }) {
+  for (let attempt = 0; attempt < CROSS_PROCESS_MAX_ATTEMPTS; attempt += 1) {
+    let observed = null;
+    try { observed = await readSidecarArtifactBytes(artifactPath); } catch {}
+    const publicationDigest = observed ? digestBytes(observed.rawBytes) : EMPTY_ARTIFACT_DIGEST;
+    const result = await followSidecarBuildLease({ ...follow, publicationDigest,
+      publicationIdentity: crossProcess.identityDigest, timeoutMs: CROSS_PROCESS_POLL_MS,
+      pollMs: CROSS_PROCESS_POLL_MS, leaseMs: CROSS_PROCESS_LEASE_MS });
+    if (result.outcome === "following") {
+      return observed && followerArtifactMatches(observed.artifact, crossProcess)
+        ? { outcome: "published", artifact: observed.artifact }
+        : { outcome: "corrupt_publication" };
+    }
+    if (result.outcome === "acquired" || result.outcome === "takeover") return result;
+    if (result.reason === "publication_mismatch") {
+      if (observed) try { if (digestBytes((await readSidecarArtifactBytes(artifactPath)).rawBytes) === publicationDigest)
+        return { outcome: "corrupt_publication" }; } catch {}
+    } else if (result.outcome !== "timeout") return result;
+  }
+  return { outcome: "timeout" };
+}
+
+function startLeaseRenewal(lease) {
+  let tail = Promise.resolve(), failure = null;
+  const timer = setInterval(() => {
+    tail = tail.then(async () => {
+      const result = await renewSidecarBuildLease(lease, { leaseMs: CROSS_PROCESS_LEASE_MS });
+      if (result.outcome !== "renewed") failure = result;
+    });
+  }, CROSS_PROCESS_LEASE_MS / 2);
+  timer.unref();
+  return { async stop() { clearInterval(timer); await tail; return failure; } };
+}
+
+function crossProcessFailure(result) {
+  return new SidecarBuildRefusalError(`cross-process sidecar build ${result.outcome}: ${result.reason ?? "unspecified"}`,
+    { code: `sidecar_cross_process_${result.outcome}` });
+}
+
+function failAndReleaseSidecarBuildLeadership(entry) {
+  settleSidecarBuildLeadershipFailed(entry);
+  releaseSidecarBuildLeadership(entry);
+}
+
+const NO_SCIP_OPTIONS = Symbol("no-scip-options");
+
+export async function buildSidecarIndex(rawOptions) {
+  const options = snapshotScipOptions(rawOptions, [["dir", "."],
+    ["cacheDir", SIDECAR_DEFAULT_CACHE_DIR], ["artifactFile", SIDECAR_DEFAULT_ARTIFACT_FILE],
+    ["rebuild", false], ["scip", false], ["scipOptions", NO_SCIP_OPTIONS],
+    ["buildHooks", null]], "sidecar build");
+  const hasScipOptions = rawOptions !== undefined &&
+    Object.getOwnPropertyDescriptor(rawOptions, "scipOptions") !== undefined;
+  const { dir, cacheDir, artifactFile, rebuild, scip,
+    scipOptions: suppliedScipOptions, buildHooks } = options;
+  const authoritative = suppliedScipOptions === NO_SCIP_OPTIONS && !hasScipOptions;
+  const scipOptions = snapshotScipOptions(authoritative ? undefined : suppliedScipOptions ?? undefined,
+    [["cacheDir", SCIP_DEFAULT_CACHE_DIR], ["tsconfigPath", "tsconfig.json"],
+      ["indexers", ["scip-typescript", "scip-python"]], ["runIndexer", undefined]], "SCIP");
 
   assertSupportedBuildHooks(buildHooks);
-  const gitState = await discoverSidecarGitState(path.resolve(dir));
-  const artifactPaths = resolveBuildArtifactPath({
-    repoRoot: gitState.repoRoot,
-    cacheDir,
-    artifactFile
-  });
+  const requestedLockPath = `${resolveBuildArtifactPath({ repoRoot: path.resolve(dir),
+    cacheDir, artifactFile }).artifactPath}${SIDECAR_BUILD_LOCK_SUFFIX}`;
+  const coalescible = scip === false && authoritative;
+  const provisionalLeadership = claimSidecarBuildLeadership(requestedLockPath, "pending-head",
+    { coalescible });
+  let canonicalLeadership = { entry: null, follow: null }, provisionalWaitExhausted = false;
 
-  await assertCachePathIgnored({
-    repoRoot: gitState.repoRoot,
-    cacheDir: artifactPaths.cacheDir,
-    artifactRelativePath: artifactPaths.artifactRelativePath
-  });
-
-  await mkdir(artifactPaths.artifactDirPath, { recursive: true });
-
-  const lockPath = `${artifactPaths.artifactPath}${SIDECAR_BUILD_LOCK_SUFFIX}`;
-  const artifactOperations = resolveArtifactPublicationOperations(buildHooks);
-
-  const coalescible = scip === false;
-
-  const leadership = claimSidecarBuildLeadership(lockPath, gitState.index_head, { coalescible });
-
-  let completedEnvelope = null;
-  let lock = null;
-
+  let gitState;
+  let generatorIdentity;
+  let artifactPaths;
+  let lockPath;
+  let artifactOperations;
+  let crossProcess, crossProcessLockPath;
   try {
-
-    if (leadership.follow) {
-      const coalesced = await waitForCoalescedSidecarArtifact({ follow: leadership.follow });
+    if (provisionalLeadership.follow) {
+      const coalesced = await waitForCoalescedSidecarArtifact({
+        follow: provisionalLeadership.follow
+      });
       if (coalesced) {
-        return createBuildEnvelope({
-          gitState,
-          artifactPaths,
-          artifact: coalesced,
-          action: "coalesced"
-        });
+        const currentHead = await runSidecarGit(path.resolve(dir),
+          ["--no-replace-objects", "rev-parse", "HEAD"]);
+        if (currentHead === coalesced.artifact.index_head) {
+          return createBuildEnvelope({ ...coalesced, action: "coalesced" });
+        }
+      }
+      provisionalWaitExhausted = !coalesced;
+    }
+
+    ({ gitState, generatorIdentity } = await captureBuildGitState(path.resolve(dir)));
+    artifactPaths = resolveBuildArtifactPath({ repoRoot: gitState.repoRoot, cacheDir,
+      artifactFile });
+    lockPath = `${artifactPaths.artifactPath}${SIDECAR_BUILD_LOCK_SUFFIX}`;
+    canonicalLeadership = claimSidecarBuildLeadership(lockPath, gitState.index_head,
+      { coalescible });
+    if (canonicalLeadership.follow && !provisionalWaitExhausted) {
+      const coalesced = await waitForCoalescedSidecarArtifact({ follow: canonicalLeadership.follow });
+      if (coalesced) {
+        const currentHead = await runSidecarGit(gitState.repoRoot,
+          ["--no-replace-objects", "rev-parse", "HEAD"]);
+        if (currentHead === gitState.index_head && currentHead === coalesced.artifact.index_head) {
+          settleSidecarBuildLeadershipPublished(provisionalLeadership.entry, coalesced);
+          releaseSidecarBuildLeadership(provisionalLeadership.entry);
+          return createBuildEnvelope({ ...coalesced, action: "coalesced" });
+        }
       }
     }
 
-    lock = await acquireSidecarBuildLock(lockPath, gitState.index_head);
+    await assertCachePathIgnored({
+      repoRoot: gitState.repoRoot,
+      cacheDir: artifactPaths.cacheDir,
+      artifactRelativePath: artifactPaths.artifactRelativePath
+    });
 
-    const sources = await collectTrackedSources(gitState.repoRoot, gitState.index_head || "HEAD");
+    if (authoritative) {
+      await mkdir(artifactPaths.artifactDirPath, { recursive: true });
+    }
+    artifactOperations = authoritative ? resolveArtifactPublicationOperations(buildHooks) : null;
+    if (authoritative && buildHooks === null) {
+      crossProcess = createCrossProcessIdentity({ gitState, generatorIdentity, scip });
+      const targetKey = digestBytes(artifactPaths.artifactRelativePath);
+      crossProcessLockPath = path.join(gitState.repoRoot, ".cache", "repo-code-index-leases",
+        `${targetKey}${SIDECAR_BUILD_LOCK_SUFFIX}`);
+      await mkdir(path.dirname(crossProcessLockPath), { recursive: true });
+    }
+  } catch (error) {
+    failAndReleaseSidecarBuildLeadership(provisionalLeadership.entry);
+    failAndReleaseSidecarBuildLeadership(canonicalLeadership.entry);
+    throw error;
+  }
+
+  let completedEnvelope = null;
+  let lock = null;
+  let lease = null, leaseRenewal = null, leasePublished = false;
+  try {
+
+    if (authoritative) {
+      lock = await acquireSidecarBuildLock(lockPath, gitState.index_head);
+    }
+    if (crossProcess) {
+      let leaseResult = await acquireSidecarBuildLease({ lockPath: crossProcessLockPath,
+        ...crossProcess, leaseMs: CROSS_PROCESS_LEASE_MS });
+      if (leaseResult.outcome === "following") {
+        leaseResult = await followCrossProcessBuild({ follow: leaseResult.follow,
+          artifactPath: artifactPaths.artifactPath, crossProcess });
+      }
+      if (leaseResult.outcome === "published") {
+        const artifact = leaseResult.artifact;
+        settleSidecarBuildLeadershipPublished(provisionalLeadership.entry, { gitState, artifactPaths, artifact });
+        settleSidecarBuildLeadershipPublished(canonicalLeadership.entry, { gitState, artifactPaths, artifact });
+        completedEnvelope = createBuildEnvelope({ gitState, artifactPaths, artifact,
+          action: rebuild ? "rebuild" : "coalesced" });
+        return completedEnvelope;
+      }
+      if (leaseResult.outcome !== "acquired" && leaseResult.outcome !== "takeover") {
+        throw crossProcessFailure(leaseResult);
+      }
+      lease = leaseResult.lease;
+      leaseRenewal = startLeaseRenewal(lease);
+    }
+
+    const sources = await collectTrackedSources(gitState.repoRoot, gitState.index_head);
     const graphSources = await collectGraphSources({ repoRoot: gitState.repoRoot, sources });
     if (typeof buildHooks?.beforeGraphExtraction === "function") {
       await buildHooks.beforeGraphExtraction();
@@ -461,28 +654,55 @@ export async function buildSidecarIndex({
     });
 
     const scipOverlay = scip
-      ? await buildScipOverlay({
-          repoRoot: gitState.repoRoot,
+      ? await buildScipOverlayFromCommittedSnapshot({
+          sourceRepoRoot: gitState.repoRoot,
+          committedHead: gitState.index_head,
+          generatorIdentity: generatorIdentity.generator_identity,
           baseFileNodeIds: new Set(
             graph.graph_nodes.filter((node) => node.kind === "file").map((node) => node.id)
           ),
-          cacheDir: scipOptions.cacheDir || SCIP_DEFAULT_CACHE_DIR,
-          ...(scipOptions.tsconfigPath ? { tsconfigPath: scipOptions.tsconfigPath } : {}),
-          ...(scipOptions.indexers ? { indexers: scipOptions.indexers } : {}),
-          ...(scipOptions.runIndexer ? { runIndexer: scipOptions.runIndexer } : {})
+          cacheDir: scipOptions.cacheDir,
+          tsconfigPath: scipOptions.tsconfigPath,
+          indexers: scipOptions.indexers,
+          runIndexer: scipOptions.runIndexer
         })
       : null;
 
-    const artifact = createBuildArtifact({ gitState, artifactPaths, sources, graph, scipOverlay });
+    const artifact = createBuildArtifact({ gitState, generatorIdentity, artifactPaths, sources,
+      graph, scipOverlay, authoritative });
+    if (!authoritative) {
+      return Object.assign(createBuildEnvelope({ gitState, artifactPaths, artifact, action: "test" }),
+        { staleness: "unknown", artifact_exists: false, authoritative: false,
+          status_reason: "non_authoritative_test_build_complete" });
+    }
+
+    const serialized = `${JSON.stringify(artifact, null, 2)}\n`;
+    if (lease) {
+      const renewalFailure = await leaseRenewal.stop();
+      const renewal = renewalFailure ?? await renewSidecarBuildLease(lease,
+        { leaseMs: CROSS_PROCESS_LEASE_MS });
+      if (renewal.outcome !== "renewed") throw crossProcessFailure(renewal);
+    }
     await publishArtifactAtomically({
       artifactDirPath: artifactPaths.artifactDirPath,
       artifactPath: artifactPaths.artifactPath,
       artifactFile: artifactPaths.artifactFile,
-      artifact,
+      serialized,
       operations: artifactOperations
     });
 
-    settleSidecarBuildLeadershipPublished(leadership.entry, artifact);
+    if (lease) {
+      const publication = await publishSidecarBuildLease({ lease,
+        publicationIdentity: crossProcess.identityDigest,
+        publicationDigest: digestBytes(serialized) });
+      if (publication.outcome !== "published") throw crossProcessFailure(publication);
+      leasePublished = true;
+    }
+
+    settleSidecarBuildLeadershipPublished(provisionalLeadership.entry,
+      { gitState, artifactPaths, artifact });
+    settleSidecarBuildLeadershipPublished(canonicalLeadership.entry,
+      { gitState, artifactPaths, artifact });
 
     completedEnvelope = createBuildEnvelope({
       gitState,
@@ -493,9 +713,10 @@ export async function buildSidecarIndex({
     return completedEnvelope;
   } finally {
 
-    settleSidecarBuildLeadershipFailed(leadership.entry);
-
-    releaseSidecarBuildLeadership(leadership.entry);
+    failAndReleaseSidecarBuildLeadership(provisionalLeadership.entry);
+    failAndReleaseSidecarBuildLeadership(canonicalLeadership.entry);
+    if (leaseRenewal) await leaseRenewal.stop();
+    if (lease && !leasePublished) await releaseSidecarBuildLease(lease);
     const releaseDiagnostics = await releaseSidecarBuildLock(lock);
     if (completedEnvelope) {
       appendSidecarBuildLockDiagnostics(completedEnvelope, [

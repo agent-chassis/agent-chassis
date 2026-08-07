@@ -1,13 +1,12 @@
 
 
-import { existsSync, mkdirSync, rmSync, unlinkSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, rmSync, unlinkSync } from "node:fs";
 
 import {
   WORKTREE_SUBSTRATE_SCHEMA_VERSION,
   WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES,
   fail,
   assertOpaqueId,
-  assertRetryIdZero,
   assertAbsolutePath,
   assertWorktreeRootOutsideMainRepo,
   assertRefFormat,
@@ -18,7 +17,6 @@ import {
   revParse,
   gitOrThrow,
   normalizeSparseConeDirs,
-  deriveCanonicalSparseConeDirs,
   rollbackWorktreeAndBranch,
   defaultRunGit
 } from "./worktree-substrate-primitives.mjs";
@@ -38,6 +36,17 @@ import {
   resolveVerifiedSparseExactUnitBinding
 } from "./worktree-substrate-identity.mjs";
 
+import {
+  SLICE_TIP_RECONCILE_STATES,
+  reconcileExistingSliceTip
+} from "./worktree-substrate-exact-unit-reconcile.mjs";
+import {
+  wkForkRefName,
+  ensureWkForkRefAtFork,
+  rollbackCreatedWkForkRef,
+  recoverFixedWkFork
+} from "./worktree-substrate-exact-unit-fork-ref.mjs";
+
 export { normalizeSparseConeDirs };
 
 export {
@@ -48,291 +57,18 @@ export {
   resolveWkBranchTipBase
 };
 
+export { SLICE_TIP_RECONCILE_STATES, wkForkRefName };
+export {
+  SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES,
+  CORRECTIVE_CONTINUATION_PROOF_SCHEMA_VERSION,
+  SLICE_TIP_RECOVERY_ROUTES,
+  classifyExistingSliceTipForDispatch
+} from "./worktree-substrate-exact-unit-reconcile.mjs";
+export { WK_FORK_REF_DIAGNOSTIC_CODES } from "./worktree-substrate-exact-unit-fork-ref.mjs";
+export { allocateSparseExactUnitWorktree } from "./worktree-substrate-exact-unit-sparse.mjs";
+
 const WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2 = "worktree-identity-binding.v2";
 const WORKTREE_SLICE_CHECKOUT_MODE_FULL = "full";
-
-export const SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES = Object.freeze({
-  SLICE_TIP_RECONCILE_REQUIRED: "agent_launch.worktree_substrate.slice_tip_reconcile_required.v1"
-});
-
-export const SLICE_TIP_RECONCILE_STATES = Object.freeze({
-  ABSENT: "absent",
-  EQUAL: "equal",
-  INTEGRATED: "integrated",
-  AUTHENTICATED_CONTINUATION: "authenticated_continuation",
-  ORPHANED: "orphaned",
-  WK_BASE_UNRESOLVED: "wk_base_unresolved"
-});
-
-export const CORRECTIVE_CONTINUATION_PROOF_SCHEMA_VERSION =
-  "workspace-agent-corrective-continuation-proof.v1";
-
-const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-const CORRECTIVE_CONTINUATION_PROOF_FIELDS = Object.freeze([
-  "schema_version", "subject", "unit_address", "slice_ref", "frozen_base_sha",
-  "delivered_tip_sha", "commit_chain", "committed_target_digest", "worktree_path"
-]);
-
-export const SLICE_TIP_RECOVERY_ROUTES = Object.freeze({
-  EXACT_SLICE_REVIEW_RECOVERY: "exact_slice_review_recovery",
-  OPERATOR_RECONCILE: "operator_reconcile"
-});
-
-function reconcileRefusal(state, message, detail) {
-  fail(
-    SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES.SLICE_TIP_RECONCILE_REQUIRED,
-    message,
-    Object.freeze({ reconcile_state: state, ...detail })
-  );
-}
-
-function classifyExistingSliceTip({ runGit, repo, branch, wkBaseSha }) {
-  const sliceTip = revParse(runGit, repo, branch);
-  if (sliceTip === wkBaseSha) {
-    return Object.freeze({ state: SLICE_TIP_RECONCILE_STATES.EQUAL, slice_tip: sliceTip });
-  }
-  const contained = runGit({ repo, args: ["merge-base", "--is-ancestor", sliceTip, wkBaseSha] });
-  if (contained?.ok === true) {
-    return Object.freeze({ state: SLICE_TIP_RECONCILE_STATES.INTEGRATED, slice_tip: sliceTip });
-  }
-  if (!contained || contained.status !== 1) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-      "failed to determine whether the existing slice tip is contained in the canonical WK base",
-      {
-        branch,
-        slice_tip: sliceTip,
-        wk_base_sha: wkBaseSha,
-        status: contained?.status ?? null,
-        stderr: contained?.stderr ?? null,
-        error: contained?.error ?? null
-      }
-    );
-  }
-  return Object.freeze({ state: SLICE_TIP_RECONCILE_STATES.ORPHANED, slice_tip: sliceTip });
-}
-
-function hasExactKeys(value, expected) {
-  return value !== null && typeof value === "object" && !Array.isArray(value) &&
-    Object.keys(value).sort().join("|") === [...expected].sort().join("|");
-}
-
-function authenticateCorrectiveContinuation({
-  runGit,
-  repo,
-  name,
-  branch,
-  worktreePath,
-  wkBaseSha,
-  sliceTip,
-  resolveProof
-}) {
-  if (typeof resolveProof !== "function") return null;
-  const expectedSubject = `${name.wk_id}#${name.slice_id}`;
-  const expectedSliceRef = `refs/heads/${branch}`;
-  let proof;
-  try {
-    proof = resolveProof(Object.freeze({
-      subject: expectedSubject,
-      unit_address: name.unit_address,
-      slice_ref: expectedSliceRef,
-      slice_tip: sliceTip,
-      worktree_path: worktreePath
-    }));
-  } catch {
-    return null;
-  }
-  if (!hasExactKeys(proof, CORRECTIVE_CONTINUATION_PROOF_FIELDS) ||
-      proof.schema_version !== CORRECTIVE_CONTINUATION_PROOF_SCHEMA_VERSION ||
-      proof.subject !== expectedSubject || proof.unit_address !== name.unit_address ||
-      proof.slice_ref !== expectedSliceRef || proof.delivered_tip_sha !== sliceTip ||
-      proof.worktree_path !== worktreePath || !OID_RE.test(proof.frozen_base_sha ?? "") ||
-      !OID_RE.test(proof.delivered_tip_sha ?? "") ||
-      typeof proof.committed_target_digest !== "string" ||
-      !/^sha256:[0-9a-f]{64}$/u.test(proof.committed_target_digest) ||
-      !Array.isArray(proof.commit_chain) || proof.commit_chain.length === 0 ||
-      proof.commit_chain.some((commit) => !OID_RE.test(commit))) {
-    return null;
-  }
-
-  const baseRetained = runGit({
-    repo,
-    args: ["merge-base", "--is-ancestor", proof.frozen_base_sha, wkBaseSha]
-  });
-  if (!baseRetained || (baseRetained.ok !== true && baseRetained.status !== 1)) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-      "failed to verify that the authenticated delivery base remains in the canonical WK chain",
-      { frozen_base_sha: proof.frozen_base_sha, wk_base_sha: wkBaseSha }
-    );
-  }
-  if (baseRetained.ok !== true) return null;
-
-  const range = runGit({
-    repo,
-    args: ["rev-list", "--reverse", "--parents", `${proof.frozen_base_sha}..${sliceTip}`]
-  });
-  if (range?.ok !== true) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-      "failed to verify the authenticated corrective delivery chain",
-      { frozen_base_sha: proof.frozen_base_sha, slice_tip: sliceTip }
-    );
-  }
-  const lines = String(range.stdout ?? "").trim().split("\n").filter(Boolean);
-  if (lines.length !== proof.commit_chain.length) return null;
-  let expectedParent = proof.frozen_base_sha;
-  for (let index = 0; index < lines.length; index += 1) {
-    const parts = lines[index].trim().split(/\s+/u);
-    if (parts.length !== 2 || parts[0] !== proof.commit_chain[index] ||
-        parts[1] !== expectedParent) return null;
-    const message = runGit({ repo, args: ["show", "-s", "--format=%B", parts[0]] });
-    if (message?.ok !== true) {
-      fail(
-        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-        "failed to verify a corrective delivery commit identity",
-        { commit: parts[0] }
-      );
-    }
-    const expectedMessage =
-      `agent-launch worker delivery: ${expectedSubject} (base ${expectedParent.slice(0, 12)})` +
-      `\n\nWk-Slice: ${expectedSubject}`;
-    if (String(message.stdout ?? "").trimEnd() !== expectedMessage) return null;
-    expectedParent = parts[0];
-  }
-  if (expectedParent !== sliceTip || !existsSync(worktreePath)) return null;
-  const association = runGit({ repo: worktreePath, args: ["symbolic-ref", "--quiet", "HEAD"] });
-  if (association?.ok !== true || String(association.stdout ?? "").trim() !== expectedSliceRef) return null;
-  if (revParse(runGit, worktreePath, "HEAD") !== sliceTip ||
-      revParse(runGit, repo, branch) !== sliceTip) return null;
-
-  return Object.freeze({
-    state: SLICE_TIP_RECONCILE_STATES.AUTHENTICATED_CONTINUATION,
-    slice_tip: sliceTip,
-    authenticated_base_sha: proof.frozen_base_sha,
-    committed_target_digest: proof.committed_target_digest
-  });
-}
-
-function reconcileExistingSliceTip({
-  runGit,
-  repo,
-  name,
-  branch,
-  worktreePath,
-  resolveWkTip,
-  resolveCorrectiveContinuationProof
-}) {
-  let wkBase;
-  try {
-    wkBase = resolveWkTip({ mainRepo: repo, unitAddress: name.unit_address, deps: { runGit } });
-  } catch (error) {
-
-    reconcileRefusal(
-      SLICE_TIP_RECONCILE_STATES.WK_BASE_UNRESOLVED,
-      "the canonical WK-derived base could not be resolved, so an existing slice tip cannot be reconciled",
-      {
-        branch,
-        unit_address: name.unit_address,
-        recovery_route: SLICE_TIP_RECOVERY_ROUTES.OPERATOR_RECONCILE,
-        cause: error?.message ?? String(error)
-      }
-    );
-  }
-  const wkBaseSha = wkBase?.base_sha ?? null;
-  if (typeof wkBaseSha !== "string" || wkBaseSha.length === 0) {
-    reconcileRefusal(
-      SLICE_TIP_RECONCILE_STATES.WK_BASE_UNRESOLVED,
-      "the canonical WK-derived base resolver returned no base_sha for an existing slice branch",
-      {
-        branch,
-        unit_address: name.unit_address,
-        recovery_route: SLICE_TIP_RECOVERY_ROUTES.OPERATOR_RECONCILE
-      }
-    );
-  }
-  const classified = classifyExistingSliceTip({ runGit, repo, branch, wkBaseSha });
-  if (classified.state === SLICE_TIP_RECONCILE_STATES.ORPHANED) {
-    const authenticated = authenticateCorrectiveContinuation({
-      runGit,
-      repo,
-      name,
-      branch,
-      worktreePath,
-      wkBaseSha,
-      sliceTip: classified.slice_tip,
-      resolveProof: resolveCorrectiveContinuationProof
-    });
-    if (authenticated !== null) {
-      return Object.freeze({
-        ...authenticated,
-        wk_base_ref: wkBase.base_ref,
-        wk_base_sha: wkBaseSha
-      });
-    }
-
-    reconcileRefusal(
-      SLICE_TIP_RECONCILE_STATES.ORPHANED,
-      "the existing slice tip carries commits that the canonical WK base does not contain; " +
-        "an unreviewed delivery is never a continuation base and never authorizes another worker",
-      {
-        branch,
-        unit_address: name.unit_address,
-        slice_tip: classified.slice_tip,
-        wk_base_ref: wkBase.base_ref,
-        wk_base_sha: wkBaseSha,
-        recovery_route: SLICE_TIP_RECOVERY_ROUTES.EXACT_SLICE_REVIEW_RECOVERY
-      }
-    );
-  }
-  return Object.freeze({ ...classified, wk_base_ref: wkBase.base_ref, wk_base_sha: wkBaseSha });
-}
-
-export function classifyExistingSliceTipForDispatch({
-  mainRepo,
-  unitAddress,
-  worktreeRoot,
-  deps = {}
-} = {}) {
-  const runGit = deps.runGit ?? defaultRunGit;
-  const repo = assertAbsolutePath(mainRepo, "mainRepo");
-  const root = assertAbsolutePath(worktreeRoot, "worktreeRoot");
-  const name = deriveExactUnitName({ unitAddress, worktreeRoot: root });
-  if (name.kind !== "slice") {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_UNIT_ADDRESS,
-      "early slice-tip reconciliation requires a slice unit_address"
-    );
-  }
-  const branch = name.output_branch;
-
-  if (!branchExists(runGit, repo, branch)) {
-    return Object.freeze({ state: SLICE_TIP_RECONCILE_STATES.ABSENT, slice_tip: null });
-  }
-  const resolveWkTip = deps.resolveWkBranchTipBase ?? resolveWkBranchTipBase;
-  const source = deps.resolveCorrectiveContinuationProof;
-  let capturedProof = null;
-  const capturingResolver = typeof source === "function"
-    ? (proofContext) => {
-        const proof = source(proofContext);
-        if (proof != null) capturedProof = proof;
-        return proof;
-      }
-    : undefined;
-  const verdict = reconcileExistingSliceTip({
-    runGit,
-    repo,
-    name,
-    branch,
-    worktreePath: name.worktree_path,
-    resolveWkTip,
-    resolveCorrectiveContinuationProof: capturingResolver
-  });
-  if (verdict.state === SLICE_TIP_RECONCILE_STATES.AUTHENTICATED_CONTINUATION && capturedProof !== null) {
-    return Object.freeze({ ...verdict, corrective_continuation_proof: capturedProof });
-  }
-  return verdict;
-}
 
 function assertNonNegativeRetryId(retryId) {
   if (!Number.isInteger(retryId) || retryId < 0) {
@@ -344,185 +80,6 @@ function assertNonNegativeRetryId(retryId) {
   }
 }
 
-function compensateSparseAllocation({ runGit, repo, worktreePath, branch, bindingPath, bindingCreated, originalCause }) {
-  const failures = [];
-  if (bindingCreated && bindingPath && existsSync(bindingPath)) {
-    try { unlinkSync(bindingPath); } catch (err) {
-      failures.push({ step: "binding unlink", detail: err?.message ?? String(err) });
-    }
-  }
-  if (existsSync(worktreePath)) {
-    try {
-      rollbackWorktreeAndBranch(runGit, repo, worktreePath, branch, originalCause);
-    } catch (err) {
-      throw err;
-    }
-  } else {
-    const prune = runGit({ repo, args: ["worktree", "prune"] });
-    if (!prune || prune.ok !== true) failures.push({ step: "worktree prune", detail: prune?.stderr ?? prune?.error ?? prune?.status });
-    if (branchExists(runGit, repo, branch)) {
-      const del = runGit({ repo, args: ["branch", "-D", branch] });
-      if (!del || del.ok !== true) failures.push({ step: "branch -D", detail: del?.stderr ?? del?.error ?? del?.status });
-    }
-  }
-
-  if (existsSync(worktreePath)) {
-    try { rmSync(worktreePath, { recursive: true, force: true }); } catch (err) {
-      failures.push({ step: "worktree directory removal", detail: err?.message ?? String(err) });
-    }
-  }
-  if (failures.length > 0) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.ROLLBACK_FAILED,
-      "sparse allocation rollback failed to fully compensate",
-      { worktreePath, branch, compensationFailures: failures, originalError: originalCause?.message ?? String(originalCause) },
-      originalCause
-    );
-  }
-}
-
-export function allocateSparseExactUnitWorktree({
-  mainRepo,
-  unitAddress,
-  launchRef,
-  runId,
-  retryId = 0,
-  worktreeRoot,
-  coneDirs,
-  readScope,
-  repoPaths,
-  writeScope,
-  selectedUnit,
-  sourceDigest,
-  sourceVersion,
-  deps = {}
-} = {}) {
-  const runGit = deps.runGit ?? defaultRunGit;
-  const writeBindingFile = deps.writeBindingFile ?? defaultWriteBindingFile;
-  const verifyBinding = deps.verifyBinding ?? resolveVerifiedSparseExactUnitBinding;
-  const repo = assertAbsolutePath(mainRepo, "mainRepo");
-  assertOpaqueId(launchRef, "launch_ref");
-  assertOpaqueId(runId, "run_id");
-  assertRetryIdZero(retryId);
-  const root = assertAbsolutePath(worktreeRoot, "worktreeRoot");
-  assertWorktreeRootOutsideMainRepo(repo, root);
-  const name = deriveExactUnitName({ unitAddress, worktreeRoot: root });
-  if (name.kind !== "slice") {
-    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_UNIT_ADDRESS, "sparse exact-unit allocation requires a slice unit_address");
-  }
-  const callerScopeCarriers = { readScope, repoPaths, writeScope, selectedUnit, sourceDigest, sourceVersion };
-  const suppliedCarrier = Object.entries(callerScopeCarriers).find(([, value]) => value !== undefined);
-  if (suppliedCarrier) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
-      `caller-supplied sparse authority is forbidden; ${suppliedCarrier[0]} must be resolved from the exact canonical selected unit server-side`
-    );
-  }
-  const scopes = canonicalUnitScopes(repo, name.wk_id, name.slice_id, {
-    expectedInitiative: name.initiative
-  });
-  const { base_ref: baseRef, base_sha: baseSha } = resolveWkBranchTipBase({ mainRepo: repo, unitAddress: name.unit_address, deps: { runGit } });
-  const canonicalCones = deriveCanonicalSparseConeDirs(
-    runGit,
-    repo,
-    baseSha,
-    [...scopes.readableScope, ...scopes.writeScope]
-  );
-  if (coneDirs !== undefined) {
-    const suppliedCones = normalizeSparseConeDirs(coneDirs);
-    const sortedSuppliedCones = [...suppliedCones].sort();
-    const sameCones = sortedSuppliedCones.length === canonicalCones.length &&
-      sortedSuppliedCones.every((cone, index) => cone === canonicalCones[index]);
-    if (!sameCones) {
-      fail(
-        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG,
-        "coneDirs must exactly equal the canonical read_scope union repo_paths union write_scope directory cones",
-        { expected: canonicalCones, actual: suppliedCones }
-      );
-    }
-  }
-  const cones = canonicalCones;
-  const branch = name.output_branch;
-  const worktreePath = name.worktree_path;
-  const fullRef = assertRefFormat(runGit, repo, branch);
-  assertStoreDisjointFromWorktree(repo, worktreePath);
-  if (branchExists(runGit, repo, branch) || existsSync(worktreePath)) {
-    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.TARGET_EXISTS, "sparse exact-unit target already exists", { branch, worktreePath });
-  }
-  assertNoRefNamespaceCollision(enumerateRefs(runGit, repo), fullRef);
-  const {
-    readScope: canonicalReadScope,
-    repoPaths: canonicalRepoPaths,
-    writeScope: canonicalWriteScope,
-    selectedUnit: canonicalSelectedUnit,
-    source: writeScopeSource,
-    sourceDigest: canonicalSourceDigest,
-    sourceVersion: canonicalSourceVersion
-  } = scopes;
-  mkdirSync(root, { recursive: true });
-  const bindingPath = bindingFilePath(repo, launchRef, runId, retryId);
-  let bindingCreated = false;
-  let binding;
-  try {
-    gitOrThrow(runGit, repo, ["worktree", "add", "--no-checkout", "-b", branch, worktreePath, baseSha], "failed to create sparse exact-unit worktree/branch");
-    const head = revParse(runGit, worktreePath, "HEAD");
-    if (head !== baseSha) {
-      fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED, "sparse worktree HEAD does not equal captured WK tip", { expected: baseSha, actual: head });
-    }
-    gitOrThrow(runGit, worktreePath, ["sparse-checkout", "init", "--cone", "--no-sparse-index"], "failed to initialize cone-mode sparse checkout");
-    gitOrThrow(runGit, worktreePath, ["config", "--worktree", "index.sparse", "false"], "failed to pin worktree-local index.sparse=false");
-    gitOrThrow(runGit, worktreePath, ["sparse-checkout", "set", "--cone", "--no-sparse-index", "--", ...cones], "failed to assign sparse cone directories");
-
-    gitOrThrow(runGit, worktreePath, ["read-tree", "-mu", "HEAD"], "failed to materialize sparse cone checkout");
-    const sparseIndex = gitOrThrow(runGit, worktreePath, ["config", "--worktree", "--get", "index.sparse"], "failed to verify worktree-local index.sparse").stdout.trim();
-    if (sparseIndex !== "false") {
-      fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED, "worktree-local index.sparse must equal false", { actual: sparseIndex });
-    }
-    binding = Object.freeze({
-      schema_version: WORKTREE_SUBSTRATE_SCHEMA_VERSION,
-      launch_ref: launchRef,
-      run_id: runId,
-      retry_id: retryId,
-      unit_address: name.unit_address,
-      initiative: name.initiative,
-      record_id: name.wk_id,
-      slice_id: name.slice_id,
-      base_ref: baseRef,
-      base_sha: baseSha,
-      output_branch: branch,
-      worktree_path: worktreePath,
-      read_scope: canonicalReadScope,
-      repo_paths: canonicalRepoPaths,
-      write_scope: canonicalWriteScope,
-      write_scope_source: writeScopeSource,
-      selected_unit: canonicalSelectedUnit,
-      source_digest: canonicalSourceDigest,
-      source_version: canonicalSourceVersion,
-      cone_dirs: cones,
-      index_sparse: false
-    });
-    writeBindingFile({
-      filePath: bindingPath,
-      contents: `${JSON.stringify(binding, null, 2)}\n`,
-      onCreated: () => { bindingCreated = true; }
-    });
-    bindingCreated = true;
-    verifyBinding({ mainRepo: repo, launchRef, runId, retryId, expectedBinding: binding });
-  } catch (err) {
-    compensateSparseAllocation({
-      runGit,
-      repo,
-      worktreePath,
-      branch,
-      bindingPath,
-      bindingCreated,
-      originalCause: err
-    });
-    throw err;
-  }
-  return binding;
-}
-
 function compensateFullSliceAllocation({
   runGit,
   repo,
@@ -530,45 +87,129 @@ function compensateFullSliceAllocation({
   branch,
   branchTip,
   branchCreated,
+  worktreeAddAttempted,
+  worktreeExistedBefore,
   worktreeCreated,
   bindingPath,
   bindingCreated,
   originalCause
 }) {
   const failures = [];
+  const bounded = (value) => String(value ?? "unknown").slice(0, 512);
+  const recordFailure = (step, detail) => {
+    if (failures.length < 12) failures.push({ step, detail: bounded(detail) });
+  };
+  const lstatPath = () => {
+    try {
+      return lstatSync(worktreePath);
+    } catch (error) {
+      if (error?.code === "ENOENT") return null;
+      recordFailure("worktree lstat", error?.message ?? error);
+      return undefined;
+    }
+  };
+  const registrations = () => {
+    const result = runGit({ repo, args: ["worktree", "list", "--porcelain", "-z"] });
+    if (!result || result.ok !== true) {
+      recordFailure("worktree registration probe", result?.stderr ?? result?.error ?? result?.status);
+      return null;
+    }
+    const records = [];
+    let current = null;
+    for (const token of String(result.stdout ?? "").split("\0")) {
+      if (token.startsWith("worktree ")) {
+        if (current !== null) records.push(current);
+        current = { worktree: token.slice("worktree ".length), branch: null };
+      } else if (current !== null && token.startsWith("branch ")) {
+        current.branch = token.slice("branch ".length);
+      }
+    }
+    if (current !== null) records.push(current);
+    return records;
+  };
   if (bindingCreated && bindingPath && existsSync(bindingPath)) {
     try { unlinkSync(bindingPath); } catch (err) {
-      failures.push({ step: "binding unlink", detail: err?.message ?? String(err) });
+      recordFailure("binding unlink", err?.message ?? err);
     }
   }
-  if (worktreeCreated && existsSync(worktreePath)) {
-    const remove = runGit({ repo, args: ["worktree", "remove", "--force", worktreePath] });
-    if (!remove || remove.ok !== true) {
-      failures.push({ step: "worktree remove", detail: remove?.stderr ?? remove?.error ?? remove?.status });
+
+  let preserveBranch = false;
+  const attemptedMissingTarget = worktreeAddAttempted && !worktreeExistedBefore;
+  if (worktreeCreated) {
+    const currentTip = branchExists(runGit, repo, branch)
+      ? revParse(runGit, repo, branch)
+      : null;
+    if (currentTip !== null && currentTip !== branchTip) {
+      preserveBranch = true;
+      recordFailure("worktree ownership", "slice branch tip changed after allocation; registered or concurrent winner preserved");
+    } else {
+      const remove = runGit({ repo, args: ["worktree", "remove", "--force", worktreePath] });
+      if (!remove || remove.ok !== true) {
+        preserveBranch = true;
+        recordFailure("worktree remove", remove?.stderr ?? remove?.error ?? remove?.status);
+      }
     }
-  } else if (worktreeCreated) {
-    const prune = runGit({ repo, args: ["worktree", "prune"] });
-    if (!prune || prune.ok !== true) failures.push({ step: "worktree prune", detail: prune?.stderr ?? prune?.error ?? prune?.status });
+  } else if (attemptedMissingTarget) {
+    const stat = lstatPath();
+    const listed = registrations();
+    const registeredAtTarget = listed?.find((entry) => entry.worktree === worktreePath);
+    const registeredOnBranch = listed?.find((entry) => entry.branch === `refs/heads/${branch}`);
+    if (stat?.isSymbolicLink()) {
+      preserveBranch = true;
+      recordFailure("worktree ownership", "attempt target is a symbolic link; preserved without following it");
+    } else if (stat !== null && stat !== undefined && !stat.isDirectory()) {
+      preserveBranch = true;
+      recordFailure("worktree ownership", "attempt target is not an ordinary directory; possible concurrent winner preserved");
+    } else if (registeredAtTarget || registeredOnBranch) {
+      preserveBranch = true;
+      recordFailure("worktree ownership", "registered worktree or concurrent winner appeared during failed add; preserved");
+    } else if (listed !== null && stat?.isDirectory()) {
+
+      const beforeRemove = lstatPath();
+      if (beforeRemove?.isDirectory() && !beforeRemove.isSymbolicLink() &&
+          beforeRemove.dev === stat.dev && beforeRemove.ino === stat.ino) {
+        try { rmSync(worktreePath, { recursive: true, force: true }); } catch (err) {
+          recordFailure("worktree directory removal", err?.message ?? err);
+        }
+      } else if (beforeRemove !== null) {
+        preserveBranch = true;
+        recordFailure("worktree ownership", "attempt target identity changed before removal; possible concurrent winner preserved");
+      }
+    }
   }
-  if (branchCreated && branchExists(runGit, repo, branch)) {
+  if (worktreeCreated && !preserveBranch) {
+    const remaining = lstatPath();
+    if (remaining?.isSymbolicLink()) {
+      preserveBranch = true;
+      recordFailure("worktree directory removal", "remaining target is a symbolic link; preserved without following it");
+    } else if (remaining?.isDirectory()) {
+      try { rmSync(worktreePath, { recursive: true, force: true }); } catch (err) {
+        recordFailure("worktree directory removal", err?.message ?? err);
+      }
+    } else if (remaining !== null && remaining !== undefined) {
+      recordFailure("worktree directory removal", "remaining target is not an ordinary directory; preserved");
+    }
+  }
+  if (branchCreated && !preserveBranch && branchExists(runGit, repo, branch)) {
     const del = runGit({
       repo,
       args: ["update-ref", "-d", `refs/heads/${branch}`, branchTip]
     });
     if (!del || del.ok !== true) {
-      failures.push({ step: "slice branch CAS delete", detail: del?.stderr ?? del?.error ?? del?.status });
-    }
-  }
-  if (worktreeCreated && existsSync(worktreePath)) {
-    try { rmSync(worktreePath, { recursive: true, force: true }); } catch (err) {
-      failures.push({ step: "worktree directory removal", detail: err?.message ?? String(err) });
+      recordFailure("slice branch CAS delete", del?.stderr ?? del?.error ?? del?.status);
     }
   }
   if (failures.length > 0) {
     fail(
       WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.ROLLBACK_FAILED,
       "full-checkout slice allocation rollback failed to fully compensate",
-      { worktreePath, branch, compensationFailures: failures, originalError: originalCause?.message ?? String(originalCause) },
+      {
+        worktreePath,
+        branch,
+        compensationFailures: failures,
+        originalError: bounded(originalCause?.message ?? originalCause),
+        originalCode: originalCause?.code ?? null
+      },
       originalCause
     );
   }
@@ -673,7 +314,21 @@ export function allocateFullSliceExactUnitWorktree({
   const fullRef = assertRefFormat(runGit, repo, branch);
   assertStoreDisjointFromWorktree(repo, worktreePath);
   const branchPresent = branchExists(runGit, repo, branch);
-  const worktreePresent = existsSync(worktreePath);
+  let worktreePresent;
+  try {
+    lstatSync(worktreePath);
+    worktreePresent = true;
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      fail(
+        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
+        "failed to inspect deterministic slice worktree path without following links",
+        { worktreePath, error: String(error?.message ?? error).slice(0, 512) },
+        error
+      );
+    }
+    worktreePresent = false;
+  }
   if (!branchPresent && worktreePresent) {
     fail(
       WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.TARGET_EXISTS,
@@ -716,6 +371,7 @@ export function allocateFullSliceExactUnitWorktree({
   const bindingPath = bindingFilePath(repo, launchRef, runId, retryId);
   let bindingCreated = false;
   let worktreeCreated = false;
+  let worktreeAddAttempted = false;
   let binding;
   try {
 
@@ -723,6 +379,7 @@ export function allocateFullSliceExactUnitWorktree({
       const addArgs = branchPresent
         ? ["worktree", "add", worktreePath, branch]
         : ["worktree", "add", "-b", branch, worktreePath, baseSha];
+      worktreeAddAttempted = true;
       gitOrThrow(runGit, repo, addArgs, "failed to provision full-checkout exact-unit worktree/branch");
       worktreeCreated = true;
     } else {
@@ -787,6 +444,8 @@ export function allocateFullSliceExactUnitWorktree({
       branch,
       branchTip: baseSha,
       branchCreated: !branchPresent,
+      worktreeAddAttempted,
+      worktreeExistedBefore: worktreePresent,
       worktreeCreated,
       bindingPath,
       bindingCreated,
@@ -795,75 +454,6 @@ export function allocateFullSliceExactUnitWorktree({
     throw err;
   }
   return binding;
-}
-
-export const WK_FORK_REF_DIAGNOSTIC_CODES = Object.freeze({
-  WK_FORK_REF_MISSING: "agent_launch.worktree_substrate.wk_fork_ref_missing.v1",
-  WK_FORK_REF_DISAGREEMENT: "agent_launch.worktree_substrate.wk_fork_ref_disagreement.v1",
-  WK_FORK_REF_INVALID: "agent_launch.worktree_substrate.wk_fork_ref_invalid.v1"
-});
-
-export function wkForkRefName(initiative, wkId) {
-  return `refs/agent-launch/wk-forks/${initiative}/${wkId}`;
-}
-
-function resolveWkForkRef(runGit, repo, ref) {
-  const res = runGit({ repo, args: ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`] });
-  if (!res || res.ok !== true) return null;
-  const sha = String(res.stdout ?? "").trim();
-  return OID_RE.test(sha) ? sha : null;
-}
-
-function ensureWkForkRefAtFork(runGit, repo, ref, forkSha) {
-  const existing = resolveWkForkRef(runGit, repo, ref);
-  if (existing === forkSha) return { created: false };
-  if (existing !== null) {
-    fail(
-      WK_FORK_REF_DIAGNOSTIC_CODES.WK_FORK_REF_DISAGREEMENT,
-      "the launcher-owned WK fork ref disagrees with the fork being recorded",
-      { fork_ref: ref, expected_fork: forkSha, actual_fork: existing }
-    );
-  }
-  const res = runGit({ repo, args: ["update-ref", ref, forkSha, ""] });
-  if (!res || res.ok !== true) {
-
-    const raced = resolveWkForkRef(runGit, repo, ref);
-    if (raced === forkSha) return { created: false };
-    fail(
-      WK_FORK_REF_DIAGNOSTIC_CODES.WK_FORK_REF_DISAGREEMENT,
-      "failed to create the launcher-owned WK fork ref and it does not match the fork",
-      { fork_ref: ref, expected_fork: forkSha, actual_fork: raced, status: res?.status ?? null }
-    );
-  }
-  return { created: true };
-}
-
-function rollbackCreatedWkForkRef(runGit, repo, ref, forkSha) {
-  try { runGit({ repo, args: ["update-ref", "-d", ref, forkSha] }); } catch {   }
-}
-
-function recoverFixedWkFork(runGit, repo, ref, currentWkTip) {
-  const fork = resolveWkForkRef(runGit, repo, ref);
-  if (fork === null) {
-    fail(
-      WK_FORK_REF_DIAGNOSTIC_CODES.WK_FORK_REF_MISSING,
-      "the persistent WK branch has no launcher-owned fork ref; the original WK fork must be recorded before this WK can be adopted",
-      {
-        fork_ref: ref,
-        operator_remediation:
-          `record the original WK fork commit at ${ref} (git update-ref ${ref} <original-fork-sha>) before re-dispatching; the fork is never inferred from main, the current WK tip, a merge-base, or reflog`
-      }
-    );
-  }
-  const ancestor = runGit({ repo, args: ["merge-base", "--is-ancestor", fork, currentWkTip] });
-  if (!ancestor || ancestor.ok !== true) {
-    fail(
-      WK_FORK_REF_DIAGNOSTIC_CODES.WK_FORK_REF_INVALID,
-      "the launcher-owned WK fork is not an ancestor of the current WK tip",
-      { fork_ref: ref, fork, wk_tip: currentWkTip }
-    );
-  }
-  return fork;
 }
 
 export function allocateExactUnitWorktree({

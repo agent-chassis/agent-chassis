@@ -17,6 +17,10 @@ import {
 } from "./workspace-agent-launch-adapter-contract.mjs";
 
 import { ORCHESTRATOR_ISOLATION_MODES } from "./orchestrator-launch-isolation.mjs";
+import {
+  STDIO_MCP_CONDUIT_ERROR_CODES,
+  settleStdioMcpConduitCleanup
+} from "./stdio-mcp-conduit-contract.mjs";
 
 export const ORCHESTRATOR_LAUNCH_RUNTIME_SCHEMA_VERSION =
   "orchestrator-launch-runtime.v1";
@@ -28,6 +32,83 @@ export const ORCHESTRATOR_FORWARDED_SIGNALS = Object.freeze(["SIGINT", "SIGTERM"
 export const ORCHESTRATOR_INTERACTIVE_STDIO = "inherit";
 
 export const ORCHESTRATOR_HEADLESS_LOG_FILE_NAME = "orchestrator-headless.log";
+
+export const ORCHESTRATOR_STDIO_MCP_DIAGNOSTIC_PERSISTENCE_FAILED =
+  "stdio_mcp_session_diagnostic_persistence_failed";
+
+export class OrchestratorStdioMcpDiagnosticPersistenceError extends Error {
+  constructor(cause, diagnostic) {
+    super("launcher could not persist the orchestrator stdio-MCP diagnostic",
+      cause === null ? undefined : { cause });
+    this.name = "OrchestratorStdioMcpDiagnosticPersistenceError";
+    this.code = ORCHESTRATOR_STDIO_MCP_DIAGNOSTIC_PERSISTENCE_FAILED;
+    this.detail = Object.freeze({
+      stdio_mcp_reason: diagnostic?.stdio_mcp_reason ?? null,
+      cause_code: typeof cause?.code === "string" ? cause.code.slice(0, 64) : null
+    });
+  }
+}
+
+const READINESS_FAILURE_CODES = new Set([
+  STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_START_FAILED,
+  STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_READINESS_FAILED,
+  STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_STARTUP_TIMEOUT,
+  STDIO_MCP_CONDUIT_ERROR_CODES.TOOL_SURFACE_MISMATCH,
+  STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_TOOL_SURFACE_MISMATCH,
+  STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_TIMEOUT,
+  STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_FAILED,
+  STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_EXIT
+]);
+
+function boundedToken(value, max = 128) {
+  return typeof value === "string" && /^[a-zA-Z0-9_.:#-]+$/u.test(value)
+    ? value.slice(0, max)
+    : null;
+}
+
+export function buildOrchestratorStdioMcpDiagnostic(conduit) {
+  const primary = conduit?.failure ?? conduit?.readinessFailure ?? null;
+  const cleanup = conduit?.cleanupFailure ?? null;
+  if (primary === null && cleanup === null) return null;
+
+  const primaryCode = boundedToken(primary?.code);
+  const cleanupCode = boundedToken(cleanup?.code);
+  const cleanupFailures = Array.isArray(cleanup?.detail?.failures)
+    ? cleanup.detail.failures.slice(0, 8).map((entry) => Object.freeze({
+        resource: boundedToken(entry?.resource, 64),
+        code: boundedToken(entry?.code, 64)
+      }))
+    : [];
+  const reaping = cleanupFailures.some(
+    (entry) => entry.code === STDIO_MCP_CONDUIT_ERROR_CODES.REAP_FAILED);
+  let phase;
+  if (primaryCode === STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_RELAY_RESTARTED) {
+    phase = "relay_restart";
+  } else if (primaryCode === STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_EXIT &&
+      conduit?.clientReadyCompleted === true) {
+    phase = "mid_session_server_loss";
+  } else if (primaryCode !== null && READINESS_FAILURE_CODES.has(primaryCode)) {
+    phase = "readiness";
+  } else if (primaryCode !== null) {
+    phase = "lifecycle";
+  } else if (reaping) {
+    phase = "reaping";
+  } else {
+    phase = "cleanup";
+  }
+
+  return Object.freeze({
+    stdio_mcp_reason: primaryCode ?? cleanupCode ?? STDIO_MCP_CONDUIT_ERROR_CODES.CLEANUP_FAILED,
+    stdio_mcp_detail: Object.freeze({
+      phase,
+      run_id: boundedToken(conduit?.runId, 128),
+      conduit_error_code: primaryCode,
+      cleanup_error_code: cleanupCode,
+      cleanup_phase: cleanup === null ? null : reaping ? "reaping" : "cleanup",
+      cleanup_failures: Object.freeze(cleanupFailures)
+    })
+  });
+}
 
 export const HEADLESS_REQUIRES_BUBBLEWRAP_REASON =
   "headless orchestrator launch requires bubblewrap isolation; the DEC-0060 " +
@@ -96,12 +177,17 @@ export async function superviseInteractiveOrchestratorLaunch({
   runtimeDir,
   descriptor = {},
   spawnChild,
+  stdioMcpConduit = null,
+  recordSessionState = recordOrchestratorSessionState,
   signals = ORCHESTRATOR_FORWARDED_SIGNALS
 } = {}) {
   if (typeof spawnChild !== "function") {
     throw new TypeError(
       "superviseInteractiveOrchestratorLaunch requires a spawnChild thunk"
     );
+  }
+  if (typeof recordSessionState !== "function") {
+    throw new TypeError("superviseInteractiveOrchestratorLaunch requires a recordSessionState function");
   }
 
   let child = null;
@@ -119,7 +205,7 @@ export async function superviseInteractiveOrchestratorLaunch({
   }
 
   try {
-    await recordOrchestratorSessionState({
+    await recordSessionState({
       runtimeDir,
       descriptor,
       status: "launching",
@@ -133,7 +219,7 @@ export async function superviseInteractiveOrchestratorLaunch({
       spawnError = error;
     });
 
-    await recordOrchestratorSessionState({
+    await recordSessionState({
       runtimeDir,
       descriptor,
       status: "running",
@@ -146,24 +232,58 @@ export async function superviseInteractiveOrchestratorLaunch({
       throw spawnError;
     }
 
-    const status = deriveTerminalStatus({ code: exitCode, signal });
+    if (stdioMcpConduit !== null) {
+
+      await settleStdioMcpConduitCleanup(stdioMcpConduit);
+    }
+    const stdioMcpDiagnostic = buildOrchestratorStdioMcpDiagnostic(stdioMcpConduit);
+    if (stdioMcpDiagnostic !== null) {
+      try {
+        await recordSessionState({
+          runtimeDir,
+          descriptor,
+          status: "running",
+          extra: stdioMcpDiagnostic,
+          mergeExisting: true
+        });
+      } catch (error) {
+        throw new OrchestratorStdioMcpDiagnosticPersistenceError(
+          error, stdioMcpDiagnostic);
+      }
+    }
+
+    const status = stdioMcpDiagnostic === null
+      ? deriveTerminalStatus({ code: exitCode, signal })
+      : "failed";
     const exit = normalizeExitEnvelope({ code: exitCode, signal });
 
-    await recordOrchestratorSessionState({
-      runtimeDir,
-      descriptor,
-      status,
-      extra: {
-        pid: child.pid ?? null,
-        exit_code: exit.code,
-        exit_signal: exit.signal
-      },
-      mergeExisting: true
-    });
+    try {
+      await recordSessionState({
+        runtimeDir,
+        descriptor,
+        status,
+        extra: {
+          ...(stdioMcpDiagnostic ?? {}),
+          pid: child.pid ?? null,
+          exit_code: exit.code,
+          exit_signal: exit.signal
+        },
+        mergeExisting: true
+      });
+    } catch (error) {
+      if (stdioMcpDiagnostic !== null) {
+        throw new OrchestratorStdioMcpDiagnosticPersistenceError(
+          error, stdioMcpDiagnostic);
+      }
+      throw error;
+    }
 
     return { status, exit, exitCode, signal };
   } catch (error) {
-    await recordOrchestratorSessionState({
+    if (error instanceof OrchestratorStdioMcpDiagnosticPersistenceError) {
+      throw error;
+    }
+    await recordSessionState({
       runtimeDir,
       descriptor,
       status: "failed",
@@ -203,6 +323,8 @@ export async function spawnOrchestratorAndWait({
     runtimeDir,
     descriptor,
     signals,
+
+    stdioMcpConduit: bwrapPlan.stdioMcpConduit ?? null,
     spawnChild: () =>
       spawnLaunch(bwrapPlan, {
         ...spawnOptions,

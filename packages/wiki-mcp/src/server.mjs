@@ -4,7 +4,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   createLauncherObservingTransport,
-  createLauncherReadinessEventWriter
+  createLauncherReadinessEventWriter,
+  LAUNCHER_READINESS_PROTOCOL_GENERATION,
+  LAUNCHER_READINESS_SCHEMA_VERSIONS
 } from "./lib/launcher-readiness-observer.mjs";
 import { z } from "zod";
 import { writeFileSync } from "node:fs";
@@ -83,6 +85,8 @@ import { registerWorkRecordWriteTools } from "./lib/work-record-write-tools.mjs"
 import { registerKindRecordWriteTools } from "./lib/kind-record-write-tools.mjs";
 import { registerWorkspaceCommitTool } from "./lib/workspace-commit-tool.mjs";
 
+import { registerWorkerDeclaredTestTool } from "./lib/worker-declared-test-tool.mjs";
+
 import { registerDispatchTools } from "./lib/dispatch-tools.mjs";
 
 import { buildDispatchRuntime } from "./lib/dispatch-launch-runtime.mjs";
@@ -150,7 +154,9 @@ const DESCRIPTOR_LOAD_FAILURE_FREE_LOCAL_MCP_TOOL_NAMES = new Set([
   "workspace_coordination_preflight",
 
   "commit",
-  "workspace_submit_for_review"
+  "workspace_submit_for_review",
+
+  "workspace_worker_run_declared_test"
 ]);
 
 async function loadMcpToolTierRegistrationPolicy() {
@@ -495,6 +501,15 @@ async function registerTools(server) {
     setWorkRecordStatusByUnit
   });
 
+  registerWorkerDeclaredTestTool({
+    registerTool,
+    workspaceRepos,
+    z,
+    jsonContent,
+    errorContent,
+    resolveWorkspaceRepo
+  });
+
   registerTool(
     WORKSPACE_SUBMIT_FOR_REVIEW_TOOL_NAME,
     {
@@ -672,7 +687,8 @@ async function main() {
   });
 
   writeLauncherEvent({
-    schema_version: "wiki-mcp-launcher-readiness.v1",
+    schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.SERVER_READY,
+    lifecycle_protocol_generation: LAUNCHER_READINESS_PROTOCOL_GENERATION,
     ready: true,
     tool_profile: registration.toolProfile,
     registered_tier: registration.registeredTier,

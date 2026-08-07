@@ -18,6 +18,32 @@ const MONITOR_HANDLE = "wkmh_worker_resumable";
 const SUBJECT = "WK-1537#SLICE-001";
 const PREPARE_FAILED_CODE = "agent_launch.slice_review_materialization.prepare_failed.v1";
 
+const GENERIC_LIFECYCLE_FAILURE_CODE = "agent_launch.slice_lifecycle.failed.v1";
+const GENERIC_LIFECYCLE_FAILURE_MESSAGE = "post-worker slice lifecycle invocation failed";
+
+function closedFailureEntry(phase) {
+  return {
+    phase,
+    error_code: GENERIC_LIFECYCLE_FAILURE_CODE,
+    error_message: GENERIC_LIFECYCLE_FAILURE_MESSAGE,
+    error_message_truncated: false
+  };
+}
+
+const INJECTED_FAILURE_MESSAGE_TEXT = "injected slice-review preparation failure";
+
+function assertNoInjectedFailureText(label, response) {
+  const serialized = JSON.stringify(response);
+  assert.equal(
+    serialized.includes(INJECTED_FAILURE_MESSAGE_TEXT), false,
+    `${label}: the injected raw error message reached the serialized response`
+  );
+  assert.equal(
+    serialized.includes(PREPARE_FAILED_CODE), false,
+    `${label}: the injected raw error code reached the serialized response`
+  );
+}
+
 function createFailingPreparationHarness({
   prepareFailures = 1,
   prepareDelayMs = 0,
@@ -90,9 +116,10 @@ test("WK-1690: a child-succeeded run whose lifecycle failed is NOT terminal and 
   assert.equal(resolution.failure_attempts, 1);
   assert.equal(resolution.failure_attempts_saturated, false);
   assert.equal(resolution.failure_history_truncated, false);
-  assert.equal(resolution.latest_failure.error_code, PREPARE_FAILED_CODE);
-  assert.match(resolution.latest_failure.error_message, /preparation failure #1/u);
+
+  assert.deepEqual(resolution.latest_failure, closedFailureEntry("pre-integration"));
   assert.equal(resolution.next_action, LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE);
+  assertNoInjectedFailureText("first status poll", first);
 
   assert.deepEqual(fixture.harness.counts(), { integrationCalls: 0, bindCalls: 0 });
 });
@@ -117,9 +144,10 @@ test("WK-1690: the next poll reaches awaiting-slice-review, still nonterminal, a
   assert.equal(resolution.integration_complete, false);
 
   assert.equal(resolution.failure_attempts, 1);
-  assert.equal(resolution.latest_failure.error_code, PREPARE_FAILED_CODE);
-  assert.match(resolution.latest_failure.error_message, /preparation failure #1/u);
+
+  assert.deepEqual(resolution.latest_failure, closedFailureEntry("pre-integration"));
   assert.equal(resolution.next_action, LIFECYCLE_RESOLUTION_NEXT_ACTIONS.COMPLETE_SLICE_REVIEW);
+  assertNoInjectedFailureText("second status poll", second);
 
   assert.deepEqual(fixture.harness.counts(), { integrationCalls: 0, bindCalls: 0 });
 });
@@ -201,14 +229,17 @@ test("WK-1690: driving more failures than the history bound keeps storage fixed-
   assert.equal(resolution.failure_history_limit, LIFECYCLE_FAILURE_HISTORY_LIMIT);
   assert.equal(resolution.failure_history_truncated, true);
 
-  assert.match(resolution.latest_failure.error_message, new RegExp(`failure #${overBound}\\b`, "u"));
-  assert.equal(resolution.latest_failure.error_code, PREPARE_FAILED_CODE);
-  assert.match(resolution.retained_failures[0].error_message, /failure #4\b/u);
-  assert.equal(
-    resolution.retained_failures.some((entry) => /failure #1\b/u.test(entry.error_message)),
-    false,
-    "the oldest entries are evicted from the front"
+  const closedEntry = closedFailureEntry("pre-integration");
+  assert.deepEqual(resolution.latest_failure, closedEntry);
+  assert.deepEqual(
+    resolution.latest_failure,
+    resolution.retained_failures[resolution.retained_failures.length - 1],
+    "latest_failure is the ring's most recent slot"
   );
+  for (const [index, entry] of resolution.retained_failures.entries()) {
+    assert.deepEqual(entry, closedEntry, `retained entry ${index}`);
+  }
+  assertNoInjectedFailureText("over-bound polling", last);
 
   assert.deepEqual(fixture.harness.counts(), { integrationCalls: 0, bindCalls: 0 });
   assert.equal(fixture.prepareCalls(), overBound);
@@ -286,8 +317,9 @@ test("WK-1690 (review M-1): one shared lifecycle invocation records exactly one 
   assert.equal(statusResolution.failure_history_truncated, false,
     "one attempt cannot truncate the bounded ring");
 
-  assert.equal(statusResolution.latest_failure.error_code, PREPARE_FAILED_CODE);
-  assert.match(statusResolution.latest_failure.error_message, /preparation failure #1/u);
+  assert.deepEqual(statusResolution.latest_failure, closedFailureEntry("pre-integration"));
+  assertNoInjectedFailureText("coalesced status", viaStatus);
+  assertNoInjectedFailureText("coalesced wait", viaWait);
 
   assert.deepEqual(waitResolution, statusResolution,
     "concurrent callers must not see different attempt accounting");
@@ -418,8 +450,11 @@ test("WK-1690 (review M-1): a later DISTINCT failing invocation still increments
   const resolution = secondStatus.lifecycle_resolution;
   assert.equal(resolution.failure_attempts, 2, "distinct retries increment separately");
   assert.equal(resolution.retained_failures.length, 2, "and append separately");
-  assert.match(resolution.retained_failures[0].error_message, /preparation failure #1/u);
-  assert.match(resolution.latest_failure.error_message, /preparation failure #2/u);
+
+  const closedEntry = closedFailureEntry("pre-integration");
+  assert.deepEqual(resolution.retained_failures[0], closedEntry);
+  assert.deepEqual(resolution.latest_failure, closedEntry);
+  assertNoInjectedFailureText("distinct second invocation", secondStatus);
   assert.equal(secondStatus.terminal, false);
 });
 

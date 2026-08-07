@@ -123,14 +123,40 @@ function unitsHaveDurableRelationship(leftRecord, leftUnit, rightRecord, rightUn
   return unitRecordReferencesUnit(leftRecord, rightUnit) || unitRecordReferencesUnit(rightRecord, leftUnit);
 }
 
+function nextActionForRefusal(decisionCode) {
+  switch (decisionCode) {
+    case "review_attestation.unaccepted_status.v1":
+      return "Retry workspace_record_review_attestation with status=accepted after trusted review evidence is ready.";
+    case "review_attestation.stale_source_digest.v1":
+      return "Reload the current canonical work-record digest, then retry workspace_record_review_attestation with that digest.";
+    case "review_attestation.wrong_role.v1":
+      return "Use workspace_work_record_shape_review_unit for an empty-write-scope findings-only reviewer/redteam unit, then workspace_agent_dispatch; retry after terminal clean review.";
+    case "review_attestation.non_terminal.v1":
+      return "Poll workspace_agent_run_status for the trusted review run and retry only after terminal-success review evidence exists.";
+    case "review_attestation.wrong_unit.v1":
+      return "Reload the canonical units and repair the durable review-target relationship before dispatching review and retrying attestation.";
+    case "review_attestation.blocking_findings.v1":
+    case "review_attestation.unaccepted_outcome.v1":
+      return "Remediate the findings, dispatch a fresh trusted findings-only review, then retry only after an accepted structured outcome.";
+    case "review_attestation.untrusted_provenance.v1":
+      return "Dispatch a trusted findings-only reviewer/redteam, poll workspace_agent_run_status, then retry with its backend-minted run reference.";
+    case "review_attestation.missing_trusted_review_result_api.v1":
+      return "Use workspace_agent_run_status to obtain trusted structured review_result evidence before retrying attestation.";
+    default:
+      return null;
+  }
+}
+
 function refusal(decisionCode, reasons, extra = {}) {
+  const nextAction = nextActionForRefusal(decisionCode);
   return {
     tool: TOOL_NAME,
     recorded: false,
     launch_authoritative: false,
     decision_code: decisionCode,
     reasons: Array.isArray(reasons) ? reasons : [reasons],
-    ...extra
+    ...extra,
+    ...(nextAction ? { next_action: nextAction } : {})
   };
 }
 

@@ -1,6 +1,9 @@
 export const SIDECAR_GRAPH_SCHEMA_VERSION = "repo-code-graph.v1";
 export const SIDECAR_GRAPH_SCHEMA_FIELD = "graph_schema_version";
 export const SIDECAR_GRAPH_SECTION_FIELD = "graph";
+export const SIDECAR_GRAPH_GENERATOR_IDENTITY_FIELD = "generator_identity";
+
+const SIDECAR_GRAPH_GENERATOR_IDENTITY_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
 export const SIDECAR_GRAPH_NODE_KIND_VALUES = Object.freeze([
   "file",
@@ -387,7 +390,7 @@ export function validateSidecarGraphState(graphState) {
   return errors;
 }
 
-export function validateSidecarGraphSection(graph) {
+export function validateSidecarGraphSection(graph, { expectedGeneratorIdentity } = {}) {
   const errors = [];
   if (!isPlainObject(graph)) {
     return [`${SIDECAR_GRAPH_SECTION_FIELD} must be an object`];
@@ -398,6 +401,27 @@ export function validateSidecarGraphSection(graph) {
   } else if (!isSupportedSidecarGraphSchemaVersion(graph[SIDECAR_GRAPH_SCHEMA_FIELD])) {
     errors.push(
       `${SIDECAR_GRAPH_SECTION_FIELD}.${SIDECAR_GRAPH_SCHEMA_FIELD} must be ${SIDECAR_GRAPH_SCHEMA_VERSION}`
+    );
+  }
+
+  const generatorIdentity = graph[SIDECAR_GRAPH_GENERATOR_IDENTITY_FIELD];
+  if (generatorIdentity === undefined && expectedGeneratorIdentity !== undefined) {
+    errors.push(
+      `${SIDECAR_GRAPH_SECTION_FIELD}.${SIDECAR_GRAPH_GENERATOR_IDENTITY_FIELD} is required`
+    );
+  } else if (generatorIdentity !== undefined && (
+    typeof generatorIdentity !== "string" ||
+    !SIDECAR_GRAPH_GENERATOR_IDENTITY_PATTERN.test(generatorIdentity)
+  )) {
+    errors.push(
+      `${SIDECAR_GRAPH_SECTION_FIELD}.${SIDECAR_GRAPH_GENERATOR_IDENTITY_FIELD} must be a sha256 identity`
+    );
+  } else if (
+    expectedGeneratorIdentity !== undefined &&
+    generatorIdentity !== expectedGeneratorIdentity
+  ) {
+    errors.push(
+      `${SIDECAR_GRAPH_SECTION_FIELD}.${SIDECAR_GRAPH_GENERATOR_IDENTITY_FIELD} must match the committed generator identity`
     );
   }
 
@@ -419,7 +443,22 @@ export function validateSidecarGraphSection(graph) {
   return errors;
 }
 
-export function classifySidecarGraphArtifactSchema(artifact) {
+export function inspectSidecarGraphStructure(artifact) {
+  const artifactObject = isPlainObject(artifact);
+  const graphPresent = artifactObject && hasOwn(artifact, SIDECAR_GRAPH_SECTION_FIELD);
+  const graph = graphPresent ? artifact[SIDECAR_GRAPH_SECTION_FIELD] : null;
+  const errors = !artifactObject
+    ? ["artifact must be an object"]
+    : graphPresent ? validateSidecarGraphSection(graph) : [];
+  return {
+    structurally_valid: artifactObject && errors.length === 0,
+    graph_present: graphPresent,
+    graph_schema_version: isPlainObject(graph) ? graph[SIDECAR_GRAPH_SCHEMA_FIELD] ?? null : null,
+    errors
+  };
+}
+
+export function classifySidecarGraphArtifactSchema(artifact, options = {}) {
   if (!isPlainObject(artifact)) {
     return {
       compatible: false,
@@ -428,16 +467,23 @@ export function classifySidecarGraphArtifactSchema(artifact) {
     };
   }
 
-  if (!hasOwn(artifact, SIDECAR_GRAPH_SECTION_FIELD)) {
-    return {
-      compatible: true,
-      graph_state: createSidecarGraphState({ status_reason: "graph_absent" }),
-      errors: []
-    };
-  }
-
+  const expectedGeneratorIdentity = options.expectedGeneratorIdentity;
+  const expectedIdentityValid =
+    typeof expectedGeneratorIdentity === "string" &&
+    SIDECAR_GRAPH_GENERATOR_IDENTITY_PATTERN.test(expectedGeneratorIdentity);
   const graph = artifact[SIDECAR_GRAPH_SECTION_FIELD];
-  const errors = validateSidecarGraphSection(graph);
+  const errors = [];
+  if (!expectedIdentityValid) {
+    errors.push("expectedGeneratorIdentity must be an explicit sha256 committed identity");
+  }
+  if (!hasOwn(artifact, SIDECAR_GRAPH_SECTION_FIELD)) {
+    errors.push(`${SIDECAR_GRAPH_SECTION_FIELD} is required for authoritative compatibility`);
+  } else {
+    errors.push(...validateSidecarGraphSection(
+      graph,
+      expectedIdentityValid ? { expectedGeneratorIdentity } : {}
+    ));
+  }
   const graphSchemaVersion = isPlainObject(graph)
     ? graph[SIDECAR_GRAPH_SCHEMA_FIELD] ?? null
     : null;

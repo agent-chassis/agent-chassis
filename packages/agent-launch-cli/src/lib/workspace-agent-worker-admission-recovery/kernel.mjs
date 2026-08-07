@@ -1,9 +1,5 @@
 
 
-import {
-  AGENT_ROLE_RESULT_REVIEWED_CONTROLS
-} from "@agent-chassis/agent-launch-core/src/lib/agent-role-result.mjs";
-
 export const WORKER_ADMISSION_REVIEW_THRESHOLD_TAXONOMY_CODE =
   "worker_admission_review_threshold_exceeded";
 
@@ -63,8 +59,6 @@ const ALLOWED_REASON_CODES = new Set([
   ...PRECONDITION_REASON_CODES
 ]);
 
-const ALLOWED_CONTROL_IDS = new Set(AGENT_ROLE_RESULT_REVIEWED_CONTROLS);
-
 export function allowlistReasonCode(value) {
   if (!isNonEmptyString(value)) {
     return null;
@@ -77,8 +71,7 @@ export function allowlistControlId(value) {
   if (!isNonEmptyString(value)) {
     return null;
   }
-  const trimmed = value.trim();
-  return ALLOWED_CONTROL_IDS.has(trimmed) ? trimmed : null;
+  return value.trim();
 }
 
 export function normalizeObservedScalar(value) {

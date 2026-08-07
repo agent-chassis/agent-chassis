@@ -14,6 +14,7 @@ import { materializeTerminalCandidateCheckout } from
   "../packages/agent-launch-cli/src/lib/terminal-review-materialization.mjs";
 import {
   PULL_REQUEST_PAGE_LIMIT,
+  PULL_REQUEST_URL_MAX_LENGTH,
   defaultWkForgeHandoff,
   resolveWkForgeHandoffBoundaryAuthorization
 } from "../packages/agent-launch-cli/src/lib/wk-forge-handoff.mjs";
@@ -31,6 +32,23 @@ const REPOSITORY = Object.freeze({
 
 const BASE_BRANCH = "main";
 const handoffBranch = (candidate) => `handoff/wk/IN-0034/WK-1718/${candidate}`;
+const HOSTILE_SENTINEL = "WK1718_HOSTILE_FORGE_SENTINEL";
+const HOSTILE_REPEAT = "attacker-controlled-repeat-".repeat(900);
+const HOSTILE_MESSAGE =
+  `github_pat_${HOSTILE_SENTINEL}_ghp_secret_gho_secret_x-access-token_${HOSTILE_REPEAT}`;
+
+function assertHostileContentConfined(value, { maxBytes = 4096 } = {}) {
+  const serialized = JSON.stringify(value);
+  for (const carrier of [
+    "github_pat_", "ghp_", "gho_", "x-access-token", HOSTILE_SENTINEL,
+    "attacker-controlled-repeat-attacker-controlled-repeat-"
+  ]) {
+    assert.equal(serialized.includes(carrier), false, `returned data must not carry ${carrier}`);
+  }
+  assert.ok(Buffer.byteLength(serialized, "utf8") <= maxBytes,
+    `returned data must stay bounded: ${Buffer.byteLength(serialized, "utf8")} > ${maxBytes}`);
+  return serialized;
+}
 
 function git(repo, ...args) {
   return execFileSync("git", ["-C", repo, ...args], {
@@ -108,7 +126,7 @@ function pullRequest(candidate, overrides = {}) {
     number,
     state: "open",
     merged: false,
-    url: `https://example.invalid/pull/${number}`,
+    url: `https://${REPOSITORY.host}/${REPOSITORY.owner}/${REPOSITORY.name}/pull/${number}`,
     mergeable_state: "clean",
     base_ref: BASE_BRANCH,
     head_ref: handoffBranch(candidate),
@@ -273,6 +291,7 @@ test("an uncertain create is reobserved: one exact observation recovers", async 
   const result = await publish(state, { forge });
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(forge.calls.create, 1);
+  assert.equal(forge.calls.list, 2);
   assert.equal(result.result.pull_request.number, 5);
   assert.equal(result.result.pull_request_state, "open_exact");
 });
@@ -290,13 +309,35 @@ test("an uncertain create with zero exact observations refuses instead of retryi
 test("a thrown create is treated as uncertain and reobserved, never retried", async (t) => {
   const state = fixture(t);
   const forge = fakeForge(state.binding.candidate, {
-    create: () => { throw new Error("forge proposal transport exploded"); }
+    create: () => { throw new Error(HOSTILE_MESSAGE); }
   });
   const result = await publish(state, { forge });
   assert.equal(result.ok, false, JSON.stringify(result));
   assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE);
   assert.equal(result.detail.reason, "pull_request_not_exactly_observable_after_create");
   assert.equal(forge.calls.create, 1);
+  assert.equal(forge.calls.list, 2);
+  assertHostileContentConfined(result);
+});
+
+test("a secret-bearing thrown create still converges after one exact reobservation", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate, {
+    create: ({ base, head, pullRequests }) => {
+      pullRequests.push(pullRequest(state.binding.candidate, {
+        number: 17,
+        base_ref: base,
+        head_ref: head
+      }));
+      throw HOSTILE_MESSAGE;
+    }
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.result.pull_request.number, 17);
+  assert.equal(forge.calls.create, 1, "throwing create is never retried");
+  assert.equal(forge.calls.list, 2, "one pre-create and one post-create observation");
+  assertHostileContentConfined(result, { maxBytes: 8192 });
 });
 
 test("an uncertain create with multiple exact observations refuses", async (t) => {
@@ -445,7 +486,9 @@ test("legacy refs, landing movement, current-ref membership, WK status/dependenc
 
 test("an open proposal the forge reports as conflicting or unmergeable is still a successful handoff", async (t) => {
   const state = fixture(t);
-  for (const mergeableState of ["dirty", "blocked", "behind", "unknown"]) {
+  for (const mergeableState of [
+    "clean", "dirty", "unstable", "blocked", "behind", "has_hooks", "unknown", "draft"
+  ]) {
     const forge = fakeForge(state.binding.candidate, {
       branchSha: state.binding.candidate,
       prs: [pullRequest(state.binding.candidate, { number: 3, mergeable_state: mergeableState })]
@@ -470,7 +513,8 @@ test("the handed_off result carries bounded proposal detail and no credential or
     Object.keys(result.result.pull_request).sort(),
     ["head_sha", "merged", "mergeable_state", "number", "state", "url"].sort()
   );
-  assert.equal(result.result.pull_request.url, "https://example.invalid/pull/11");
+  assert.equal(result.result.pull_request.url,
+    "https://github.com/agent-chassis/agent-chassis/pull/11");
   assert.equal(result.result.proposal_authority, "configured_forge_and_human_merge_actor");
   const serialized = JSON.stringify(result);
   for (const carrier of [
@@ -479,6 +523,166 @@ test("the handed_off result carries bounded proposal detail and no credential or
   ]) {
     assert.equal(serialized.includes(carrier), false, `result must not carry ${carrier}`);
   }
+});
+
+test("malformed or secret-bearing pull-request projections refuse without reflecting forge fields", async (t) => {
+  const secret = "github_pat_DO_NOT_RETURN_1234567890";
+  const canonicalUrl = "https://github.com/agent-chassis/agent-chassis/pull/7";
+  const malicious = {
+    unsafe_number: { number: Number.MAX_SAFE_INTEGER + 1 },
+    non_boolean_merged: { merged: "false" },
+    secret_state: { state: secret },
+    secret_mergeability: { mergeable_state: secret },
+    oversized_url: { url: `${canonicalUrl}/${"x".repeat(PULL_REQUEST_URL_MAX_LENGTH)}` },
+    credential_url: { url: `https://${secret}@github.com/agent-chassis/agent-chassis/pull/7` },
+    secret_query: { url: `${canonicalUrl}?token=${secret}` },
+    encoded_github_pat: { url: `${canonicalUrl}/%67ithub_pat_secret` },
+    encoded_ghp: { url: `${canonicalUrl}/%67%68%70%5Fsecret` },
+    encoded_x_access_token: { url: `${canonicalUrl}/x%2Daccess%2Dtoken` },
+    encoded_colon: { url: `${canonicalUrl}/%3Asecret` },
+    encoded_slash: { url: `${canonicalUrl}/%2fsecret` },
+    encoded_at: { url: `${canonicalUrl}/%40secret` },
+    encoded_cr: { url: `${canonicalUrl}/%0Dsecret` },
+    encoded_lf: { url: `${canonicalUrl}/%0asecret` },
+    encoded_nul: { url: `${canonicalUrl}/%00secret` },
+    encoded_query: { url: `${canonicalUrl}/%3fsecret` },
+    encoded_fragment: { url: `${canonicalUrl}/%23secret` },
+    malformed_escape: { url: `${canonicalUrl}/%zz` },
+    mixed_case_escape: { url: `${canonicalUrl}/%6a%6B%4c` },
+    malformed_url: { url: "not-an-absolute-url" },
+    abbreviated_head: { head_sha: "a".repeat(12) }
+  };
+  for (const [label, overrides] of Object.entries(malicious)) {
+    await t.test(label, async (st) => {
+      const inner = fixture(st);
+      const result = await publish(inner, {
+        forge: fakeForge(inner.binding.candidate, {
+          branchSha: inner.binding.candidate,
+          prs: [pullRequest(inner.binding.candidate, overrides)]
+        })
+      });
+      assert.equal(result.ok, false, label);
+      assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT);
+      assert.equal(result.detail.reason, "observed_pull_request_identity_mismatch");
+      const serialized = JSON.stringify(result);
+      assert.equal(serialized.includes(secret), false, `${label} must not reflect the secret`);
+      assert.equal(serialized.includes("x".repeat(128)), false, `${label} must not reflect oversized input`);
+    });
+  }
+});
+
+test("throwing PR getters fail closed with bounded constant-only refusals", async (t) => {
+  assert.ok(Buffer.byteLength(HOSTILE_MESSAGE, "utf8") >= 20_000);
+  for (const field of ["state", "url", "mergeable_state", "head_sha"]) {
+    await t.test(field, async (st) => {
+      const state = fixture(st);
+      const hostile = pullRequest(state.binding.candidate);
+      Object.defineProperty(hostile, field, {
+        enumerable: true,
+        get() { throw new Error(HOSTILE_MESSAGE); }
+      });
+      const forge = fakeForge(state.binding.candidate, {
+        branchSha: state.binding.candidate,
+        filterExact: false,
+        prs: [hostile]
+      });
+      const result = await publish(state, { forge });
+      assert.equal(result.ok, false, field);
+      assert.equal(result.detail.reason, "observed_pull_request_identity_mismatch");
+      assert.equal(forge.calls.create, 0);
+      assertHostileContentConfined(result);
+    });
+  }
+});
+
+test("throwing proxies in PR access and observation iteration fail closed without reflection", async (t) => {
+  const cases = [
+    ["item_get", (state) => ({
+      filterExact: false,
+      prs: [new Proxy(pullRequest(state.binding.candidate), {
+        get() { throw HOSTILE_MESSAGE; }
+      })]
+    }), "observed_pull_request_identity_mismatch"],
+    ["response_get", () => ({
+      listPage: () => new Proxy({ kind: "ok", items: [], has_next: false }, {
+        get() { throw { sentinel: HOSTILE_SENTINEL, message: HOSTILE_MESSAGE }; }
+      })
+    }), "pull_request_transport_failed"],
+    ["items_iteration", () => ({
+      listPage: () => ({
+        kind: "ok",
+        items: new Proxy([], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) throw HOSTILE_MESSAGE;
+            return Reflect.get(target, property, receiver);
+          }
+        }),
+        has_next: false
+      })
+    }), "pull_request_observation_unusable"]
+  ];
+  for (const [label, configure, reason] of cases) {
+    await t.test(label, async (st) => {
+      const state = fixture(st);
+      const forge = fakeForge(state.binding.candidate, {
+        branchSha: state.binding.candidate,
+        ...configure(state)
+      });
+      const result = await publish(state, { forge });
+      assert.equal(result.ok, false, label);
+      assert.equal(result.detail.reason, reason);
+      assert.equal(forge.calls.create, 0);
+      assertHostileContentConfined(result);
+    });
+  }
+});
+
+test("forge list and create adapters may throw any value without reflecting it", async (t) => {
+  const thrownValues = [
+    new Error(HOSTILE_MESSAGE),
+    HOSTILE_MESSAGE,
+    { sentinel: HOSTILE_SENTINEL, token: "github_pat_object", repeated: HOSTILE_REPEAT }
+  ];
+  for (const [index, thrown] of thrownValues.entries()) {
+    await t.test(`list_${index}`, async (st) => {
+      const state = fixture(st);
+      const forge = fakeForge(state.binding.candidate, {
+        branchSha: state.binding.candidate,
+        listPage: () => { throw thrown; }
+      });
+      const result = await publish(state, { forge });
+      assert.equal(result.ok, false);
+      assert.equal(result.detail.reason, "pull_request_transport_failed");
+      assert.equal(forge.calls.create, 0);
+      assertHostileContentConfined(result);
+    });
+    await t.test(`create_${index}`, async (st) => {
+      const state = fixture(st);
+      const forge = fakeForge(state.binding.candidate, {
+        create: () => { throw thrown; }
+      });
+      const result = await publish(state, { forge });
+      assert.equal(result.ok, false);
+      assert.equal(result.detail.reason, "pull_request_not_exactly_observable_after_create");
+      assert.equal(forge.calls.create, 1);
+      assert.equal(forge.calls.list, 2);
+      assertHostileContentConfined(result);
+    });
+  }
+});
+
+test("outer forge getter exceptions use only the closed launcher reason", async (t) => {
+  const state = fixture(t);
+  const forge = fakeForge(state.binding.candidate);
+  Object.defineProperty(forge, "repository", {
+    enumerable: true,
+    get() { throw new Error(HOSTILE_MESSAGE); }
+  });
+  const result = await publish(state, { forge });
+  assert.equal(result.ok, false);
+  assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE);
+  assert.deepEqual(result.detail, { reason: "terminal_candidate_publication_threw" });
+  assertHostileContentConfined(result);
 });
 
 test("missing current-candidate resolver has no compatibility construction fallback", async (t) => {
@@ -509,6 +713,94 @@ test("mechanical candidate object, checkout, and W drift still refuse", async (t
       assert.equal(result.category, WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY);
       assert.equal(result.detail.reason, "terminal_candidate_binding_moved");
     });
+  }
+});
+
+test("free-substrate handoff needs no local project-test or dependency evidence", async (t) => {
+  const state = fixture(t);
+
+  assert.equal(existsSync(path.join(state.repo, "node_modules")), false);
+  assert.equal(existsSync(path.join(state.repo, "package.json")), false);
+  for (const validationEvidence of [
+    undefined,
+    null,
+    [],
+    [{ candidate: state.binding.candidate, ok: false, advisory: true, target_available: false }]
+  ]) {
+    const forge = fakeForge(state.binding.candidate);
+    const result = await defaultWkForgeHandoff({
+      mainRepo: state.repo,
+      assignedUnit: "WK-1718",
+      deps: {
+        forge,
+        resolveTerminalCandidatePublicationState: async () => ({
+          binding: state.binding,
+          materialization: state.materialization,
+          ...(validationEvidence === undefined ? {} : { validation_evidence: validationEvidence }),
+          advisory_review_evidence: { authority: "advisory_only", reviews: [] }
+        })
+      }
+    });
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.result.kind, "handed_off");
+    assert.equal(result.result.commit, state.binding.candidate);
+    assert.equal(result.result.parent, state.B);
+    assert.equal(result.result.boundary_authorization.policy_posture, "free_substrate");
+    assert.equal(forge.calls.create, 1);
+  }
+});
+
+test("the configured CCE request stays target-only and carries no validation evidence", async (t) => {
+  const state = fixture(t);
+  const requests = [];
+  await publish(state, {
+    forgeHandoffCcePolicy: {
+      configured: true,
+      authorize: async (value) => {
+        requests.push(value);
+        return {
+          schema_version: WK_FORGE_HANDOFF_CCE_POLICY_DECISION_SCHEMA_VERSION,
+          decision_id: "allow-shape",
+          decision: "allow",
+          ratified: true,
+          attestation_valid: true,
+          target: value.target
+        };
+      }
+    }
+  });
+  assert.equal(requests.length, 1);
+  const [request] = requests;
+
+  assert.deepEqual(Object.keys(request).sort(), ["schema_version", "target"]);
+  assert.equal(request.schema_version, "wk-forge-handoff-cce-policy-request.v1");
+  assert.deepEqual(Object.keys(request.target).sort(), [
+    "assigned_unit",
+    "base_branch",
+    "base_ref",
+    "base_sha",
+    "candidate_ref",
+    "candidate_sha",
+    "candidate_tree",
+    "canonical_wk_digest",
+    "handoff_branch",
+    "initiative",
+    "operation",
+    "repository",
+    "wk_ref",
+    "wk_sha"
+  ]);
+  assert.deepEqual(Object.keys(request.target.repository).sort(), ["host", "name", "owner"]);
+  assert.equal(request.target.candidate_sha, state.binding.candidate);
+  assert.equal(request.target.base_sha, state.B);
+  assert.equal(request.target.wk_sha, state.W);
+
+  const serialized = JSON.stringify(request);
+  for (const carrier of [
+    "validation", "validation_evidence", "dependency", "node_modules", "package-lock",
+    "install", "test", "projection", "steps", "exit_status", "reviewer_read_only"
+  ]) {
+    assert.equal(serialized.includes(carrier), false, `the CCE request must not carry ${carrier}`);
   }
 });
 

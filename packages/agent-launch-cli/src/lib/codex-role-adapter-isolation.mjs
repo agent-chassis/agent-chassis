@@ -81,7 +81,6 @@ export const ROLE_CONFIG = {
     envRole: "worker",
     profileEnv: "CODEX_WORKER_PROFILE",
     defaultProfile: "worker",
-    defaultModel: "gpt-5.4-mini",
     verboseEnv: "CODEX_WORKER_VERBOSE",
     logPrefix: "codex-worker"
   },

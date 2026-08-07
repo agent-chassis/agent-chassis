@@ -28,6 +28,8 @@ export async function buildAdmittedCodexWorkerPlan({
   worktree_provisioning,
   serverProvisionedWorktreeGitBinding,
   remoteAdmissionProvenance,
+
+  terminalStructuredRoleResultMode,
   buildCodexWritableSandboxArgs,
   buildHeadlessPlan,
   ROLE_CONFIG
@@ -102,6 +104,7 @@ export async function buildAdmittedCodexWorkerPlan({
     model,
     argsPrefix: baseArgs,
     prompt,
+    terminalStructuredRoleResultMode,
     writableProjectRoots: isolationWritableProjectRoots,
     writableFiles: isolationWritableFiles,
 

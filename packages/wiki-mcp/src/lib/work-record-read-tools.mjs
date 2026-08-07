@@ -6,6 +6,7 @@ import path from "node:path";
 
 import {
   getWorkRecordSummary,
+  preflightProspectiveWorkRecordDispatch,
   readWorkRecordById,
   validateDocsPolicyOperation,
   validateWorkRecordDispatch
@@ -119,7 +120,7 @@ function parseNodeTestUnitAddress(unitInput) {
   return { address: `${recordId}#${sliceId}`, recordId, sliceId };
 }
 
-function resolveNodeTestUnitSections(record, sliceId) {
+export function resolveNodeTestUnitSections(record, sliceId) {
   if (!sliceId) {
     return record && typeof record.sections === "object" ? record.sections : null;
   }
@@ -136,7 +137,7 @@ function resolveNodeTestUnitSections(record, sliceId) {
   return typeof slice.sections === "object" ? slice.sections : null;
 }
 
-function collectAuthorizedNodeTestTargets(sections) {
+export function collectAuthorizedNodeTestTargets(sections) {
   const structured = sections && typeof sections.structured_validation === "object"
     ? sections.structured_validation
     : null;
@@ -257,6 +258,7 @@ export function registerWorkRecordReadTools({
   resolveWorkspaceRepo,
   createCompactValidateDispatchResponse,
   validateDispatch = validateWorkRecordDispatch,
+  preflightDispatch = preflightProspectiveWorkRecordDispatch,
   runTerminalCandidateValidationForUnit = null,
 
   registeredTier = "paid_cce"
@@ -368,6 +370,36 @@ export function registerWorkRecordReadTools({
   );
 
   registerTool(
+    "workspace_preflight_dispatch",
+    {
+      description:
+        "Preflight a proposed work-record dispatch contract without mutating canonical records or admission sidecars.",
+      inputSchema: {
+        repo: z.string().optional(),
+        proposed_record: z.object({}).passthrough(),
+        unit: nonEmptyString.optional(),
+        dispatch_role: z.string().optional(),
+        node_engine_admissibility: z.boolean().optional()
+      }
+    },
+    async (args) => {
+      try {
+        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
+        const result = await preflightDispatch({
+          dir: workspace.dir,
+          proposed_record: args.proposed_record,
+          unit_address: args.unit,
+          dispatch_role: args.dispatch_role,
+          node_engine_admissibility: args.node_engine_admissibility
+        });
+        return jsonContent({ workspaceRepo: workspace.repo, ...result });
+      } catch (error) {
+        return errorContent(error);
+      }
+    }
+  );
+
+  registerTool(
     "workspace_validate_dispatch",
     {
       description: isPaidTier
@@ -389,7 +421,8 @@ export function registerWorkRecordReadTools({
         const result = await validateDispatch({
           dir: workspace.dir,
           unitAddress: args.unit,
-          dispatch_role: args.dispatch_role ?? "implementation",
+
+          dispatch_role: args.dispatch_role,
           mode: args.mode ?? "strict",
 
           node_engine_admissibility: args.node_engine_admissibility === true ? true : null

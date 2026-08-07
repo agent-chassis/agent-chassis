@@ -1,5 +1,7 @@
 
 
+import { spawnSync } from "node:child_process";
+
 import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
 
 import { defaultRunGit } from "./worktree-substrate.mjs";
@@ -15,8 +17,13 @@ import {
   revParse,
   resolveTree,
   sliceHasNoRemainingDelta,
-  resolveSliceMarkerCommit,
+  SLICE_MARKER_EVIDENCE_STATES,
+  resolveSliceMarkerEvidence,
+  buildZeroDeltaIntegrationEvidenceMessage,
+  authenticateZeroDeltaIntegrationEvidenceCommit,
+  resolveZeroDeltaIntegrationEvidence,
   isLastIncompleteImplementationSlice,
+  resolveFixedWkForkCommit,
   buildCompleteWkReviewTarget,
   isStaleSourceDigestResult,
   replayCommitRangeOnto
@@ -24,6 +31,171 @@ import {
 
 const MAX_WK_REF_CAS_ATTEMPTS = 8;
 const MAX_RECORD_CAS_ATTEMPTS = 8;
+
+function defaultRunGitRefTransaction({ repo, input }) {
+  let result;
+  try {
+    result = spawnSync(
+      "git",
+      ["-C", repo, "-c", "core.quotePath=false", "update-ref", "--stdin"],
+      { encoding: "utf8", input, maxBuffer: 64 * 1024 * 1024 }
+    );
+  } catch (error) {
+    return { ok: false, error: error?.message ?? String(error) };
+  }
+  if (result.error) return { ok: false, error: result.error.message ?? String(result.error) };
+  return result.status === 0
+    ? { ok: true, stdout: result.stdout }
+    : {
+        ok: false,
+        status: result.status ?? null,
+        signal: result.signal ?? null,
+        stdout: result.stdout ?? "",
+        stderr: result.stderr ?? ""
+      };
+}
+
+function exactConcurrentZeroDeltaWinner({
+  runGit,
+  mainRepo,
+  sliceRef,
+  wkRef,
+  subject,
+  deliverySha,
+  baseSha,
+  wkParentSha
+}) {
+  let wkTip;
+  try {
+    wkTip = revParse(runGit, mainRepo, wkRef);
+  } catch {
+    return null;
+  }
+  const evidence = resolveZeroDeltaIntegrationEvidence({
+    runGit,
+    mainRepo,
+    wkTip,
+    subject,
+    deliverySha,
+    baseSha
+  });
+  if (evidence.count !== 1 || evidence.match.wk_parent_sha !== wkParentSha) return null;
+  let sliceTip;
+  try {
+    sliceTip = revParse(runGit, mainRepo, sliceRef);
+  } catch {
+    return null;
+  }
+  if (sliceTip !== deliverySha) return null;
+  return evidence.match;
+}
+
+export function advanceZeroDeltaEvidenceRefTransaction({
+  runGit,
+  runGitRefTransaction = defaultRunGitRefTransaction,
+  mainRepo,
+  sliceRef,
+  wkRef,
+  subject,
+  deliverySha,
+  baseSha,
+  wkParentSha
+}) {
+  const observedSlice = revParse(runGit, mainRepo, sliceRef);
+  const observedWk = revParse(runGit, mainRepo, wkRef);
+  if (observedSlice !== deliverySha || observedWk !== wkParentSha) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT,
+      "zero-delta integration refs moved before evidence publication",
+      {
+        slice_ref: sliceRef,
+        expected_slice_sha: deliverySha,
+        observed_slice_sha: observedSlice,
+        wk_ref: wkRef,
+        expected_wk_sha: wkParentSha,
+        observed_wk_sha: observedWk
+      }
+    );
+  }
+  const tree = resolveTree(runGit, mainRepo, wkParentSha);
+  const message = buildZeroDeltaIntegrationEvidenceMessage({
+    subject,
+    deliverySha,
+    baseSha,
+    wkParentSha
+  });
+  const evidenceSha = assertOid(
+    git(
+      runGit,
+      mainRepo,
+      ["commit-tree", tree, "-p", wkParentSha, "-m", message.slice(0, -1)],
+      "could not mint zero-delta integration evidence"
+    ).stdout.trim(),
+    "zero-delta evidence commit"
+  );
+  const authenticated = authenticateZeroDeltaIntegrationEvidenceCommit({
+    runGit,
+    mainRepo,
+    evidenceSha,
+    subject,
+    deliverySha,
+    baseSha,
+    wkParentSha
+  });
+  if (authenticated === null || authenticated.tree !== tree) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "minted zero-delta integration evidence failed exact reauthentication",
+      { evidence_sha: evidenceSha }
+    );
+  }
+  const transaction = [
+    "option no-deref",
+    "start",
+    `verify ${sliceRef} ${deliverySha}`,
+
+    `update ${wkRef} ${evidenceSha} ${wkParentSha}`,
+    "prepare",
+    "commit",
+    ""
+  ].join("\n");
+  const advanced = runGitRefTransaction({ repo: mainRepo, input: transaction });
+  if (advanced?.ok === true) {
+    const currentSlice = revParse(runGit, mainRepo, sliceRef);
+    const currentWk = revParse(runGit, mainRepo, wkRef);
+    if (currentSlice !== deliverySha || currentWk !== evidenceSha) {
+      fail(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT,
+        "zero-delta ref transaction returned incoherent ref state",
+        { current_slice_sha: currentSlice, current_wk_sha: currentWk, evidence_sha: evidenceSha }
+      );
+    }
+    return Object.freeze({ ...authenticated, evidence_sha: evidenceSha, concurrent: false });
+  }
+  const winner = exactConcurrentZeroDeltaWinner({
+    runGit,
+    mainRepo,
+    sliceRef,
+    wkRef,
+    subject,
+    deliverySha,
+    baseSha,
+    wkParentSha
+  });
+  if (winner !== null) return Object.freeze({ ...winner, concurrent: true });
+  fail(
+    SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT,
+    "zero-delta integration ref transaction refused without one exact winner",
+    {
+      slice_ref: sliceRef,
+      wk_ref: wkRef,
+      expected_slice_sha: deliverySha,
+      expected_wk_sha: wkParentSha,
+      status: advanced?.status ?? null,
+      stderr: advanced?.stderr ?? advanced?.error ?? null
+    }
+  );
+}
 
 function resolveExactSliceDeliveryIdentity(runGit, repo, commit, expectedSubject, baseSha) {
   let tree;
@@ -61,6 +233,99 @@ function resolveExactSliceDeliveryIdentity(runGit, repo, commit, expectedSubject
     parents: Object.freeze(parents),
     required_markers_present: message === requiredMessage
   });
+}
+
+function fixedRawObjectDelta(runGit, repo, parent, commit) {
+  const result = runGit({
+    repo,
+    args: [
+      "--no-replace-objects",
+      "-c", "core.quotePath=true",
+      "-c", "color.ui=false",
+      "diff-tree", "--raw", "-r", "--no-renames", "--no-abbrev",
+      "--ignore-submodules=none", "--no-ext-diff", "--no-textconv", "--no-color",
+      parent, commit
+    ]
+  });
+  if (!result || result.ok !== true || typeof result.stdout !== "string") return null;
+
+  if (result.stdout === "") return Object.freeze([]);
+  if (!result.stdout.endsWith("\n")) return null;
+
+  const records = result.stdout.slice(0, -1).split("\n");
+  if (records.length === 1 && records[0] === "") return Object.freeze([]);
+  const normalized = records.map((record) => {
+    const match = record.match(/^:([0-7]{6}) ([0-7]{6}) ((?:[0-9a-f]{40}|[0-9a-f]{64})) ((?:[0-9a-f]{40}|[0-9a-f]{64})) ([ADMT])\t(.+)$/u);
+    return match === null ? null : `${match[1]} ${match[2]} ${match[3]} ${match[4]} ${match[5]} ${match[6]}`;
+  });
+  if (normalized.some((record) => record === null) || new Set(normalized).size !== normalized.length) return null;
+  normalized.sort();
+  return Object.freeze(normalized);
+}
+
+const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+function parseLiteralCommitObject(raw, oid) {
+  if (typeof raw !== "string" || !OID_RE.test(oid) || raw.includes("\u0000") || raw.includes("\r") || raw.includes("\uFFFD")) return null;
+  const separator = raw.indexOf("\n\n");
+  if (separator < 0) return null;
+  const headers = raw.slice(0, separator).split("\n");
+  if (headers.length === 0 || headers.some((line) => line.length === 0)) return null;
+  const parsed = [];
+  let continuedKey = null;
+  for (const line of headers) {
+    if (line.startsWith(" ")) {
+      if (continuedKey === null || continuedKey === "tree" || continuedKey === "parent" || /[\x00-\x1f\x7f]/u.test(line.slice(1))) return null;
+      continue;
+    }
+    const space = line.indexOf(" ");
+    if (space <= 0 || space === line.length - 1) return null;
+    const key = line.slice(0, space);
+    const value = line.slice(space + 1);
+    if (!/^[\x21-\x7e]+$/u.test(key) || value.startsWith(" ") || /[\x00-\x1f\x7f]/u.test(value)) return null;
+    parsed.push({ key, value });
+    continuedKey = key;
+  }
+  const treeHeaders = parsed.filter(({ key }) => key === "tree");
+  const parentHeaders = parsed.filter(({ key }) => key === "parent");
+  if (treeHeaders.length !== 1 || !OID_RE.test(treeHeaders[0].value) || treeHeaders[0].value.length !== oid.length ||
+      parentHeaders.some(({ value }) => !OID_RE.test(value) || value.length !== oid.length)) return null;
+  return Object.freeze({
+    tree: treeHeaders[0].value,
+    parents: Object.freeze(parentHeaders.map(({ value }) => value)),
+    message: raw.slice(separator + 2)
+  });
+}
+
+function readLiteralCommitObject(runGit, repo, oid) {
+  const result = runGit({ repo, args: ["--no-replace-objects", "cat-file", "commit", oid] });
+  if (!result || result.ok !== true || typeof result.stdout !== "string") return null;
+  return parseLiteralCommitObject(result.stdout, oid);
+}
+
+function exactCurrentMarkerMatch(runGit, repo, markerCommit, deliveryCommit) {
+  const marker = readLiteralCommitObject(runGit, repo, markerCommit);
+  const delivery = readLiteralCommitObject(runGit, repo, deliveryCommit);
+  if (marker === null || delivery === null || marker.parents.length !== 1 || delivery.parents.length !== 1) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "same-slice marker or retained delivery commit object could not be authenticated",
+      { marker_commit: markerCommit, delivery_commit: deliveryCommit }
+    );
+  }
+  if (marker.message !== delivery.message) return false;
+  if (marker.tree !== delivery.tree) return false;
+  const markerDelta = fixedRawObjectDelta(runGit, repo, marker.parents[0], markerCommit);
+  const deliveryDelta = fixedRawObjectDelta(runGit, repo, delivery.parents[0], deliveryCommit);
+  if (markerDelta === null || deliveryDelta === null) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "same-slice marker raw object delta could not be authenticated",
+      { marker_commit: markerCommit, delivery_commit: deliveryCommit }
+    );
+  }
+  return markerDelta.length === deliveryDelta.length &&
+    markerDelta.every((record, index) => record === deliveryDelta[index]);
 }
 
 function exactSliceDeliveryEquivalent(identity, { baseSha, tree }) {
@@ -258,22 +523,63 @@ export function compensateCommittedSliceRef({
   });
 }
 
-export function advanceSliceRefCas({ runGit, mainRepo, wkRef, wkId, sliceId, baseSha, commit }) {
+export function advanceSliceRefCas({
+  runGit,
+  runGitRefTransaction,
+  mainRepo,
+  sliceRef,
+  wkRef,
+  wkId,
+  sliceId,
+  baseSha,
+  commit,
+  expectedWkTip = null
+}) {
   let lastExpected = null;
   for (let attempt = 1; attempt <= MAX_WK_REF_CAS_ATTEMPTS; attempt += 1) {
     const wkOld = revParse(runGit, mainRepo, wkRef);
-    if (sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wkTip: wkOld })) {
-      return {
-        integratedCommit: wkOld,
-        deliveryCommit: commit,
-        previousWkSha: wkOld,
-        rebased: false,
-        already_present: true,
-        empty_delivery: true
-      };
+    if (expectedWkTip !== null && wkOld !== expectedWkTip) {
+      fail(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT,
+        "WK ref moved before same-slice marker authentication",
+        { wk_ref: wkRef, expected_wk_sha: expectedWkTip, observed_wk_sha: wkOld }
+      );
     }
-    const markerCommit = resolveSliceMarkerCommit(runGit, mainRepo, wkOld, wkId, sliceId);
-    if (markerCommit !== null) {
+    const subject = `${wkId}#${sliceId}`;
+
+    const markerEvidence = resolveSliceMarkerEvidence(runGit, mainRepo, wkOld, wkId, sliceId);
+    if (markerEvidence.state === SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE) {
+      fail(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+        "same-slice marker evidence could not be authenticated",
+        { subject, reason: markerEvidence.reason }
+      );
+    }
+    const markerCommits = markerEvidence.state === SLICE_MARKER_EVIDENCE_STATES.FOUND
+      ? markerEvidence.candidates
+      : [];
+    let matchingMarkerCommits;
+    try {
+      matchingMarkerCommits = markerCommits.filter((markerCommit) =>
+        exactCurrentMarkerMatch(runGit, mainRepo, markerCommit, commit)
+      );
+    } catch (error) {
+      fail(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+        "same-slice marker delivery identity could not be authenticated",
+        { subject },
+        error
+      );
+    }
+    if (matchingMarkerCommits.length > 1) {
+      fail(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_AMBIGUOUS,
+        "multiple same-slice markers match the retained delivery",
+        { subject, match_count: matchingMarkerCommits.length }
+      );
+    }
+    if (matchingMarkerCommits.length === 1) {
+      const markerCommit = matchingMarkerCommits[0];
 
       return {
         integratedCommit: markerCommit,
@@ -282,6 +588,52 @@ export function advanceSliceRefCas({ runGit, mainRepo, wkRef, wkId, sliceId, bas
         rebased: false,
         already_present: true,
         empty_delivery: false
+      };
+    }
+    if (matchingMarkerCommits.length === 0 && sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wkTip: wkOld })) {
+      const existing = resolveZeroDeltaIntegrationEvidence({
+        runGit,
+        mainRepo,
+        wkTip: wkOld,
+        subject,
+        deliverySha: commit,
+        baseSha
+      });
+      if (existing.count > 1) {
+        fail(
+          SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_AMBIGUOUS,
+          "multiple exact zero-delta integration evidence commits are reachable",
+          { subject, match_count: existing.count }
+        );
+      }
+      if (existing.count === 1) {
+        return {
+          integratedCommit: existing.match.evidence_sha,
+          deliveryCommit: commit,
+          previousWkSha: existing.match.wk_parent_sha,
+          rebased: false,
+          already_present: true,
+          empty_delivery: true
+        };
+      }
+      const published = advanceZeroDeltaEvidenceRefTransaction({
+        runGit,
+        runGitRefTransaction,
+        mainRepo,
+        sliceRef,
+        wkRef,
+        subject,
+        deliverySha: commit,
+        baseSha,
+        wkParentSha: wkOld
+      });
+      return {
+        integratedCommit: published.evidence_sha,
+        deliveryCommit: commit,
+        previousWkSha: wkOld,
+        rebased: false,
+        already_present: published.concurrent === true,
+        empty_delivery: true
       };
     }
     let integratedCommit;
@@ -333,8 +685,10 @@ export async function driveRecordCasWrite({
   wkId,
   sliceId,
   loadRecord,
+  writeRecordCas = null,
   transitionToReview,
-  markSliceComplete
+  markSliceComplete,
+  validateRecord = null
 }) {
   let lastCurrent = null;
   for (let attempt = 1; attempt <= MAX_RECORD_CAS_ATTEMPTS; attempt += 1) {
@@ -342,11 +696,72 @@ export async function driveRecordCasWrite({
     const expectedSourceDigest = computeWorkRecordSourceDigest(record);
 
     const wkTip = revParse(runGit, mainRepo, wkRef);
-    const finalSlice = isLastIncompleteImplementationSlice(record, sliceId, runGit, mainRepo, wkTip, wkId);
+
+    const fixedFork = resolveFixedWkForkCommit({ runGit, mainRepo, initiative, wkId });
+    const finalSlice = isLastIncompleteImplementationSlice(
+      record, sliceId, runGit, mainRepo, wkTip, wkId, { fixedForkSha: fixedFork.sha }
+    );
+    if (typeof validateRecord === "function") {
+      validateRecord({ record, wkTip, finalSlice });
+    }
     let reviewTarget = null;
     let transition;
     if (finalSlice) {
       reviewTarget = buildCompleteWkReviewTarget({ runGit, mainRepo, initiative, wkId, wkRef, wkTip });
+    }
+    const currentSlice = record.slices.find((entry) => entry?.id === sliceId);
+    const parentTerminal = record.status === "review" || record.status === "done";
+    const alreadyConsistent = currentSlice?.status === "done" &&
+      ((finalSlice && parentTerminal) || (!finalSlice && !parentTerminal));
+    if (alreadyConsistent) {
+      return {
+        reviewTarget: record.status === "review" && finalSlice ? reviewTarget : null,
+        transition: Object.freeze({
+          valid: true,
+          written: false,
+          no_op: true,
+          status: record.status === "review" && finalSlice ? "review" : "done"
+        }),
+        finalSlice,
+        wkTip
+      };
+    }
+
+    const recheckedFork = resolveFixedWkForkCommit({ runGit, mainRepo, initiative, wkId });
+    if (recheckedFork.sha !== fixedFork.sha) {
+      fail(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+        "the launcher-owned fixed WK fork moved during the final-slice completeness proof",
+        {
+          fork_ref: fixedFork.ref,
+          expected_fork_sha: fixedFork.sha,
+          observed_fork_sha: recheckedFork.sha
+        }
+      );
+    }
+    if (typeof writeRecordCas === "function") {
+      const updatedRecord = JSON.parse(JSON.stringify(record));
+      const updatedSlice = updatedRecord.slices.find((entry) => entry?.id === sliceId);
+      if (!updatedSlice) {
+        fail(
+          SLICE_INTEGRATION_DIAGNOSTIC_CODES.RECORD_WRITE_FAILED,
+          "canonical integration slice disappeared before compound record CAS",
+          { wk_id: wkId, slice_id: sliceId }
+        );
+      }
+      updatedSlice.status = "done";
+      if (finalSlice) updatedRecord.status = "review";
+      updatedRecord.updated = new Date().toISOString().slice(0, 10);
+      transition = await writeRecordCas({
+        record: updatedRecord,
+        unitAddress: `${wkId}#${sliceId}`,
+        status: finalSlice ? "review" : "done",
+        sliceStatus: "done",
+        parentStatus: finalSlice ? "review" : record.status,
+        reviewTarget,
+        expectedSourceDigest
+      });
+    } else if (finalSlice) {
       transition = await transitionToReview({
         unitAddress: wkId,
         status: "review",
@@ -363,7 +778,8 @@ export async function driveRecordCasWrite({
         expectedSourceDigest
       });
     }
-    if (transition && transition.valid === true && (transition.written === true || transition.no_op === true)) {
+    if (transition && transition.valid === true &&
+        (transition.written === true || transition.no_op === true || transition.noOp === true)) {
       return { reviewTarget, transition, finalSlice, wkTip };
     }
     if (isStaleSourceDigestResult(transition)) {

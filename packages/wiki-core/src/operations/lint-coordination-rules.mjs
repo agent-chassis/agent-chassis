@@ -4,9 +4,7 @@ import { deriveMarkdownBlastRadiusEvidence } from "../lib/work-record-policy.mjs
 import { findUncheckedChecklistItems } from "./lint-markdown-projection.mjs";
 import {
   asStringList,
-  backlinkComment,
   daysSince,
-  hasBacklink,
   isCanonicalWorkRecordReference,
   isCrossRepoQualifiedReference,
   isClosedStatus,
@@ -64,34 +62,16 @@ export async function lintDocsBacklinks({
   targetDir,
   addFinding
 }) {
-  const backlinkRelation = "tracks";
-
   for (const source of docsBacklinkSources.values()) {
     for (const relatedRef of source.docs) {
 
       if (isDocsTreePath(relatedRef)) {
         const docRelativePath = String(relatedRef).replace(/#.*$/, "");
-        const doc = docsByPath.get(docRelativePath);
-        if (!doc) {
+        if (!docsByPath.has(docRelativePath)) {
           addFinding(
             "error",
             `${source.sourcePath}: referenced docs entry does not exist: ${relatedRef}`,
             { code: "missing_docs_target", path: source.sourcePath }
-          );
-          continue;
-        }
-        if (!hasBacklink(doc, source.sourceId, "tracks")) {
-          addFinding(
-            "error",
-            `${doc.relativePath}: missing wiki backlink for ${source.sourceId} referenced by ${source.sourcePath}; add this comment where appropriate: ${backlinkComment(source.sourceId, "tracks")}`,
-            {
-              code: "missing_docs_backlink",
-              path: doc.relativePath,
-              source_id: source.sourceId,
-              backlink_id: source.sourceId,
-              relation: backlinkRelation,
-              backlink_comment: backlinkComment(source.sourceId, backlinkRelation)
-            }
           );
         }
         continue;
@@ -109,28 +89,11 @@ export async function lintDocsBacklinks({
 
   for (const source of canonicalState.sources) {
     for (const docRelativePath of asStringList(source.frontmatter?.related_docs)) {
-      const doc = docsByPath.get(docRelativePath);
-      if (!doc) {
+      if (!docsByPath.has(docRelativePath)) {
         addFinding(
           "error",
           `${source.relativePath}: related_docs entry does not exist: ${docRelativePath}`,
           { code: "missing_related_docs_target", path: source.relativePath }
-        );
-        continue;
-      }
-      const backlinkId = String(source.frontmatter?.id ?? "").trim();
-      if (!hasBacklink(doc, backlinkId, backlinkRelation)) {
-        addFinding(
-          "error",
-          `${doc.relativePath}: missing wiki backlink for ${backlinkId} referenced by ${source.relativePath}; add this comment where appropriate: ${backlinkComment(backlinkId, backlinkRelation)}`,
-          {
-            code: "missing_docs_backlink",
-            path: doc.relativePath,
-            source_id: backlinkId,
-            backlink_id: backlinkId,
-            relation: backlinkRelation,
-            backlink_comment: backlinkComment(backlinkId, backlinkRelation)
-          }
         );
       }
     }

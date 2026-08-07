@@ -178,6 +178,22 @@ export function buildWorkerSecretMaskInputs({
   });
 }
 
+function assertDependencyReadOnlyBind(bind, label) {
+  if (!bind || typeof bind !== "object" || Array.isArray(bind)) {
+    throw new TypeError(`${label} must be a launcher-supplied {src,dst} bind object`);
+  }
+  for (const field of ["src", "dst"]) {
+    const value = bind[field];
+    if (typeof value !== "string" || value.length === 0 || !value.startsWith("/")) {
+      throw new TypeError(`${label}.${field} must be an absolute path string`);
+    }
+    if (value.includes("\0")) {
+      throw new TypeError(`${label}.${field} must not contain an embedded NUL`);
+    }
+  }
+  return Object.freeze({ src: bind.src, dst: bind.dst });
+}
+
 export function buildValidationConfinementPlan({
   workspaceDir,
   command,
@@ -188,6 +204,10 @@ export function buildValidationConfinementPlan({
   agentLaunchDirName = DEFAULT_AGENT_LAUNCH_DIR_NAME,
   envFileName = DEFAULT_REPO_ENV_FILE_NAME,
   envFileExists = existsSync,
+
+  agentLaunchDirExists = () => true,
+
+  dependencyReadOnlyBinds = [],
   buildBubblewrapLaunchPlan
 } = {}) {
   if (typeof buildBubblewrapLaunchPlan !== "function") {
@@ -195,6 +215,14 @@ export function buildValidationConfinementPlan({
       "buildValidationConfinementPlan requires an injected buildBubblewrapLaunchPlan function"
     );
   }
+  if (!Array.isArray(dependencyReadOnlyBinds)) {
+    throw new TypeError(
+      "buildValidationConfinementPlan dependencyReadOnlyBinds must be an array of launcher-supplied binds"
+    );
+  }
+  const dependencyBinds = dependencyReadOnlyBinds.map((bind, index) =>
+    assertDependencyReadOnlyBind(bind, `dependencyReadOnlyBinds[${index}]`)
+  );
 
   const allowlist = asArray(envAllowlist).filter(
     (name) => typeof name === "string" && name.length > 0
@@ -221,11 +249,14 @@ export function buildValidationConfinementPlan({
     args: asArray(args),
     cwd: workspaceDir,
 
-    readOnlyRoots: envFileExists(envFilePath)
-      ? [{ src: VALIDATION_SECRET_MASK_SOURCE, dst: envFilePath }]
-      : [],
+    readOnlyRoots: [
+      ...(envFileExists(envFilePath)
+        ? [{ src: VALIDATION_SECRET_MASK_SOURCE, dst: envFilePath }]
+        : []),
+      ...dependencyBinds
+    ],
 
-    maskTmpfsDirs: [agentLaunchPath],
+    maskTmpfsDirs: agentLaunchDirExists(agentLaunchPath) ? [agentLaunchPath] : [],
 
     tmpfsDirs: [ephemeralTmpdir],
 

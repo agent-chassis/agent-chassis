@@ -33,6 +33,37 @@ function resolveDeliveryTree(runGit, repo, rev) {
   return oid;
 }
 
+function resolveBoundReviewerTarget(context, sliceTarget, subject) {
+  const base = context?.diff_base_sha;
+  const range = context?.diff_range;
+  if (typeof base !== "string" && typeof range !== "string") return sliceTarget;
+  if (context.slice_ref !== sliceTarget.ref || context.reviewed_sha !== sliceTarget.sha ||
+      !OID_RE.test(base ?? "") || context.diff_head_sha !== context.reviewed_sha ||
+      range !== `${base}..${context.reviewed_sha}`) {
+    throw lifecycleError(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+      "bound frozen slice-review context does not describe the authenticated exact review target",
+      {
+        subject,
+        slice_ref: sliceTarget.ref,
+        reviewed_sha: sliceTarget.sha,
+        context_slice_ref: context?.slice_ref ?? null,
+        context_reviewed_sha: context?.reviewed_sha ?? null,
+        context_diff_base_sha: base ?? null,
+        context_diff_range: range ?? null
+      }
+    );
+  }
+  return Object.freeze({
+    ref: context.slice_ref,
+    sha: context.reviewed_sha,
+    diff_base_sha: base,
+    diff_head_sha: context.diff_head_sha,
+    diff_range: range,
+    slice_level_review: true
+  });
+}
+
 export function awaitingSliceReviewResult(sliceReview, extra = null) {
   return Object.freeze({
     invoked: true,
@@ -137,20 +168,23 @@ export async function freezeSliceReviewSurface({
     sliceTarget,
     reviewUnit
   });
+
+  const reviewerTarget = resolveBoundReviewerTarget(context, sliceTarget, subject);
   return Object.freeze({
     schema_version: "workspace-agent-slice-review-surface.v1",
     review_subject: subject,
-    slice_ref: sliceRef,
-    reviewed_sha: commit,
-    diff_base_sha: binding.base_sha,
+    slice_ref: reviewerTarget.ref,
+    reviewed_sha: reviewerTarget.sha,
+    diff_base_sha: reviewerTarget.diff_base_sha,
+    worker_attempt_base_sha: binding.base_sha,
     empty_delivery: emptyDelivery === true,
-    frozen_slice_review_target: sliceTarget,
+    frozen_slice_review_target: reviewerTarget,
     slice_worktree_path: context.worktree_path,
     reviewer_dispatch: Object.freeze({
       tool: "workspace_agent_dispatch",
       args: Object.freeze({ role: "reviewer", subject }),
       context: Object.freeze({
-        frozen_slice_review_target: sliceTarget,
+        frozen_slice_review_target: reviewerTarget,
 
         workspace_dir: context.worktree_path,
         slice_level_review: true,

@@ -37,6 +37,9 @@ tests/.probe-interface-smoke.json
 packages/agent-launch-cli/src/commands/codex-*.WK-*/
 wiki/work-records/tmp-test/
 
+# Evidence
+wiki/work-records/evidence/
+
 # Runtime artifacts under benchmark/tooling dirs
 **/__pycache__/
 tools/in0012-swebench-smoke/outputs/
@@ -52,3 +55,9 @@ lint-findings.json
 
 *.tmp
 *.swp
+
+internal/scratch/*
+*.log
+
+*.tgz
+*.tar.gz

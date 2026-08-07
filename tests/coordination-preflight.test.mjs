@@ -167,6 +167,42 @@ test("WK-0641 role=worker with caller_session_role=coordinator is caller_role_mi
   assert.equal(mismatchBlocker.evidence.caller_session_role, "coordinator");
 });
 
+test("WK-1781 composition incompatibility keeps route registration visible and blocks effective dispatch", () => {
+  const result = evaluate("coordinator", {
+    target_dispatch_role: "worker",
+    structured_dispatch_compatibility: {
+      available: false,
+      gate_outcome: "incompatible",
+      fact: Object.freeze({
+        schema_version: "stdio-mcp-conduit-composition-compatibility.v1",
+        backend_generation_id: "managed_stdio_mcp_backend.test",
+        producer_protocol_generation: "producer.v1",
+        consumer_protocol_generation: "consumer.v1",
+        compatibility_state: "incompatible",
+        source: "launcher_active_composition"
+      }),
+      blocker: {
+        code: "operator_recovery_needed",
+        cause: "stdio_mcp_lifecycle_protocol_incompatible",
+        recovery: "deploy one coherent build and restart the long-lived backend",
+        gate_outcome: "incompatible"
+      }
+    }
+  });
+  assert.equal(result.structured_dispatch.route_registered, true);
+  assert.equal(result.structured_dispatch.available, false);
+  assert.equal(result.structured_dispatch.gate_outcome, "incompatible");
+  assert.ok(result.available_structured_routes.includes("workspace_agent_dispatch"));
+  const blocker = result.blockers.find((entry) => entry.code === "operator_recovery_needed");
+  assert.ok(blocker);
+  assert.deepEqual(blocker.evidence, {
+    cause: "stdio_mcp_lifecycle_protocol_incompatible",
+    recovery: "deploy one coherent build and restart the long-lived backend",
+    gate_outcome: "incompatible"
+  });
+  assert.equal(result.blocking, true);
+});
+
 test("WK-0641 docs_writable=false or wiki_writable=false stays blocking for every role", () => {
   for (const role of [
     "coordinator",

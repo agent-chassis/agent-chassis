@@ -40,7 +40,13 @@ export {
   buildInteractiveOrchestratorBwrapPlan
 } from "./orchestrator-launch-isolation.mjs";
 
-export { spawnIsolated } from "./launch-isolation-spawn.mjs";
+export {
+  TERMINAL_REVIEW_SPAWN_BARRIER_DEFAULT_REASON,
+  TERMINAL_REVIEW_SPAWN_BARRIER_INVALID_REASON,
+  TerminalReviewSpawnBarrierRefusal,
+  isTerminalReviewSpawnBarrierRefusal,
+  spawnIsolated
+} from "./launch-isolation-spawn.mjs";
 
 export {
   STDIO_MCP_CONDUIT_ERROR_CODES,

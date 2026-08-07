@@ -342,6 +342,63 @@
       "related_docs": [
         "docs/tool-discovery.md"
       ]
+    },
+    {
+      "id": "managed-corrective-status-reconciliation",
+      "title": "Managed corrective continuation refuses on canonical status reconciliation",
+      "symptom": "workspace_agent_dispatch returns the public blocker `managed_corrective_status_reconciliation_required`, or its refusal includes the nested managed-run diagnostic/recovery identifiers `agent_launch.managed_run.corrective_integrated_state_unresolved.v1`, `agent_launch.canonical_integrated_lifecycle_state.impossible.v1`, or `agent_launch.managed_run.corrective_status_reconciliation.v1`.",
+      "cause": "The server-derived reviewed-integrated corrective-continuation path observed exactly parent=todo and slice=todo. This FAQ is advisory only: the coordinator may recover only that observed tuple by using the exact parent unit and exact slice subject carried by the typed refusal. Every other status, missing or unauthenticated fact, ambiguous state, or neighboring lifecycle state remains fail-closed on its typed refusal; do not infer a recovery from message text.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_work_record_set_status",
+          "args": {
+            "unit": "<exact-parent-unit-from-refusal>",
+            "status": "active"
+          },
+          "note": "Only after confirming the refusal's server-derived observed parent=todo and slice=todo tuple, set status active on the exact parent unit named by the refusal. This FAQ grants no mutation authority and performs no action itself."
+        },
+        {
+          "tool": "workspace_agent_dispatch",
+          "args": {
+            "role": "worker",
+            "subject": "<exact-slice-subject-from-refusal>"
+          },
+          "note": "After the immediate status call succeeds, redispatch only the exact slice subject named by the same typed refusal. Stop on the refusal for every other state; do not clean up refs, receipts, identities, or worktrees."
+        }
+      ],
+      "related_codes": [
+        "managed_corrective_status_reconciliation_required",
+        "agent_launch.managed_run.corrective_integrated_state_unresolved.v1",
+        "agent_launch.canonical_integrated_lifecycle_state.impossible.v1",
+        "agent_launch.managed_run.corrective_status_reconciliation.v1"
+      ],
+      "related_docs": [
+        "docs/mcp-dispatch-managed-run-lifecycle.md"
+      ]
+    },
+    {
+      "id": "remediation-slices-branch-from-unintegrated-base",
+      "title": "Remediation slice is cut from an unadvanced base",
+      "symptom": "Successive remediation attempts regress controls that previously passed, and a reviewer reports that the delivery reads as a from-scratch reimplementation rather than an iteration on the prior attempt.",
+      "cause": "Earlier accepted deliveries were never integrated, so the persistent WK ref never advanced and each new slice's worker was cut from the same unchanged base, making every prior delivery invisible to it.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_integrate_committed_slice",
+          "note": "A completed findings-only review of the slice is a precondition of integration: review the slice, disposition retained findings explicitly as accept, reject, or defer, then integrate. Finding severity does not veto integration."
+        }
+      ],
+      "related_docs": [
+        "docs/agent-launch-confinement-mcp-conduit.md"
+      ]
     }
   ]
 }

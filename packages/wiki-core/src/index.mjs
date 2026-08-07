@@ -385,6 +385,8 @@ export {
   validateWorkRecordDispatch,
   validateWorkRecordDispatchReport
 } from "./operations/validate-dispatch.mjs";
+export { createProspectiveWorkRecordStore } from "./lib/work-record-prospective-preflight-store.mjs";
+export { preflightProspectiveWorkRecordDispatch } from "./operations/prospective-dispatch-preflight.mjs";
 export { ingestWorkReport as ingestWorkReportOperation } from "./operations/work-report-ingestion.mjs";
 export {
   checkWorkRecordRenderByPath,

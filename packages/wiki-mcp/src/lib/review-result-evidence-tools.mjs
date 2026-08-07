@@ -5,6 +5,7 @@ import {
   WORKSPACE_RECORD_REVIEW_RESULT_EVIDENCE_TOOL_NAME
 } from "../../../wiki-core/src/operations/work-record-review-results.mjs";
 import {
+  deriveStructuredResultStatusFromDiagnostics,
   projectReviewResultEvidenceForWorkerAdmission,
   REVIEW_RESULT_EVIDENCE_AUTHORITY,
   reviewResultEvidenceAuthorityEffects
@@ -121,75 +122,142 @@ function normalizeReviewResultCandidate(value) {
   return Object.keys(candidate).length > 0 ? candidate : undefined;
 }
 
+const REVIEW_RESULT_ROUTE_RETAINED_DIAGNOSTICS = 20;
+
+const REVIEW_RESULT_SUPPORTED_STRUCTURED_ROLE_RESULT_SCHEMA_VERSIONS = new Set([
+  "workspace-agent-dispatch-structured-role-result.v1",
+  "structured-role-result.evidence.v1"
+]);
+
 function normalizeReviewResultDiagnostics(value) {
   if (!Array.isArray(value)) return [];
   return value
     .filter((entry) => isPlainObject(entry) && trimmed(entry.code))
-    .slice(0, 20)
+    .slice(0, REVIEW_RESULT_ROUTE_RETAINED_DIAGNOSTICS)
     .map((entry) => ({
       code: trimmed(entry.code),
       ...(trimmed(entry.path) ? { path: trimmed(entry.path) } : {})
     }));
 }
 
-function normalizeStructuredRoleResultForReviewResultOperation(value) {
-  if (!isPlainObject(value)) return undefined;
+function reviewResultCompleteDiagnosticCount(value) {
+  const suppliedCount = Array.isArray(value.diagnostics) ? value.diagnostics.length : 0;
+  const stated = value.diagnostic_count;
+  if (stated === undefined || stated === null) return suppliedCount;
+  if (!Number.isInteger(stated) || stated < 0) return null;
+  if (stated < suppliedCount) return null;
+  return stated;
+}
+
+function reviewResultStructuredRoleResultSource(status, finalResult) {
+  for (const container of [status, finalResult]) {
+    if (!isPlainObject(container)) continue;
+    if (!Object.hasOwn(container, "structured_role_result")) continue;
+
+    if (container.structured_role_result === undefined) continue;
+    return { present: true, value: container.structured_role_result };
+  }
+  return { present: false, value: undefined };
+}
+
+const REVIEW_RESULT_ABSENT_STRUCTURED_ROLE_RESULT = Object.freeze({ state: "absent" });
+
+function malformedStructuredRoleResultProjection(reason) {
+  return { state: "malformed", reason };
+}
+
+function normalizeStructuredRoleResultForReviewResultOperation(source) {
+  if (!source.present) return REVIEW_RESULT_ABSENT_STRUCTURED_ROLE_RESULT;
+  const value = source.value;
+  if (!isPlainObject(value)) {
+    return malformedStructuredRoleResultProjection(
+      "trusted structured_role_result is present but is not a structured-role-result projection object"
+    );
+  }
+  if (!REVIEW_RESULT_SUPPORTED_STRUCTURED_ROLE_RESULT_SCHEMA_VERSIONS.has(value.schema_version)) {
+    return malformedStructuredRoleResultProjection(
+      "trusted structured_role_result carries a missing or unsupported schema_version"
+    );
+  }
   const candidate = normalizeReviewResultCandidate(value.candidate);
-  if (value.valid === false) {
+  if (value.valid !== true) {
+    const diagnostics = normalizeReviewResultDiagnostics(value.diagnostics);
+    const diagnosticCount = reviewResultCompleteDiagnosticCount(value);
+    if (diagnosticCount === null) {
+      return malformedStructuredRoleResultProjection(
+        "trusted structured_role_result states a diagnostic_count that is not a complete count of its own diagnostics"
+      );
+    }
     return {
-      valid: false,
-      diagnostics: normalizeReviewResultDiagnostics(value.diagnostics),
-      ...(candidate ? { candidate } : {})
+      state: "invalid_projection",
+      projection: {
+        valid: false,
+        diagnostics,
+        diagnostic_count: diagnosticCount,
+        ...(candidate ? { candidate } : {})
+      }
     };
   }
-  if (value.valid !== true) return undefined;
 
   const sourceResult = isPlainObject(value.result) ? value.result : {};
   const claims = isPlainObject(value.claims) ? value.claims : {};
-  const result = {
-    reported_role: trimmed(sourceResult.reported_role) ?? trimmed(claims.reported_role),
-    reported_subject: trimmed(sourceResult.reported_subject) ?? trimmed(claims.reported_subject),
-    reported_outcome: trimmed(sourceResult.reported_outcome) ?? trimmed(claims.reported_outcome),
-    summary: sourceResult.summary ?? null,
-    findings: Array.isArray(sourceResult.findings)
-      ? sourceResult.findings
-      : Array.isArray(value.findings)
-        ? value.findings
-        : null,
-    finding_counts: isPlainObject(sourceResult.finding_counts)
-      ? sourceResult.finding_counts
-      : isPlainObject(value.finding_counts)
-        ? value.finding_counts
-        : null,
-    reviewed_controls: Array.isArray(sourceResult.reviewed_controls)
-      ? sourceResult.reviewed_controls
-      : Array.isArray(value.reviewed_controls)
-        ? value.reviewed_controls
-        : null
-  };
-  if (
-    !result.reported_role ||
-    !result.reported_subject ||
-    !result.reported_outcome ||
-    !Array.isArray(result.findings) ||
-    !isPlainObject(result.finding_counts) ||
-    !Array.isArray(result.reviewed_controls)
-  ) {
-    return undefined;
+  const reportedRole =
+    trimmed(claims.reported_role) ?? trimmed(sourceResult.reported_role) ?? trimmed(value.reported_role);
+  const reportedSubject =
+    trimmed(claims.reported_subject) ??
+    trimmed(sourceResult.reported_subject) ??
+    trimmed(value.reported_subject);
+  const reportedOutcome =
+    trimmed(claims.reported_outcome) ??
+    trimmed(sourceResult.reported_outcome) ??
+    trimmed(value.reported_outcome);
+  if (!reportedRole || !reportedSubject || !reportedOutcome) {
+    return malformedStructuredRoleResultProjection(
+      "trusted structured_role_result is valid but carries no readable claims"
+    );
   }
+
+  const findingCounts = isPlainObject(sourceResult.finding_counts)
+    ? sourceResult.finding_counts
+    : isPlainObject(value.finding_counts)
+      ? value.finding_counts
+      : null;
+  const reviewedControls = Array.isArray(sourceResult.reviewed_controls)
+    ? sourceResult.reviewed_controls
+    : Array.isArray(value.reviewed_controls)
+      ? value.reviewed_controls
+      : null;
+  const reviewedControlCount = reviewedControls
+    ? reviewedControls.length
+    : Number.isInteger(value.reviewed_control_count) && value.reviewed_control_count >= 0
+      ? value.reviewed_control_count
+      : null;
+
   return {
-    valid: true,
-    result,
-    ...(candidate ? { candidate } : {})
+    state: "valid_projection",
+    projection: {
+      valid: true,
+      claims: {
+        reported_role: reportedRole,
+        reported_subject: reportedSubject,
+        reported_outcome: reportedOutcome
+      },
+      ...(findingCounts ? { finding_counts: findingCounts } : {}),
+      ...(reviewedControlCount === null ? {} : { reviewed_control_count: reviewedControlCount }),
+      ...(candidate ? { candidate } : {})
+    }
   };
 }
 
-function deriveReviewResultStructuredStatus(finalResult, structuredRoleResult) {
-  if (structuredRoleResult?.valid === false) return "invalid";
+function deriveReviewResultStructuredStatus(finalResult, rawStructuredRoleResult, normalizedRoleResult) {
+
+  if (normalizedRoleResult.state === "absent") return "missing";
+
+  if (normalizedRoleResult.state === "valid_projection") return null;
+
   if (trimmed(finalResult?.kind) === "missing_result") return "missing";
-  if (!structuredRoleResult) return "missing";
-  if (structuredRoleResult.valid === true) return null;
-  return "invalid";
+
+  return deriveStructuredResultStatusFromDiagnostics(rawStructuredRoleResult?.diagnostics);
 }
 
 function deriveReviewResultRuntimeFailureCode(status, finalResult) {
@@ -260,15 +328,24 @@ async function resolveTrustedReviewResultEvidenceRun({
       "clean reviewer/redteam review_result belongs to review attestation, not review-result evidence"
     ]);
   }
-  const rawStructuredRoleResult = isPlainObject(status.structured_role_result)
-    ? status.structured_role_result
-    : isPlainObject(finalResult?.structured_role_result)
-      ? finalResult.structured_role_result
-      : null;
+  const structuredRoleResultSource = reviewResultStructuredRoleResultSource(status, finalResult);
+  const normalizedRoleResult =
+    normalizeStructuredRoleResultForReviewResultOperation(structuredRoleResultSource);
+  if (normalizedRoleResult.state === "malformed") {
+    return reviewResultRouteRefusal("review_result_evidence.malformed.v1", [
+      normalizedRoleResult.reason
+    ]);
+  }
+  const structuredResultStatus = deriveReviewResultStructuredStatus(
+    finalResult,
+    structuredRoleResultSource.value,
+    normalizedRoleResult
+  );
+
   const structuredRoleResult =
-    normalizeStructuredRoleResultForReviewResultOperation(rawStructuredRoleResult);
-  const structuredResultStatus =
-    deriveReviewResultStructuredStatus(finalResult, structuredRoleResult);
+    normalizedRoleResult.state === "invalid_projection"
+      ? { ...normalizedRoleResult.projection, structured_result_status: structuredResultStatus }
+      : normalizedRoleResult.projection;
   const terminalStatus = trimmed(status.status);
   const reviewRun = {
     run_id: trimmed(status.run_id) ?? ref.run_id ?? null,
@@ -293,8 +370,37 @@ async function resolveTrustedReviewResultEvidenceRun({
   };
 }
 
-function createCompactReviewResultEvidenceResponse(workspaceRepo, result) {
+function createReviewResultStructuredProjection(resolvedRun) {
+  const structured = resolvedRun.structured_role_result;
+  const projection = {
+    structured_result_status: resolvedRun.review_run.structured_result_status ?? null
+  };
+  if (!structured) return projection;
+  if (structured.valid === false) {
+    projection.structured_result_valid = false;
+    projection.retained_diagnostics = structured.diagnostics;
+    projection.retained_diagnostic_count = structured.diagnostics.length;
+    projection.diagnostic_count = structured.diagnostic_count;
+    if (structured.candidate) projection.candidate = structured.candidate;
+    return projection;
+  }
+  projection.structured_result_valid = true;
+  projection.reported_outcome = structured.claims.reported_outcome;
+  if (structured.finding_counts) {
+    projection.finding_counts = structured.finding_counts;
+    projection.total_finding_count = structured.finding_counts.total ?? null;
+    projection.blocking_finding_count = structured.finding_counts.blocking ?? null;
+    projection.medium_finding_count = structured.finding_counts.medium ?? null;
+  }
+  if (Number.isInteger(structured.reviewed_control_count)) {
+    projection.reviewed_control_count = structured.reviewed_control_count;
+  }
+  return projection;
+}
+
+function createCompactReviewResultEvidenceResponse(workspaceRepo, result, resolvedRun) {
   return {
+    ...createReviewResultStructuredProjection(resolvedRun),
     workspaceRepo,
     tool: WORKSPACE_RECORD_REVIEW_RESULT_EVIDENCE_TOOL_NAME,
     recorded: result?.recorded === true,
@@ -334,7 +440,7 @@ export function registerReviewResultEvidenceTools({
     WORKSPACE_RECORD_REVIEW_RESULT_EVIDENCE_TOOL_NAME,
     {
       description:
-        "Write-capable: record bounded non-completion review-result evidence for a WK or tracker-local slice after a trusted reviewer/redteam run resolves to changes_requested, missing structured result, or runtime failure. The route resolves review facts from structured run metadata, never caller-supplied filesystem roots, identity, policy, outcome strings, raw final_result/prose, or structured_role_result payloads. Evidence is coordination-only: it does not satisfy review completion, grant dispatch or launch authority, write accepted_authorities[], create review attestation, or change status.",
+        "Write-capable: record bounded non-completion review-result evidence for a WK or tracker-local slice after a trusted reviewer/redteam run resolves to changes_requested, a missing structured result, an invalid structured result, or a runtime failure. An invalid structured result keeps its own evidence class - invalid_result, malformed_result, oversized_result, duplicate_result, multiple_result, ordinary_json_result, or trailing_prose_result - and never collapses into missing_result; missing_result covers only a run with no structured result at all or an explicit launcher final_result.kind missing_result. The route resolves review facts from structured run metadata, never caller-supplied filesystem roots, identity, policy, outcome strings, raw final_result/prose, or structured_role_result payloads. Evidence is coordination-only: it does not satisfy review completion, grant dispatch or launch authority, write accepted_authorities[], create review attestation, or change status.",
       inputSchema: {
         repo: z.string().optional(),
         unit: z.string(),
@@ -385,7 +491,9 @@ export function registerReviewResultEvidenceTools({
             : {})
         });
 
-        return jsonContent(createCompactReviewResultEvidenceResponse(workspace.repo, result));
+        return jsonContent(
+          createCompactReviewResultEvidenceResponse(workspace.repo, result, resolvedRun)
+        );
       } catch (error) {
         return errorContent(error);
       }

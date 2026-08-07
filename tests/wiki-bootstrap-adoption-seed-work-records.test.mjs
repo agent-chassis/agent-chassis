@@ -36,8 +36,12 @@ test("static IN-0001 adoption seed exposes the executable WK-0001 work record se
   const sliceIds = tracker.slices.map((slice) => slice.id);
   assert.deepEqual(
     sliceIds,
-    ["SLICE-001", "adoption-verify"],
-    "tracker must seed the canonical SLICE-001 AGENTS.md slice and the adoption-verify review"
+    ["SLICE-001"],
+    "tracker must seed only the canonical SLICE-001 AGENTS.md implementation slice"
+  );
+  assert.ok(
+    !sliceIds.includes("adoption-verify"),
+    "the retired adoption-verify review unit must not be seeded (adoption verification is coordinator-owned read-only work)"
   );
   assert.ok(
     !sliceIds.includes("launcher-config"),
@@ -66,7 +70,7 @@ test("static IN-0001 adoption seed exposes the executable WK-0001 work record se
   }
 });
 
-test("WK-1402 seeded WK-0001 carries the SLICE-001 AGENTS.md implementation slice and the adoption-verify review", () => {
+test("WK-1747 seeded WK-0001 carries only the SLICE-001 AGENTS.md implementation slice", () => {
   const [tracker] = getStaticIn0001AdoptionSeedWorkRecords();
   const byId = Object.fromEntries(tracker.slices.map((slice) => [slice.id, slice]));
 
@@ -79,17 +83,35 @@ test("WK-1402 seeded WK-0001 carries the SLICE-001 AGENTS.md implementation slic
     ["SLICE-001"],
     "the only implementation slice must be the canonical SLICE-001 AGENTS.md slice"
   );
+
   assert.deepEqual(
     review.map((slice) => slice.id),
-    ["adoption-verify"],
-    "the only review slice must be adoption-verify"
+    [],
+    "WK-0001 must seed no review slice"
+  );
+  assert.equal(
+    byId["adoption-verify"],
+    undefined,
+    "the retired adoption-verify review unit must not be seeded"
   );
 
   const agents = byId["SLICE-001"];
+  assert.equal(agents.work_kind, "implementation", "SLICE-001 must be an implementation slice");
   assert.deepEqual(agents.write_scope, ["AGENTS.md"], "SLICE-001 owns root AGENTS.md");
   assert.ok(
     (agents.read_scope ?? []).includes("wiki/templates/AGENTS.md.boilerplate.md"),
     "SLICE-001 read_scope must include the boilerplate helper it adapts"
+  );
+
+  assert.match(
+    gatherText(agents.acceptance),
+    /mandatory findings-only review/i,
+    "SLICE-001 acceptance must retain its explicit mandatory findings-only review"
+  );
+  assert.match(
+    gatherText(tracker.acceptance),
+    /mandatory findings-only review/i,
+    "WK-0001 acceptance must state that its implementation slice receives a mandatory findings-only review"
   );
 
   assert.equal(byId["launcher-config"], undefined, "launcher-config slice must not exist");
@@ -98,18 +120,6 @@ test("WK-1402 seeded WK-0001 carries the SLICE-001 AGENTS.md implementation slic
 
   assert.deepEqual(tracker.write_scope, ["AGENTS.md"], "tracker write_scope must cover the AGENTS.md implementation slice");
 
-  const verify = byId["adoption-verify"];
-  assert.equal(verify.work_kind, "review", "adoption-verify must be a review-kind slice");
-  assert.deepEqual(verify.write_scope, [], "a review slice may carry an empty write_scope");
-
-  assert.ok(
-    Array.isArray(verify.repo_paths),
-    "adoption-verify must declare a repo_paths array"
-  );
-  assert.ok(
-    !verify.repo_paths.includes("packages/wiki-core/src/operations/adoption-verify.mjs"),
-    "adoption-verify.repo_paths must not reference the agent-chassis package source path"
-  );
   for (const checkId of [
     "wiki-retrieval",
     "work-records",
@@ -118,47 +128,33 @@ test("WK-1402 seeded WK-0001 carries the SLICE-001 AGENTS.md implementation slic
     "dispatch-preflight"
   ]) {
     assert.ok(
-      verify.acceptance.criteria.some((c) => c.includes(checkId)),
-      `adoption-verify acceptance must name the ${checkId} check`
+      tracker.scope.includes(checkId),
+      `the WK-0001 tracker scope must still name the ${checkId} adoption check`
     );
   }
-
   assert.ok(
-    verify.acceptance.validation.some((v) =>
-      /npx -p @agent-chassis\/wiki-cli wiki adoption verify --dir "\$PWD" --json/.test(v)
-    ),
-    "adoption-verify validation must run the package-qualified `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir \"$PWD\" --json`"
+    tracker.scope.includes("coordinator-owned read-only verification, not a WK-0001 review unit"),
+    "adoption verification must stay coordinator-owned read-only verification, not a seeded review unit"
   );
 
   assert.ok(
-    verify.acceptance.validation.every((v) => !/npm run wiki/.test(v)),
-    "adoption-verify validation must not require `npm run wiki` (not portable to fresh package installs)"
+    !gatherText(tracker).includes("packages/wiki-core/src/operations/adoption-verify.mjs"),
+    "the WK-0001 tracker must not reference the agent-chassis package source path"
   );
 
   assert.ok(
-    verify.acceptance.criteria.some((c) => /read-only/i.test(c) && /persisted_evidence|persist/i.test(c)),
-    "adoption-verify must assert the graph-impact check is read-only and persists no evidence"
-  );
-  assert.ok(
-    verify.acceptance.criteria.some(
+    tracker.acceptance.criteria.some(
       (c) => /wiki\/\.wiki-mcp\.json|wiki-mcp-alias/i.test(c) && /wiki-mcp-workspace\.v1/i.test(c)
     ),
-    "adoption-verify acceptance must confirm the non-gating wiki-mcp-alias informational entry"
+    "tracker acceptance must confirm the non-gating wiki-mcp-alias informational entry"
   );
   assert.ok(
-    verify.acceptance.criteria.some(
-      (c) => /docs\/adoption\.md/.test(c) && /informational|never flips the ready verdict/i.test(c)
-    ),
-    "adoption-verify acceptance must confirm docs/adoption.md as an informational entry"
+    tracker.acceptance.criteria.some((c) => /docs\/adoption\.md/.test(c)),
+    "tracker acceptance must confirm the bootstrap-seeded docs/adoption.md entry"
   );
   assert.ok(
-    tracker.acceptance.criteria.some((c) => /AGENTS\.md/.test(c) && /repo-adapted/i.test(c)) &&
-      verify.scope.includes("AGENTS.md is repo-adapted"),
-    "adoption-verify contract must confirm operator-created/adapted AGENTS.md readiness"
-  );
-  assert.ok(
-    verify.scope.includes("operator first-run launcher setup has supplied agent-launch.toml/init-config readiness"),
-    "adoption-verify scope must cover operator-provided agent-launch.toml/init-config readiness"
+    tracker.acceptance.criteria.some((c) => /agent-launch\.toml/.test(c)),
+    "tracker acceptance must cover operator-provided agent-launch.toml/init-config readiness"
   );
 });
 
@@ -346,14 +342,23 @@ test("WK-1402 AGENTS.md authoring is the canonical SLICE-001 implementation slic
   assert.match(acceptance, /unsupported.*(tool|canonical)/i, "SLICE-001 must require removing unsupported tool/canonical-layer claims");
 });
 
-test("WK-1402 adoption-verify still confirms AGENTS.md readiness informationally", () => {
+test("WK-1747 coordinator-owned read-only adoption verification still confirms AGENTS.md readiness", () => {
   const [tracker] = getStaticIn0001AdoptionSeedWorkRecords();
-  const slice = tracker.slices.find((s) => s.id === "adoption-verify");
 
+  assert.equal(
+    tracker.slices.find((s) => s.id === "adoption-verify"),
+    undefined,
+    "adoption verification must not be seeded back as a WK-0001 review slice"
+  );
   assert.ok(
-    tracker.acceptance.criteria.some((c) => /AGENTS\.md/.test(c) && /repo-adapted/i.test(c)) &&
-      slice.scope.includes("AGENTS.md is repo-adapted"),
-    "adoption-verify contract must confirm AGENTS.md is repo-adapted"
+    tracker.acceptance.criteria.some((c) => /AGENTS\.md/.test(c) && /repo-adapted/i.test(c)),
+    "the WK-0001 contract must confirm AGENTS.md is repo-adapted"
+  );
+  assert.ok(
+    tracker.acceptance.criteria.some(
+      (c) => /adoption verify/i.test(c) && /read-only verification/i.test(c)
+    ),
+    "adoption verify must remain coordinator-owned read-only verification of AGENTS.md readiness"
   );
 });
 

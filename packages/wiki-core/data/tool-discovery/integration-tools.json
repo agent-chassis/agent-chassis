@@ -32,6 +32,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "the project documentation"
       ],

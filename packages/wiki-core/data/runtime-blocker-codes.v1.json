@@ -104,6 +104,69 @@
       "consumer_notes": "Coordinator must revise the WK; implementation must NOT proceed against an unready record."
     },
     {
+      "code": "dispatch_readiness_axis_ambiguous",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "The dispatch readiness axis cannot be derived from dispatch_intent.intended_agent_role.",
+      "detail": "When dispatch_role is omitted, readiness requires a total disposition for dispatch_intent.intended_agent_role. A null role means that no direct role dispatch is intended, while an unrecognized role does not identify either supported readiness axis. Refuse both cases rather than silently defaulting to implementation or read_only.",
+      "consumer_notes": "The refusal must preserve the observed dispatch_intent.intended_agent_role value and require the caller to supply an explicit dispatch_role. This is an axis-selection refusal, not a readiness verdict or admission-threshold decision.",
+      "recovery": {
+        "kind": "explicit_argument",
+        "argument": "dispatch_role",
+        "accepted_values": [
+          "implementation",
+          "read_only"
+        ],
+        "summary": "Supply an explicit dispatch_role so the intended readiness axis is unambiguous.",
+        "success_condition": "The request names dispatch_role as implementation or read_only before readiness validation."
+      },
+      "reasons": [
+        {
+          "reason": "intended_agent_role_null",
+          "summary": "dispatch_intent.intended_agent_role is null, meaning no direct role dispatch is intended, so no readiness axis can be inferred.",
+          "observed_field": "dispatch_intent.intended_agent_role",
+          "observed_value": null,
+          "remediation": {
+            "action": "supply_explicit_dispatch_role",
+            "argument": "dispatch_role",
+            "accepted_values": [
+              "implementation",
+              "read_only"
+            ]
+          }
+        },
+        {
+          "reason": "intended_agent_role_has_no_readiness_axis",
+          "summary": "The observed dispatch_intent.intended_agent_role value does not map to an implementation or read_only readiness axis.",
+          "observed_field": "dispatch_intent.intended_agent_role",
+          "observed_value": "<actual intended_agent_role value>",
+          "remediation": {
+            "action": "supply_explicit_dispatch_role",
+            "argument": "dispatch_role",
+            "accepted_values": [
+              "implementation",
+              "read_only"
+            ]
+          }
+        },
+        {
+          "reason": "derived_read_only_implementation_guard",
+          "summary": "dispatch_intent.intended_agent_role derives a read_only axis for an implementation unit, so the readiness axis is contradictory.",
+          "observed_field": "dispatch_intent.intended_agent_role",
+          "observed_condition": "The intended role maps to read_only while work_kind is implementation.",
+          "remediation": {
+            "action": "supply_explicit_dispatch_role",
+            "argument": "dispatch_role",
+            "accepted_values": [
+              "implementation",
+              "read_only"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "code": "worker_admission_carrier_invalid",
       "category": "work_record_readiness",
       "actor_recovery": "coordinator",
@@ -217,6 +280,40 @@
         },
         "success_condition": "the retained slice delivery reaches the exact-slice review surface, or the canonical WK base already contains it"
       }
+    },
+    {
+      "code": "managed_corrective_status_reconciliation_required",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Managed corrective continuation found a canonical parent/slice status tuple that requires coordinator reconciliation before redispatch.",
+      "detail": "Use only for the reviewed-integrated-delivery case where the server observed parent=todo and slice=todo. The bounded recovery facts identify the observed parent and slice status, the expected parent=active and slice=todo tuple, the exact parent unit whose status must be repaired, and the exact subject for a subsequent redispatch. This code grants no automatic status mutation and does not change lifecycle or admission authority.",
+      "consumer_notes": "Coordinator-owned recovery: inspect the server-derived observed_canonical_status, confirm the expected parent=active and slice=todo tuple, repair status on the exact parent unit, then redispatch the exact slice subject through workspace_agent_dispatch. Do not infer or substitute units, statuses, or subjects from message text.",
+      "recovery": {
+        "kind": "structured_route",
+        "route": "workspace_work_record_set_status",
+        "arguments": {
+          "unit": "<exact-parent-unit>",
+          "status": "active"
+        },
+        "next_call": {
+          "route": "workspace_agent_dispatch",
+          "arguments": {
+            "role": "worker",
+            "subject": "<exact-slice-subject>"
+          }
+        },
+        "success_condition": "the exact parent unit is reconciled to active while the exact slice remains todo, then the exact slice subject is redispatched"
+      }
+    },
+    {
+      "code": "managed_parent_wk_review_blocks_worker_dispatch",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Managed worker dispatch is blocked because the parent WK is in whole-WK review; the coordinator must move the parent out of review before dispatching its slice.",
+      "detail": "Use when a managed implementation-worker dispatch targets a slice whose parent WK is at status=review. The post-worker slice-review lifecycle requires the parent to be out of whole-WK review before this dispatch can proceed, so the coordinator must reconcile the parent WK status and then redispatch the exact slice subject. This code is distinct from managed_corrective_status_reconciliation_required, which is limited to the parent=todo and slice=todo corrective-continuation case.",
+      "consumer_notes": "Coordinator-owned recovery: move the exact parent WK out of whole-WK review, then redispatch the exact slice subject through workspace_agent_dispatch. Do not treat this as an operator-only recovery or reuse the corrective-continuation code."
     },
     {
       "code": "read_only_mount",
@@ -644,6 +741,16 @@
       "blocking": true,
       "summary": "Recovery is human/operator-only: the agent must stop and surface the recovery condition, not retry or escalate inline.",
       "consumer_notes": "Use when the blocker requires operator action (registry reset, secret rotation, sandbox profile change, mount remount, drift fix) that no agent role is authorized to perform."
+    },
+    {
+      "code": "stdio_mcp_lifecycle_protocol_incompatible",
+      "category": "operator_recovery",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The active managed launcher composition cannot authenticate one compatible wiki-MCP stdio lifecycle protocol generation.",
+      "detail": "Managed worker, reviewer, and redteam child creation is refused before spawn. Route registration remains observable, but effective structured dispatch is unavailable.",
+      "recovery": "deploy one coherent build and restart the long-lived backend",
+      "consumer_notes": "Publish as the bounded cause beneath operator_recovery_needed. Do not disclose producer paths, raw errors, environment, process output, or implementation details."
     },
     {
       "code": "compact_first_required",

@@ -123,7 +123,12 @@ export async function runInteractiveOrchestratorChild({
   } finally {
     headlessStdio?.close();
   }
-  process.exitCode = outcome.exitCode;
+
+  process.exitCode = outcome.status === "failed" || outcome.status === "cancelled"
+    ? Number.isInteger(outcome.exitCode) && outcome.exitCode !== 0
+      ? outcome.exitCode
+      : 1
+    : outcome.exitCode;
 }
 
 export async function dispatchOrchestratorResumeLateBwrapFallback(

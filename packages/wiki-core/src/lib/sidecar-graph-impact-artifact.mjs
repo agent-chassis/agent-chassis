@@ -6,7 +6,12 @@ import {
   SIDECAR_ARTIFACT_SCHEMA_FIELD,
   SIDECAR_ARTIFACT_SCHEMA_VERSION
 } from "./sidecar-schema.mjs";
-import { classifySidecarGraphArtifactSchema } from "./sidecar-graph-schema.mjs";
+import {
+  SIDECAR_GRAPH_GENERATOR_IDENTITY_FIELD,
+  SIDECAR_GRAPH_SCHEMA_VERSION,
+  SIDECAR_GRAPH_SECTION_FIELD,
+  classifySidecarGraphArtifactSchema
+} from "./sidecar-graph-schema.mjs";
 import {
   SidecarPathValidationError,
   validateVirtualSidecarPath
@@ -19,6 +24,71 @@ import {
   uniqueStrings
 } from "./sidecar-graph-impact-shared.mjs";
 import { readSidecarArtifactBytes } from "./sidecar-artifact-bytes.mjs";
+import { computeSidecarGeneratorIdentity } from "./sidecar-generator-identity.mjs";
+
+const SIDECAR_GENERATOR_IDENTITY_PATTERN = /^sha256:[0-9a-f]{64}$/;
+const ARTIFACT_DIGEST_PATTERN = /^[0-9a-f]{64}$/;
+const COMMIT_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+const ARTIFACT_IDENTITY_FIELDS = Object.freeze([
+  "sha256", "byte_length", "index_head", "artifact_schema_version",
+  "graph_schema_version", "generator_identity", "graph_compatible"]);
+const ARTIFACT_IDENTITY_PROVENANCE = new WeakMap();
+const READ_ARTIFACT_COMPATIBILITY_PROVENANCE = new WeakMap();
+
+function plainDataTree(value, { freeze = false } = {}, seen = new Set()) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object" || seen.has(value)) return false;
+  const array = Array.isArray(value);
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== (array ? Array.prototype : Object.prototype) && prototype !== null) return false;
+  seen.add(value);
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const key of Reflect.ownKeys(descriptors)) {
+    if (typeof key !== "string") return false;
+    if (array && key === "length") continue;
+    const descriptor = descriptors[key];
+    if (!("value" in descriptor) || !plainDataTree(descriptor.value, { freeze }, seen)) return false;
+  }
+  if (array && Object.keys(descriptors).length !== value.length + 1) return false;
+  if (freeze) Object.freeze(value);
+  return true;
+}
+
+function captureUsableStatus(status) {
+  try {
+    if (!status || typeof status !== "object" || Array.isArray(status) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(status))) return null;
+    const value = (record, field) => {
+      const descriptor = Object.getOwnPropertyDescriptor(record, field);
+      return descriptor && "value" in descriptor ? descriptor.value : undefined;
+    };
+    const graphState = value(status, "graph_state");
+    if (!graphState || typeof graphState !== "object" || Array.isArray(graphState) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(graphState))) return null;
+    const captured = {
+      artifact_exists: value(status, "artifact_exists"), artifact_path: value(status, "artifact_path"),
+      staleness: value(status, "staleness"), index_action: value(status, "index_action"),
+      status_reason: value(status, "status_reason"), index_head: value(status, "index_head"),
+      index_tree: value(status, "index_tree"),
+      artifact_schema_version: value(status, "artifact_schema_version"),
+      graph_available: value(graphState, "graph_available"),
+      graph_schema_version: value(graphState, "graph_schema_version")
+    };
+    return Object.freeze(captured);
+  } catch {
+    return null;
+  }
+}
+
+function statusIsUsable(status) {
+  return Boolean(status?.artifact_exists === true && typeof status.artifact_path === "string" &&
+    status.artifact_path.length > 0 && status.staleness === "fresh" &&
+    status.index_action === "use" && status.status_reason === "source_identity_match" &&
+    typeof status.index_head === "string" && COMMIT_PATTERN.test(status.index_head) &&
+    status.artifact_schema_version === SIDECAR_ARTIFACT_SCHEMA_VERSION &&
+    status.graph_available === true && status.graph_schema_version === SIDECAR_GRAPH_SCHEMA_VERSION);
+}
 
 export class SidecarGraphIndexUnbuildableError extends Error {
   constructor(message, { code = "graph_index_unbuildable", cause = null, status = null } = {}) {
@@ -90,8 +160,9 @@ export function artifactIsCompatible(artifact) {
   );
 }
 
-export function createArtifactIdentity(rawBytes, artifact) {
-  const graphClassification = classifySidecarGraphArtifactSchema(artifact);
+function artifactIdentityFromClassification(rawBytes, artifact, graphClassification) {
+  const generatorIdentity =
+    artifact?.[SIDECAR_GRAPH_SECTION_FIELD]?.[SIDECAR_GRAPH_GENERATOR_IDENTITY_FIELD] ?? null;
   return {
     sha256: createHash("sha256").update(rawBytes).digest("hex"),
     byte_length: rawBytes.length,
@@ -99,73 +170,145 @@ export function createArtifactIdentity(rawBytes, artifact) {
     artifact_schema_version:
       artifact?.cache_metadata?.[SIDECAR_ARTIFACT_SCHEMA_FIELD] ?? null,
     graph_schema_version: graphClassification.graph_state.graph_schema_version ?? null,
-    graph_compatible:
-      graphClassification.compatible &&
+    generator_identity: generatorIdentity,
+    graph_compatible: graphClassification.compatible &&
       graphClassification.graph_state.graph_available === true
   };
 }
 
+export function createArtifactIdentity(rawBytes, artifact) {
+  return artifactIdentityFromClassification(rawBytes, artifact,
+    classifySidecarGraphArtifactSchema(artifact));
+}
+
+function identityIsComplete(identity) {
+  return Boolean(identity && typeof identity === "object" && !Array.isArray(identity) &&
+    typeof identity.sha256 === "string" && ARTIFACT_DIGEST_PATTERN.test(identity.sha256) &&
+    Number.isSafeInteger(identity.byte_length) && identity.byte_length > 0 &&
+    typeof identity.index_head === "string" && COMMIT_PATTERN.test(identity.index_head) &&
+    identity.artifact_schema_version === SIDECAR_ARTIFACT_SCHEMA_VERSION &&
+    identity.graph_schema_version === SIDECAR_GRAPH_SCHEMA_VERSION && typeof identity.generator_identity === "string" &&
+    SIDECAR_GENERATOR_IDENTITY_PATTERN.test(identity.generator_identity) &&
+    identity.graph_compatible === true);
+}
+
 export function artifactIdentityMatches(left, right) {
-  return Boolean(
-    left &&
-      right &&
-      left.sha256 === right.sha256 &&
-      left.byte_length === right.byte_length &&
-      left.index_head === right.index_head &&
-      left.artifact_schema_version === right.artifact_schema_version &&
-      left.graph_schema_version === right.graph_schema_version &&
-      left.graph_compatible === true &&
-      right.graph_compatible === true
-  );
+  const leftProvenance = ARTIFACT_IDENTITY_PROVENANCE.get(left);
+  const rightProvenance = ARTIFACT_IDENTITY_PROVENANCE.get(right);
+  return Boolean(identityIsComplete(left) && identityIsComplete(right) &&
+    leftProvenance && rightProvenance && ARTIFACT_IDENTITY_FIELDS.every((field, index) =>
+      left[field] === leftProvenance[index] && right[field] === rightProvenance[index] &&
+      left[field] === right[field]));
+}
+
+export function classifyReadSidecarGraphArtifact(artifact) {
+  if (arguments.length !== 1) {
+    throw new TypeError("artifact classification accepts only the artifact returned by readArtifact");
+  }
+  const provenance = READ_ARTIFACT_COMPATIBILITY_PROVENANCE.get(artifact);
+  return classifySidecarGraphArtifactSchema(artifact, provenance?.identity &&
+    ARTIFACT_IDENTITY_PROVENANCE.has(provenance.identity)
+    ? { expectedGeneratorIdentity: provenance.expectedGeneratorIdentity }
+    : {});
+}
+
+function graphGeneratorIdentityReason(artifact, expectedGeneratorIdentity) {
+  const observed =
+    artifact?.[SIDECAR_GRAPH_SECTION_FIELD]?.[SIDECAR_GRAPH_GENERATOR_IDENTITY_FIELD];
+  if (observed === undefined) return "generator_identity_missing";
+  if (typeof observed !== "string" || !SIDECAR_GENERATOR_IDENTITY_PATTERN.test(observed)) {
+    return "generator_identity_malformed";
+  }
+  return observed === expectedGeneratorIdentity ? null : "generator_identity_incompatible";
 }
 
 export async function readArtifact({ repoRoot, status }) {
-  if (!status.artifact_exists || status.staleness === "missing") {
+  const capturedStatus = captureUsableStatus(status);
+  if (!statusIsUsable(capturedStatus)) {
     return {
       artifact: null,
       evidence: graphArtifactEvidence({
-        status,
+        status: capturedStatus ?? {},
         available: false,
-        reason: "artifact_missing"
-      })
-    };
-  }
-
-  if (status.staleness === "rebuild_required") {
-    return {
-      artifact: null,
-      evidence: graphArtifactEvidence({
-        status,
-        available: false,
-        reason: "artifact_schema_incompatible",
-        artifactSchemaVersion: status.artifact_schema_version
+        reason: capturedStatus?.artifact_exists === false || capturedStatus?.staleness === "missing"
+          ? "artifact_missing"
+          : capturedStatus?.staleness === "rebuild_required" ?
+            (capturedStatus.status_reason?.startsWith("generator_identity_") ?
+              capturedStatus.status_reason : "artifact_schema_incompatible") : "artifact_status_unusable",
+        artifactSchemaVersion: capturedStatus?.artifact_schema_version
       })
     };
   }
 
   try {
     const { rawBytes, artifact } = await readSidecarArtifactBytes(
-      path.join(repoRoot, status.artifact_path)
+      path.join(repoRoot, capturedStatus.artifact_path)
     );
-    const identity = createArtifactIdentity(rawBytes, artifact);
-    if (!artifactIsCompatible(artifact) || !identity.graph_compatible) {
+    if (!plainDataTree(artifact, { freeze: true })) {
+      return {
+        artifact: null,
+        identity: null,
+        evidence: graphArtifactEvidence({
+          status: capturedStatus,
+          available: false,
+          reason: "artifact_format_unusable"
+        })
+      };
+    }
+    let expected;
+    try {
+      expected = await computeSidecarGeneratorIdentity({ repoRoot });
+      if (expected.committed_head !== capturedStatus.index_head) expected = null;
+    } catch {
+      expected = null;
+    }
+    if (!expected) {
+      return {
+        artifact: null,
+        identity: createArtifactIdentity(rawBytes, artifact),
+        evidence: graphArtifactEvidence({
+          status: capturedStatus,
+          available: false,
+          reason: "generator_identity_unavailable"
+        })
+      };
+    }
+    const generatorIdentityReason = graphGeneratorIdentityReason(
+      artifact,
+      expected.generator_identity
+    );
+    const identity = artifactIdentityFromClassification(rawBytes, artifact,
+      classifySidecarGraphArtifactSchema(artifact, {
+        expectedGeneratorIdentity: expected.generator_identity
+      }));
+    if (!artifactIsCompatible(artifact) || generatorIdentityReason ||
+      identity.index_head !== capturedStatus.index_head || !identityIsComplete(identity)) {
       return {
         artifact: null,
         identity,
         evidence: graphArtifactEvidence({
-          status,
+          status: capturedStatus,
           available: false,
-          reason: "artifact_format_unusable",
+          reason: generatorIdentityReason ?? "artifact_format_unusable",
           artifactSchemaVersion:
             artifact?.cache_metadata?.[SIDECAR_ARTIFACT_SCHEMA_FIELD] ?? null
         })
       };
     }
+    Object.freeze(identity);
+    ARTIFACT_IDENTITY_PROVENANCE.set(identity,
+      Object.freeze(ARTIFACT_IDENTITY_FIELDS.map((field) => identity[field])));
+    READ_ARTIFACT_COMPATIBILITY_PROVENANCE.set(artifact, Object.freeze({
+      expectedGeneratorIdentity: expected.generator_identity,
+      identity,
+      sha256: identity.sha256,
+      byte_length: identity.byte_length
+    }));
     return {
       artifact,
       identity,
       evidence: graphArtifactEvidence({
-        status,
+        status: capturedStatus,
         available: true,
         artifactSchemaVersion: artifact.cache_metadata[SIDECAR_ARTIFACT_SCHEMA_FIELD]
       })
@@ -175,7 +318,7 @@ export async function readArtifact({ repoRoot, status }) {
       artifact: null,
       identity: null,
       evidence: graphArtifactEvidence({
-        status,
+        status: capturedStatus ?? {},
         available: false,
         reason: "artifact_unreadable",
         readError: error instanceof Error ? error.message : String(error)

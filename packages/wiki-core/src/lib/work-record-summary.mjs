@@ -7,6 +7,10 @@ import {
 
 export const WORK_RECORD_SUMMARY_SCHEMA_VERSION = "work-record-summary.v1";
 
+const COMPACT_COLLECTION_LIMIT = 3;
+const COMPACT_BLOCKER_LIMIT = 2;
+const COMPACT_NEXT_ACTION_DETAIL_LIMIT = 160;
+
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -70,16 +74,15 @@ function summarizeSlice(slice, { includeAgentNotes = false } = {}) {
   return summary;
 }
 
-function summarizeSliceCompact(slice) {
+function summarizeSliceCompact(slice, record, dependencyResolver) {
   if (!isObject(slice)) return null;
-  const blockers = collectSliceBlockers(slice);
+  const blockers = collectSliceBlockers(record, slice, dependencyResolver);
   return {
     id: slice.id ?? null,
-    title: slice.title ?? null,
     status: slice.status ?? null,
     work_kind: slice.work_kind ?? null,
     agent_notes_bytes: calculateSliceAgentNotesBytes(slice),
-    blockers,
+    blocker_count: blockers.length,
     next_action: summarizeNextAction({
       blockers,
       reviewState: null,
@@ -105,10 +108,8 @@ function pickReviewState(record, sliceSummaries) {
       blocked: false
     };
   }
-  const allDone = reviewSlices.every((entry) => entry.status === "done" || entry.status === "completed");
-  const anyOpen = reviewSlices.some(
-    (entry) => entry.status && entry.status !== "done" && entry.status !== "completed"
-  );
+  const allDone = reviewSlices.every((entry) => isClosedStatus(entry.status));
+  const anyOpen = reviewSlices.some((entry) => entry.status && !isClosedStatus(entry.status));
   return {
     required: true,
     review_slices: reviewSlices.map((entry) => ({
@@ -119,6 +120,92 @@ function pickReviewState(record, sliceSummaries) {
     status: allDone ? "complete" : anyOpen ? "open" : "unknown",
     blocked: !allDone
   };
+}
+
+function boundedStringList(value, limit = COMPACT_COLLECTION_LIMIT) {
+  const values = normalizeStringList(value);
+  const items = values.slice(0, limit);
+  return {
+    items,
+    total: values.length,
+    returned: items.length,
+    truncated: items.length < values.length
+  };
+}
+
+function summarizeCompactDependencies(record) {
+  const dependsOn = boundedStringList(record.depends_on);
+  const blocks = boundedStringList(record.blocks);
+  const related = boundedStringList(record.related);
+  return {
+    depends_on: dependsOn.items,
+    depends_on_meta: {
+      total: dependsOn.total,
+      returned: dependsOn.returned,
+      truncated: dependsOn.truncated
+    },
+    blocks: blocks.items,
+    blocks_meta: {
+      total: blocks.total,
+      returned: blocks.returned,
+      truncated: blocks.truncated
+    },
+    related: related.items,
+    related_meta: {
+      total: related.total,
+      returned: related.returned,
+      truncated: related.truncated
+    }
+  };
+}
+
+function summarizeCompactReviewState(reviewState) {
+  const allReviewSlices = Array.isArray(reviewState?.review_slices)
+    ? reviewState.review_slices
+    : [];
+  const openReviewSlices = allReviewSlices.filter((entry) => !isClosedStatus(entry?.status));
+  const reviewSlices = openReviewSlices.slice(0, COMPACT_COLLECTION_LIMIT);
+  return {
+    required: Boolean(reviewState?.required),
+    status: reviewState?.status ?? null,
+    blocked: Boolean(reviewState?.blocked),
+    review_slices: reviewSlices,
+    review_slices_total: allReviewSlices.length,
+    review_slices_returned: reviewSlices.length,
+    review_slices_truncated: reviewSlices.length < allReviewSlices.length
+  };
+}
+
+function summarizeCompactBlocker(blocker) {
+  if (blocker?.kind === "depends_on") {
+    return {
+      kind: blocker.kind,
+      source: blocker.source ?? null,
+      resolution: blocker.resolution ?? null,
+      entry: {
+        id: blocker.entry?.id ?? null,
+        marker: blocker.entry?.marker ?? null,
+        selected_status: blocker.entry?.selected_status ?? null
+      }
+    };
+  }
+  const summary = { kind: blocker?.kind ?? null };
+  if (blocker?.source != null) summary.source = blocker.source;
+  if (blocker?.resolution != null) summary.resolution = blocker.resolution;
+  if (blocker?.entry?.id != null) summary.id = blocker.entry.id;
+  if (blocker?.entry?.status != null) summary.status = blocker.entry.status;
+  if (blocker?.entry?.marker != null) summary.marker = blocker.entry.marker;
+  if (blocker?.entry?.selected_status != null) {
+    summary.selected_status = blocker.entry.selected_status;
+  }
+  return summary;
+}
+
+function summarizeCompactBlockers(blockers) {
+  const allBlockers = Array.isArray(blockers) ? blockers : [];
+  return allBlockers
+    .slice(0, COMPACT_BLOCKER_LIMIT)
+    .map(summarizeCompactBlocker);
 }
 
 function collectOwners(record, sliceSummaries) {
@@ -146,7 +233,61 @@ function summarizeEscalation(escalation) {
   };
 }
 
-function collectBlockers(record) {
+function parseResolvedRecord(value) {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return isObject(value) ? value : null;
+}
+
+function resolveDependency(record, dependency, resolver) {
+  const parsed = parseUnitAddress(dependency);
+  if (!parsed) return null;
+
+  let resolvedRecord = null;
+  if (parsed.record_id === record.id) {
+    resolvedRecord = record;
+  } else if (typeof resolver === "function") {
+    try {
+      resolvedRecord = parseResolvedRecord(resolver(dependency, parsed));
+    } catch {
+      return null;
+    }
+  }
+
+  if (!resolvedRecord || resolvedRecord.id !== parsed.record_id) return null;
+  if (parsed.slice_id) {
+    const slice = findSliceById(resolvedRecord, parsed.slice_id);
+    if (!slice) return null;
+    return { status: slice.status ?? null };
+  }
+  return { status: resolvedRecord.status ?? null };
+}
+
+function dependencyBlocker(record, dependency, resolver) {
+  const resolved = resolveDependency(record, dependency, resolver);
+  if (resolved?.status === "done") return null;
+
+  const resolution = resolved?.status === "cancelled" ? "cancelled" :
+    resolved ? "unsatisfied_open" : "unresolved";
+  const marker = resolution === "unsatisfied_open" ? "unsatisfied" : resolution;
+  return {
+    kind: "depends_on",
+    source: "depends_on",
+    resolution,
+    entry: {
+      id: dependency,
+      marker,
+      selected_status: resolved?.status ?? null
+    }
+  };
+}
+
+function collectBlockers(record, { dependencyResolver = null } = {}) {
   const blockers = [];
   const escalations = Array.isArray(record.escalations) ? record.escalations : [];
   for (const escalation of escalations) {
@@ -163,7 +304,8 @@ function collectBlockers(record) {
   if (Array.isArray(record.depends_on)) {
     for (const dependency of record.depends_on) {
       if (typeof dependency === "string" && dependency.trim().length > 0) {
-        blockers.push({ kind: "depends_on", source: "depends_on", entry: { id: dependency } });
+        const blocker = dependencyBlocker(record, dependency.trim(), dependencyResolver);
+        if (blocker) blockers.push(blocker);
       }
     }
   }
@@ -210,6 +352,9 @@ function summarizeNextAction({ blockers, reviewState, validation, status, workKi
     return `continue ${workKind || "work"}`;
   }
 
+  if (isClosedStatus(status)) {
+    return "close out";
+  }
   if (Array.isArray(blockers) && blockers.length > 0) {
     return "resolve blockers";
   }
@@ -217,15 +362,17 @@ function summarizeNextAction({ blockers, reviewState, validation, status, workKi
     return "complete review";
   }
   if (Array.isArray(validation) && validation.length > 0) {
-    return `run validation: ${validation[0]}`;
-  }
-  if (isClosedStatus(status)) {
-    return "close out";
+    return validation[0].length <= COMPACT_NEXT_ACTION_DETAIL_LIMIT
+      ? `run validation: ${validation[0]}`
+      : "run validation (details available via full summary)";
   }
   return "continue work";
 }
 
-function buildFullSummary(record, { unit = null, sliceSummaries = [] } = {}) {
+function buildFullSummary(
+  record,
+  { unit = null, sliceSummaries = [], dependencyResolver = null } = {}
+) {
   const summary = {
     schema_version: WORK_RECORD_SUMMARY_SCHEMA_VERSION,
     id: record.id ?? null,
@@ -251,7 +398,7 @@ function buildFullSummary(record, { unit = null, sliceSummaries = [] } = {}) {
     validation: summarizeAcceptance(record.acceptance).validation,
     owners: collectOwners(record, sliceSummaries),
     review_state: pickReviewState(record, sliceSummaries),
-    blockers: collectBlockers(record),
+    blockers: collectBlockers(record, { dependencyResolver }),
     closure: cloneJson(record.sections?.closure ?? null)
   };
 
@@ -276,34 +423,42 @@ function summarizeSliceStatusCounts(sliceSummaries) {
     done: 0,
     cancelled: 0
   };
+  counts.unknown = 0;
   for (const slice of sliceSummaries) {
     if (!slice) continue;
     const s = slice.status ?? "unknown";
-    counts[s] = (counts[s] ?? 0) + 1;
+    if (Object.hasOwn(counts, s)) counts[s] += 1;
+    else counts.unknown += 1;
   }
   return counts;
 }
 
-function buildCompactSliceProjection(record, slices) {
+function buildCompactSliceProjection(record, slices, dependencyResolver) {
   const isTracker = record.work_kind === "tracker";
-  const suppressedSlices = isTracker
-    ? slices.filter((slice) => shouldSuppressTrackerSliceDetail(slice))
-    : [];
   const includedSlices = isTracker
     ? slices.filter((slice) => !shouldSuppressTrackerSliceDetail(slice))
     : slices.filter((slice) => !isClosedStatus(slice.status));
 
+  const returnedSlices = includedSlices.slice(0, COMPACT_COLLECTION_LIMIT);
   const projection = {
-    slices: includedSlices.map(summarizeSliceCompact).filter(Boolean)
+    slices: returnedSlices
+      .map((slice) => summarizeSliceCompact(slice, record, dependencyResolver))
+      .filter(Boolean),
+    total: slices.length,
+    returned: returnedSlices.length,
+    truncated: returnedSlices.length < slices.length
   };
 
   if (isTracker) {
+    const omittedSlices = slices.filter((slice) => !returnedSlices.includes(slice));
     projection.slice_detail_omissions = {
       policy: "tracker_wk_level_compact_default",
-      reason: "suppressed_by_status",
+      reason: includedSlices.length > returnedSlices.length
+        ? "suppressed_by_status_or_limit"
+        : "suppressed_by_status",
       statuses: [...TRACKER_SLICE_DETAIL_SUPPRESSED_STATUSES],
-      count: suppressedSlices.length,
-      by_status: summarizeSliceStatusCounts(suppressedSlices),
+      count: omittedSlices.length,
+      by_status: summarizeSliceStatusCounts(omittedSlices),
       detail_available_via: ["selected_slice", "include_full_summary"]
     };
   }
@@ -311,29 +466,41 @@ function buildCompactSliceProjection(record, slices) {
   return projection;
 }
 
-function collectSliceBlockers(slice) {
-  if (!isObject(slice)) return [];
+function collectSliceBlockers(record, slice, dependencyResolver = null) {
+  if (!isObject(record) || !isObject(slice)) return [];
   const blockers = [];
   if (Array.isArray(slice.depends_on)) {
     for (const dep of slice.depends_on) {
       if (typeof dep === "string" && dep.trim()) {
-        blockers.push({ kind: "depends_on", source: "depends_on", entry: { id: dep } });
+        const dependency = dep.trim();
+        const address = SLICE_ID_PATTERN.test(dependency)
+          ? `${record.id}#${dependency}`
+          : dependency;
+        const blocker = dependencyBlocker(record, address, dependencyResolver);
+        if (blocker) {
+          blocker.entry.id = dependency;
+          blockers.push(blocker);
+        }
       }
     }
   }
   return blockers;
 }
 
-function buildCompactSummary(record, { unit = null, sliceSummaries = [] } = {}) {
+function buildCompactSummary(
+  record,
+  { unit = null, sliceSummaries = [], dependencyResolver = null } = {}
+) {
   const slices = Array.isArray(record.slices)
     ? record.slices.filter((entry) => isObject(entry))
     : [];
   const slice = unit?.kind === "slice" ? findSliceById(record, unit.slice_id) : null;
   const reviewStateFull = pickReviewState(record, sliceSummaries);
-  const blockersFull = collectBlockers(record);
-  const acceptance = summarizeAcceptance(record.acceptance);
+  const blockersFull = collectBlockers(record, { dependencyResolver });
   const validation = normalizeStringList(slice?.acceptance?.validation ?? record.acceptance?.validation);
-  const nextActionBlockers = slice ? collectSliceBlockers(slice) : blockersFull;
+  const nextActionBlockers = slice
+    ? collectSliceBlockers(record, slice, dependencyResolver)
+    : blockersFull;
   const nextAction = summarizeNextAction({
     blockers: nextActionBlockers,
     reviewState: reviewStateFull,
@@ -342,30 +509,28 @@ function buildCompactSummary(record, { unit = null, sliceSummaries = [] } = {}) 
     workKind: slice?.work_kind ?? record.work_kind ?? null,
     unit
   });
-  const compactSliceProjection = buildCompactSliceProjection(record, slices);
+  const compactSliceProjection = buildCompactSliceProjection(record, slices, dependencyResolver);
+
+  const blockers = summarizeCompactBlockers(blockersFull);
+  const reviewState = summarizeCompactReviewState(reviewStateFull);
 
   const summary = {
     schema_version: WORK_RECORD_SUMMARY_SCHEMA_VERSION,
     id: record.id ?? null,
     title: record.title ?? null,
-    record_kind: record.record_kind ?? null,
     work_kind: record.work_kind ?? null,
     status: record.status ?? null,
-    priority: record.priority ?? null,
     owner: record.owner ?? null,
-    initiative: record.initiative ?? null,
-    dependencies: {
-      depends_on: normalizeStringList(record.depends_on),
-      blocks: normalizeStringList(record.blocks),
-      related: normalizeStringList(record.related)
-    },
-    write_scope: normalizeStringList(record.write_scope),
-    acceptance,
-    validation: acceptance.validation,
+    dependencies: summarizeCompactDependencies(record),
     slices: compactSliceProjection.slices,
-    owners: collectOwners(record, sliceSummaries),
-    review_state: reviewStateFull,
-    blockers: blockersFull,
+    slices_total: compactSliceProjection.total,
+    slices_returned: compactSliceProjection.returned,
+    slices_truncated: compactSliceProjection.truncated,
+    review_state: reviewState,
+    blockers,
+    blockers_total: blockersFull.length,
+    blockers_returned: blockers.length,
+    blockers_truncated: blockers.length < blockersFull.length,
     slice_count: sliceSummaries.length,
     slice_status_counts: summarizeSliceStatusCounts(sliceSummaries)
   };
@@ -391,16 +556,13 @@ function buildCompactSummary(record, { unit = null, sliceSummaries = [] } = {}) 
         agent_notes: sliceAgentNotes(slice),
         write_scope_count: normalizeStringList(slice.write_scope).length,
         dispatch_intent: summarizeDispatchIntent(slice.dispatch_intent),
-        blockers: collectSliceBlockers(slice),
+        blockers: collectSliceBlockers(record, slice, dependencyResolver),
         validation,
         validation_count: validation.length,
         next_action: nextAction
       };
     } else {
       summary.selected_unit_summary = {
-        unit_address: unit.address ?? null,
-        status: record.status ?? null,
-        validation,
         validation_count: validation.length,
         next_action: nextAction
       };
@@ -415,7 +577,13 @@ function buildCompactSummary(record, { unit = null, sliceSummaries = [] } = {}) 
 
 export function summarizeWorkRecord(
   record,
-  { unit = null, verbose = false, include_full_summary = false } = {}
+  {
+    unit = null,
+    verbose = false,
+    include_full_summary = false,
+    dependencyResolver = null,
+    resolveDependency: resolverAlias = null
+  } = {}
 ) {
   if (!isObject(record)) {
     throw new Error("summarizeWorkRecord requires a record object");
@@ -425,11 +593,12 @@ export function summarizeWorkRecord(
     ? record.slices.map(summarizeSlice).filter(Boolean)
     : [];
 
+  const resolver = dependencyResolver ?? resolverAlias;
   if (verbose || include_full_summary) {
-    return buildFullSummary(record, { unit, sliceSummaries });
+    return buildFullSummary(record, { unit, sliceSummaries, dependencyResolver: resolver });
   }
 
-  return buildCompactSummary(record, { unit, sliceSummaries });
+  return buildCompactSummary(record, { unit, sliceSummaries, dependencyResolver: resolver });
 }
 
 export function parseWorkRecordSummaryUnit(input) {

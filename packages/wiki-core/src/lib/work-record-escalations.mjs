@@ -29,6 +29,42 @@ export const WORK_RECORD_ESCALATION_TRUST_GATE_SOURCES = Object.freeze([
   "operator_confirm"
 ]);
 
+const WORK_RECORD_ESCALATION_REREAD_UNREADABLE_CODES = Object.freeze([
+  "EACCES",
+  "EPERM",
+  "EIO",
+  "ENOTDIR",
+  "EISDIR",
+  "ELOOP",
+  "EMFILE",
+  "ENFILE"
+]);
+
+const WORK_RECORD_ESCALATION_REREAD_MESSAGES = Object.freeze({
+  precondition_reread_missing:
+    "Canonical work record was absent during the escalation pre-write reread; retry with a fresh load",
+  precondition_reread_malformed:
+    "Canonical work record was unparsable during the escalation pre-write reread; retry with a fresh load",
+  precondition_reread_unreadable:
+    "Canonical work record was unreadable during the escalation pre-write reread; retry with a fresh load",
+  precondition_reread_failed:
+    "Canonical work record reread failed for an unclassified reason; retry with a fresh load"
+});
+
+function classifyWorkRecordEscalationRereadFailure(error) {
+  const code = typeof error?.code === "string" ? error.code : null;
+  if (code === "ENOENT") {
+    return "precondition_reread_missing";
+  }
+  if (error instanceof SyntaxError) {
+    return "precondition_reread_malformed";
+  }
+  if (code !== null && WORK_RECORD_ESCALATION_REREAD_UNREADABLE_CODES.includes(code)) {
+    return "precondition_reread_unreadable";
+  }
+  return "precondition_reread_failed";
+}
+
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
@@ -431,7 +467,9 @@ export async function authorWorkRecordEscalation({
   maxBlastRadius,
   recordUpdated = null,
   recordStore = null,
-  trustGate = null
+  trustGate = null,
+
+  readCanonicalRecordText = (absolutePath) => readFile(absolutePath, "utf8")
 } = {}) {
   const targetDir = path.resolve(String(dir));
   const diagnostics = validateAuthoringOptions({
@@ -597,30 +635,47 @@ export async function authorWorkRecordEscalation({
 
   const canonicalPath = getWorkRecordPath(targetDir, recordId);
 
+  function rereadFailure(code) {
+    return createFailureResult({
+      recordId,
+      sourcePath: canonicalPath,
+      sourcePathRelative: toPosixRelativePath(targetDir, canonicalPath),
+      diagnostics: [
+        createWorkRecordDiagnostic(code, WORK_RECORD_ESCALATION_REREAD_MESSAGES[code], {
+          path: "source_digest"
+        })
+      ],
+      operation: status,
+      escalationId
+    });
+  }
+
   let preWriteDiskRecord;
   try {
-    preWriteDiskRecord = JSON.parse(await readFile(canonicalPath, "utf8"));
-  } catch {
-    preWriteDiskRecord = null;
+    preWriteDiskRecord = JSON.parse(await readCanonicalRecordText(canonicalPath));
+  } catch (error) {
+    return rereadFailure(classifyWorkRecordEscalationRereadFailure(error));
   }
-  if (preWriteDiskRecord) {
-    const preWriteDigest = computeWorkRecordSourceDigest(preWriteDiskRecord);
-    if (preWriteDigest !== baselineDigest) {
-      return createFailureResult({
-        recordId,
-        sourcePath: canonicalPath,
-        sourcePathRelative: toPosixRelativePath(targetDir, canonicalPath),
-        diagnostics: [
-          createWorkRecordDiagnostic(
-            "concurrent_record_modification",
-            `Source digest for ${recordId} changed during escalation authoring; retry with a fresh load`,
-            { path: "source_digest" }
-          )
-        ],
-        operation: status,
-        escalationId
-      });
-    }
+  if (!isObject(preWriteDiskRecord)) {
+    return rereadFailure("precondition_reread_malformed");
+  }
+
+  const preWriteDigest = computeWorkRecordSourceDigest(preWriteDiskRecord);
+  if (preWriteDigest !== baselineDigest) {
+    return createFailureResult({
+      recordId,
+      sourcePath: canonicalPath,
+      sourcePathRelative: toPosixRelativePath(targetDir, canonicalPath),
+      diagnostics: [
+        createWorkRecordDiagnostic(
+          "concurrent_record_modification",
+          `Source digest for ${recordId} changed during escalation authoring; retry with a fresh load`,
+          { path: "source_digest" }
+        )
+      ],
+      operation: status,
+      escalationId
+    });
   }
 
   await writeJsonAtomically(canonicalPath, updatedRecord);

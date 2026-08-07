@@ -56,6 +56,8 @@ export function createBackendRouting(ctx) {
   const startSliceReviewLaunch = (input, boundContext) => ctx.startSliceReviewLaunch(input, boundContext);
   const recoverTerminalReviewContext = (reviewAddress) => ctx.recoverTerminalReviewContext(reviewAddress);
   const verifyTerminalReviewContext = (context) => ctx.verifyTerminalReviewContext(context);
+  const refreshTerminalReviewAttemptContract = (context) =>
+    ctx.refreshTerminalReviewAttemptContract(context);
 
   const startLaunch = async (input = {}) => {
     const correctiveCarrier = firstOwnField(input, [
@@ -103,7 +105,10 @@ export function createBackendRouting(ctx) {
       "baseRef", "base_ref", "baseSha", "base_sha",
       "landingRef", "landing_ref", "landingSha", "landing_sha",
       "terminalCandidate", "terminal_candidate", "terminalCandidateContext",
-      "terminal_candidate_context"
+      "terminal_candidate_context",
+
+      "trustedTerminalReviewAttemptContract", "trusted_terminal_review_attempt_contract",
+      "terminalReviewAttemptContract", "terminal_review_attempt_contract"
     ];
     const contextCarrier = firstOwnField(input, terminalCandidateCallerCarriers);
     const nestedContextCarrier = firstOwnField(input?.readiness, terminalCandidateCallerCarriers);
@@ -120,6 +125,8 @@ export function createBackendRouting(ctx) {
       return startSliceReviewLaunch(input, sliceContext);
     }
     let context = frozenReviewContexts.get(input.subject);
+
+    let terminalRoute = false;
     if (!context) {
       const subjectMatch = typeof input.subject === "string"
         ? input.subject.match(/^(WK-\d{4})#SLICE-\d{3}$/u)
@@ -151,6 +158,7 @@ export function createBackendRouting(ctx) {
           });
         }
 
+        terminalRoute = true;
         if (recoverTerminalCandidate === null) {
           try {
             const canonicalUnit = resolveCanonicalFindingsOnlyReviewUnit(canonicalMainRepo, subjectMatch[1]);
@@ -178,7 +186,16 @@ export function createBackendRouting(ctx) {
         if (recovered.ok !== true) return recovered.refusal;
         context = recovered.context;
       }
-      if (!context) return lifecycle.startLaunch(input);
+      if (!context) {
+        if (terminalRoute) {
+          return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
+            capability: "wk_context_review",
+            reason: "terminal_review_context_unresolved",
+            subject: input.subject ?? null
+          });
+        }
+        return lifecycle.startLaunch(input);
+      }
     }
     if (path.resolve(input.workspace_dir ?? "") !== context.main_repo) {
       return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
@@ -217,6 +234,10 @@ export function createBackendRouting(ctx) {
         if (recovered.ok !== true) return recovered.refusal;
         context = recovered.context;
       }
+
+      const refreshed = refreshTerminalReviewAttemptContract(context);
+      if (refreshed.ok !== true) return refreshed.refusal;
+      context = refreshed.context;
     } else {
       const targetVerification = verifyFrozenWkReviewTargetAgainstObjectStore({
         mainRepo: context.main_repo,
@@ -247,6 +268,9 @@ export function createBackendRouting(ctx) {
 
         config_root_dir: context.main_repo,
         trusted_frozen_review_contract: context.trusted_frozen_review_contract,
+
+        trusted_terminal_review_attempt_contract:
+          context.terminal_review_attempt_contract ?? null,
         reviewer_dependency_binds: context.reviewer_dependency_binds ?? [],
         readiness: Object.freeze({
           ...(isPlainObject(input.readiness) ? input.readiness : {}),

@@ -42,8 +42,15 @@ import { retireManagedRunProcessIdentity } from "./managed-run-process-identity-
 export const MANAGED_RUN_SUBJECT_RESERVATION_SCHEMA_VERSION =
   "managed-run-subject-reservation.v1";
 
+export const MANAGED_RUN_SUBJECT_SUCCESSOR_GUARD_SCHEMA_VERSION =
+  "managed-run-subject-successor-guard.v1";
+
 const RESERVATION_KEYS = Object.freeze([
   "schema_version", "subject", "reservation_id", "role", "owner_launcher", "reserved_at", "tuple"
+]);
+
+const SUCCESSOR_GUARD_KEYS = Object.freeze([
+  "schema_version", "subject", "guard_id", "owner_launcher", "acquired_at"
 ]);
 
 export function managedRunSubjectReservationFilePath(mainRepo, subject) {
@@ -54,6 +61,10 @@ export function managedRunSubjectReservationFilePath(mainRepo, subject) {
     .update(JSON.stringify([MANAGED_RUN_SUBJECT_RESERVATION_SCHEMA_VERSION, subject]))
     .digest("hex");
   return path.join(managedRunProcessIdentityStoreDir(mainRepo), `subject-${digest}.json`);
+}
+
+export function managedRunSubjectSuccessorGuardFilePath(mainRepo, subject) {
+  return `${managedRunSubjectReservationFilePath(mainRepo, subject)}.successor`;
 }
 
 function parseReservationBody(body) {
@@ -86,6 +97,132 @@ function readReservation(filePath) {
   return parsed === null ? { unreadable: true, errno: null } : parsed;
 }
 
+function parseSuccessorGuardBody(body) {
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  if (!hasExactKeys(parsed, SUCCESSOR_GUARD_KEYS)) return null;
+  if (parsed.schema_version !== MANAGED_RUN_SUBJECT_SUCCESSOR_GUARD_SCHEMA_VERSION) return null;
+  if (typeof parsed.subject !== "string" || parsed.subject.length === 0) return null;
+  if (typeof parsed.guard_id !== "string" || parsed.guard_id.length === 0) return null;
+  if (!isValidProcessIdentity(parsed.owner_launcher)) return null;
+  if (!isValidPublishedAt(parsed.acquired_at)) return null;
+  return parsed;
+}
+
+function readSuccessorGuard(guardPath) {
+  let body;
+  try {
+    body = readFileSync(guardPath, "utf8");
+  } catch (err) {
+    if (err && err.code === "ENOENT") return null;
+    return { unreadable: true, errno: err?.code ?? null };
+  }
+  const parsed = parseSuccessorGuardBody(body);
+  return parsed === null ? { unreadable: true, errno: null } : parsed;
+}
+
+function releaseSuccessorGuard(guardPath, guardId) {
+  const held = readSuccessorGuard(guardPath);
+  if (held === null) return Object.freeze({ released: false, reason: "absent" });
+  if (held.unreadable === true) return Object.freeze({ released: false, reason: "unreadable" });
+  if (held.guard_id !== guardId) {
+    return Object.freeze({ released: false, reason: "held_by_another_launcher" });
+  }
+  try {
+    unlinkSync(guardPath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return Object.freeze({ released: false, reason: "absent" });
+    throw error;
+  }
+  return Object.freeze({ released: true, reason: "guard_id" });
+}
+
+function successorGuardIsProvablyAbandoned({ held, deps }) {
+  let owner;
+  try {
+    owner = assessLiveness(held.owner_launcher, deps);
+  } catch {
+    return { abandoned: false, verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE };
+  }
+  if (owner.state === "dead") {
+    return { abandoned: true, verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT };
+  }
+  return {
+    abandoned: false,
+    verdict: owner.state === "alive"
+      ? MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.LIVE
+      : MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNRESOLVED
+  };
+}
+
+function acquireSuccessorGuard({ guardPath, subject, deps }) {
+  let ownerIdentity;
+  let acquiredAt;
+  try {
+    ownerIdentity = captureProcessIdentity(process.pid, deps);
+    acquiredAt = readSystemMonotonic(deps);
+  } catch (error) {
+    fail(
+      MANAGED_RUN_PROCESS_IDENTITY_CODES.IDENTITY_CAPTURE_FAILED,
+      "cannot capture the successor guard owner identity; refusing to reserve (fail closed)",
+      { source_code: error?.code ?? null },
+      error
+    );
+  }
+  const guard = {
+    schema_version: MANAGED_RUN_SUBJECT_SUCCESSOR_GUARD_SCHEMA_VERSION,
+    subject,
+    guard_id: randomUUID(),
+    owner_launcher: {
+      pid: ownerIdentity.pid,
+      starttime: ownerIdentity.starttime,
+      boot_id: ownerIdentity.boot_id
+    },
+    acquired_at: { uptime: acquiredAt.uptime, boot_id: acquiredAt.boot_id }
+  };
+  const contended = (verdict, reason) => Object.freeze({ acquired: false, verdict, reason });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      writeExclusive(guardPath, serializeRecord(guard));
+      return Object.freeze({ acquired: true, guard: Object.freeze(guard) });
+    } catch (error) {
+      if (error?.code !== MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_COLLISION) throw error;
+      if (attempt === 1) {
+        return contended(
+          MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
+          "another launcher is reserving a successor for this unit"
+        );
+      }
+      const held = readSuccessorGuard(guardPath);
+      if (held === null) continue;
+      if (held.unreadable === true) {
+        return contended(
+          MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE,
+          "the managed-run subject successor guard exists but could not be read as a valid guard"
+        );
+      }
+      const abandonment = successorGuardIsProvablyAbandoned({ held, deps });
+      if (!abandonment.abandoned) {
+        return contended(
+          abandonment.verdict === MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE
+            ? MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE
+            : MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
+          "another launcher holds the managed-run subject successor guard for this unit"
+        );
+      }
+      releaseSuccessorGuard(guardPath, held.guard_id);
+    }
+  }
+  return contended(
+    MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
+    "the managed-run subject successor guard could not be acquired"
+  );
+}
+
 function reserveSuccessorForProvenDeadNoDeliverySet({ mainRepo, subject, role, provenDeadSet, deps }) {
   if (typeof subject !== "string" || subject.length === 0 ||
       typeof role !== "string" || role.length === 0) {
@@ -111,7 +248,7 @@ function reserveSuccessorForProvenDeadNoDeliverySet({ mainRepo, subject, role, p
   }
   const filePath = managedRunSubjectReservationFilePath(mainRepo, subject);
 
-  const guardPath = `${filePath}.successor`;
+  const guardPath = managedRunSubjectSuccessorGuardFilePath(mainRepo, subject);
   const reservedRefusal = (reason) => Object.freeze({
     retired: false,
     may_launch: false,
@@ -120,13 +257,16 @@ function reserveSuccessorForProvenDeadNoDeliverySet({ mainRepo, subject, role, p
     subject,
     reservation: null
   });
-  try {
-    writeExclusive(guardPath, `${JSON.stringify({ subject, proven_dead_set_size: provenDeadSet.length })}\n`);
-  } catch (error) {
-    if (error?.code === MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_COLLISION) {
-      return reservedRefusal("another launcher is reserving a successor for this unit");
-    }
-    throw error;
+  const guard = acquireSuccessorGuard({ guardPath, subject, deps });
+  if (guard.acquired !== true) {
+    return Object.freeze({
+      retired: false,
+      may_launch: false,
+      verdict: guard.verdict,
+      reason: guard.reason,
+      subject,
+      reservation: null
+    });
   }
   try {
 
@@ -204,9 +344,7 @@ function reserveSuccessorForProvenDeadNoDeliverySet({ mainRepo, subject, role, p
       reservation: Object.freeze({ ...successor, file_path: filePath })
     });
   } finally {
-    try { unlinkSync(guardPath); } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-    }
+    releaseSuccessorGuard(guardPath, guard.guard.guard_id);
   }
 }
 
@@ -234,21 +372,17 @@ export function retireProvenDeadAndReserveSuccessor({
   }
   const filePath = managedRunSubjectReservationFilePath(mainRepo, subject);
 
-  const guardPath = `${filePath}.successor`;
-  try {
-    writeExclusive(guardPath, `${JSON.stringify({ subject, tuple: normalized })}\n`);
-  } catch (error) {
-    if (error?.code === MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_COLLISION) {
-      return Object.freeze({
-        retired: false,
-        may_launch: false,
-        verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
-        reason: "another launcher is reserving a corrective successor for this unit",
-        subject,
-        reservation: null
-      });
-    }
-    throw error;
+  const guardPath = managedRunSubjectSuccessorGuardFilePath(mainRepo, subject);
+  const guard = acquireSuccessorGuard({ guardPath, subject, deps });
+  if (guard.acquired !== true) {
+    return Object.freeze({
+      retired: false,
+      may_launch: false,
+      verdict: guard.verdict,
+      reason: guard.reason,
+      subject,
+      reservation: null
+    });
   }
 
   try {
@@ -338,9 +472,7 @@ export function retireProvenDeadAndReserveSuccessor({
       reservation: Object.freeze({ ...successor, file_path: filePath })
     });
   } finally {
-    try { unlinkSync(guardPath); } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-    }
+    releaseSuccessorGuard(guardPath, guard.guard.guard_id);
   }
 }
 

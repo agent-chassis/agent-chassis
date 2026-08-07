@@ -14,7 +14,7 @@ const REVIEWER_OUTCOME_NO_FINDINGS = 'no_findings';
 const REVIEWER_OUTCOME_CLEAN_FINDINGS = 'passed_no_blocking_or_medium_findings';
 const REVIEWER_OUTCOME_CHANGES_REQUESTED = 'changes_requested';
 
-const DEC_0099_REVIEWED_CONTROLS = Object.freeze([
+const FIXTURE_CONTROL_IDS = Object.freeze([
   'write_scope_total_loc',
   'max_write_file_loc',
   'write_scope_count',
@@ -24,7 +24,15 @@ const DEC_0099_REVIEWED_CONTROLS = Object.freeze([
   'declared_runtime_mode_count',
   'artifact_kind_count',
 ]);
-const CLOSED_CONTROL_IDS = DEC_0099_REVIEWED_CONTROLS;
+
+const UNRECOGNISED_CONTROL_IDS = Object.freeze([
+  'sibling_visibility_count',
+  'general',
+  'quality',
+  'node-engine:write_scope_total_loc',
+  'Write_Scope_Total_Loc',
+  'This write scope looks fine to me.',
+]);
 
 const REVIEW_RESULT_BOUNDED_KEYS = Object.freeze([
   'blocking_finding_count',
@@ -49,7 +57,7 @@ function counts(overrides = {}) {
   return { ...ZERO_COUNTS, ...overrides };
 }
 
-function reviewedControls(controlIds = CLOSED_CONTROL_IDS) {
+function reviewedControls(controlIds = FIXTURE_CONTROL_IDS) {
   return controlIds.map((control_id) => ({ control_id, result: 'pass' }));
 }
 
@@ -141,7 +149,7 @@ async function dispatchPayload({ payload, role, subject, status } = {}) {
   });
 }
 
-function assertCleanReviewedControls(launch, message, expectedControlIds = CLOSED_CONTROL_IDS) {
+function assertCleanReviewedControls(launch, message, expectedControlIds = FIXTURE_CONTROL_IDS) {
   assert.equal(launch.accepted, true, `${message}: launch must be accepted`);
   assert.ok(launch.review_result, `${message}: a clean review_result must be projected`);
   assert.equal(launch.review_result.clean_review, true, `${message}: review must be clean`);
@@ -166,7 +174,7 @@ function assertNoReviewedControls(launch, message) {
   );
 }
 
-test('projects all eight DEC-0099 reviewed_controls from clean no-findings reviewer text', async () => {
+test('projects every reviewed control from clean no-findings reviewer text', async () => {
   const payload = roleResultPayload({
     reported_outcome: REVIEWER_OUTCOME_NO_FINDINGS,
     findings: [],
@@ -186,7 +194,7 @@ test('projects all eight DEC-0099 reviewed_controls from clean no-findings revie
   assertCleanReviewedControls(status, 'clean no-findings projection via getRunStatus');
 });
 
-test('projects all eight DEC-0099 reviewed_controls from clean low/info reviewer text', async () => {
+test('projects every reviewed control from clean low/info reviewer text', async () => {
   const payload = roleResultPayload({
     reported_outcome: REVIEWER_OUTCOME_CLEAN_FINDINGS,
     findings: [
@@ -207,7 +215,7 @@ test('projects all eight DEC-0099 reviewed_controls from clean low/info reviewer
   assertCleanReviewedControls(launch, 'clean low/info projection via startLaunch');
 });
 
-test('redteam clean review_result projects all eight DEC-0099 reviewed_controls', async () => {
+test('redteam clean review_result projects every reviewed control', async () => {
 
   const payload = roleResultPayload({
     reported_role: REDTEAM_ROLE,
@@ -222,9 +230,9 @@ test('redteam clean review_result projects all eight DEC-0099 reviewed_controls'
   assertCleanReviewedControls(launch, 'clean redteam all-eight projection');
 });
 
-test('projects each DEC-0099 control individually in reviewed_controls', async () => {
+test('projects each control individually in reviewed_controls', async () => {
 
-  for (const controlId of CLOSED_CONTROL_IDS) {
+  for (const controlId of FIXTURE_CONTROL_IDS) {
     const payload = roleResultPayload({
       reported_outcome: REVIEWER_OUTCOME_NO_FINDINGS,
       findings: [],
@@ -239,8 +247,8 @@ test('projects each DEC-0099 control individually in reviewed_controls', async (
 
 test('does not project a clean review_result when any reviewed control result is fail', async () => {
 
-  for (const failingControl of CLOSED_CONTROL_IDS) {
-    const reviewed_controls = CLOSED_CONTROL_IDS.map((control_id) => ({
+  for (const failingControl of FIXTURE_CONTROL_IDS) {
+    const reviewed_controls = FIXTURE_CONTROL_IDS.map((control_id) => ({
       control_id,
       result: control_id === failingControl ? 'fail' : 'pass',
     }));
@@ -410,26 +418,98 @@ test('does not project reviewed controls for unclean structured results', async 
   }
 });
 
-test('does not project closed-vocabulary violations in reviewed_controls', async () => {
+test('carries an unrecognised reviewed control end to end into the projected controls', async () => {
+  for (const controlId of UNRECOGNISED_CONTROL_IDS) {
+    const payload = roleResultPayload({
+      reported_outcome: REVIEWER_OUTCOME_NO_FINDINGS,
+      findings: [],
+      finding_counts: counts(),
+      reviewed_controls: reviewedControls([controlId]),
+    });
+
+    const { backend, launch } = await dispatchPayload({ payload });
+
+    assert.deepEqual(
+      launch.final_result?.structured_role_result?.reviewed_controls,
+      [{ control_id: controlId, result: 'pass' }],
+      `unrecognised control ${controlId} must survive the structured_role_result carry`,
+    );
+    assertCleanReviewedControls(launch, `unrecognised control ${controlId}`, [controlId]);
+
+    const status = await backend.getRunStatus({
+      caller_session_id: CALLER_SESSION_ID,
+      monitor_handle: launch.monitor_handle,
+      subject: SUBJECT,
+    });
+    assertCleanReviewedControls(status, `unrecognised control ${controlId} via getRunStatus`, [controlId]);
+  }
+});
+
+test('carries an unrecognised reviewed control alongside recognised ones', async () => {
+  const controlIds = ['sibling_visibility_count', 'write_scope_total_loc'];
+  const payload = roleResultPayload({
+    reported_outcome: REVIEWER_OUTCOME_NO_FINDINGS,
+    findings: [],
+    finding_counts: counts(),
+    reviewed_controls: reviewedControls(controlIds),
+  });
+
+  const { launch } = await dispatchPayload({ payload });
+  assertCleanReviewedControls(launch, 'mixed recognised and unrecognised controls', controlIds);
+});
+
+test('a fail on an unrecognised reviewed control blocks the clean review_result', async () => {
+  for (const controlId of UNRECOGNISED_CONTROL_IDS) {
+    const payload = roleResultPayload({
+      reported_outcome: REVIEWER_OUTCOME_NO_FINDINGS,
+      findings: [],
+      finding_counts: counts(),
+      reviewed_controls: [{ control_id: controlId, result: 'fail' }],
+    });
+
+    const { launch } = await dispatchPayload({ payload });
+    assertNoReviewedControls(launch, `failed unrecognised control ${controlId}`);
+  }
+});
+
+test('a fail on an unrecognised control blocks even when every recognised control passes', async () => {
+  const reviewed_controls = [
+    ...FIXTURE_CONTROL_IDS.map((control_id) => ({ control_id, result: 'pass' })),
+    { control_id: 'sibling_visibility_count', result: 'fail' },
+  ];
+  const payload = roleResultPayload({
+    reported_outcome: REVIEWER_OUTCOME_NO_FINDINGS,
+    findings: [],
+    finding_counts: counts(),
+    reviewed_controls,
+  });
+
+  const { launch } = await dispatchPayload({ payload });
+  assertNoReviewedControls(launch, 'unrecognised fail among otherwise-clean recognised passes');
+});
+
+test('still refuses malformed, empty, and duplicate reviewed_controls', async () => {
   const invalidCases = [
-    { label: 'unknown control id', reviewed_controls: [{ control_id: 'general', result: 'pass' }] },
-    { label: 'generic control id', reviewed_controls: [{ control_id: 'quality', result: 'pass' }] },
     { label: 'empty control id', reviewed_controls: [{ control_id: '', result: 'pass' }] },
+    { label: 'whitespace-only control id', reviewed_controls: [{ control_id: '   ', result: 'pass' }] },
+    { label: 'non-string control id', reviewed_controls: [{ control_id: 42, result: 'pass' }] },
+    { label: 'null control id', reviewed_controls: [{ control_id: null, result: 'pass' }] },
+    { label: 'wrong-type container', reviewed_controls: 'write_scope_total_loc' },
     {
-      label: 'namespaced control id',
-      reviewed_controls: [{ control_id: 'node-engine:write_scope_total_loc', result: 'pass' }],
+      label: 'unexpected entry field',
+      reviewed_controls: [{ control_id: 'write_scope_total_loc', result: 'pass', extra: true }],
     },
     {
-      label: 'prose-like control id',
-      reviewed_controls: [{ control_id: 'This write scope looks fine to me.', result: 'pass' }],
+      label: 'non-pass/fail result',
+      reviewed_controls: [{ control_id: 'write_scope_total_loc', result: 'warn' }],
     },
     {
-      label: 'wrong-case control id',
-      reviewed_controls: [{ control_id: 'Write_Scope_Total_Loc', result: 'pass' }],
-    },
-    {
-      label: 'duplicate control id',
+      label: 'duplicate recognised control id',
       reviewed_controls: reviewedControls(['write_scope_total_loc', 'write_scope_total_loc']),
+    },
+    {
+      label: 'duplicate unrecognised control id',
+      reviewed_controls: reviewedControls(['sibling_visibility_count', 'sibling_visibility_count']),
     },
   ];
 
@@ -442,6 +522,21 @@ test('does not project closed-vocabulary violations in reviewed_controls', async
     });
 
     const { launch } = await dispatchPayload({ payload });
-    assertNoReviewedControls(launch, `closed-vocabulary violation: ${testCase.label}`);
+    assertNoReviewedControls(launch, `shape violation: ${testCase.label}`);
+  }
+});
+
+test('still refuses a worker payload carrying a non-empty reviewed_controls', async () => {
+  for (const controlId of ['write_scope_total_loc', 'sibling_visibility_count']) {
+    const payload = roleResultPayload({
+      reported_role: WORKER_ROLE,
+      reported_outcome: 'completed',
+      findings: [],
+      finding_counts: counts(),
+      reviewed_controls: [{ control_id: controlId, result: 'pass' }],
+    });
+
+    const { launch } = await dispatchPayload({ payload, role: WORKER_ROLE });
+    assertNoReviewedControls(launch, `worker-supplied reviewed control ${controlId}`);
   }
 });

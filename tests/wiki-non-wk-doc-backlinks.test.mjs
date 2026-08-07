@@ -195,26 +195,27 @@ related_work: []
   );
 }
 
-test("lint reports missing docs backlinks for IN, DEC, SRC, and unchanged WK JSON references", async () => {
+test("lint does not require docs backlinks for IN, DEC, SRC, or WK JSON references", async () => {
   await withTempDir(async (tempDir) => {
     await writeBacklinkFixtureRepo(tempDir, { includeBacklinks: false });
 
     const lint = await lintRepo({ dir: tempDir });
 
-    assert.equal(lint.ok, false);
+    assert.equal(lint.ok, true);
     for (const docPath of [
       "docs/in-reference.md",
       "docs/dec-reference.md",
       "docs/src-reference.md",
       "docs/wk-reference.md"
     ]) {
-      assert.ok(
+      assert.equal(
         lint.findings.some(
           (finding) =>
             finding.code === "missing_docs_backlink" &&
             finding.path === docPath
         ),
-        `expected missing_docs_backlink for ${docPath}`
+        false,
+        `unexpected missing_docs_backlink for ${docPath}`
       );
     }
   });
@@ -261,7 +262,7 @@ test("lint accepts satisfied docs backlinks for IN, DEC, SRC, and unchanged WK J
   });
 });
 
-test("lint reports missing docs backlinks when comment id matches but relation is not tracks", async () => {
+test("lint does not report a finding when a backlink comment uses a relation other than tracks", async () => {
   await withTempDir(async (tempDir) => {
     await writeBacklinkFixtureRepo(tempDir, {
       includeBacklinks: true,
@@ -270,20 +271,21 @@ test("lint reports missing docs backlinks when comment id matches but relation i
 
     const lint = await lintRepo({ dir: tempDir });
 
-    assert.equal(lint.ok, false);
+    assert.equal(lint.ok, true);
     for (const docPath of [
       "docs/in-reference.md",
       "docs/dec-reference.md",
       "docs/src-reference.md",
       "docs/wk-reference.md"
     ]) {
-      assert.ok(
+      assert.equal(
         lint.findings.some(
           (finding) =>
             finding.code === "missing_docs_backlink" &&
             finding.path === docPath
         ),
-        `expected missing_docs_backlink for ${docPath} when backlink relation is evidence_for instead of tracks`
+        false,
+        `unexpected missing_docs_backlink for ${docPath} when backlink relation is evidence_for instead of tracks`
       );
     }
   });

@@ -30,6 +30,7 @@ import {
   WORK_RECORD_TARGET_UNIT_VALUES,
   WORK_RECORD_WORK_KIND_VALUES,
   WORK_RECORD_REVIEW_PURPOSE_VALUES,
+  WORK_RECORD_COMPLETION_POLICY_VALUES,
   WORK_RECORD_STATUS_VALUES,
   WORK_RECORD_ESCALATION_KIND_VALUES,
   WORK_RECORD_ESCALATION_STATUS_VALUES,
@@ -401,6 +402,14 @@ function validateSlice(diagnostics, slice, path) {
   validateEnumField(diagnostics, slice, "status", WORK_RECORD_STATUS_VALUES, {
     path: `${path}.status`
   });
+  if (hasOwn(slice, "completion_policy")) {
+    addDiagnostic(
+      diagnostics,
+      "invalid_record",
+      `${path}.completion_policy is only valid on a record`,
+      { path: `${path}.completion_policy` }
+    );
+  }
   validateStringArrayField(diagnostics, slice, "write_scope", { path: `${path}.write_scope` });
   validateStringArrayField(diagnostics, slice, "repo_paths", { path: `${path}.repo_paths` });
   validateSliceReadScope(diagnostics, slice, path);
@@ -953,7 +962,21 @@ function validateSections(diagnostics, sections) {
   validateClosure(diagnostics, sections.closure, "sections.closure");
 }
 
+function validateCompletionPolicy(diagnostics, record) {
+  if (hasOwn(record, "completion_policy")) {
+    validateControlledStringField(
+      diagnostics,
+      record,
+      "completion_policy",
+      WORK_RECORD_COMPLETION_POLICY_VALUES,
+      { path: "completion_policy" }
+    );
+  }
+}
+
 function validateTopLevelArrays(diagnostics, record) {
+  validateCompletionPolicy(diagnostics, record);
+
   for (const field of REQUIRED_ARRAY_OF_STRING_TOP_LEVEL_FIELDS) {
     validateStringArrayField(diagnostics, record, field, { path: field });
   }

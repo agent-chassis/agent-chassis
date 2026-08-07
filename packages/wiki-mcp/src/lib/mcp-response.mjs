@@ -28,13 +28,13 @@ const PROCESS_ERROR_GUARDS_INSTALLED = Symbol.for(
 );
 
 const SPILLED_RESPONSE_SCHEMA_VERSION = "wiki-mcp-spilled-response.v1";
-const INLINE_STRUCTURED_RESPONSE_SCHEMA_VERSION = "wiki-mcp-inline-structured-response.v1";
 const CONTENT_REFERENCE_READ_SCHEMA_VERSION = "wiki-mcp-content-reference-read.v1";
 const CONTENT_REFERENCE_KIND = "wiki_mcp_response_content_reference";
 const DEFAULT_INLINE_BYTE_LIMIT = 128 * 1024;
 const DEFAULT_PREVIEW_BYTE_LIMIT = 2048;
 const MIN_INLINE_BYTE_LIMIT = 8 * 1024;
 const MAX_REFERENCE_READ_BYTE_LIMIT = 64 * 1024;
+const MAX_CONTENT_DESCRIPTOR_BYTES = 512;
 const REF_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
 
 const PATH_REDACTION_PLACEHOLDER = "[redacted absolute path]";
@@ -82,14 +82,26 @@ export function getResponseSpillConfig(env = process.env) {
   };
 }
 
-function estimateSuccessEnvelopeBytes(jsonText) {
-
-  return Buffer.byteLength(jsonText, "utf8") * 2 + 512;
-}
-
 function estimateInlineStructuredBytes(jsonText) {
 
   return Buffer.byteLength(jsonText, "utf8") + 512;
+}
+
+function capUtf8Descriptor(text, maxBytes = MAX_CONTENT_DESCRIPTOR_BYTES) {
+  if (Buffer.byteLength(text, "utf8") <= maxBytes) {
+    return text;
+  }
+  const suffix = "…";
+  const contentLimit = Math.max(0, maxBytes - Buffer.byteLength(suffix, "utf8"));
+  let result = "";
+  let bytes = 0;
+  for (const character of text) {
+    const characterBytes = Buffer.byteLength(character, "utf8");
+    if (bytes + characterBytes > contentLimit) break;
+    result += character;
+    bytes += characterBytes;
+  }
+  return `${result}${suffix}`;
 }
 
 function referencePathForId(stateDir, refId) {
@@ -119,7 +131,7 @@ function buildPreview(buffer, previewByteLimit) {
 function spillJsonResponse(jsonText, { env = process.env, force = false } = {}) {
   const config = getResponseSpillConfig(env);
   const bytes = Buffer.from(jsonText, "utf8");
-  if (!force && estimateSuccessEnvelopeBytes(jsonText) <= config.inlineByteLimit) {
+  if (!force && estimateInlineStructuredBytes(jsonText) <= config.inlineByteLimit) {
     return null;
   }
 
@@ -232,19 +244,18 @@ export function readSpilledMcpContentReference({ ref_id, offset = 0, length = nu
   };
 }
 
-function buildInlineStructuredDescriptor(jsonText, config) {
-  const bytes = Buffer.from(jsonText, "utf8");
-  return {
-    schema_version: INLINE_STRUCTURED_RESPONSE_SCHEMA_VERSION,
-    structured_content_inlined: true,
-    reason: "display_text_elided_to_avoid_duplication",
-    note:
-      "The full response is delivered in structuredContent; the duplicate " +
-      "pretty-printed display text was omitted to keep the stdio frame within " +
-      "the inline byte budget.",
-    total_bytes: bytes.byteLength,
-    preview: buildPreview(bytes, config.previewByteLimit)
-  };
+function buildInlineStructuredDescriptor(jsonText) {
+  const totalBytes = Buffer.byteLength(jsonText, "utf8");
+  return capUtf8Descriptor(
+    `MCP result: full machine-readable payload is available in structuredContent (${totalBytes} UTF-8 bytes).`
+  );
+}
+
+function buildStructuredErrorDescriptor(jsonText) {
+  const totalBytes = Buffer.byteLength(jsonText, "utf8");
+  return capUtf8Descriptor(
+    `MCP tool error: full machine-readable error envelope is available in structuredContent (${totalBytes} UTF-8 bytes).`
+  );
 }
 
 export function jsonContent(data, { env = process.env, forceSpill = false } = {}) {
@@ -264,21 +275,9 @@ export function jsonContent(data, { env = process.env, forceSpill = false } = {}
     };
   }
 
-  if (estimateSuccessEnvelopeBytes(jsonText) <= config.inlineByteLimit) {
-    return {
-      content: [{ type: "text", text: jsonText }],
-      structuredContent: data
-    };
-  }
-
   if (estimateInlineStructuredBytes(jsonText) <= config.inlineByteLimit) {
     return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(buildInlineStructuredDescriptor(jsonText, config), null, 2)
-        }
-      ],
+      content: [{ type: "text", text: buildInlineStructuredDescriptor(jsonText) }],
       structuredContent: data
     };
   }
@@ -296,12 +295,7 @@ export function jsonContent(data, { env = process.env, forceSpill = false } = {}
     };
   }
   return {
-    content: [
-      {
-        type: "text",
-        text: jsonText
-      }
-    ],
+    content: [{ type: "text", text: buildInlineStructuredDescriptor(jsonText) }],
     structuredContent: data
   };
 }
@@ -534,15 +528,12 @@ export function errorContent(error) {
     !Array.isArray(error.envelope)
       ? error.envelope
       : null;
+  const envelopeText = envelope ? JSON.stringify(envelope) : null;
+  const descriptor = envelope
+    ? buildStructuredErrorDescriptor(envelopeText)
+    : capUtf8Descriptor(redactAbsolutePaths(error instanceof Error ? error.message : String(error)));
   const result = {
-    content: [
-      {
-        type: "text",
-        text: envelope
-          ? JSON.stringify(envelope, null, 2)
-          : redactAbsolutePaths(error instanceof Error ? error.message : String(error))
-      }
-    ],
+    content: [{ type: "text", text: descriptor }],
     isError: true
   };
   if (envelope) {

@@ -16,7 +16,7 @@
     },
     {
       "file": "mcp-launcher-tools.json",
-      "tool_count": 4,
+      "tool_count": 5,
       "summary": "MCP launcher, runtime diagnostic, dispatch-readiness, and validation-run tools."
     },
     {
@@ -30,9 +30,24 @@
       "summary": "Tool-use audit observability tools."
     },
     {
-      "file": "work-record-tools.json",
-      "tool_count": 29,
-      "summary": "Work-record create/edit/validate/migrate routes across MCP and CLI."
+      "file": "work-record-core-mcp-tools.json",
+      "tool_count": 6,
+      "summary": "MCP work-record create, validate, status, task, closure, and summary routes."
+    },
+    {
+      "file": "work-record-core-cli-tools.json",
+      "tool_count": 7,
+      "summary": "Operator-shell wiki CLI fallbacks for work-record summary, issue creation, validate, status, task, closure, and Markdown-to-JSON migration."
+    },
+    {
+      "file": "work-record-edit-mcp-tools.json",
+      "tool_count": 9,
+      "summary": "MCP work-record derived-evidence refresh/cleanup and structured slice, list-field, acceptance, and review-unit editing tools."
+    },
+    {
+      "file": "work-record-edit-cli-tools.json",
+      "tool_count": 7,
+      "summary": "Operator-shell wiki CLI fallbacks for work-record derived-evidence refresh/cleanup and structured slice, list-field, acceptance, and review-unit editing."
     },
     {
       "file": "code-index-tools.json",
@@ -60,7 +75,7 @@
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 100,
+  "expected_tool_count": 101,
   "uniqueness": {
     "key": "tool_name",
     "scope": "assembled_corpus",

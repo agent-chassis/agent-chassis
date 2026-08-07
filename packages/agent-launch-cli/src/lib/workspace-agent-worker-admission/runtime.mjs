@@ -425,6 +425,18 @@ export async function evaluateWorkerAdmissionForBackend({
   if (!unit.ok) {
     return { allowed: false, reason: "invalid_subject_address", detail: { subject } };
   }
+
+  if (unit.value.slice_id !== null && canonical_work_record?.status === "review") {
+    return {
+      allowed: false,
+      reason: "managed_parent_wk_review_blocks_worker_dispatch",
+      detail: {
+        record_id: unit.value.record_id,
+        parent_status: canonical_work_record.status,
+        remediation: "move the parent out of whole-WK review, or complete the terminal cycle"
+      }
+    };
+  }
   const unitAddress = unit.value.address;
   const recordId = unit.value.record_id;
   let repo;

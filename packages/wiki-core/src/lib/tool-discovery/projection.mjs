@@ -1,5 +1,6 @@
 
 
+import { Buffer } from "node:buffer";
 import {
   cloneJson,
   hasOwn,
@@ -38,6 +39,23 @@ export const TOOL_DISCOVERY_COMPACT_ENTRY_FIELDS = Object.freeze([
 ]);
 
 export const TOOL_DISCOVERY_LIST_DEFAULT_LIMIT = 20;
+export const TOOL_DISCOVERY_LIST_MAX_BYTES = 3840;
+export const TOOL_DISCOVERY_LIST_ENTRY_FIELDS = Object.freeze([
+  "tool_name",
+  "task_ids"
+]);
+
+const TOOL_DISCOVERY_LIST_NEXT_CALLS = Object.freeze([
+  Object.freeze({
+    tool: "workspace_tools_query",
+    recommended: true,
+    target_by: Object.freeze(["task_id", "tool_name"])
+  }),
+  Object.freeze({
+    tool: "workspace_tools_describe",
+    target_by: Object.freeze(["tool_name"])
+  })
+]);
 
 export function filterToolDiscoveryTools(descriptorOrTools, query = {}) {
   const normalizedQuery = normalizeDiscoveryQuery(query);
@@ -110,6 +128,110 @@ export function compactToolDiscoveryEntry(tool) {
   return result;
 }
 
+export function compactToolDiscoveryListEntry(tool) {
+  if (!isObject(tool)) {
+    return tool;
+  }
+  const result = {};
+  for (const field of TOOL_DISCOVERY_LIST_ENTRY_FIELDS) {
+    if (hasOwn(tool, field)) {
+      result[field] = cloneJson(tool[field]);
+    }
+  }
+  return result;
+}
+
+function prettyJsonBytes(value) {
+  return Buffer.byteLength(JSON.stringify(value, null, 2), "utf8");
+}
+
+function cloneToolDiscoveryListNextCalls() {
+  return TOOL_DISCOVERY_LIST_NEXT_CALLS.map((entry) => cloneJson(entry));
+}
+
+export function createBoundedToolDiscoveryListEnvelope(
+  baseEnvelope,
+  entries,
+  {
+    totalCount = Array.isArray(entries) ? entries.length : 0,
+    limit = TOOL_DISCOVERY_LIST_DEFAULT_LIMIT,
+    byteLimit = TOOL_DISCOVERY_LIST_MAX_BYTES,
+    resultField = "results"
+  } = {}
+) {
+  const normalizedEntries = Array.isArray(entries) ? entries : [];
+  const normalizedTotalCount = Number.isInteger(totalCount) && totalCount >= 0
+    ? totalCount
+    : normalizedEntries.length;
+  const normalizedLimit = Number.isInteger(limit) && limit > 0
+    ? limit
+    : TOOL_DISCOVERY_LIST_DEFAULT_LIMIT;
+  const normalizedByteLimit = Number.isInteger(byteLimit) && byteLimit > 0
+    ? byteLimit
+    : TOOL_DISCOVERY_LIST_MAX_BYTES;
+  const base = isObject(baseEnvelope) ? { ...baseEnvelope } : {};
+  delete base[resultField];
+  for (const field of [
+    "total_count",
+    "returned_count",
+    "truncated_count",
+    "limit_applied",
+    "byte_limit",
+    "count_truncated",
+    "byte_truncated",
+    "truncated",
+    "next_calls"
+  ]) {
+    delete base[field];
+  }
+
+  const countLimitedEntries = normalizedEntries
+    .slice(0, normalizedLimit)
+    .map((entry, index) => ({ ...compactToolDiscoveryListEntry(entry), rank: index + 1 }));
+  const countTruncated = normalizedTotalCount > normalizedLimit;
+
+  const buildEnvelope = (returnedEntries, byteTruncated) => {
+    const returnedCount = returnedEntries.length;
+    const truncated = countTruncated || byteTruncated;
+    return {
+      ...base,
+      [resultField]: returnedEntries,
+      total_count: normalizedTotalCount,
+      returned_count: returnedCount,
+      truncated_count: Math.max(0, normalizedTotalCount - returnedCount),
+      limit_applied: normalizedLimit,
+      byte_limit: normalizedByteLimit,
+      count_truncated: countTruncated,
+      byte_truncated: byteTruncated,
+      truncated,
+      ...(truncated ? { next_calls: cloneToolDiscoveryListNextCalls() } : {})
+    };
+  };
+
+  let returnedEntries = [];
+  let bounded = buildEnvelope([], countLimitedEntries.length > 0);
+  if (prettyJsonBytes(bounded) > normalizedByteLimit) {
+    throw new Error(
+      `tool discovery list metadata exceeds the ${normalizedByteLimit}-byte response ceiling`
+    );
+  }
+
+  for (const entry of countLimitedEntries) {
+    const candidateEntries = [...returnedEntries, entry];
+    const candidate = buildEnvelope(
+      candidateEntries,
+      candidateEntries.length < countLimitedEntries.length
+    );
+    if (prettyJsonBytes(candidate) > normalizedByteLimit) {
+      break;
+    }
+    returnedEntries = candidateEntries;
+    bounded = candidate;
+  }
+
+  return bounded;
+}
+
 export function rankToolDiscoveryTools(descriptorOrTools, query = {}, { verbose = true } = {}) {
   const normalizedQuery = normalizeDiscoveryQuery(query);
   const tools = filterToolDiscoveryTools(descriptorOrTools, normalizedQuery)
@@ -134,15 +256,12 @@ export function listToolDiscoveryTools(descriptorOrTools, query = {}, options = 
     .map((tool) => projectToolDiscoveryEntryForTier(tool, normalizedQuery.registered_tier))
     .sort(compareToolEntries);
 
-  const total_count = allTools.length;
-  const sliced = allTools.slice(0, limit);
-
-  return {
-    tools: sliced.map((tool, index) => ({ ...compactToolDiscoveryEntry(tool), rank: index + 1 })),
-    total_count,
-    limit_applied: limit,
-    truncated: total_count > limit
-  };
+  return createBoundedToolDiscoveryListEnvelope({}, allTools, {
+    totalCount: allTools.length,
+    limit,
+    byteLimit: options.byteLimit,
+    resultField: "tools"
+  });
 }
 
 export function describeToolDiscoveryTools(descriptorOrTools, query = {}, options = {}) {

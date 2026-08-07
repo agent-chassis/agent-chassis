@@ -42,7 +42,8 @@ import {
 } from "./workspace-agent-dispatch-claude-executor.mjs";
 import {
   buildClaudeStdioMcpAllowedToolsArgs,
-  createStdioMcpConduit
+  createStdioMcpConduit,
+  projectStdioMcpChannelClientRegistration
 } from "./stdio-mcp-conduit.mjs";
 import {
   mintTrustedStdioMcpConduitAuthority
@@ -756,7 +757,9 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
       headlessSettings,
       headlessSettingsPath
     };
-    writeClaudeOrchestratorMcpConfig(launchPlan, conduit.relay);
+
+    writeClaudeOrchestratorMcpConfig(
+      launchPlan, projectStdioMcpChannelClientRegistration(conduit));
 
     await writeJsonAtomic(launchPlan.mcpConfigPath, launchPlan.mcpConfig);
 

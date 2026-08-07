@@ -1,9 +1,14 @@
+import { access } from "node:fs/promises";
 import path from "node:path";
 
-import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
+import {
+  SIDECAR_ARTIFACT_SCHEMA_VERSION,
+  createSidecarResultEnvelope
+} from "./sidecar-schema.mjs";
 import {
   discoverSidecarGitState,
   getSidecarIndexStatus,
+  resolveSidecarArtifactPath,
   runSidecarGit
 } from "./sidecar-status.mjs";
 import { joinSidecarPathsToCanonicalRecords } from "./sidecar-joins.mjs";
@@ -17,12 +22,15 @@ import {
 } from "./sidecar-graph-impact-shared.mjs";
 import {
   artifactIdentityMatches,
+  classifyReadSidecarGraphArtifact,
   loadCanonicalRecords,
   readArtifact,
   rebuildGraphIndexAtHead,
   SidecarGraphIndexUnbuildableError,
   sourcePathsFromArtifact
 } from "./sidecar-graph-impact-artifact.mjs";
+import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
+import { projectSelectedUnitGraphBearingPaths } from "./work-record-dispatch-graph-projection.mjs";
 import { collectDirtyGraphOverlay, selectGraph } from "./sidecar-graph-impact-overlay.mjs";
 import {
   connectedGraphImpact,
@@ -48,6 +56,23 @@ import {
 export { SIDECAR_GRAPH_IMPACT_DIFF_RAW_PATCH_LIMITS } from "./sidecar-graph-impact-shared.mjs";
 
 const GRAPH_REBUILD_MAX_PASSES = 3;
+const COMMITTED_HEAD_QUERY_SCHEMA_VERSION = "committed-head-graph-impact.v1";
+
+function committedUnitIdentity(value) {
+  if (
+    !value ||
+    !["work_item", "slice"].includes(value.kind) ||
+    typeof value.address !== "string" ||
+    typeof value.record_id !== "string" ||
+    (value.kind === "slice" && typeof value.slice_id !== "string")
+  ) return null;
+  return {
+    kind: value.kind,
+    address: value.address.slice(0, 128),
+    record_id: value.record_id.slice(0, 64),
+    slice_id: value.kind === "slice" ? value.slice_id.slice(0, 64) : null
+  };
+}
 
 function statusRequiresRebuild(status) {
   return status?.index_action === "rebuild";
@@ -91,6 +116,226 @@ export function deriveDirectImportAdjacencyFromGraph(graph, bearingPaths) {
   return [...pairKeys]
     .sort((left, right) => left.localeCompare(right))
     .map((key) => key.split("\t"));
+}
+
+function committedHeadFailure({ outcome, status, selectedUnit }) {
+  return {
+    schema_version: COMMITTED_HEAD_QUERY_SCHEMA_VERSION,
+    outcome,
+    available: false,
+    query_kind: "graph_impact_paths",
+    repository_commit: status?.index_head ?? null,
+    graph_schema_version: status?.graph_state?.graph_schema_version ?? null,
+    generator_identity: null,
+    selected_unit: cloneJson(selectedUnit ?? null),
+    graph_state: {
+      graph_available: false,
+      edge_source: "unavailable",
+      dirty_graph_mode: "unavailable",
+      graph_schema_version: status?.graph_state?.graph_schema_version ?? null,
+      unavailable_paths: []
+    }
+  };
+}
+
+function statusFailureOutcome(status) {
+  if (status?.status_reason === "artifact_unreadable") return "base_artifact_corrupt";
+  if (status?.status_reason === "artifact_missing") return "base_artifact_unavailable";
+  if (
+    status?.status_reason?.includes("incompatible") ||
+    status?.status_reason?.includes("schema") ||
+    status?.status_reason?.startsWith("generator_identity_")
+  ) {
+    return "base_artifact_incompatible";
+  }
+  return "base_artifact_unavailable";
+}
+
+async function getCommittedHeadArtifactStatus({ dir, cacheDir }) {
+  const repoRoot = await runSidecarGit(dir, ["rev-parse", "--show-toplevel"]);
+  const [indexHead, indexTree] = await Promise.all([
+    runSidecarGit(repoRoot, ["rev-parse", "HEAD"]),
+    runSidecarGit(repoRoot, ["rev-parse", "HEAD^{tree}"])
+  ]);
+  const artifactPaths = resolveSidecarArtifactPath({ repoRoot, cacheDir });
+  let artifactExists = true;
+  try {
+    await access(artifactPaths.artifactPath);
+  } catch {
+    artifactExists = false;
+  }
+  return {
+    repo_root: repoRoot,
+    artifact_exists: artifactExists,
+    artifact_path: artifactPaths.artifactRelativePath,
+    artifact_schema_version: SIDECAR_ARTIFACT_SCHEMA_VERSION,
+    staleness: artifactExists ? "fresh" : "missing",
+    index_action: artifactExists ? "use" : "rebuild",
+    status_reason: artifactExists ? "source_identity_match" : "artifact_missing",
+    index_head: indexHead,
+    index_tree: indexTree,
+    graph_state: {
+      graph_available: artifactExists,
+      graph_schema_version: artifactExists ? SIDECAR_GRAPH_SCHEMA_VERSION : null
+    }
+  };
+}
+
+function artifactMatchesCommittedIdentity({ artifact, identity, indexHead, indexTree }) {
+  return Boolean(
+    artifact?.schema_version === SIDECAR_ARTIFACT_SCHEMA_VERSION &&
+    artifact.index_head === indexHead &&
+    artifact.index_tree === indexTree &&
+    artifact.cache_metadata?.artifact_schema_version === SIDECAR_ARTIFACT_SCHEMA_VERSION &&
+    artifact.cache_metadata?.index_head === indexHead &&
+    artifact.cache_metadata?.index_tree === indexTree &&
+    identity?.index_head === indexHead
+  );
+}
+
+export async function getCommittedHeadGraphImpactPaths({
+  dir = ".",
+  selectedUnit,
+  subject,
+  cacheDir = undefined,
+  statusReader = getCommittedHeadArtifactStatus,
+  artifactReader = readArtifact,
+  headReader = null
+} = {}) {
+  const unitIdentity = committedUnitIdentity(selectedUnit);
+  if (!unitIdentity) {
+    return committedHeadFailure({
+      outcome: "selected_unit_invalid",
+      status: null,
+      selectedUnit: null
+    });
+  }
+  const targetDir = path.resolve(String(dir || "."));
+  let status = null;
+  try {
+    status = await statusReader({ dir: targetDir, cacheDir });
+    if (status.index_action !== "use" || status.staleness !== "fresh") {
+      return committedHeadFailure({
+        outcome: statusFailureOutcome(status),
+        status,
+        selectedUnit: unitIdentity
+      });
+    }
+
+    const repoRoot = status.repo_root ??
+      await runSidecarGit(targetDir, ["rev-parse", "--show-toplevel"]);
+    const artifactRead = await artifactReader({ repoRoot, status });
+    if (!artifactRead.artifact || !artifactRead.identity) {
+      const reason = artifactRead.evidence?.reason ?? "artifact_unavailable";
+      return committedHeadFailure({
+        outcome: reason === "artifact_unreadable"
+          ? "base_artifact_corrupt"
+          : reason.includes("incompatible") || reason.includes("format") ||
+              reason.startsWith("generator_identity_")
+            ? "base_artifact_incompatible"
+            : "base_artifact_unavailable",
+        status,
+        selectedUnit: unitIdentity
+      });
+    }
+
+    const verifiedArtifactRead = await artifactReader({ repoRoot, status });
+    if (
+      !verifiedArtifactRead.artifact ||
+      !verifiedArtifactRead.identity ||
+      !artifactIdentityMatches(artifactRead.identity, verifiedArtifactRead.identity)
+    ) {
+      return committedHeadFailure({
+        outcome: "base_artifact_incompatible",
+        status,
+        selectedUnit: unitIdentity
+      });
+    }
+
+    const [currentHead, currentTree] = await Promise.all([
+      headReader ? headReader() : runSidecarGit(repoRoot, ["rev-parse", "HEAD"]),
+      runSidecarGit(repoRoot, ["rev-parse", "HEAD^{tree}"])
+    ]);
+    const identity = artifactRead.identity;
+    const classified = classifyReadSidecarGraphArtifact(artifactRead.artifact);
+    if (currentHead !== status.index_head || currentTree !== status.index_tree) {
+      return committedHeadFailure({
+        outcome: "repository_head_unstable",
+        status,
+        selectedUnit: unitIdentity
+      });
+    }
+    if (
+      !artifactMatchesCommittedIdentity({
+        artifact: artifactRead.artifact,
+        identity,
+        indexHead: currentHead,
+        indexTree: currentTree
+      }) ||
+      identity.graph_schema_version !== SIDECAR_GRAPH_SCHEMA_VERSION ||
+      !classified.compatible ||
+      classified.graph_state.graph_available !== true
+    ) {
+      return committedHeadFailure({
+        outcome: "base_artifact_incompatible",
+        status,
+        selectedUnit: unitIdentity
+      });
+    }
+
+    const projection = projectSelectedUnitGraphBearingPaths({
+      selectedUnit: unitIdentity,
+      subject,
+      committedSourcePaths: sourcePathsFromArtifact(artifactRead.artifact)
+    });
+    const sanitized = sanitizeGraphForbiddenPaths(artifactRead.artifact.graph);
+    const indexes = createGraphIndexes(sanitized.graph);
+    const unavailablePaths = projection.graph_bearing_paths.filter(
+      (relativePath) => !indexes.nodeIdsByPath.has(relativePath)
+    );
+    const impacts = projection.graph_bearing_paths.flatMap((inputPath) =>
+      connectedGraphImpact({ inputPath, indexes })
+    );
+    const impactedGraph = nodesAndEdgesForImpacts({ impacts, indexes });
+    const graphState = {
+      graph_available: true,
+      edge_source: "base_index",
+      dirty_graph_mode: "base_index_only",
+      graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION,
+      unavailable_paths: unavailablePaths,
+      dirty_state: "unknown",
+      staleness: "fresh"
+    };
+
+    return {
+      schema_version: COMMITTED_HEAD_QUERY_SCHEMA_VERSION,
+      outcome: "available",
+      available: true,
+      query_kind: "graph_impact_paths",
+      repository_commit: identity.index_head,
+      graph_schema_version: identity.graph_schema_version,
+      generator_identity: identity.generator_identity,
+      selected_unit: unitIdentity,
+      projection,
+      input_paths: projection.subject_paths,
+      validated_paths: projection.graph_bearing_paths,
+      invalid_paths: [],
+      graph_state: graphState,
+      graph_import_adjacency: deriveDirectImportAdjacencyFromGraph(
+        sanitized.graph,
+        projection.graph_bearing_paths
+      ),
+      graph_nodes: impactedGraph.graph_nodes,
+      graph_edges: impactedGraph.graph_edges,
+      structural_impacts: impacts
+    };
+  } catch {
+    return committedHeadFailure({
+      outcome: "base_artifact_unavailable",
+      status,
+      selectedUnit: unitIdentity
+    });
+  }
 }
 
 export async function resolveCurrentGraphForImpact({

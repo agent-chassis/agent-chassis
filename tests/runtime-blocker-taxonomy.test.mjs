@@ -91,6 +91,7 @@ test("taxonomy descriptor declares every required stable code", () => {
     "graph_impact_persistence_unavailable",
     "taxonomy_corpus_unavailable",
     "operator_recovery_needed",
+    "stdio_mcp_lifecycle_protocol_incompatible",
     "managed_lifecycle_required",
     "managed_worktree_provisioning_unavailable",
     "managed_slice_tip_reconcile_required"
@@ -99,6 +100,16 @@ test("taxonomy descriptor declares every required stable code", () => {
     assert.ok(isRuntimeBlockerCode(code), `taxonomy must declare code ${code}`);
     assert.ok(RUNTIME_BLOCKER_CODE_VALUES.includes(code));
   }
+});
+
+test("WK-1781 composition refusal cause is taxonomy-backed with bounded operator recovery", () => {
+  const entry = getRuntimeBlockerEntry("stdio_mcp_lifecycle_protocol_incompatible");
+  assert.ok(entry);
+  assert.equal(entry.category, "operator_recovery");
+  assert.equal(entry.actor_recovery, "operator");
+  assert.equal(entry.blocking, true);
+  assert.equal(entry.recovery,
+    "deploy one coherent build and restart the long-lived backend");
 });
 
 test("managed lifecycle blockers have distinct stable categories and structured recovery", () => {
@@ -134,14 +145,14 @@ test("WK-1694 the slice-tip reconciliation blocker is coordinator-owned review r
   assert.equal(reconcile.actor_recovery, "coordinator");
   assert.notEqual(reconcile.actor_recovery, provisioning.actor_recovery);
   assert.equal(reconcile.recovery.kind, "structured_route");
-  assert.equal(reconcile.recovery.route, "workspace_agent_run_status");
+  assert.equal(reconcile.recovery.route, "workspace_agent_dispatch");
   assert.notEqual(reconcile.recovery.route, provisioning.recovery.route);
   assert.notEqual(
     reconcile.recovery.route,
     "workspace_coordination_preflight",
     "reconciliation recovery is exact-slice review, never a capability preflight"
   );
-  assert.equal(reconcile.recovery.arguments.recovery_route, "exact_slice_review_recovery");
+  assert.equal(reconcile.recovery.arguments.role, "reviewer");
 
   assert.match(reconcile.summary, /provisioning is available/i);
   assert.match(reconcile.detail, /before any attempt binding, ref mutation, worktree mutation/i);

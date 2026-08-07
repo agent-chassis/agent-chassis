@@ -16,9 +16,45 @@ import {
   STDIO_MCP_TERMINAL_DRAIN_GRACE_MS,
   STDIO_MCP_TERMINAL_KILL_GRACE_MS,
   assertTrustedStdioMcpConduitBinding,
+  recordLauncherObservedStdioMcpClientTerminal,
   resolveConduitChildStdio,
   settleStdioMcpConduitCleanup
 } from "./stdio-mcp-conduit-contract.mjs";
+
+const TERMINAL_REVIEW_SPAWN_BARRIER_REFUSAL_BRAND = Symbol(
+  "terminalReviewSpawnBarrierRefusal"
+);
+
+export const TERMINAL_REVIEW_SPAWN_BARRIER_DEFAULT_REASON =
+  "terminal_review_attempt_contract_recheck_failed";
+
+export const TERMINAL_REVIEW_SPAWN_BARRIER_INVALID_REASON =
+  "terminal_review_spawn_barrier_invalid";
+
+export class TerminalReviewSpawnBarrierRefusal extends Error {
+  constructor(verdict) {
+    super("agent-launch isolation: terminal-review pre-spawn barrier refused the launch");
+    this.name = "TerminalReviewSpawnBarrierRefusal";
+    Object.defineProperty(this, TERMINAL_REVIEW_SPAWN_BARRIER_REFUSAL_BRAND, {
+      value: true,
+      enumerable: false
+    });
+    const reason = typeof verdict?.reason === "string" && verdict.reason.length > 0
+      ? verdict.reason
+      : TERMINAL_REVIEW_SPAWN_BARRIER_DEFAULT_REASON;
+    const detail = verdict?.detail !== null && typeof verdict?.detail === "object" &&
+      !Array.isArray(verdict.detail)
+      ? verdict.detail
+      : null;
+
+    this.verdict = Object.freeze({ ok: false, reason, detail });
+  }
+}
+
+export function isTerminalReviewSpawnBarrierRefusal(value) {
+  return (value !== null && typeof value === "object") &&
+    value[TERMINAL_REVIEW_SPAWN_BARRIER_REFUSAL_BRAND] === true;
+}
 
 function superviseConduitTerminalDrain(child, graceMs) {
   const stillRunning = () => child.exitCode === null && child.signalCode === null;
@@ -39,6 +75,14 @@ function superviseConduitTerminalDrain(child, graceMs) {
 }
 
 export function spawnIsolated(plan, stdioOptions = {}) {
+
+  const terminalReviewSpawnBarrier = stdioOptions?.terminalReviewSpawnBarrier ?? null;
+  if (terminalReviewSpawnBarrier !== null && typeof terminalReviewSpawnBarrier !== "function") {
+    throw new TerminalReviewSpawnBarrierRefusal({
+      reason: TERMINAL_REVIEW_SPAWN_BARRIER_INVALID_REASON,
+      detail: { barrier_type: typeof terminalReviewSpawnBarrier }
+    });
+  }
   if (!plan || typeof plan !== "object" || plan.schemaVersion !== BUBBLEWRAP_LAUNCH_PLAN_SCHEMA_VERSION) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PLAN_INVALID,
@@ -65,6 +109,18 @@ export function spawnIsolated(plan, stdioOptions = {}) {
   assertRequiredReadOnlyFilesUnchanged(plan.requiredReadOnlyFiles ?? []);
   assertReadOnlyProjectionMountpointsUnchanged(plan.readOnlyProjectionMountpoints ?? []);
   assertFindingsRoleGitMetadataUnchanged(plan.findingsRoleGitMetadata ?? null);
+
+  if (terminalReviewSpawnBarrier !== null) {
+    const verdict = terminalReviewSpawnBarrier();
+    if (verdict?.ok !== true) {
+      throw new TerminalReviewSpawnBarrierRefusal(verdict);
+    }
+  }
+
+  if (conduit !== null) {
+    const retainedConduitFailure = conduit.failure ?? conduit.readinessFailure ?? null;
+    if (retainedConduitFailure !== null) throw retainedConduitFailure;
+  }
   let child;
   try {
     child = spawn(resolved, plan.bwrapArgs, {
@@ -99,10 +155,19 @@ export function spawnIsolated(plan, stdioOptions = {}) {
       }
     });
 
+    if (conduit.failureSettlement instanceof Promise) {
+      void conduit.failureSettlement.then(() => {
+        superviseConduitTerminalDrain(child, STDIO_MCP_ABNORMAL_DRAIN_GRACE_MS);
+        void settleStdioMcpConduitCleanup(conduit);
+      });
+    }
+
     let conduitFinalized = false;
     const finalizeConduitLifecycle = () => {
       if (conduitFinalized) return;
       conduitFinalized = true;
+
+      recordLauncherObservedStdioMcpClientTerminal(conduit);
       void settleStdioMcpConduitCleanup(conduit);
     };
     child.once("exit", finalizeConduitLifecycle);

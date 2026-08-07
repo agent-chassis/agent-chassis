@@ -41,7 +41,9 @@ export function createDispatchRunLifecycle(ctx = {}) {
     publishPendingManagedRunIdentity = null,
     bindManagedRunOuterIdentity = null,
 
-    releaseManagedRunSubjectReservationForLaunch = null
+    releaseManagedRunSubjectReservationForLaunch = null,
+
+    verifyTerminalReviewAttemptContractAtSpawn = null
   } = ctx;
 
   const { startLaunch } = createLaunchFlow({
@@ -64,7 +66,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
     checkPriorManagedAttempt,
     publishPendingManagedRunIdentity,
     bindManagedRunOuterIdentity,
-    releaseManagedRunSubjectReservationForLaunch
+    releaseManagedRunSubjectReservationForLaunch,
+    verifyTerminalReviewAttemptContractAtSpawn
   });
 
   const { getRunStatus, waitForRunStatus } = createMonitor({

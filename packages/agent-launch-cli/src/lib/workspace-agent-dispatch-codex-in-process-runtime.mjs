@@ -1,6 +1,9 @@
 import { BACKEND_REFUSAL_CODES } from "./workspace-agent-dispatch-backend.mjs";
 import { superviseChildLaunch } from "./workspace-agent-launch-core.mjs";
-import { BubblewrapIsolationError } from "./launch-isolation.mjs";
+import {
+  BubblewrapIsolationError,
+  isTerminalReviewSpawnBarrierRefusal
+} from "./launch-isolation.mjs";
 import {
   STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON as CODEX_STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
   attachStdioMcpConduitLaunchOutcome
@@ -46,9 +49,28 @@ import {
   renderTrustedCorrectiveFindingsInstructions
 } from "./workspace-agent-launch-adapter-contract.mjs";
 
+let plainChildProcessSpawn = null;
+
+export async function resolvePlainChildProcessSpawn() {
+  if (plainChildProcessSpawn === null) {
+    const childProcess = await import("node:" + "child_process");
+    plainChildProcessSpawn = childProcess.spawn;
+  }
+  const spawnNow = plainChildProcessSpawn;
+
+  return (command, args, options) =>
+    spawnNow(command, Array.isArray(args) ? [...args] : [], options);
+}
+
 export async function spawnPlainChildProcess(command, args, options) {
-  const childProcess = await import("node:" + "child_process");
-  return childProcess.spawn(command, Array.isArray(args) ? [...args] : [], options);
+  const spawnNow = await resolvePlainChildProcessSpawn();
+  return spawnNow(command, args, options);
+}
+
+function resolveCodexPlainSpawnPrimitive(plainSpawn) {
+  return plainSpawn === spawnPlainChildProcess
+    ? resolvePlainChildProcessSpawn
+    : async () => plainSpawn;
 }
 
 function cleanupFailureRefusal(controller, error) {
@@ -112,8 +134,16 @@ export async function launchCodexWorkspaceAgentInProcess({
   resolveUnsandboxedOptIn,
   classifyIsolationBackendAvailability,
   probeCanonicalBwrapAvailability,
-  createMcpConduit
+  createMcpConduit,
+
+  terminalReviewSpawnBarrier = null
 }) {
+
+  const terminalReviewBarrierRefusal = (verdict) => makeRefusal(
+    BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+    verdict?.reason ?? "terminal_review_attempt_contract_recheck_failed",
+    { role, subject, ...(verdict?.detail ?? {}) }
+  );
   let correctiveInstructions = null;
   try {
     correctiveInstructions = role === "worker"
@@ -249,6 +279,11 @@ export async function launchCodexWorkspaceAgentInProcess({
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_threw", detail),
           buildNoChildRefusal: () =>
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_no_child", null),
+
+          preSpawnBarrier: terminalReviewSpawnBarrier,
+          buildPreSpawnBarrierRefusal: terminalReviewBarrierRefusal,
+
+          resolveSpawn: resolveCodexPlainSpawnPrimitive(plainSpawn),
           adaptSupervisedResult: (supervised) =>
             attachProvenanceToSupervisedResult(supervised, {
               finalPath,
@@ -323,15 +358,36 @@ export async function launchCodexWorkspaceAgentInProcess({
     ));
   }
 
+  if (typeof terminalReviewSpawnBarrier === "function") {
+    const verdict = terminalReviewSpawnBarrier();
+    if (verdict?.ok !== true) {
+      if (conduit) await conduit.cleanup().catch(() => {});
+      return compensateCodexPreSpawnRefusal(
+        cleanupController,
+        terminalReviewBarrierRefusal(verdict)
+      );
+    }
+  }
+
   let child;
   try {
     child = spawn(bwrapPlan, {
       env: plan.env,
 
+      terminalReviewSpawnBarrier,
+
       stdio: ["ignore", "pipe", "pipe"],
       detached: false
     });
   } catch (err) {
+
+    if (isTerminalReviewSpawnBarrierRefusal(err)) {
+      if (conduit) await conduit.cleanup().catch(() => {});
+      return compensateCodexPreSpawnRefusal(
+        cleanupController,
+        terminalReviewBarrierRefusal(err.verdict)
+      );
+    }
 
     if (conduit !== null) {
       let cleanupDetail = null;
@@ -428,6 +484,11 @@ export async function launchCodexWorkspaceAgentInProcess({
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_threw", detail),
           buildNoChildRefusal: () =>
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_no_child", null),
+
+          preSpawnBarrier: terminalReviewSpawnBarrier,
+          buildPreSpawnBarrierRefusal: terminalReviewBarrierRefusal,
+
+          resolveSpawn: resolveCodexPlainSpawnPrimitive(plainSpawn),
           adaptSupervisedResult: (supervised) =>
             attachProvenanceToSupervisedResult(supervised, {
               finalPath: lateFinalPath,

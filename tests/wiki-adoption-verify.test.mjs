@@ -204,7 +204,7 @@ test("runAdoptionVerify blocks (agent_operable:false) when a required check fail
   });
 });
 
-test("WK-1396 runAdoptionVerify reports the seeded implementation and review slices while operator setup is missing", async () => {
+test("WK-1747 runAdoptionVerify reports the seeded implementation slice and no review slice while operator setup is missing", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-bookkeeping" });
 
@@ -215,9 +215,11 @@ test("WK-1396 runAdoptionVerify reports the seeded implementation and review sli
     const workRecords = blocked.checks.find((check) => check.check === "work-records");
     assert.equal(workRecords.status, "pass", "seeded WK-0001 must validate before operator setup");
     assert.deepEqual(workRecords.evidence.implementation_slices, [{ id: "SLICE-001", status: "todo" }]);
+
     assert.deepEqual(
-      workRecords.evidence.review_slices.map((slice) => slice.id),
-      ["adoption-verify"]
+      workRecords.evidence.review_slices,
+      [],
+      "WK-0001 must seed no review slice; adoption verification is coordinator-owned read-only work"
     );
 
     const dispatchPreflight = blocked.checks.find((check) => check.check === "dispatch-preflight");
@@ -232,8 +234,18 @@ test("WK-1396 runAdoptionVerify reports the seeded implementation and review sli
     assert.equal(dispatchPreflight.evidence.launcher_toml.present, false);
     assert.equal(dispatchPreflight.evidence.launcher_init_config.registry_present, false);
     assert.equal(dispatchPreflight.evidence.launcher_init_config.role_guard_secret_present, false);
-    assert.match(dispatchPreflight.remediation, /AGENTS\.md/);
     assert.match(dispatchPreflight.remediation, /agent-launch\.toml/);
+
+    assert.doesNotMatch(
+      dispatchPreflight.remediation,
+      /AGENTS\.md/,
+      "a missing root AGENTS.md must not be framed as a dispatch-preflight remediation step"
+    );
+    const agentsMdInfo = blocked.checks.find((check) => check.check === "agents-md");
+    assert.ok(agentsMdInfo, "AGENTS.md readiness must still be reported by an informational check");
+    assert.equal(agentsMdInfo.required, false, "the agents-md check must be non-gating");
+    assert.equal(agentsMdInfo.kind, "operator-owned");
+    assert.equal(agentsMdInfo.blocker, null, "the informational agents-md check must never carry a blocker");
 
     for (const check of blocked.checks.filter(
       (entry) => entry.required && entry.check !== "dispatch-preflight"
@@ -250,7 +262,7 @@ test("WK-1396 runAdoptionVerify reports the seeded implementation and review sli
   });
 });
 
-test("WK-1396 distributed WK-0001 carries its seeded implementation and review work", async () => {
+test("WK-1747 distributed WK-0001 carries only its seeded implementation work", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-blocked-slice" });
     await writeFirstRunLauncherSetup(tempDir);
@@ -261,9 +273,11 @@ test("WK-1396 distributed WK-0001 carries its seeded implementation and review w
     assert.equal(workRecords.evidence.work_kind, "implementation");
     assert.equal(workRecords.evidence.write_scope_count, 1);
     assert.deepEqual(workRecords.evidence.implementation_slices, [{ id: "SLICE-001", status: "todo" }]);
+
     assert.deepEqual(
       workRecords.evidence.review_slices,
-      [{ id: "adoption-verify", status: "todo" }]
+      [],
+      "the distributed WK-0001 must carry no review slice"
     );
     assert.equal(result.verdict, "ready");
   });

@@ -1,10 +1,21 @@
 
 
+import {
+  STDIO_MCP_CONDUIT_PRODUCER_DESCRIPTOR
+} from "./stdio-mcp-conduit-producer-descriptor.mjs";
+
+export const LAUNCHER_READINESS_PRODUCER_DESCRIPTOR =
+  STDIO_MCP_CONDUIT_PRODUCER_DESCRIPTOR;
+
+export const LAUNCHER_READINESS_PROTOCOL_GENERATION =
+  LAUNCHER_READINESS_PRODUCER_DESCRIPTOR.protocol_generation;
+
 export const LAUNCHER_READINESS_SCHEMA_VERSIONS = Object.freeze({
-  SERVER_READY: "wiki-mcp-launcher-readiness.v1",
+  SERVER_READY: "wiki-mcp-launcher-readiness.v2",
   CLIENT_INITIALIZED: "wiki-mcp-launcher-client-initialized.v1",
   TOOLS_LISTED: "wiki-mcp-launcher-tools-listed.v1",
-  CLIENT_RESTARTED: "wiki-mcp-launcher-client-restarted.v1"
+  CLIENT_RESTARTED: "wiki-mcp-launcher-client-restarted.v1",
+  CLIENT_CLOSED: "wiki-mcp-launcher-client-closed.v1"
 });
 
 export class LauncherReadinessObservationError extends Error {
@@ -97,6 +108,7 @@ export class LauncherObservingTransport {
   #initializeRequested = false;
   #initializeAnswered = false;
   #initialized = false;
+  #lifecycleFailed = false;
   #restartCount = 0;
 
   constructor(inner, { emit }) {
@@ -113,7 +125,14 @@ export class LauncherObservingTransport {
       this.#observeIncoming(message);
       this.onmessage?.(message, extra);
     };
-    inner.onclose = () => { this.onclose?.(); };
+    inner.onclose = () => {
+
+      this.#emit({
+        schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_CLOSED,
+        closed: true
+      });
+      this.onclose?.();
+    };
     inner.onerror = (error) => { this.onerror?.(error); };
   }
 
@@ -136,8 +155,9 @@ export class LauncherObservingTransport {
 
   #observeIncoming(message) {
     if (isJsonRpcRequest(message) && message.method === "initialize") {
-      if (this.#initialized) {
+      if (this.#initializeRequested) {
 
+        this.#lifecycleFailed = true;
         this.#restartCount += 1;
         this.#emit({
           schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_RESTARTED,
@@ -152,7 +172,7 @@ export class LauncherObservingTransport {
     }
     if (isJsonRpcNotification(message) && message.method === "notifications/initialized") {
 
-      if (!this.#initializeRequested || this.#initialized) return;
+      if (this.#lifecycleFailed || !this.#initializeRequested || this.#initialized) return;
       this.#initialized = true;
       this.#emit({
         schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_INITIALIZED,
@@ -161,11 +181,13 @@ export class LauncherObservingTransport {
       return;
     }
     if (isJsonRpcRequest(message) && message.method === "tools/list") {
+      if (this.#lifecycleFailed) return;
       this.#pendingToolsList.add(message.id);
     }
   }
 
   #observeOutgoing(message) {
+    if (this.#lifecycleFailed) return;
     if (!isJsonRpcResult(message)) return;
     if (this.#pendingInitialize.delete(message.id)) {
       this.#initializeAnswered = true;

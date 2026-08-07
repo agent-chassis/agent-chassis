@@ -1,14 +1,17 @@
 
 
+import { Buffer } from "node:buffer";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { z } from "zod";
 import {
+  createBoundedToolDiscoveryListEnvelope,
   createToolDiscoveryEnvelope,
   loadToolDiscoveryDescriptor,
-  TOOL_DISCOVERY_LIST_DEFAULT_LIMIT
+  TOOL_DISCOVERY_LIST_DEFAULT_LIMIT,
+  TOOL_DISCOVERY_LIST_MAX_BYTES
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
 
 import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
@@ -18,6 +21,7 @@ const require = createRequire(import.meta.url);
 
 const WIKI_MCP_PACKAGE_JSON_PATH = path.resolve(THIS_DIR, "../../package.json");
 const VERSION_FALLBACK = "0.0.0";
+const TOOL_DISCOVERY_LIST_MCP_RESULT_MAX_BYTES = 4096;
 
 async function readPackageVersionByPath(packageJsonPath) {
   try {
@@ -152,13 +156,39 @@ export function registerToolDiscoveryTools({
 
   async function loadWorkspaceToolDiscoveryListEnvelope(options = {}) {
     const query = resolveToolDiscoveryQuery(options);
-    const envelope = await loadWorkspaceToolDiscoveryEnvelope(query, { verbose: false });
+
+    const filterQuery = { ...query };
+    delete filterQuery.limit;
+    const envelope = await loadWorkspaceToolDiscoveryEnvelope(filterQuery, { verbose: false });
+    if (Object.keys(query).length > 0) {
+      envelope.query = query;
+    }
     const totalCount = Array.isArray(envelope.results) ? envelope.results.length : 0;
     const limit = Number.isInteger(query.limit) && query.limit > 0
       ? query.limit
       : TOOL_DISCOVERY_LIST_DEFAULT_LIMIT;
-    envelope.results = Array.isArray(envelope.results) ? envelope.results.slice(0, limit) : [];
-    return applyToolDiscoveryListPagination(envelope, { totalCount, limit });
+    const roleVisibleResults = Array.isArray(envelope.results) ? envelope.results : [];
+    let byteLimit = TOOL_DISCOVERY_LIST_MAX_BYTES;
+
+    while (true) {
+      const bounded = createBoundedToolDiscoveryListEnvelope(envelope, roleVisibleResults, {
+        totalCount,
+        limit,
+        byteLimit
+      });
+      const serializedBytes = Buffer.byteLength(JSON.stringify(jsonContent(bounded)), "utf8");
+      if (serializedBytes <= TOOL_DISCOVERY_LIST_MCP_RESULT_MAX_BYTES) {
+        return bounded;
+      }
+      const nextByteLimit = Math.max(
+        1024,
+        byteLimit - (serializedBytes - TOOL_DISCOVERY_LIST_MCP_RESULT_MAX_BYTES) - 64
+      );
+      if (nextByteLimit >= byteLimit) {
+        throw new Error("workspace_tools_list could not satisfy its MCP response-byte ceiling");
+      }
+      byteLimit = nextByteLimit;
+    }
   }
 
   async function loadWorkspaceToolDiscoveryDescribeEnvelope(options = {}) {
@@ -191,7 +221,7 @@ export function registerToolDiscoveryTools({
     "workspace_tools_list",
     {
       description:
-        "List the repository-local discovery envelope as a compact daily-use catalog scan. Default output is bounded to the first 20 compact entries; pass task_id, tool_name, or limit to change the bound. Use workspace_tools_describe for targeted per-tool detail and workspace_tools_query for known task_id/tool_name lookups.",
+        "List a hard-bounded role- and tier-filtered catalog for tool selection. Default rows contain only tool_name, task_ids, and rank; independent count and byte truncation metadata reports the exact role-visible total and returned counts. A caller limit cannot bypass the byte ceiling. Use workspace_tools_query by task_id/tool_name or workspace_tools_describe by tool_name for targeted detail.",
       inputSchema: {
         task_id: z.string().optional(),
         tool_name: z.string().optional(),

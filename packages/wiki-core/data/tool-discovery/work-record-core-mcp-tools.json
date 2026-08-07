@@ -1,0 +1,296 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "work-record-core-mcp-tools.json",
+  "summary": "MCP work-record create, validate, status, task, closure, and summary routes.",
+  "tool_count": 6,
+  "tools": [
+    {
+      "tool_name": "workspace_create_record",
+      "display_name": "Workspace create record",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_create_record",
+      "task_ids": [
+        "create-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 120,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/work-record-core-mcp-tools.json",
+        "packages/wiki-core/src/operations/create.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Trusted MCP create route for allocator-backed canonical wiki records (issue, initiative, decision, source, area) in a configured workspace repo. Resolves the workspace through configured aliases; rejects caller-supplied filesystem roots. CLI fallback `npm run wiki -- create <type> <title>` is operator-only, and the raw create_record tool with a caller-supplied `dir` is not the agent-safe path.",
+      "use_when": ["work_record_mutation", "mutation_operation=create"],
+      "do_not_use_when": ["existing WK/slice update", "read-only context"],
+      "authoritative_for": ["allocator-backed record creation"],
+      "recommended_first_call": {"routing_intents": ["work_record_mutation"], "operation": "create"},
+      "requires_prior_state": ["record kind", "title/scope", "no existing WK target"],
+      "replacement_for_misuse": [{"misuse_code": "ignored_required_next_action", "routing_intent": "work_record_mutation", "use_instead": "workspace_create_record"}]
+    },
+    {
+      "tool_name": "workspace_work_record_validate",
+      "display_name": "Workspace work-record validate",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_validate",
+      "task_ids": [
+        "validate-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 115,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/work-record-core-mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-schema.mjs"
+      ],
+      "notes": "Preferred MCP work-record validation surface; read-only, returns structured diagnostics for a canonical JSON work record without writing generated views, caches, or records. Compact default returns the validation result and bounded diagnostics only; if the CLI fallback is used, it stays diagnostic-focused rather than surfacing a full record body."
+    },
+    {
+      "tool_name": "workspace_work_record_set_status",
+      "display_name": "Workspace work-record set status",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_set_status",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 114,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs"
+      ],
+      "notes": "Agent-safe MCP route for trusted record- or slice-level status updates on a configured workspace repository. Resolves the repository through configured aliases and writes through the validated work-record path; the MCP boundary rejects caller-supplied filesystem roots, policy carriers, raw JSON patches, and unsupported fields. A transition to review or done attaches an advisory closeout_lint summary plus a cleanly_closeable flag — advisory, not a hard refusal: a red lint means the unit is not cleanly closeable until fixed or recorded as a pre-existing blocker.",
+      "use_when": ["work_record_mutation", "mutation_operation=status"],
+      "do_not_use_when": ["read-only context", "different mutation route"],
+      "authoritative_for": ["status work-record mutations"],
+      "recommended_first_call": {"routing_intents": ["work_record_mutation"], "operation": "status"},
+      "requires_prior_state": ["unit", "status"],
+      "replacement_for_misuse": [{"misuse_code": "ignored_required_next_action", "routing_intent": "work_record_mutation", "use_instead": "workspace_work_record_set_status"}]
+    },
+    {
+      "tool_name": "workspace_work_record_set_task",
+      "display_name": "Workspace work-record set task",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_set_task",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 113,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs"
+      ],
+      "notes": "Agent-safe MCP route for trusted record- or slice-level task completion on a configured workspace repository. Resolves the repository through configured aliases and writes through the validated work-record path; the MCP boundary rejects caller-supplied filesystem roots, policy carriers, raw JSON patches, and unsupported fields. Output is the compact edit envelope, not the full record.",
+      "use_when": ["work_record_mutation", "mutation_operation=task"],
+      "do_not_use_when": ["read-only context", "different mutation route"],
+      "authoritative_for": ["task work-record mutations"],
+      "recommended_first_call": {"routing_intents": ["work_record_mutation"], "operation": "task"},
+      "requires_prior_state": ["unit", "task selector/value"],
+      "replacement_for_misuse": [{"misuse_code": "ignored_required_next_action", "routing_intent": "work_record_mutation", "use_instead": "workspace_work_record_set_task"}]
+    },
+    {
+      "tool_name": "workspace_work_record_set_closure",
+      "display_name": "Workspace work-record set closure",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_set_closure",
+      "task_ids": [
+        "set-closure"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 113,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "docs/work-record-ontology.md",
+        "packages/wiki-core/contract/schema.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/work-record-core-mcp-tools.json",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/src/operations/work-records.mjs",
+        "packages/wiki-core/src/lib/work-record-schema.mjs"
+      ],
+      "notes": "Write-capable agent-safe MCP route for closure updates on a WK or slice. Applies a structured patch over schema-owned closure fields (summary, validation, follow_ups) through the validated work-record path; rejects caller-supplied filesystem roots and refuses on an expected_source_digest mismatch. A successful write attaches an advisory closeout_lint summary plus a cleanly_closeable flag — advisory, not a hard refusal.",
+      "use_when": ["work_record_mutation", "mutation_operation=closure"],
+      "do_not_use_when": ["read-only context", "different mutation route"],
+      "authoritative_for": ["closure work-record mutations"],
+      "recommended_first_call": {"routing_intents": ["work_record_mutation"], "operation": "closure"},
+      "requires_prior_state": ["unit", "closure patch"],
+      "replacement_for_misuse": [{"misuse_code": "ignored_required_next_action", "routing_intent": "work_record_mutation", "use_instead": "workspace_work_record_set_closure"}]
+    },
+    {
+      "tool_name": "workspace_work_record_summary",
+      "display_name": "Workspace work-record summary",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_summary",
+      "task_ids": [
+        "summarize-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 105,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "work_record",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/work-record-summary.mjs",
+        "packages/wiki-core/src/operations/work-record-summary.mjs",
+        "packages/wiki-mcp/src/server.mjs"
+      ],
+      "notes": "Compact read-only work-record summary view for selected WK or slice context. The default summary is the compact-first path: it keeps tracker records bounded while preserving routing details such as dependencies, write_scope, acceptance, validation, owners, review_state, blockers, omission counts, and recommended next calls. For tracker WK-level summaries, select a narrower unit such as <WK-ID>#<slice-id> to read that slice's notes and bounded detail. Expensive full-summary/debug requests against large trackers are refused unless the call follows the compact-first progressive-disclosure contract or is narrowed to selected unit/slice detail.",
+      "use_when": ["selected_work_record_context", "selected_slice_detail"],
+      "do_not_use_when": ["initiative status/action", "dispatch readiness", "work-record mutation"],
+      "authoritative_for": ["compact selected_work_record_context", "compact selected_slice_detail"],
+      "recommended_first_call": {"routing_intents": ["selected_work_record_context", "selected_slice_detail"], "arguments": {"unit": "$known_WK_or_slice_unit"}, "omit_null_arguments": true},
+      "requires_prior_state": ["known WK-* or WK-*#SLICE-*"],
+      "replacement_for_misuse": [{"misuse_code": "full_read_without_selected_resource", "routing_intent": "selected_work_record_context", "use_instead": "workspace_work_record_summary"}, {"misuse_code": "high_output_option_without_compact_first", "routing_intent": "selected_slice_detail", "use_instead": "workspace_work_record_summary"}, {"misuse_code": "bulk_sampling_without_lens", "routing_intent": "initiative_frontier_lens", "use_instead": "workspace_initiative_status"}]
+    }
+  ]
+}

@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { getStaticIn0001AdoptionSeedWorkRecords } from "../packages/wiki-core/src/index.mjs";
+import { materializeAdoptionWorkRecord } from "../packages/wiki-core/src/lib/wiki-scaffold.mjs";
+import { validateWorkRecord } from "../packages/wiki-core/src/lib/work-record-schema.mjs";
 
 function getWk0001Tracker() {
   const [tracker] = getStaticIn0001AdoptionSeedWorkRecords();
@@ -20,20 +22,23 @@ function gatherText(obj) {
   return out.join("\n");
 }
 
-test("WK-1402 WK-0001 seeds the canonical AGENTS.md implementation slice plus the adoption-verify review", () => {
+const RETIRED_ADOPTION_REVIEW_UNIT =
+  /adoption-verify review|adoption readiness review|findings-only adoption|Tracker for the IN-0001 adoption readiness/i;
+
+test("WK-1747 WK-0001 seeds only the canonical AGENTS.md implementation slice", () => {
   const tracker = getWk0001Tracker();
   const slices = tracker.slices ?? [];
   const byId = Object.fromEntries(slices.map((slice) => [slice.id, slice]));
 
   assert.deepEqual(
     slices.map((slice) => slice.id),
-    ["SLICE-001", "adoption-verify"],
-    "WK-0001 must seed the canonical SLICE-001 AGENTS.md implementation slice and the adoption-verify review"
+    ["SLICE-001"],
+    "WK-0001 must seed only the canonical SLICE-001 AGENTS.md implementation slice"
   );
   for (const slice of slices) {
     assert.match(
       slice.id,
-      /^(SLICE-\d{3}|adoption-verify)$/,
+      /^SLICE-\d{3}$/,
       `WK-0001 slice ids must be canonical (no semantic ids); found ${slice.id}`
     );
   }
@@ -45,6 +50,7 @@ test("WK-1402 WK-0001 seeds the canonical AGENTS.md implementation slice plus th
     ["AGENTS.md"],
     "SLICE-001 must own root AGENTS.md via write_scope [\"AGENTS.md\"]"
   );
+  assert.equal(byId["adoption-verify"], undefined, "adoption verify must not be a WK-0001 review slice");
   assert.ok(
     (agents.read_scope ?? []).includes("wiki/templates/AGENTS.md.boilerplate.md"),
     "SLICE-001 read_scope must include the boilerplate helper it adapts"
@@ -53,6 +59,17 @@ test("WK-1402 WK-0001 seeds the canonical AGENTS.md implementation slice plus th
   assert.match(agentsAcceptance, /\[repo-name\]|bracketed placeholder/i, "SLICE-001 acceptance must forbid leftover placeholders");
   assert.match(agentsAcceptance, /not a blind copy|not.*copied verbatim/i, "SLICE-001 acceptance must forbid a blind copy");
   assert.match(agentsAcceptance, /unsupported.*(tool|canonical)/i, "SLICE-001 acceptance must require removing unsupported tool/canonical-layer claims");
+
+  assert.match(
+    agentsAcceptance,
+    /mandatory findings-only review/i,
+    "SLICE-001 acceptance must retain explicit mandatory findings-only review"
+  );
+  assert.match(
+    gatherText(tracker.acceptance),
+    /mandatory findings-only review/i,
+    "WK-0001 acceptance must state that its implementation slice receives a mandatory findings-only review"
+  );
 
   assert.equal(byId["launcher-config"], undefined, "agent-launch.toml is operator setup, not a seeded worker slice");
 
@@ -85,10 +102,17 @@ test("WK-1402 WK-0001 seed teaches the advisory AGENTS.md worker-dispatch flow",
     'write_scope ["AGENTS.md"]',
     "structured MCP dispatch route",
     "not a blind copy",
-    "not current-session operating authority"
+    "not current-session operating authority",
+    "coordinator-owned read-only verification"
   ]) {
     assert.ok(text.includes(required), `WK-0001 seed must teach: ${required}`);
   }
+
+  assert.doesNotMatch(
+    text,
+    RETIRED_ADOPTION_REVIEW_UNIT,
+    "WK-0001 must not reinstate the adoption-verification review unit or review-only tracker framing"
+  );
 
   assert.doesNotMatch(
     text,
@@ -114,5 +138,37 @@ test("WK-1402 WK-0001 seed teaches the advisory AGENTS.md worker-dispatch flow",
     text,
     /copy the boilerplate into the target repo|blindly copy|copy\/adapt it as an operator\/bootstrap first-run surface/i,
     "WK-0001 seed must not carry stale blind-copy or copy/adapt AGENTS.md wording"
+  );
+});
+
+test("WK-1747 WK-0001 materializes as a canonical valid tracker", () => {
+  const tracker = getWk0001Tracker();
+  const materialized = materializeAdoptionWorkRecord(tracker, {
+    repo: "example/repo",
+    date: "2026-07-24"
+  });
+  const diagnostics = validateWorkRecord(materialized, {
+    sourcePath: "wiki/work-records/WK-0001.json"
+  });
+
+  assert.deepEqual(
+    diagnostics.filter((diagnostic) => diagnostic.severity !== "warning"),
+    [],
+    "materialized WK-0001 must pass canonical work-record validation"
+  );
+  assert.deepEqual(materialized.slices.map((slice) => slice.id), ["SLICE-001"]);
+  assert.equal(materialized.slices[0].work_kind, "implementation");
+  assert.deepEqual(materialized.slices[0].write_scope, ["AGENTS.md"]);
+  assert.equal(materialized.slices[0].dispatch_intent.intended_agent_role, "worker");
+
+  assert.match(
+    gatherText(materialized.slices[0].acceptance),
+    /mandatory findings-only review/i,
+    "the materialized SLICE-001 must retain explicit mandatory findings-only review"
+  );
+  assert.doesNotMatch(
+    gatherText(materialized),
+    RETIRED_ADOPTION_REVIEW_UNIT,
+    "the materialized WK-0001 must not reinstate the adoption-verification review unit"
   );
 });

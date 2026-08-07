@@ -80,6 +80,10 @@ export function createBackendSliceReview(ctx) {
     if (frozenReviewContexts.has(reviewUnit.subject)) {
       throw new Error("subject already bound to a whole-WK review context; a slice-level review context cannot coexist");
     }
+
+    if (target.diff_base_sha !== sliceBinding?.base_sha) {
+      throw new Error("frozen slice review target base does not match the launcher-owned current attempt provisioning binding");
+    }
     const committedAdmission = resolveCommittedSliceReviewAdmission({
       mainRepo: worktreeProvisioningConfig.mainRepo,
       worktreeRoot: worktreeProvisioningConfig.worktreeRoot,
@@ -87,15 +91,16 @@ export function createBackendSliceReview(ctx) {
       reviewUnit,
       runGit: reviewContextRunGit
     });
-    if (committedAdmission.target.sha !== target.sha ||
-        committedAdmission.target.diff_base_sha !== target.diff_base_sha ||
+
+    const reviewTarget = assertFrozenSliceReviewTarget(committedAdmission.target);
+    if (reviewTarget.sha !== target.sha || reviewTarget.ref !== target.ref ||
         committedAdmission.worktree_path !== worktreePath) {
       throw new Error("canonical committed-slice admission disagrees with the frozen worker target");
     }
     const existing = frozenSliceReviewContexts.get(reviewUnit.subject) ?? null;
     if (existing !== null) {
-      if (existing.reviewed_sha === target.sha &&
-          existing.diff_base_sha === target.diff_base_sha &&
+      if (existing.reviewed_sha === reviewTarget.sha &&
+          existing.diff_base_sha === reviewTarget.diff_base_sha &&
           existing.source_worker_run_id === status.run_id) {
         return existing;
       }
@@ -124,13 +129,16 @@ export function createBackendSliceReview(ctx) {
       trusted_frozen_review_contract: trustedFrozenReviewContract,
       main_repo: worktreeProvisioningConfig.mainRepo,
       worktree_path: worktreePath,
-      slice_ref: target.ref,
-      reviewed_sha: target.sha,
-      diff_base_sha: target.diff_base_sha,
-      diff_head_sha: target.diff_head_sha,
-      diff_range: target.diff_range,
+      slice_ref: reviewTarget.ref,
+      reviewed_sha: reviewTarget.sha,
+
+      diff_base_sha: reviewTarget.diff_base_sha,
+      diff_head_sha: reviewTarget.diff_head_sha,
+      diff_range: reviewTarget.diff_range,
       empty_delivery: committedAdmission.empty_delivery === true,
       slice_level_review: true,
+
+      worker_attempt_base_sha: target.diff_base_sha,
       source_worker_run_id: status.run_id,
       source_worker_monitor_handle: status.monitor_handle ?? status.run_id,
       source_worker_subject: status.subject,

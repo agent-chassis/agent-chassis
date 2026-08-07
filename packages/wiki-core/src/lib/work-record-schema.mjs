@@ -30,6 +30,7 @@ import {
   WORK_RECORD_RECORD_KIND_VALUES,
   WORK_RECORD_WORK_KIND_VALUES,
   WORK_RECORD_STATUS_VALUES,
+  WORK_RECORD_COMPLETION_POLICY_VALUES,
   REQUIRED_TOP_LEVEL_FIELDS,
   REQUIRED_STRING_TOP_LEVEL_FIELDS,
   OPTIONAL_STRING_TOP_LEVEL_FIELDS
@@ -77,6 +78,7 @@ export {
   WORK_RECORD_RECORD_KIND_VALUES,
   WORK_RECORD_WORK_KIND_VALUES,
   WORK_RECORD_STATUS_VALUES,
+  WORK_RECORD_COMPLETION_POLICY_VALUES,
   WORK_RECORD_TARGET_UNIT_VALUES,
   WORK_RECORD_AGENT_ROLE_VALUES,
   WORK_RECORD_ESCALATION_KIND_VALUES,
@@ -151,6 +153,10 @@ export function computeWorkRecordSourceDigest(record) {
   const hash = createHash("sha256");
   hash.update(canonicalizeWorkRecordJson(projectWorkRecordSourceContract(record)));
   return `sha256:${hash.digest("hex")}`;
+}
+
+export function isForgeConfirmedMergePolicy(record) {
+  return isObject(record) && record.completion_policy === "forge_confirmed_merge";
 }
 
 export function projectWorkRecordReviewReceiptContract(record) {

@@ -8,20 +8,33 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  TERMINAL_WK_CANDIDATE_CODES,
   TerminalWkCandidateError,
   constructTerminalWkCandidate,
   defaultTerminalCandidateRunGit,
   freezeTerminalWkCandidateInputs,
-  projectTerminalWkCandidateFailure,
   verifyTerminalWkCandidateObjectBinding
 } from "../packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
-import { createTerminalCandidateCoordinator } from
-  "../packages/wiki-mcp/src/lib/dispatch-launch-runtime.mjs";
+import {
+  createTerminalCandidateCoordinator,
+  projectAuthenticatedTerminalCandidateFailure,
+  projectTerminalCandidateRecoveryReason,
+  projectTerminalWkCandidateFailure,
+  TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
+  TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE,
+  TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE
+} from "../packages/wiki-mcp/src/lib/dispatch-launch-runtime.mjs";
 import { createTestDispatchBackend } from "./workspace-agent-dispatch-backend-shared.mjs";
 
-const GIT_FAILED_CODE = "agent_launch.terminal_wk_candidate.git_failed.v1";
 const SWALLOWED_CODE = "terminal_candidate_recovery_exact_candidate_disagrees";
 const SUBJECT = "WK-1634#SLICE-008";
+const UNKNOWN_FAILURE = Object.freeze({
+  schema_version: TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
+  kind: "unknown_cause",
+  code: null,
+  message: TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE,
+  detail: null
+});
 
 function git(repo, ...args) {
   return execFileSync("git", ["-C", repo, ...args], {
@@ -130,11 +143,18 @@ function unexpectedThrowRunGit() {
     if (input.args[0] === "rev-parse" && input.args.some((a) => /\^\{tree\}$/u.test(String(a)))) {
       const error = new Error("unexpected tree-resolution failure");
       error.name = "RangeError";
+      error.code = "E_UNEXPECTED_TREE_RESOLUTION";
       throw error;
     }
     return defaultTerminalCandidateRunGit(input);
   };
 }
+
+const UNKNOWN_CAUSE_TEXT = Object.freeze([
+  "RangeError",
+  "E_UNEXPECTED_TREE_RESOLUTION",
+  "unexpected tree-resolution failure"
+]);
 
 function backendFor(state, coordinator) {
   const executorInputs = [];
@@ -178,51 +198,111 @@ test("WK-1717 fixture publishes a real recoverable v2 candidate ref and construc
     "v2 construction must never issue merge-tree");
 });
 
-test("WK-1717 projectTerminalWkCandidateFailure keeps a typed candidate error's exact code and bounded mechanical detail only", () => {
-  const typed = new TerminalWkCandidateError("could not resolve the accumulated WK tree", {
-    code: GIT_FAILED_CODE,
-    detail: {
-      args: ["rev-parse", "--verify", `${"b".repeat(40)}^{tree}`],
-      status: 128,
-      stderr: "fatal: failed to write object: Read-only file system",
+test("WK-1783#SLICE-001 all eight typed codes use the exact five-key projection", () => {
+  const codes = Object.values(TERMINAL_WK_CANDIDATE_CODES);
+  assert.equal(codes.length, 8);
+  for (const code of codes) {
+    const internalDetail = code === TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID
+      ? { base: "a".repeat(40), wk_tip: "b".repeat(40), status: 128, stderr: "SECRET-STDERR" }
+      : { args: ["rev-parse", "SECRET-ARG"], status: 128, stderr: "SECRET-STDERR" };
+    const projected = projectTerminalWkCandidateFailure(new TerminalWkCandidateError(
+      "SECRET raw typed message",
+      {
+        code,
+        detail: internalDetail,
+        cause: new Error("SECRET-CAUSE")
+      }
+    ));
+    assert.deepEqual(Object.keys(projected).sort(),
+      ["code", "detail", "kind", "message", "schema_version"]);
+    assert.equal(projected.schema_version, TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION);
+    assert.equal(projected.kind, "typed_candidate_error");
+    assert.equal(projected.code, code);
+    assert.equal(projected.message, TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE);
+    assert.deepEqual(projected.detail,
+      code === TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED
+        ? { git_operation: "rev-parse", git_status: 128 }
+        : code === TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID
+          ? { git_operation: "merge-base", git_status: 128 }
+          : null);
+    const serialized = JSON.stringify(projected);
+    for (const forbidden of ["SECRET raw", "SECRET-ARG", "SECRET-STDERR", "SECRET-CAUSE"]) {
+      assert.equal(serialized.includes(forbidden), false, `projection must not leak: ${forbidden}`);
+    }
+  }
+});
 
-      stdout: "MERGED-SECRET-CONTENT",
-      env: { SECRET_TOKEN: "leak" },
-      stack: "at secret stack frame"
-    },
-    cause: new Error("inner cause carrying a stack")
-  });
-  const projected = projectTerminalWkCandidateFailure(typed);
-  assert.equal(projected.kind, "typed_candidate_error");
-  assert.equal(projected.code, GIT_FAILED_CODE);
-  assert.match(projected.message, /could not resolve the accumulated WK tree/u);
+test("WK-1783#SLICE-001 allowed Git detail is closed and invalid or inapplicable detail collapses", () => {
+  const typed = (code, detail) => projectTerminalWkCandidateFailure(
+    new TerminalWkCandidateError("raw", { code, detail })
+  );
+  assert.deepEqual(typed(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, {
+    args: ["update-ref", "SECRET-ARG"], status: null, stdout: "SECRET", stderr: "SECRET"
+  }).detail, { git_operation: "update-ref", git_status: null });
+  assert.deepEqual(typed(TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID, {
+    base: "SECRET-BASE", wk_tip: "SECRET-TIP", status: 1
+  }).detail, { git_operation: "merge-base", git_status: 1 });
+  for (const operation of ["rev-parse", "rev-list", "cat-file", "commit-tree",
+    "for-each-ref", "update-ref", "merge-base"]) {
+    const internal = operation === "for-each-ref"
+      ? { ref: "refs/agent-launch/terminal-current-v2/WK-1783", status: 0 }
+      : { args: [operation], status: 0 };
+    assert.deepEqual(typed(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, internal).detail,
+      { git_operation: operation, git_status: 0 });
+  }
+  assert.deepEqual(typed(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
+    { args: ["cat-file"], status: 255 }).detail,
+    { git_operation: "cat-file", git_status: 255 });
+  for (const [code, detail] of [
+    [TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, { args: ["show"], status: 1 }],
+    [TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, { args: ["rev-parse"], status: -1 }],
+    [TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, { args: ["rev-parse"], status: 1.5 }],
+    [TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, { args: ["rev-parse"], status: "1" }],
+    [TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, { args: ["rev-parse"], status: 256 }],
+    [TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, { args: ["rev-parse"] }],
+    [TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED, { git_operation: "rev-parse", git_status: 1 }],
+    [TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID, { status: 1 }],
+    [TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID, { args: ["rev-parse"], status: 1 }],
+    [TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT, { args: ["rev-parse"], status: 1 }]
+  ]) {
+    assert.equal(typed(code, detail).detail, null);
+  }
+});
 
-  assert.deepEqual(Object.keys(projected).sort(), ["code", "detail", "kind", "message"]);
+test("WK-1783#SLICE-001 unknown causes reduce to the exact byte-stable projection", () => {
+  const unknown = new Error(`${"z".repeat(9000)} SECRET-UNKNOWN-CAUSE-TEXT`);
+  unknown.name = "RangeError";
+  unknown.code = "E_SECRET_UNKNOWN_CAUSE";
+  unknown.stack = "at leaked stack frame";
+  const projected = projectTerminalWkCandidateFailure(unknown);
+  assert.equal(projected.kind, "unknown_cause");
+  assert.equal(projected.code, null);
+  assert.equal(projected.detail, null);
 
-  assert.deepEqual(Object.keys(projected.detail).sort(), ["git_args", "git_status", "git_stderr"]);
-  assert.equal(projected.detail.git_args[0], "rev-parse");
-  assert.equal(projected.detail.git_status, 128);
-  assert.match(projected.detail.git_stderr, /Read-only file system/u);
+  assert.equal(projected.schema_version, TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION);
+  assert.deepEqual(Object.keys(projected).sort(),
+    ["code", "detail", "kind", "message", "schema_version"]);
+  assert.equal(projected.message, TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE);
+  assert.equal(projected.message, "terminal WK candidate: unknown construction or recovery failure");
   const serialized = JSON.stringify(projected);
-  for (const forbidden of ["MERGED-SECRET-CONTENT", "SECRET_TOKEN", "leak", "secret stack frame", "inner cause"]) {
+  for (const forbidden of ["RangeError", "E_SECRET_UNKNOWN_CAUSE", "SECRET-UNKNOWN-CAUSE-TEXT",
+    "leaked stack frame", "zzzz"]) {
     assert.equal(serialized.includes(forbidden), false, `projection must not leak: ${forbidden}`);
   }
 });
 
-test("WK-1717 projectTerminalWkCandidateFailure keeps an unknown cause as a bounded name/message with no detail or stack", () => {
-  const unknown = new Error("z".repeat(9000));
-  unknown.name = "RangeError";
-  unknown.stack = "at leaked stack frame";
-  const projected = projectTerminalWkCandidateFailure(unknown);
-  assert.equal(projected.kind, "unknown_cause");
-  assert.equal(projected.name, "RangeError");
-  assert.equal(projected.detail, null);
-
-  assert.equal(projected.message.length, 4096);
-  assert.equal(JSON.stringify(projected).includes("leaked stack frame"), false);
+test("WK-1783#SLICE-001 composition recovery reasons never trust caller code prefixes", () => {
+  const secret = "WK1783_COMPOSITION_PREFIX_SECRET";
+  const lookalike = new Error(secret);
+  lookalike.code = `terminal_candidate_recovery_${secret}`;
+  assert.equal(projectTerminalCandidateRecoveryReason(lookalike),
+    "terminal_candidate_recovery_failed");
+  assert.equal(projectTerminalCandidateRecoveryReason({
+    code: `terminal_candidate_construction_${secret}`
+  }), "terminal_candidate_recovery_failed");
 });
 
-test("WK-1717 coordinator preserves the typed Git-failure code for a tree-resolution execution failure", async (t) => {
+test("WK-1783 injected tree-resolution runner cannot mint typed authentication", async (t) => {
   const state = fixture(t);
   const coordinator = createTerminalCandidateCoordinator({
     mainRepo: state.repo,
@@ -230,18 +310,19 @@ test("WK-1717 coordinator preserves the typed Git-failure code for a tree-resolu
     runGit: treeResolutionExecutionFailureRunGit()
   });
   await assert.rejects(coordinator.recoverTerminalCandidate("WK-1634"), (error) => {
+    assert.equal(error.code, "terminal_candidate_recovery_construction_failed");
+    assert.equal(error.message, "terminal candidate recovery construction failed");
     assert.notEqual(error.code, SWALLOWED_CODE);
-    const failure = error.terminal_candidate_failure;
-    assert.equal(failure.kind, "typed_candidate_error");
-    assert.equal(failure.code, GIT_FAILED_CODE);
-    assert.equal(failure.detail.git_status, 128);
-    assert.match(failure.detail.git_stderr, /Read-only file system/u);
-    assert.equal(failure.detail.git_args[0], "rev-parse");
+    assert.equal(Object.hasOwn(error, "terminal_candidate_failure"), false);
+    assert.equal(Object.hasOwn(error, "cause"), false);
+    assert.deepEqual(projectAuthenticatedTerminalCandidateFailure(error), UNKNOWN_FAILURE);
+    assert.equal(projectTerminalCandidateRecoveryReason(error),
+      "terminal_candidate_recovery_failed");
     return true;
   });
 });
 
-test("WK-1717 registered dispatch refusal preserves the typed Git-failure code with bounded detail and never spawns", async (t) => {
+test("WK-1783 registered dispatch rejects an injected tree-resolution runner before spawn", async (t) => {
   const state = fixture(t);
   const coordinator = createTerminalCandidateCoordinator({
     mainRepo: state.repo,
@@ -254,17 +335,15 @@ test("WK-1717 registered dispatch refusal preserves the typed Git-failure code w
   assert.equal(result.run_id, undefined);
   assert.equal(result.monitor_handle, undefined);
   const detail = result.refusal.detail;
-  assert.equal(detail.recovery_code, GIT_FAILED_CODE);
-  assert.equal(detail.recovery_detail.detail.git_status, 128);
-  assert.match(detail.recovery_detail.detail.git_stderr, /Read-only file system/u);
-  assert.equal(detail.recovery_detail.detail.git_args[0], "rev-parse");
+  assert.equal(detail.recovery_code, null);
+  assert.deepEqual(detail.recovery_detail, UNKNOWN_FAILURE);
 
   assert.equal(JSON.stringify(result).includes(SWALLOWED_CODE), false);
   assert.equal(JSON.stringify(result).includes("conflict"), false);
   assert.equal(executorCalls(), 0);
 });
 
-test("WK-1717 an unknown re-derivation exception refuses with a bounded truthful cause, not exact_candidate_disagrees", async (t) => {
+test("WK-1717 an unknown re-derivation exception refuses with the closed generic cause, not exact_candidate_disagrees", async (t) => {
   const state = fixture(t);
   const coordinator = createTerminalCandidateCoordinator({
     mainRepo: state.repo,
@@ -272,12 +351,18 @@ test("WK-1717 an unknown re-derivation exception refuses with a bounded truthful
     runGit: unexpectedThrowRunGit()
   });
   await assert.rejects(coordinator.recoverTerminalCandidate("WK-1634"), (error) => {
+
     assert.equal(error.code, "terminal_candidate_recovery_construction_failed");
+    assert.equal(error.message, "terminal candidate recovery construction failed");
     assert.notEqual(error.code, SWALLOWED_CODE);
-    const failure = error.terminal_candidate_failure;
-    assert.equal(failure.kind, "unknown_cause");
-    assert.equal(failure.name, "RangeError");
-    assert.match(failure.message, /unexpected tree-resolution failure/u);
+    assert.equal(Object.hasOwn(error, "terminal_candidate_failure"), false);
+    assert.equal(Object.hasOwn(error, "cause"), false);
+    assert.deepEqual(projectAuthenticatedTerminalCandidateFailure(error), UNKNOWN_FAILURE);
+    const serializedError = JSON.stringify({ code: error.code, message: error.message });
+    for (const forbidden of UNKNOWN_CAUSE_TEXT) {
+      assert.equal(serializedError.includes(forbidden), false,
+        `coordinator error must not leak: ${forbidden}`);
+    }
     return true;
   });
   const { dispatch, executorCalls } = backendFor(state, coordinator);
@@ -286,11 +371,18 @@ test("WK-1717 an unknown re-derivation exception refuses with a bounded truthful
   assert.equal(result.run_id, undefined);
   assert.equal(result.monitor_handle, undefined);
   const detail = result.refusal.detail;
-  assert.equal(detail.recovery_code, "terminal_candidate_recovery_construction_failed");
+  assert.equal(detail.recovery_code, null);
   assert.equal(detail.recovery_detail.kind, "unknown_cause");
-  assert.equal(detail.recovery_detail.name, "RangeError");
-  assert.match(detail.recovery_detail.message, /unexpected tree-resolution failure/u);
-  assert.equal(JSON.stringify(result).includes(SWALLOWED_CODE), false);
+  assert.equal(detail.recovery_detail.code, null);
+  assert.equal(detail.recovery_detail.detail, null);
+  assert.equal(detail.recovery_detail.message, TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE);
+  const serialized = JSON.stringify(result);
+
+  assert.equal(serialized.includes(TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE), true);
+  for (const forbidden of UNKNOWN_CAUSE_TEXT) {
+    assert.equal(serialized.includes(forbidden), false, `refusal must not leak: ${forbidden}`);
+  }
+  assert.equal(serialized.includes(SWALLOWED_CODE), false);
   assert.equal(executorCalls(), 0);
 });
 
@@ -311,6 +403,118 @@ test("WK-1717 mutation witness: re-derivation failures never collapse to exact_c
     }
     assert.ok(thrown, "recovery must refuse");
     assert.notEqual(thrown.code, SWALLOWED_CODE);
-    assert.equal(JSON.stringify(thrown.terminal_candidate_failure).includes(SWALLOWED_CODE), false);
+    assert.equal(Object.hasOwn(thrown, "terminal_candidate_failure"), false);
+    assert.deepEqual(projectAuthenticatedTerminalCandidateFailure(thrown), UNKNOWN_FAILURE);
   }
+});
+
+const RECONSTRUCTION_SECRET = "glpat-EXAMPLE-TOKEN-do-not-reflect";
+
+function reconstructionProjectionFixture(t, { forkRef = true } = {}) {
+
+  const root = mkdtempSync(path.join(os.tmpdir(), `wk1782-${RECONSTRUCTION_SECRET}-`));
+  const repo = path.join(root, "repo");
+  const worktrees = path.join(root, "worktrees");
+  mkdirSync(repo);
+  mkdirSync(worktrees);
+  t.after(() => {
+    try {
+      execFileSync("chmod", ["-R", "u+rwX", root]);
+    } catch {   }
+    rmSync(root, { recursive: true, force: true });
+  });
+  git(repo, "init", "-q", "-b", "main");
+  git(repo, "config", "user.name", "test");
+  git(repo, "config", "user.email", "test@example.invalid");
+  const recordPath = path.join(repo, "wiki", "work-records", "WK-1634.json");
+  mkdirSync(path.dirname(recordPath), { recursive: true });
+  const frozen = { ...terminalRecord(), status: "todo", slices: [
+    { id: "SLICE-007", work_kind: "implementation", status: "review" }
+  ] };
+  writeFileSync(recordPath, JSON.stringify(frozen));
+  writeFileSync(path.join(repo, "shared.txt"), "base\n");
+  git(repo, "add", "-A");
+  git(repo, "commit", "-q", "-m", "fork");
+  const B = git(repo, "rev-parse", "HEAD");
+  if (forkRef) git(repo, "update-ref", "refs/agent-launch/wk-forks/IN-0030/WK-1634", B);
+  git(repo, "branch", "wk/IN-0030/WK-1634");
+  git(repo, "checkout", "-q", "wk/IN-0030/WK-1634");
+  writeFileSync(path.join(repo, "wk-only.txt"), "complete WK change\n");
+  git(repo, "add", "-A");
+  git(repo, "commit", "-q", "-m", "wk");
+  const W = git(repo, "rev-parse", "HEAD");
+  git(repo, "checkout", "-q", "main");
+
+  writeFileSync(recordPath, JSON.stringify(terminalRecord()));
+  return { root, repo, worktrees, recordPath, B, W };
+}
+
+async function refusedColdReconstruction(state) {
+  const coordinator = createTerminalCandidateCoordinator({
+    mainRepo: state.repo,
+    worktreeRoot: state.worktrees
+  });
+  let thrown = null;
+  try {
+    await coordinator.recoverTerminalCandidate("WK-1634");
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown, "cold reconstruction must refuse");
+  assert.throws(() => git(state.repo, "rev-parse", "--verify",
+    "refs/agent-launch/terminal-current-v2/WK-1634"));
+  return thrown;
+}
+
+function assertNoBorrowedMaterial(thrown, state) {
+  const surface = JSON.stringify({
+    message: thrown.message,
+    code: thrown.code,
+    cause: thrown.cause ?? null,
+    carrier: thrown.terminal_candidate_failure ?? null,
+    projection: projectAuthenticatedTerminalCandidateFailure(thrown),
+    reason: projectTerminalCandidateRecoveryReason(thrown)
+  });
+  assert.equal(surface.includes(RECONSTRUCTION_SECRET), false, "no secret-bearing path may be reflected");
+  assert.equal(surface.includes(state.repo), false, "no repository path may be reflected");
+  assert.equal(/Unexpected token|ENOENT|fatal:/u.test(surface), false,
+    "no raw parser, syscall, or Git text may be reflected");
+  assert.ok(surface.length < 2048, "the refusal surface stays bounded");
+}
+
+test("WK-1782#SLICE-001 an absent durable authority refusal is stable, bounded, and borrows nothing", async (t) => {
+  const state = reconstructionProjectionFixture(t, { forkRef: false });
+  const thrown = await refusedColdReconstruction(state);
+  assert.equal(thrown.code, "terminal_candidate_recovery_current_ref_absent");
+  assert.equal(projectTerminalCandidateRecoveryReason(thrown),
+    "terminal_candidate_recovery_current_ref_absent");
+  assert.deepEqual(projectAuthenticatedTerminalCandidateFailure(thrown), UNKNOWN_FAILURE);
+  assert.notEqual(thrown.code, SWALLOWED_CODE);
+  assertNoBorrowedMaterial(thrown, state);
+});
+
+test("WK-1782#SLICE-001 an unreadable canonical review contract refuses without reflecting the record", async (t) => {
+  const state = reconstructionProjectionFixture(t);
+  writeFileSync(state.recordPath, `{ "id": "WK-1634", ${RECONSTRUCTION_SECRET}`);
+  const thrown = await refusedColdReconstruction(state);
+  assert.equal(thrown.code, "terminal_candidate_recovery_canonical_review_contract_unavailable");
+  assert.equal(projectTerminalCandidateRecoveryReason(thrown), thrown.code);
+  assert.deepEqual(projectAuthenticatedTerminalCandidateFailure(thrown), UNKNOWN_FAILURE);
+  assertNoBorrowedMaterial(thrown, state);
+});
+
+test("WK-1782#SLICE-001 a Git fault during reconstruction keeps its closed typed detail", async (t) => {
+  const state = reconstructionProjectionFixture(t);
+
+  execFileSync("chmod", ["-R", "a-w", path.join(state.repo, ".git", "objects")]);
+  const thrown = await refusedColdReconstruction(state);
+  assert.equal(thrown.code, "terminal_candidate_recovery_construction_failed");
+  const projection = projectAuthenticatedTerminalCandidateFailure(thrown);
+  assert.equal(projection.kind, "typed_candidate_error");
+  assert.equal(projection.code, TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED);
+  assert.equal(projection.message, TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE);
+  assert.deepEqual(Object.keys(projection.detail), ["git_operation", "git_status"]);
+  assert.equal(projection.detail.git_operation, "commit-tree");
+  assert.equal(Number.isInteger(projection.detail.git_status), true);
+  assertNoBorrowedMaterial(thrown, state);
 });

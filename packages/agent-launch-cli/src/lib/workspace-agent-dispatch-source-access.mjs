@@ -14,7 +14,9 @@ export async function resolveWorkerSourceAccess({
   subject,
   workspace_dir = null,
   familyExecutorRegistryEntry,
-  proveAssignedSourceReadable = null
+  proveAssignedSourceReadable = null,
+
+  scopeExistence = null
 }) {
   if (role !== "worker") return { ok: true };
 
@@ -60,7 +62,8 @@ export async function resolveWorkerSourceAccess({
       subject,
       workspace_dir,
       sourceReadMode: facts.sourceReadMode,
-      nativeReadCapability: facts.nativeReadCapability
+      nativeReadCapability: facts.nativeReadCapability,
+      scopeExistence
     });
   } catch (error) {
     return {

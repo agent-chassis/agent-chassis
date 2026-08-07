@@ -34,6 +34,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -74,6 +75,8 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -114,6 +117,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -154,6 +158,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -195,6 +200,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -233,6 +239,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -244,7 +251,7 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP symbol-reference lookup for the SCIP-derived repo code index layer. Accepts an exact SCIP symbol or a repo-relative path plus 1-based line and optional character, preserves provider descriptors, coverage, freshness/dirty-worktree state, and resolution.state metadata. CLI fallback: `npm run wiki -- code-index find-references --json --symbol <scip-symbol>`."
+      "notes": "Preferred MCP symbol-reference lookup for the SCIP-derived repo code index layer. Compact by default with one freshness state, one resolution/status reason, bounded results, total/returned/truncated metadata, and a next action. Pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, and evidence. CLI fallback: `npm run wiki -- code-index find-references --json --symbol <scip-symbol>`."
     },
     {
       "tool_name": "workspace_code_index_definition",
@@ -274,6 +281,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -285,7 +293,7 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP definition lookup for the SCIP-derived repo code index layer. Accepts an exact SCIP symbol or a repo-relative path plus 1-based line and optional character, preserves provider descriptors, coverage, freshness/dirty-worktree state, and resolution.state metadata. CLI fallback: `npm run wiki -- code-index definition --json --path <path> --line <line>`."
+      "notes": "Preferred MCP definition lookup for the SCIP-derived repo code index layer. Compact by default with one freshness state, one resolution/status reason, bounded results, total/returned/truncated metadata, and a next action. Pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, and evidence. CLI fallback: `npm run wiki -- code-index definition --json --path <path> --line <line>`."
     },
     {
       "tool_name": "workspace_code_index_callers",
@@ -315,6 +323,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -326,7 +335,7 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP callers lookup for the SCIP-derived repo code index call-graph layer. Accepts an exact SCIP symbol or a repo-relative path plus 1-based line and optional character, preserves provider descriptors, coverage, freshness/dirty-worktree state, resolution.state metadata, and explicit SCIP call-graph availability/degraded state. CLI fallback: `npm run wiki -- code-index callers --json --symbol <scip-symbol>`."
+      "notes": "Preferred MCP callers lookup for the SCIP-derived repo code index call-graph layer. Compact by default with one freshness state, one resolution/status reason, bounded results, total/returned/truncated metadata, and a next action. Pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, call-graph state, and evidence. CLI fallback: `npm run wiki -- code-index callers --json --symbol <scip-symbol>`."
     },
     {
       "tool_name": "workspace_code_index_callees",
@@ -356,6 +365,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -367,7 +377,7 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP callees lookup for the SCIP-derived repo code index call-graph layer. Accepts an exact SCIP symbol or a repo-relative path plus 1-based line and optional character, preserves provider descriptors, coverage, freshness/dirty-worktree state, resolution.state metadata, and explicit SCIP call-graph availability/degraded state. CLI fallback: `npm run wiki -- code-index callees --json --symbol <scip-symbol>`."
+      "notes": "Preferred MCP callees lookup for the SCIP-derived repo code index call-graph layer. Compact by default with one freshness state, one resolution/status reason, bounded results, total/returned/truncated metadata, and a next action. Pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, call-graph state, and evidence. CLI fallback: `npm run wiki -- code-index callees --json --symbol <scip-symbol>`."
     },
     {
       "tool_name": "workspace_code_index_build",
@@ -397,6 +407,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -435,6 +446,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -468,6 +480,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/operating-model.md"
       ],
@@ -500,6 +513,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/operating-model.md"
       ],
@@ -532,6 +546,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/operating-model.md"
       ],
@@ -563,6 +578,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/operating-model.md",
         "docs/mcp-integration.md"
@@ -596,6 +612,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/operating-model.md",
         "docs/mcp-integration.md"
@@ -629,6 +646,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/operating-model.md",
         "docs/mcp-integration.md"
@@ -662,6 +680,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/operating-model.md",
         "docs/mcp-integration.md"

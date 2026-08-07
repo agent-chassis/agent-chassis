@@ -14,48 +14,85 @@ import {
   TOOL_DISCOVERY_CONTROLLED_TASK_IDS,
 } from '../../src/lib/tool-discovery.mjs';
 
-const FRAGMENT_FILE = 'work-record-tools.json';
 const LEGACY_AGGREGATE_BASENAME = 'tool-discovery.v1.json';
-const fragmentUrl = new URL('./work-record-tools.json', import.meta.url);
 
-const EXPECTED_MCP_TOOL_NAMES = [
-  'workspace_create_record',
-  'workspace_work_record_cleanup_derived_evidence',
-  'workspace_work_record_delete_slice',
-  'workspace_work_record_refresh_admission_metrics',
-  'workspace_work_record_refresh_target_resolution_evidence',
-  'workspace_work_record_set_acceptance',
-  'workspace_work_record_set_closure',
-  'workspace_work_record_set_list_field',
-  'workspace_work_record_set_status',
-  'workspace_work_record_set_task',
-  'workspace_work_record_shape_review_unit',
-  'workspace_work_record_summary',
-  'workspace_work_record_upsert_slice',
-  'workspace_work_record_validate',
+const WORK_RECORD_FRAGMENTS = [
+  {
+    file: 'work-record-core-mcp-tools.json',
+    mcp: [
+      'workspace_create_record',
+      'workspace_work_record_set_closure',
+      'workspace_work_record_set_status',
+      'workspace_work_record_set_task',
+      'workspace_work_record_summary',
+      'workspace_work_record_validate',
+    ],
+    cli: [],
+  },
+  {
+    file: 'work-record-core-cli-tools.json',
+    mcp: [],
+    cli: [
+      'wiki-create-issue',
+      'wiki-work-record-migration',
+      'wiki-work-records-set-closure',
+      'wiki-work-records-set-status',
+      'wiki-work-records-set-task',
+      'wiki-work-records-summary',
+      'wiki-work-records-validate',
+    ],
+  },
+  {
+    file: 'work-record-edit-mcp-tools.json',
+    mcp: [
+      'workspace_work_record_cleanup_derived_evidence',
+      'workspace_work_record_delete_slice',
+      'workspace_work_record_ready_slice',
+      'workspace_work_record_refresh_admission_metrics',
+      'workspace_work_record_refresh_target_resolution_evidence',
+      'workspace_work_record_set_acceptance',
+      'workspace_work_record_set_list_field',
+      'workspace_work_record_shape_review_unit',
+      'workspace_work_record_upsert_slice',
+    ],
+    cli: [],
+  },
+  {
+    file: 'work-record-edit-cli-tools.json',
+    mcp: [],
+    cli: [
+      'wiki-work-records-cleanup-derived-evidence',
+      'wiki-work-records-delete-slice',
+      'wiki-work-records-refresh-admission-metrics',
+      'wiki-work-records-set-acceptance',
+      'wiki-work-records-set-list-field',
+      'wiki-work-records-shape-review-unit',
+      'wiki-work-records-upsert-slice',
+    ],
+  },
 ];
 
-const EXPECTED_CLI_COMMAND_NAMES = [
-  'wiki-create-issue',
-  'wiki-work-record-migration',
-  'wiki-work-records-cleanup-derived-evidence',
-  'wiki-work-records-delete-slice',
-  'wiki-work-records-refresh-admission-metrics',
-  'wiki-work-records-set-acceptance',
-  'wiki-work-records-set-closure',
-  'wiki-work-records-set-list-field',
-  'wiki-work-records-set-status',
-  'wiki-work-records-set-task',
-  'wiki-work-records-shape-review-unit',
-  'wiki-work-records-summary',
-  'wiki-work-records-upsert-slice',
-  'wiki-work-records-validate',
-];
+const EXPECTED_MCP_TOOL_NAMES = WORK_RECORD_FRAGMENTS.flatMap((entry) => entry.mcp);
+
+const EXPECTED_CLI_COMMAND_NAMES = WORK_RECORD_FRAGMENTS.flatMap((entry) => entry.cli);
 
 const EXPECTED_TOOL_NAMES = [...EXPECTED_MCP_TOOL_NAMES, ...EXPECTED_CLI_COMMAND_NAMES];
 
 async function readJson(url) {
   return JSON.parse(await readFile(url, 'utf8'));
+}
+
+async function readFragment(file) {
+  return readJson(new URL(`./${file}`, import.meta.url));
+}
+
+async function readFamilyTools() {
+  const tools = [];
+  for (const entry of WORK_RECORD_FRAGMENTS) {
+    const fragment = await readFragment(entry.file);
+    tools.push(...fragment.tools);
+  }
+  return tools;
 }
 
 function assertRichToolEntry(tool) {
@@ -108,9 +145,9 @@ function assertRichToolEntry(tool) {
   }
 }
 
-function assertRoutingGuidance(fragment, toolName, expected) {
-  const tool = fragment.tools.find((entry) => entry.tool_name === toolName);
-  assert.ok(tool, `${toolName} must be present in the work-record fragment`);
+function assertRoutingGuidance(tools, toolName, expected) {
+  const tool = tools.find((entry) => entry.tool_name === toolName);
+  assert.ok(tool, `${toolName} must be present in the work-record fragment family`);
   assert.deepEqual(tool.use_when, expected.use_when, `${toolName} use_when`);
   assert.deepEqual(tool.do_not_use_when, expected.do_not_use_when, `${toolName} do_not_use_when`);
   assert.deepEqual(tool.authoritative_for, expected.authoritative_for, `${toolName} authoritative_for`);
@@ -119,35 +156,48 @@ function assertRoutingGuidance(fragment, toolName, expected) {
   assert.deepEqual(tool.replacement_for_misuse, expected.replacement_for_misuse, `${toolName} replacement_for_misuse`);
 }
 
-test('work-record-tools fragment is a canonical rich tool-discovery-fragment', async () => {
-  const fragment = await readJson(fragmentUrl);
+test('every work-record fragment is a canonical rich tool-discovery-fragment', async () => {
+  for (const entry of WORK_RECORD_FRAGMENTS) {
+    const fragment = await readFragment(entry.file);
+    const expectedCount = entry.mcp.length + entry.cli.length;
 
-  assert.equal(fragment.schema_version, TOOL_DISCOVERY_SCHEMA_VERSION);
-  assert.equal(fragment.kind, TOOL_DISCOVERY_FRAGMENT_KIND);
-  assert.equal(fragment.repository, 'agent-chassis/agent-chassis');
-  assert.equal(fragment.fragment, FRAGMENT_FILE);
-  assert.equal(
-    typeof fragment.summary === 'string' && fragment.summary.trim().length > 0,
-    true,
-    'fragment must carry a summary',
-  );
-  assert.equal(fragment.tool_count, EXPECTED_TOOL_NAMES.length);
-  assert.ok(Array.isArray(fragment.tools), 'fragment.tools must be an array');
-  assert.equal(fragment.tools.length, fragment.tool_count);
+    assert.equal(fragment.schema_version, TOOL_DISCOVERY_SCHEMA_VERSION, entry.file);
+    assert.equal(fragment.kind, TOOL_DISCOVERY_FRAGMENT_KIND, entry.file);
+    assert.equal(fragment.repository, 'agent-chassis/agent-chassis', entry.file);
+
+    assert.equal(fragment.fragment, entry.file, `${entry.file} self-id`);
+    assert.equal(
+      typeof fragment.summary === 'string' && fragment.summary.trim().length > 0,
+      true,
+      `${entry.file} must carry a summary`,
+    );
+    assert.equal(fragment.tool_count, expectedCount, `${entry.file} tool_count`);
+    assert.ok(Array.isArray(fragment.tools), `${entry.file} tools must be an array`);
+    assert.equal(fragment.tools.length, fragment.tool_count, `${entry.file} tools length`);
+  }
 });
 
-test('work-record-tools fragment registers the expected MCP routes and CLI fallbacks', async () => {
-  const fragment = await readJson(fragmentUrl);
+test('work-record fragments register the expected MCP routes and CLI fallbacks', async () => {
 
-  const mcpNames = fragment.tools.filter((tool) => tool.kind === 'mcp_tool').map((tool) => tool.tool_name).sort();
-  const cliNames = fragment.tools.filter((tool) => tool.kind === 'cli_command').map((tool) => tool.tool_name).sort();
-  const allNames = fragment.tools.map((tool) => tool.tool_name).sort();
+  for (const entry of WORK_RECORD_FRAGMENTS) {
+    const fragment = await readFragment(entry.file);
+    const mcp = fragment.tools.filter((tool) => tool.kind === 'mcp_tool').map((tool) => tool.tool_name).sort();
+    const cli = fragment.tools.filter((tool) => tool.kind === 'cli_command').map((tool) => tool.tool_name).sort();
+
+    assert.deepEqual(mcp, [...entry.mcp].sort(), `${entry.file} owns exactly its mcp_tool routes`);
+    assert.deepEqual(cli, [...entry.cli].sort(), `${entry.file} owns exactly its cli_command rows`);
+  }
+
+  const familyTools = await readFamilyTools();
+  const mcpNames = familyTools.filter((tool) => tool.kind === 'mcp_tool').map((tool) => tool.tool_name).sort();
+  const cliNames = familyTools.filter((tool) => tool.kind === 'cli_command').map((tool) => tool.tool_name).sort();
+  const allNames = familyTools.map((tool) => tool.tool_name).sort();
 
   assert.deepEqual(mcpNames, [...EXPECTED_MCP_TOOL_NAMES].sort());
   assert.deepEqual(cliNames, [...EXPECTED_CLI_COMMAND_NAMES].sort());
   assert.deepEqual(allNames, [...EXPECTED_TOOL_NAMES].sort());
 
-  for (const tool of fragment.tools) {
+  for (const tool of familyTools) {
     assert.equal(
       /^workspace_(repo|write)$/.test(tool.tool_name),
       false,
@@ -163,17 +213,16 @@ test('work-record-tools fragment registers the expected MCP routes and CLI fallb
   }
 });
 
-test('work-record-tools fragment entries carry full rich descriptor metadata', async () => {
-  const fragment = await readJson(fragmentUrl);
-  for (const tool of fragment.tools) {
+test('work-record fragment entries carry full rich descriptor metadata', async () => {
+  for (const tool of await readFamilyTools()) {
     assertRichToolEntry(tool);
   }
 });
 
 test('hot work-record tools carry routing guidance metadata', async () => {
-  const fragment = await readJson(fragmentUrl);
+  const familyTools = await readFamilyTools();
 
-  assertRoutingGuidance(fragment, 'workspace_work_record_summary', {
+  assertRoutingGuidance(familyTools, 'workspace_work_record_summary', {
     use_when: ['selected_work_record_context', 'selected_slice_detail'],
     do_not_use_when: ['initiative status/action', 'dispatch readiness', 'work-record mutation'],
     authoritative_for: ['compact selected_work_record_context', 'compact selected_slice_detail'],
@@ -215,7 +264,7 @@ test('hot work-record tools carry routing guidance metadata', async () => {
   ];
 
   for (const [toolName, operation, requires_prior_state, authoritative_for] of mutationTools) {
-    assertRoutingGuidance(fragment, toolName, {
+    assertRoutingGuidance(familyTools, toolName, {
       use_when: ['work_record_mutation', `mutation_operation=${operation}`],
       do_not_use_when:
         toolName === 'workspace_create_record'

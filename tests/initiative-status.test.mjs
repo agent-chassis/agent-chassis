@@ -2,17 +2,23 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
-import { loadInitiativeStatusTaxonomy } from '../packages/wiki-core/src/lib/initiative-status.mjs';
+import {
+  INITIATIVE_STATUS_ACTION_BYTE_LIMIT,
+  INITIATIVE_STATUS_CONSISTENCY_LIMIT,
+  INITIATIVE_STATUS_CONSISTENCY_BYTE_LIMIT,
+  loadInitiativeStatusTaxonomy,
+} from '../packages/wiki-core/src/lib/initiative-status.mjs';
 import { workspaceInitiativeStatus } from '../packages/wiki-core/src/operations/initiative-status.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const testInitiative = 'IN-TEST';
 
 const jsonBytes = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8');
+const prettyJsonBytes = (value) => Buffer.byteLength(JSON.stringify(value, null, 2), 'utf8');
 
 const reasonCodeOf = (action) => (action && typeof action === 'object' ? action.reason_code ?? null : null);
 const kindOf = (action) => (action && typeof action === 'object' ? action.kind ?? null : null);
-const idOf = (action) => (action && typeof action === 'object' ? action.id ?? null : null);
+const idOf = (action) => (action && typeof action === 'object' ? action.target_unit ?? action.id ?? null : null);
 
 const observedReasonCodes = (result) =>
   new Set(
@@ -153,18 +159,21 @@ test('initiative default output stays compact and truncated', () => {
 
   assert.equal(compact.schema_version, 'initiative-status.v1');
   assert.equal(compact.top_actions.length, 5);
-  assert.equal(compact.truncated, true);
-  assert.ok(jsonBytes(compact) < 4096, 'compact output should stay decision-sized');
+  assert.equal(compact.top_actions_total, 7);
+  assert.equal(compact.top_actions_returned, 5);
+  assert.equal(compact.top_actions_truncated, true);
+  assert.ok(prettyJsonBytes(compact) <= 4096, 'pretty compact output should stay decision-sized');
 
   for (const action of compact.top_actions) {
-    assert.ok(idOf(action), 'each action exposes a stable id');
+    assert.deepEqual(Object.keys(action), ['target_unit', 'reason_code', 'suggested_tool']);
+    assert.ok(idOf(action), 'each action exposes a stable target');
     assert.ok(reasonCodeOf(action), 'each action exposes a reason code');
-    assert.ok(kindOf(action), 'each action exposes a kind');
-    assert.ok(action.target_unit, 'each action exposes a target unit');
+    assert.ok(action.suggested_tool, 'each action exposes the next tool');
   }
 
   assert.ok(compact.next_action);
   assert.ok(reasonCodeOf(compact.next_action));
+  assert.deepEqual(Object.keys(compact.next_action), ['target_unit', 'reason_code', 'suggested_tool']);
 
   for (const banned of ['acceptance', 'validation', 'docs', 'closure', 'work_record_summary', 'agent_notes']) {
     assert.ok(!(banned in compact), `compact output must not expose ${banned}`);
@@ -172,7 +181,7 @@ test('initiative default output stays compact and truncated', () => {
 });
 
 test('initiative frontier covers the implemented coordinator scenarios', () => {
-  const frontier = initiativeStatus({ top_action_limit: 50 });
+  const frontier = initiativeStatus({ top_action_limit: 50, verbose: true });
   const observed = observedReasonCodes(frontier);
 
   const expected = {
@@ -192,7 +201,7 @@ test('initiative frontier covers the implemented coordinator scenarios', () => {
 });
 
 test('ready worker dispatch routes through dispatch-readiness validation', () => {
-  const frontier = initiativeStatus({ top_action_limit: 50 });
+  const frontier = initiativeStatus({ top_action_limit: 50, verbose: true });
   const dispatchAction = frontier.top_actions.find(
     (action) => action.target_unit === 'WK-9001',
   );
@@ -204,7 +213,7 @@ test('ready worker dispatch routes through dispatch-readiness validation', () =>
 });
 
 test('runtime/operator blocked unit surfaces as a blocking next action', () => {
-  const frontier = initiativeStatus({ top_action_limit: 50 });
+  const frontier = initiativeStatus({ top_action_limit: 50, verbose: true });
   const blockedAction = frontier.top_actions.find(
     (action) => action.target_unit === 'WK-9007',
   );
@@ -233,6 +242,7 @@ test('selected-unit runtime blocker evidence emits the grounded runtime reason c
       },
     ],
     unit: 'WK-9700',
+    verbose: true,
   });
   const nextAction = result.next_action;
 
@@ -268,6 +278,7 @@ test('selected-unit graph-required evidence emits the grounded graph reason code
       },
     ],
     unit: 'WK-9710#SLICE-001',
+    verbose: true,
   });
   const nextAction = result.next_action;
 
@@ -306,6 +317,7 @@ test('missing or stale admission hints rank read-only validation without recover
       },
     ],
     top_action_limit: 50,
+    verbose: true,
   });
 
   for (const targetUnit of ['WK-9720', 'WK-9721']) {
@@ -338,6 +350,7 @@ test('ordinary blocked units without runtime taxonomy evidence stay ordinary blo
       },
     ],
     unit: 'WK-9730',
+    verbose: true,
   });
   const nextAction = result.next_action;
 
@@ -370,6 +383,7 @@ test('derived evidence is selected-unit aware for sibling slice evidence', () =>
       },
     ],
     unit: 'WK-9740#SLICE-001',
+    verbose: true,
   });
   const nextAction = result.next_action;
 
@@ -398,6 +412,7 @@ test('derived evidence is selected-unit aware between parent and slice addresses
       },
     ],
     unit: 'WK-9750',
+    verbose: true,
   });
   const sliceResult = workspaceInitiativeStatus({
     repoRoot,
@@ -416,6 +431,7 @@ test('derived evidence is selected-unit aware between parent and slice addresses
       },
     ],
     unit: 'WK-9751#SLICE-001',
+    verbose: true,
   });
 
   assert.equal(reasonCodeOf(parentResult.next_action), 'record_needs_validation');
@@ -452,6 +468,7 @@ test('selected slice body and closure fields do not trigger reserved evidence ac
       },
     ],
     unit: 'WK-9755#SLICE-001',
+    verbose: true,
   });
   const nextAction = result.next_action;
 
@@ -484,6 +501,7 @@ test('repo-wide lint evidence is not synthesized as a selected-WK blocker', () =
       },
     ],
     unit: 'WK-9760',
+    verbose: true,
   });
   const nextAction = result.next_action;
 
@@ -565,6 +583,7 @@ test('unit scope keeps review-required dispatch explicit', () => {
       },
     ],
     unit: 'WK-9100#SLICE-001',
+    verbose: true,
   });
   const nextAction = result.next_action;
 
@@ -587,6 +606,7 @@ test('unit scope flags an initiative/unit scope mismatch as blocking', () => {
       },
     ],
     unit: 'WK-9200#SLICE-001',
+    verbose: true,
   });
   const nextAction = result.next_action;
 
@@ -613,7 +633,7 @@ const targetUnitsOf = (result) =>
     .filter(Boolean)
     .map((action) => action.target_unit);
 
-test('open slice under a done parent is suppressed from actions and counts', () => {
+test('open slice under a done parent is suppressed from actions and actionable counts', () => {
   const result = workspaceInitiativeStatus({
     repoRoot,
     initiative: testInitiative,
@@ -631,11 +651,15 @@ test('open slice under a done parent is suppressed from actions and counts', () 
     !targetUnitsOf(result).includes('WK-9400#SLICE-001'),
     'a done-parent open slice must not surface as an action',
   );
-  assert.equal(result.counts.total, 0, 'a done-parent open slice must not be counted');
-  assert.equal(result.counts.review, 0, 'the diverted review slice must not inflate the review count');
+  assert.equal(result.counts.actionable_unit_total, 0, 'a done-parent open slice must not be actionable');
+  assert.equal(result.counts.actionable_unit_status_counts.review, undefined);
+  assert.equal(result.counts.record_corpus_total, 1, 'the terminal parent remains in the record corpus');
+  assert.equal(result.counts.record_corpus_status_counts.done, 1);
+  assert.equal(result.counts.slice_corpus_total, 1, 'the diverted slice remains in the slice corpus');
+  assert.equal(result.counts.slice_corpus_status_counts.review, 1);
 });
 
-test('open slice under a cancelled parent is suppressed from actions and counts', () => {
+test('open slice under a cancelled parent is suppressed from actions and actionable counts', () => {
   const result = workspaceInitiativeStatus({
     repoRoot,
     initiative: testInitiative,
@@ -653,8 +677,10 @@ test('open slice under a cancelled parent is suppressed from actions and counts'
     !targetUnitsOf(result).includes('WK-9410#SLICE-001'),
     'a cancelled-parent open slice must not surface as an action',
   );
-  assert.equal(result.counts.total, 0, 'a cancelled-parent open slice must not be counted');
-  assert.equal(result.counts.blocked, 0, 'the diverted blocked slice must not inflate the blocked count');
+  assert.equal(result.counts.actionable_unit_total, 0, 'a cancelled-parent open slice must not be actionable');
+  assert.equal(result.counts.actionable_unit_status_counts.blocked, undefined);
+  assert.equal(result.counts.record_corpus_status_counts.cancelled, 1);
+  assert.equal(result.counts.slice_corpus_status_counts.blocked, 1);
 });
 
 test('genuinely-open records and non-terminal-parent slices still surface and count', () => {
@@ -684,9 +710,12 @@ test('genuinely-open records and non-terminal-parent slices still surface and co
     'a slice under a non-terminal (active) parent still surfaces',
   );
 
-  assert.equal(result.counts.total, 3, 'all three genuinely-open units are counted');
-  assert.equal(result.counts.review, 1, 'the non-terminal-parent review slice is still counted');
+  assert.equal(result.counts.actionable_unit_total, 3, 'all three genuinely-open units are counted');
+  assert.equal(result.counts.actionable_unit_status_counts.review, 1);
   assert.equal(result.consistency.length, 0, 'no terminal-parent slices means an empty consistency channel');
+  assert.equal(result.consistency_total, 0);
+  assert.equal(result.consistency_returned, 0);
+  assert.equal(result.consistency_truncated, false);
 });
 
 test('a terminal-parent open slice appears in the consistency channel', () => {
@@ -707,9 +736,11 @@ test('a terminal-parent open slice appears in the consistency channel', () => {
   assert.equal(result.consistency.length, 1);
   const [entry] = result.consistency;
   assert.equal(entry.kind, 'open_slice_under_terminal_parent');
-  assert.equal(entry.record_id, 'WK-9400');
-  assert.equal(entry.slice_id, 'SLICE-001');
-  assert.equal(entry.record_status, 'done');
+  assert.equal(entry.address, 'WK-9400#SLICE-001');
+  assert.deepEqual(Object.keys(entry), ['kind', 'address']);
+  assert.equal(result.consistency_total, 1);
+  assert.equal(result.consistency_returned, 1);
+  assert.equal(result.consistency_truncated, false);
 });
 
 test('a slice in two slice arrays under a terminal parent is listed in consistency once', () => {
@@ -728,8 +759,135 @@ test('a slice in two slice arrays under a terminal parent is listed in consisten
     ],
   });
 
-  const matches = result.consistency.filter(
-    (entry) => entry.record_id === 'WK-9600' && entry.slice_id === 'SLICE-001',
-  );
+  const matches = result.consistency.filter((entry) => entry.address === 'WK-9600#SLICE-001');
   assert.equal(matches.length, 1, 'a slice present in two arrays must be deduped to a single consistency entry');
+});
+
+test('counts separate actionable units from terminal record and slice corpora without losing named statuses', () => {
+  const duplicateActiveSlice = { id: 'SLICE-001', work_kind: 'implementation', status: 'active' };
+  const result = workspaceInitiativeStatus({
+    repoRoot,
+    initiative: testInitiative,
+    records: [
+      {
+        id: 'WK-9800',
+        initiative: testInitiative,
+        status: 'done',
+        slices: [{ id: 'SLICE-001', status: 'done' }],
+      },
+      {
+        id: 'WK-9801',
+        initiative: testInitiative,
+        status: 'cancelled',
+        slices: [{ id: 'SLICE-001', status: 'cancelled' }],
+      },
+      {
+        id: 'WK-9802',
+        initiative: testInitiative,
+        status: 'parked',
+        slices: [{ id: 'SLICE-001', status: 'parked' }],
+      },
+      {
+        id: 'WK-9803',
+        initiative: testInitiative,
+        status: 'inbox',
+        slices: [duplicateActiveSlice],
+        working_slices: [duplicateActiveSlice],
+      },
+      { id: 'WK-9804', initiative: testInitiative, status: 'review' },
+    ],
+  });
+
+  assert.deepEqual(result.counts.actionable_unit_status_counts, {
+    active: 1,
+    inbox: 1,
+    review: 1,
+  });
+  assert.equal(result.counts.actionable_unit_total, 3, 'the duplicate slice address counts once');
+  assert.equal(result.counts.actionable_unit_status_counts.done, undefined);
+  assert.equal(result.counts.record_corpus_total, 5);
+  assert.deepEqual(result.counts.record_corpus_status_counts, {
+    cancelled: 1,
+    done: 1,
+    inbox: 1,
+    parked: 1,
+    review: 1,
+  });
+  assert.equal(result.counts.slice_corpus_total, 4, 'duplicate source arrays do not inflate the slice corpus');
+  assert.deepEqual(result.counts.slice_corpus_status_counts, {
+    active: 1,
+    cancelled: 1,
+    done: 1,
+    parked: 1,
+  });
+  assert.equal('other' in result.counts.actionable_unit_status_counts, false);
+});
+
+test('default consistency output is independently bounded and verbose returns the complete detail', () => {
+  const consistencySlices = Array.from({ length: 120 }, (_, index) => ({
+    id: `SLICE-${String(index + 1).padStart(3, '0')}`,
+    work_kind: 'implementation',
+    status: index % 2 === 0 ? 'review' : 'blocked',
+  }));
+  const options = {
+    repoRoot,
+    initiative: testInitiative,
+    records: [
+      {
+        id: 'WK-9900',
+        initiative: testInitiative,
+        status: 'done',
+        slices: consistencySlices,
+      },
+    ],
+    top_action_limit: 100,
+  };
+
+  const compact = workspaceInitiativeStatus(options);
+  assert.equal(compact.consistency_total, 120);
+  assert.ok(compact.consistency_returned <= INITIATIVE_STATUS_CONSISTENCY_LIMIT);
+  assert.equal(compact.consistency.length, compact.consistency_returned);
+  assert.ok(prettyJsonBytes(compact.consistency) <= INITIATIVE_STATUS_CONSISTENCY_BYTE_LIMIT);
+  assert.equal(compact.consistency_truncated, true);
+  assert.ok(prettyJsonBytes(compact) <= 4096, 'default output remains bounded with 120 consistency rows');
+
+  const verbose = workspaceInitiativeStatus({ ...options, verbose: true });
+  assert.equal(verbose.consistency_total, 120);
+  assert.equal(verbose.consistency_returned, 120);
+  assert.equal(verbose.consistency.length, 120);
+  assert.equal(verbose.consistency_truncated, false);
+});
+
+test('large synthetic initiative independently byte-bounds both compact row channels', () => {
+  const actionableRecords = Array.from({ length: 500 }, (_, index) => ({
+    id: `WK-A${String(index).padStart(4, '0')}`,
+    initiative: testInitiative,
+    status: 'todo',
+    dispatch_intent: { target_unit: 'record', intended_agent_role: 'worker' },
+  }));
+  const consistencyRecords = Array.from({ length: 500 }, (_, index) => ({
+    id: `WK-C${String(index).padStart(4, '0')}`,
+    initiative: testInitiative,
+    status: 'done',
+    slices: [{ id: 'SLICE-001', status: 'review' }],
+  }));
+  const result = workspaceInitiativeStatus({
+    repoRoot,
+    initiative: testInitiative,
+    records: [...actionableRecords, ...consistencyRecords],
+    top_action_limit: 1000,
+  });
+
+  assert.equal(result.counts.actionable_unit_total, 500);
+  assert.equal(result.counts.record_corpus_total, 1000);
+  assert.equal(result.counts.slice_corpus_total, 500);
+  assert.equal(result.top_actions_total, 500);
+  assert.equal(result.top_actions_returned, result.top_actions.length);
+  assert.equal(result.top_actions_truncated, true);
+  assert.ok(prettyJsonBytes(result.top_actions) <= INITIATIVE_STATUS_ACTION_BYTE_LIMIT);
+  assert.equal(result.consistency_total, 500);
+  assert.equal(result.consistency_returned, result.consistency.length);
+  assert.equal(result.consistency_truncated, true);
+  assert.ok(prettyJsonBytes(result.consistency) <= INITIATIVE_STATUS_CONSISTENCY_BYTE_LIMIT);
+  assert.ok(prettyJsonBytes(result) <= 4096, 'large-corpus pretty output stays within the default ceiling');
 });

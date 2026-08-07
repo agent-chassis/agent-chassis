@@ -38,23 +38,36 @@ export const TERMINAL_CANDIDATE_VALIDATION_CODES = Object.freeze({
   INVALID_ARGUMENT: "agent_launch.terminal_candidate_validation.invalid_argument.v1",
   DEPENDENCY_UNAVAILABLE: "agent_launch.terminal_candidate_validation.dependency_unavailable.v1",
   DEPENDENCY_REDIRECTED: "agent_launch.terminal_candidate_validation.dependency_redirected.v1",
-  DEPENDENCY_INCOMPATIBLE: "agent_launch.terminal_candidate_validation.dependency_incompatible.v1",
   DEPENDENCY_STALE: "agent_launch.terminal_candidate_validation.dependency_stale.v1",
+  MOUNT_IDENTITY_CHANGED:
+    "agent_launch.terminal_candidate_validation.dependency_mount_identity_changed.v1",
   TARGET_INVALID: "agent_launch.terminal_candidate_validation.target_invalid.v1",
   VALIDATION_FAILED: "agent_launch.terminal_candidate_validation.failed.v1"
 });
 
+export const DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS = Object.freeze({
+  DEPENDENCY_ROOT_UNAVAILABLE: "dependency_root_unavailable",
+  DEPENDENCY_PATH_ABSENT: "dependency_path_absent",
+  DEPENDENCY_PATH_REDIRECTED: "dependency_path_redirected",
+  DEPENDENCY_STATE_UNSTABLE: "dependency_state_unstable"
+});
+
+const OPTIONAL_PROJECTION_UNAVAILABLE_VALIDATION_CODES = new Map([
+  [TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_UNAVAILABLE,
+    DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_ROOT_UNAVAILABLE],
+  [TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_REDIRECTED,
+    DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_PATH_REDIRECTED],
+  [TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_STALE,
+    DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_STATE_UNSTABLE]
+]);
+
+const OPTIONAL_PROJECTION_ABSENT_SYSTEM_ERROR_CODES = new Map([
+  ["ENOENT", DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_PATH_ABSENT],
+  ["ENOTDIR", DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_PATH_ABSENT]
+]);
+
 const OUTPUT_CAP_BYTES = 64 * 1024;
 const TIMEOUT_MS = 30_000;
-const MANIFEST_NAMES = Object.freeze([
-  "package.json",
-  "package-lock.json",
-  "npm-shrinkwrap.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "yarn.lock"
-]);
-const LOCK_COMPARISON_FIELDS = Object.freeze(["version", "resolved", "integrity", "link"]);
 const DEPENDENCY_PROJECTION_SCHEMA_VERSION =
   "agent_launch.reviewer_dependency_projection.v1";
 const DEPENDENCY_PROJECTION_METADATA = ".agent-launch-projection.json";
@@ -76,14 +89,6 @@ function fail(code, message, detail = null, cause = null) {
 
 function hashBytes(value) {
   return createHash("sha256").update(value).digest("hex");
-}
-
-function readJson(file, code, message) {
-  try {
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch (error) {
-    fail(code, message, { path: file }, error);
-  }
 }
 
 function assertRealDirectory(target, code, message) {
@@ -162,8 +167,6 @@ function dependencyProjectionSnapshot({ mainRepo, checkoutPath, projectionRoot, 
     fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_REDIRECTED,
       "exact reviewed checkout is redirected", { expected: checkoutPath, actual: canonicalCheckout });
   }
-  const manifests = compareManifestBytes(mainRepo, checkoutPath);
-  const marker = assertInstallMarkerCoherent(mainRepo, canonicalModules);
   const entries = [];
   const dependencySources = new Set();
   for (const entry of readdirSync(canonicalModules).sort()) {
@@ -173,9 +176,9 @@ function dependencyProjectionSnapshot({ mainRepo, checkoutPath, projectionRoot, 
     });
   }
   entries.sort((left, right) => left.path.localeCompare(right.path));
+
   const installationFacts = {
     node_modules: canonicalModules,
-    marker_digest: marker.marker_digest,
     entries
   };
   const installationDigest = hashBytes(JSON.stringify(installationFacts));
@@ -183,7 +186,6 @@ function dependencyProjectionSnapshot({ mainRepo, checkoutPath, projectionRoot, 
     schema_version: DEPENDENCY_PROJECTION_SCHEMA_VERSION,
     projection_base: projectionRoot,
     checkout_path: canonicalCheckout,
-    manifests,
     installation_digest: `sha256:${installationDigest}`
   };
   return {
@@ -400,92 +402,106 @@ export function prepareReviewerDependencyProjection({
   });
 }
 
-function workspaceManifestPaths(packageJson) {
-  const raw = Array.isArray(packageJson?.workspaces)
-    ? packageJson.workspaces
-    : Array.isArray(packageJson?.workspaces?.packages)
-      ? packageJson.workspaces.packages
-      : [];
-  const paths = [];
-  for (const entry of raw) {
-    if (typeof entry !== "string" || entry.length === 0 || /[*?{}[\]]/u.test(entry) || path.isAbsolute(entry)) {
-      fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_INCOMPATIBLE,
-        "workspace manifest declaration is not a fixed repo-relative path", { entry });
-    }
-    const normalized = path.posix.normalize(entry.replaceAll("\\", "/"));
-    if (normalized === ".." || normalized.startsWith("../") || normalized === ".") {
-      fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_INCOMPATIBLE,
-        "workspace manifest declaration escapes the repository", { entry });
-    }
-    paths.push(`${normalized}/package.json`);
+export function classifyOptionalDependencyProjectionFailure(error) {
+  if (error instanceof TerminalCandidateValidationError) {
+    const reason = OPTIONAL_PROJECTION_UNAVAILABLE_VALIDATION_CODES.get(error.code);
+    if (reason === undefined) throw error;
+    return reason;
   }
-  return paths.sort();
+  if (typeof error?.code !== "string") throw error;
+  const reason = OPTIONAL_PROJECTION_ABSENT_SYSTEM_ERROR_CODES.get(error.code);
+  if (reason === undefined) throw error;
+  return reason;
 }
 
-function compareManifestBytes(mainRepo, checkoutPath) {
-  const rootPackage = readJson(path.join(mainRepo, "package.json"),
-    TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_INCOMPATIBLE,
-    "main repository package.json is unreadable");
-  const relativePaths = [...MANIFEST_NAMES, ...workspaceManifestPaths(rootPackage)];
-  const hashes = [];
-  for (const relative of relativePaths) {
-    const mainPath = path.join(mainRepo, relative);
-    const candidatePath = path.join(checkoutPath, relative);
-    const mainExists = existsSync(mainPath);
-    const candidateExists = existsSync(candidatePath);
-    if (mainExists !== candidateExists) {
-      fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_INCOMPATIBLE,
-        "candidate and installed dependency manifests differ", { path: relative, main_exists: mainExists, candidate_exists: candidateExists });
-    }
-    if (!mainExists) continue;
-    const mainBytes = readFileSync(mainPath);
-    const candidateBytes = readFileSync(candidatePath);
-    if (!mainBytes.equals(candidateBytes)) {
-      fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_INCOMPATIBLE,
-        "candidate manifest is not byte-compatible with the installed dependency root", { path: relative });
-    }
-    hashes.push([relative, hashBytes(mainBytes)]);
+export function selectOptionalReviewerDependencyProjection({
+  mainRepo,
+  checkoutPath,
+  projectionRoot
+} = {}) {
+  try {
+    return Object.freeze({
+      selected: true,
+      reason_code: null,
+      projection: prepareReviewerDependencyProjection({ mainRepo, checkoutPath, projectionRoot })
+    });
+  } catch (error) {
+    return Object.freeze({
+      selected: false,
+      reason_code: classifyOptionalDependencyProjectionFailure(error),
+      projection: null
+    });
   }
-  return hashes;
 }
 
-function assertInstallMarkerCoherent(mainRepo, nodeModules) {
-  const lockPath = path.join(mainRepo, "package-lock.json");
-  const markerPath = path.join(nodeModules, ".package-lock.json");
-  if (!existsSync(lockPath) || !existsSync(markerPath) || !statSync(markerPath).isFile()) {
-    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_UNAVAILABLE,
-      "npm installation marker is absent or invalid", { lock_path: lockPath, marker_path: markerPath });
+export function assertSelectedDependencyMountIntegrity(proof) {
+  if (proof?.projection_selected !== true) return null;
+  const root = proof.projection_root;
+  const bind = proof.reviewer_read_only_bind;
+  if (typeof root !== "string" || !path.isAbsolute(root) ||
+      !isPlainMountBind(bind) || bind.src !== root) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+      "selected reviewer dependency mount is not bound to its exact recorded source",
+      { projection_root: root ?? null, bind: bind ?? null });
   }
-  const lock = readJson(lockPath, TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_STALE,
-    "package lock is unreadable");
-  const marker = readJson(markerPath, TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_STALE,
-    "npm installation marker is unreadable");
-  if (!Number.isInteger(lock.lockfileVersion) || marker.lockfileVersion !== lock.lockfileVersion ||
-      typeof lock.packages !== "object" || lock.packages === null ||
-      typeof marker.packages !== "object" || marker.packages === null) {
-    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_STALE,
-      "npm installation marker does not match the canonical lockfile version");
+  assertRealDirectory(root, TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+    "selected reviewer dependency mount source is absent or is not a real directory");
+  if (realpathSync(root) !== root) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+      "selected reviewer dependency mount source is redirected",
+      { expected: root, actual: realpathSync(root) });
   }
-  for (const [packagePath, installed] of Object.entries(marker.packages)) {
-    const expected = lock.packages[packagePath];
-    if (!expected || LOCK_COMPARISON_FIELDS.some((field) =>
-      (installed?.[field] ?? null) !== (expected?.[field] ?? null))) {
-      fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_STALE,
-        "installed dependency marker disagrees with package-lock.json", { package_path: packagePath });
+  if ((statSync(root).mode & 0o222) !== 0) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+      "selected reviewer dependency mount source is writable", { projection_root: root });
+  }
+  const metadataPath = path.join(root, DEPENDENCY_PROJECTION_METADATA);
+  let metadata;
+  try {
+    metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
+  } catch (error) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+      "selected reviewer dependency mount lost its closed identity metadata",
+      { metadata_path: metadataPath }, error);
+  }
+  if (metadata?.projection_identity !== proof.projection_identity ||
+      metadata?.installation_digest !== proof.dependency_installation_digest) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+      "selected reviewer dependency mount identity changed after verification", {
+        expected_projection_identity: proof.projection_identity,
+        actual_projection_identity: metadata?.projection_identity ?? null
+      });
+  }
+
+  if (!Array.isArray(proof.reviewer_read_only_binds) ||
+      proof.reviewer_read_only_binds.length === 0) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+      "selected reviewer dependency mount carries no bind plan", {
+        projection_root: root,
+        binds: Array.isArray(proof.reviewer_read_only_binds)
+          ? proof.reviewer_read_only_binds.length
+          : typeof proof.reviewer_read_only_binds
+      });
+  }
+  if (!proof.reviewer_read_only_binds.some((entry) => isPlainMountBind(entry) &&
+      entry.src === root && entry.dst === bind.dst)) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+      "selected reviewer dependency mount plan omits the exact projection bind",
+      { projection_root: root, destination: bind.dst });
+  }
+  for (const entry of proof.reviewer_read_only_binds) {
+    if (!isPlainMountBind(entry)) {
+      fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+        "selected reviewer dependency mount plan carries a malformed bind", { bind: entry ?? null });
     }
   }
-  const root = lock.packages[""] ?? {};
-  const direct = { ...(root.dependencies ?? {}), ...(root.devDependencies ?? {}), ...(root.optionalDependencies ?? {}) };
-  for (const name of Object.keys(direct)) {
-    const packagePath = `node_modules/${name}`;
-    const expected = lock.packages[packagePath];
-    const installed = marker.packages[packagePath];
-    if (!expected || !installed || expected.version !== installed.version) {
-      fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_STALE,
-        "a direct dependency is missing or stale in node_modules", { package: name });
-    }
-  }
-  return { marker_path: markerPath, marker_digest: hashBytes(readFileSync(markerPath)) };
+  return proof;
+}
+
+function isPlainMountBind(bind) {
+  return typeof bind === "object" && bind !== null &&
+    typeof bind.src === "string" && path.isAbsolute(bind.src) &&
+    typeof bind.dst === "string" && path.isAbsolute(bind.dst);
 }
 
 export function verifyTerminalCandidateDependencies({ binding, materialization } = {}) {
@@ -493,37 +509,27 @@ export function verifyTerminalCandidateDependencies({ binding, materialization }
   const mainRepo = binding.main_repo;
   const checkoutPath = materialization.checkout_path;
   const candidateRoot = materialization.candidate_root;
-  const nodeModules = path.join(mainRepo, "node_modules");
-  assertRealDirectory(nodeModules, TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_UNAVAILABLE,
-    "canonical main repository node_modules is unavailable");
-  const canonicalModules = realpathSync(nodeModules);
-  if (canonicalModules !== nodeModules) {
-    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_REDIRECTED,
-      "canonical main repository node_modules is redirected", { expected: nodeModules, actual: canonicalModules });
-  }
-  const manifestHashes = compareManifestBytes(mainRepo, checkoutPath);
-  const marker = assertInstallMarkerCoherent(mainRepo, nodeModules);
-  const projection = prepareReviewerDependencyProjection({
+  const selection = selectOptionalReviewerDependencyProjection({
     mainRepo,
     checkoutPath,
     projectionRoot: path.join(candidateRoot, "node_modules")
   });
+  const projection = selection.projection;
   const proofFacts = {
     main_repo: mainRepo,
-    node_modules: canonicalModules,
-    projection_root: projection.projection_root,
-    projection_identity: projection.projection_identity,
-    dependency_installation_digest: projection.installation_digest,
-    reviewer_read_only_bind: projection.read_only_bind,
-    reviewer_read_only_binds: projection.read_only_binds,
+    projection_selected: selection.selected,
+    projection_unavailable_reason: selection.reason_code,
+    projection_root: projection?.projection_root ?? null,
+    projection_identity: projection?.projection_identity ?? null,
+    dependency_installation_digest: projection?.installation_digest ?? null,
+    reviewer_read_only_bind: projection?.read_only_bind ?? null,
+    reviewer_read_only_binds: projection?.read_only_binds ?? Object.freeze([]),
     workspace_links_resolve_against_reviewed_checkout:
-      projection.workspace_links_resolve_against_reviewed_checkout,
-    manifests: manifestHashes,
-    installation_marker: marker,
+      projection?.workspace_links_resolve_against_reviewed_checkout ?? false,
     package_manager_posture: { offline: true, ignore_scripts: true }
   };
   return Object.freeze({
-    schema_version: "agent_launch.terminal_candidate_dependency_proof.v1",
+    schema_version: "agent_launch.terminal_candidate_dependency_proof.v2",
     ...proofFacts,
     digest: hashBytes(JSON.stringify(proofFacts))
   });
@@ -577,9 +583,15 @@ function resolveTarget(checkoutPath, target) {
   }
   const absolute = path.resolve(checkoutPath, target);
   const relative = path.relative(checkoutPath, absolute);
-  if (relative === "" || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) ||
-      ![".js", ".mjs"].includes(path.extname(absolute).toLowerCase()) || !existsSync(absolute) || !statSync(absolute).isFile()) {
-    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.TARGET_INVALID, "validation target is absent, invalid, or escapes the candidate", { target });
+  if (relative === "" || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.TARGET_INVALID, "validation target escapes the candidate", { target });
+  }
+  const reportedRelative = relative.split(path.sep).join("/");
+  if (![".js", ".mjs"].includes(path.extname(absolute).toLowerCase())) {
+    return { available: false, reason: "target_is_not_a_runnable_node_file", relative: reportedRelative };
+  }
+  if (!existsSync(absolute) || !statSync(absolute).isFile()) {
+    return { available: false, reason: "target_absent_from_the_exact_candidate", relative: reportedRelative };
   }
   const realRoot = realpathSync(checkoutPath);
   const realTarget = realpathSync(absolute);
@@ -587,7 +599,26 @@ function resolveTarget(checkoutPath, target) {
   if (realRelative === ".." || realRelative.startsWith(`..${path.sep}`) || path.isAbsolute(realRelative)) {
     fail(TERMINAL_CANDIDATE_VALIDATION_CODES.TARGET_INVALID, "validation target resolves outside the candidate", { target });
   }
-  return { absolute: realTarget, relative: relative.split(path.sep).join("/") };
+  return { available: true, absolute: realTarget, relative: reportedRelative };
+}
+
+function skippedStep(flag, relative, reason) {
+  return Object.freeze({
+    step: `node ${flag}`,
+    argv: Object.freeze(["node", flag, relative]),
+    target: relative,
+    ran: false,
+    skipped: true,
+    skipped_reason: reason,
+    exit_code: null,
+    signal: null,
+    timed_out: false,
+    output_truncated: false,
+    spawn_error: null,
+    stdout: "",
+    stderr: "",
+    ok: false
+  });
 }
 
 function bounded(value) {
@@ -598,15 +629,17 @@ function bounded(value) {
   };
 }
 
-function runStep({ spawn, nodePath, flag, target, checkoutPath, env, runtime, dependencyBinds }) {
+function runStep({ spawn, nodePath, flag, target, checkoutPath, env, runtime, dependencies }) {
   const bwrapPath = assertBubblewrapAvailable({ env: process.env });
+
+  assertSelectedDependencyMountIntegrity(dependencies);
   const isolation = buildBubblewrapLaunchPlan({
     repo: checkoutPath,
     command: nodePath,
     args: [flag, target.absolute],
     cwd: checkoutPath,
     env,
-    readOnlyRoots: dependencyBinds,
+    readOnlyRoots: dependencies.reviewer_read_only_binds,
     runtimeRoots: [runtime.runRoot],
     findingsRole: "reviewer",
     shareNet: false,
@@ -653,64 +686,64 @@ export function runTerminalCandidateValidation({
     fail(TERMINAL_CANDIDATE_VALIDATION_CODES.INVALID_ARGUMENT, "launcher validation dependencies are missing");
   }
   verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization?.candidate_root, runGit });
-  const before = verifyTerminalCandidateDependencies({ binding, materialization });
+
+  const dependencies = verifyTerminalCandidateDependencies({ binding, materialization });
   const resolvedTarget = resolveTarget(materialization.checkout_path, target);
   const runtime = createPrivateRuntime(runtimeRoot);
   const env = buildTerminalCandidateValidationEnv({ nodePath, runtime });
   const dependencyMountpoint = path.join(materialization.checkout_path, "node_modules");
-  const createdDependencyMountpoint = !existsSync(dependencyMountpoint);
+
+  const createdDependencyMountpoint = dependencies.projection_selected === true &&
+    !existsSync(dependencyMountpoint);
   if (createdDependencyMountpoint) mkdirSync(dependencyMountpoint, { mode: 0o700 });
   let check;
   let test;
   try {
-    check = runStep({
-        spawn,
-        nodePath,
-        flag: "--check",
-        target: resolvedTarget,
-        checkoutPath: materialization.checkout_path,
-        env,
-        runtime,
-        dependencyBinds: before.reviewer_read_only_binds
-      });
-    test = check.ok
-      ? runStep({
+    if (!resolvedTarget.available) {
+      check = skippedStep("--check", resolvedTarget.relative, resolvedTarget.reason);
+      test = skippedStep("--test", resolvedTarget.relative, resolvedTarget.reason);
+    } else {
+      check = runStep({
           spawn,
           nodePath,
-          flag: "--test",
+          flag: "--check",
           target: resolvedTarget,
           checkoutPath: materialization.checkout_path,
           env,
           runtime,
-          dependencyBinds: before.reviewer_read_only_binds
-        })
-      : Object.freeze({
-        step: "node --test", argv: Object.freeze(["node", "--test", resolvedTarget.relative]),
-        target: resolvedTarget.relative, ran: false, skipped: true,
-        skipped_reason: "node --check failed; node --test not run", exit_code: null,
-        signal: null, timed_out: false, output_truncated: false, spawn_error: null,
-        stdout: "", stderr: "", ok: false
-      });
+          dependencies
+        });
+      test = check.ok
+        ? runStep({
+            spawn,
+            nodePath,
+            flag: "--test",
+            target: resolvedTarget,
+            checkoutPath: materialization.checkout_path,
+            env,
+            runtime,
+            dependencies
+          })
+        : skippedStep("--test", resolvedTarget.relative, "node --check failed; node --test not run");
+    }
   } finally {
     if (createdDependencyMountpoint) rmSync(dependencyMountpoint, { recursive: true, force: true });
   }
   verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization.candidate_root, runGit });
-  const after = verifyTerminalCandidateDependencies({ binding, materialization });
-  if (after.digest !== before.digest) {
-    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_STALE,
-      "dependency proof changed during validation", { before: before.digest, after: after.digest });
-  }
   return Object.freeze({
     schema_version: TERMINAL_CANDIDATE_VALIDATION_SCHEMA_VERSION,
     unit: binding.canonical_wk_id,
     subject: binding.canonical_wk_id,
     target: resolvedTarget.relative,
+    target_available: resolvedTarget.available === true,
     candidate: binding.candidate,
     reviewed_sha: binding.candidate,
     base: binding.base,
     diff_base_sha: binding.base,
     wk_tip: binding.wk_tip,
-    dependency_digest: before.digest,
+    dependency_digest: dependencies.digest,
+    dependency_projection_selected: dependencies.projection_selected,
+    dependency_projection_unavailable_reason: dependencies.projection_unavailable_reason,
     environment_keys: Object.freeze(Object.keys(env).sort()),
     runtime_root: runtime.runRoot,
     steps: Object.freeze([check, test]),

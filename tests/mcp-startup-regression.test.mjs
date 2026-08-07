@@ -210,8 +210,9 @@ test("every supported confined role resolves an explicit non-empty policy-derive
       assert.deepEqual(toolNames, [...launcherDerived].sort(),
         `${profile} server surface must equal its launcher-derived role profile`);
       if (profile === "worker") {
-        assert.deepEqual(toolNames, ["commit"],
-          "a confined worker is commit-only (DEC-0167/DEC-0168)");
+
+        assert.deepEqual(toolNames, ["commit", "workspace_worker_run_declared_test"],
+          "a confined worker gets exactly commit plus the launcher-bound declared-test capability");
       } else {
         assert.equal(toolNames.includes("commit"), false,
           `${profile} must not receive the worker's commit authority`);

@@ -21,6 +21,16 @@ import {
   validRatifiedCurrentDecisionRecovery
 } from "./work-record-dispatch-node-engine-admissibility-recovery-projection.mjs";
 
+const WORKER_ADMISSION_RECOVERY_PROJECTION_STATES = new Set([
+  "absent",
+  "valid",
+  "projection_mismatch"
+]);
+
+function boundedRecoveryProjectionState(value) {
+  return WORKER_ADMISSION_RECOVERY_PROJECTION_STATES.has(value) ? value : null;
+}
+
 export function interpretNodeEngineAdmissibility(packResult) {
   if (!isObject(packResult)) {
     return buildNodeEngineAdmissibilityOutcome(
@@ -87,7 +97,7 @@ export function interpretNodeEngineAdmissibility(packResult) {
       });
     }
     if (effect === "needs_review") {
-      return buildNodeEngineAdmissibilityOutcome("needs_review", false, "node_engine_needs_review", {
+      const interpreted = buildNodeEngineAdmissibilityOutcome("needs_review", false, "node_engine_needs_review", {
         effect,
         pack_backed: packBacked,
         node_engine_backed: nodeEngineBacked,
@@ -96,6 +106,13 @@ export function interpretNodeEngineAdmissibility(packResult) {
         reasons,
         recovery
       });
+      const recoveryProjectionState = boundedRecoveryProjectionState(
+        packResult.recovery_projection_state
+      );
+      if (recoveryProjectionState) {
+        interpreted.recovery_projection_state = recoveryProjectionState;
+      }
+      return interpreted;
     }
     if (effect === "reject") {
       return buildNodeEngineAdmissibilityOutcome("reject", false, "node_engine_reject", {
@@ -170,12 +187,23 @@ export function foldNodeEngineAdmissibilityIntoReadiness(readiness, outcome) {
     ? projectBoundedPublicReasons(outcome.reasons)
     : outcome.reasons;
   const isNeedsReview = outcome.status === "needs_review";
+  const recoveryProjectionState = isNeedsReview
+    ? boundedRecoveryProjectionState(outcome.recovery_projection_state)
+    : null;
 
-  const needsReviewRecovery = isNeedsReview ? resolveNeedsReviewEnumerableRecovery(outcome) : null;
+  const needsReviewRecovery = isNeedsReview
+    ? recoveryProjectionState === "projection_mismatch"
+      ? null
+      : recoveryProjectionState === "valid" && !isObject(outcome.recovery)
+        ? null
+        : resolveNeedsReviewEnumerableRecovery(outcome)
+    : null;
   const primaryRecovery = isNeedsReview
     ? needsReviewRecovery
     : validRatifiedCurrentDecisionRecovery(outcome);
-  const attachNeedsReviewRecovery = isNeedsReview;
+  const attachNeedsReviewRecovery = isNeedsReview &&
+    recoveryProjectionState !== "projection_mismatch" &&
+    (recoveryProjectionState !== "valid" || primaryRecovery !== null);
   const admissibility = {
     evaluated: outcome.evaluated,
     authority: outcome.authority,
@@ -189,6 +217,9 @@ export function foldNodeEngineAdmissibilityIntoReadiness(readiness, outcome) {
     ratified: outcome.ratified,
     diagnostic_code: outcome.diagnostic_code,
     reasons: boundedReasons,
+    ...(recoveryProjectionState
+      ? { recovery_projection_state: recoveryProjectionState }
+      : {}),
     ...(typeof outcome.authenticated_request_sent === "boolean"
       ? { authenticated_request_sent: outcome.authenticated_request_sent }
       : {})

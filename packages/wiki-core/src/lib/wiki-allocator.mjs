@@ -1,6 +1,6 @@
 
 
-import { mkdtemp, open, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, open, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ensureDirectory, normalizeType, pathExists } from "./wiki-shared.mjs";
 
@@ -19,7 +19,7 @@ export async function ensureAllocatorState(targetDir, manifest) {
   await ensureDirectory(path.join(targetDir, "wiki"));
   return withAllocatorLock(targetDir, async () => {
     const { statePath } = getAllocatorPaths(targetDir);
-    if (await pathExists(statePath)) {
+    if (await allocatorStateEntryIsPresent(statePath)) {
       return readAllocatorState(targetDir, manifest);
     }
 
@@ -84,13 +84,34 @@ export async function withAllocatorLock(targetDir, callback) {
 
 export async function readOrInitializeAllocatorState(targetDir, manifest) {
   const { statePath } = getAllocatorPaths(targetDir);
-  if (await pathExists(statePath)) {
+  if (await allocatorStateEntryIsPresent(statePath)) {
     return readAllocatorState(targetDir, manifest);
   }
 
   const state = await scanAllocatorState(targetDir, manifest);
   await writeAllocatorStateAtomically(targetDir, state);
   return state;
+}
+
+async function allocatorStateEntryIsPresent(statePath) {
+  let entry;
+  try {
+    entry = await lstat(statePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return false;
+    }
+    throw new Error(
+      `Allocator state entry is unreadable at ${statePath} (${error?.code ?? "unknown"})`,
+      { cause: error }
+    );
+  }
+
+  if (!entry.isFile()) {
+    throw new Error(`Allocator state entry at ${statePath} is not a regular file`);
+  }
+
+  return true;
 }
 
 async function readAllocatorState(targetDir, manifest) {

@@ -81,6 +81,8 @@ const INTEGRATION_FILE_NAMES = new Set([
   "wiki-core-sidecar-validation.test.mjs",
 
   "in0012-deepswe-agent-chassis-execute.test.mjs",
+  "in0012-deepswe-execute-smoke-artifacts.test.mjs",
+  "in0012-deepswe-execute-smoke-pier.test.mjs",
   "in0012-sweatlas-refactor-smoke-known-easy.test.mjs",
   "in0012-sweatlas-refactor-smoke-review-fix3.test.mjs",
   "in0012-sweatlas-refactor-smoke-review-fix4.test.mjs",

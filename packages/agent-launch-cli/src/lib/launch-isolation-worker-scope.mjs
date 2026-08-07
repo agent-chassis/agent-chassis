@@ -152,7 +152,10 @@ export function buildSparseWorkerNamespace({
     );
   }
   const frozenAuthority = assertIsolationWorkerScopeAuthority(authority);
-  const readable = frozenAuthority.readable_scope.map((entry, index) =>
+  const writableEntries = new Set(frozenAuthority.write_scope);
+  const readable = frozenAuthority.readable_scope
+    .filter((entry) => !writableEntries.has(entry))
+    .map((entry, index) =>
     inspectAuthorityPath(
       relativeAuthorityPathToAbsolute(entry, `workerScopeAuthority.readable_scope[${index}]`, repoReal),
       `workerScopeAuthority.readable_scope[${index}]`,

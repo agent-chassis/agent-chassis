@@ -36,6 +36,7 @@
       ],
       "docs_refs": [
         "docs/initiative-status.md",
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"

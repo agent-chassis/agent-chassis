@@ -304,15 +304,30 @@ at `C`. Every declared whole-WK validation runs there before the findings-only
 review, and that reviewer is bound to `C` with `B` as its diff base (`B..C`) and
 `W` as the accumulated source identity. Validation receives an empty-baseline,
 secret-free environment. Ordinary project dependencies are exposed only by a
-launcher-created sibling link to the canonical repository `node_modules` after
-manifest, lock, workspace, install-marker, realpath, and freshness checks before
-and after execution. Dependencies are neither installed nor copied.
+launcher-created read-only sibling projection of the canonical repository
+`node_modules`, pinned to its exact source identity for the life of the mount.
+Dependencies are neither installed nor copied.
+
+Project dependencies and project-test execution are optional. Terminal review and
+exact-candidate forge handoff proceed independently of whether they are available:
+a candidate whose manifests, lockfile, or workspace manifest disagree with the
+landing checkout's installed dependency root, an absent or stale dependency tree, a
+missing install marker, an unbuildable projection, and a declared validation target
+that is absent from `C` all change only what advisory evidence exists. None of them
+invalidates `C`, refuses findings-only review, or blocks publication. Reviewer launch
+without a projection binds no dependency source rather than falling back to the
+mutable landing checkout. Four concerns stay separate and must not be collapsed: the
+exact candidate mechanics below, optional project-test execution, configured CCE
+policy at the publication boundary, and git/forge merge readiness. This layer defines
+no local admissibility, eligibility, readiness, review-required, test-required,
+quality, mergeability, or publication-policy threshold, and the existing CCE contract
+is unchanged.
 
 Candidate identity and its evidence remain exact: a change or uncertainty in
-`W`, `C`, the candidate tree or parent, candidate ref, checkout, dependency
-proof, canonical contract, reviewer identity, candidate branch, or proposed
-change head invalidates the affected evidence and requires a new candidate
-cycle. Movement of the current landing before or after candidate construction
+`W`, `C`, the candidate tree or parent, candidate ref, checkout, canonical contract,
+reviewer identity, candidate branch, proposed change head, or the pinned identity of
+a selected dependency mount invalidates the affected evidence and requires a new
+candidate cycle. Movement of the current landing before or after candidate construction
 does not modify `C` or its frozen base parent, does not invalidate completed
 validation or review, and does not block publication — deterministic `C` depends
 only on `B`, `W`, repository identity, and the canonical contract, never on the
@@ -329,6 +344,40 @@ and
 accepted only when their exact repository/base/head/state is proven. This
 mechanism creates no generic provenance, Proof A/Proof B, receipt, or
 review-attestation authority.
+
+### Operator forge merge
+
+After final review, an operator may run `agent-launch forge-merge WK-####`.
+The CLI launcher mints the workspace binding from its operator-resolved working
+directory before composing the operation. The command accepts only the WK id. Its trusted composition recovers the exact
+terminal candidate publication state retained or cold-recovered by the launcher
+and uses the canonical work-record validator; candidate, repository, branch, review,
+proposed change head, configured base branch, and merge authority are never
+caller-supplied.
+
+Forge handoff publishes the reviewed terminal candidate `C` byte-for-byte as
+the proposed change head on the forge handoff branch. The forge-merge operation
+then appends the two WK-only commits there (the terminal review state and the
+completion state), and merges that exact pull-request head into the configured
+base branch. A remote conflict is a
+refusal: the helper does not rebase, squash, force-update, resolve with a broad
+theirs strategy, or create a post-merge main commit. After confirmed merge it
+reconciles the local WK record. If merge succeeds but local reconciliation does
+not, the result is typed partial success and a retry is safe: retry authenticates
+the exact merged head before attempting only the remaining local reconciliation.
+
+Before either closeout commit is created, forge-merge authenticates the exact
+terminal closeout projection from `C` to the live canonical WK. The parent may
+be `active`, `todo`, or `review` in `C`, but must be `review` live; the single
+terminal review slice may move to `review`; and exactly one implementation slice
+declared by that terminal review may move from `todo` or `review` to `done` with
+its first canonical `sections.closure` and coupled `updated` value. The first
+WK-only commit contains that authenticated live projection byte-for-byte, and
+the completion commit changes only the parent status from `review` to `done`.
+Agent notes, scope, acceptance, dependency declarations, unrelated slices,
+additional closeouts, closure replacement/removal/mutation, undeclared or
+cross-WK dependencies, and non-implementation dependencies remain refusing
+drift; forge observations and caller/environment input do not authorize it.
 
 Current shared query/search covers:
 

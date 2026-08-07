@@ -81,6 +81,7 @@ export function evaluateCoordinationPreflight({
   docs_writable = null,
   wiki_writable = null,
   available_structured_routes = [],
+  structured_dispatch_compatibility = null,
   graph_impact_state = null
 } = {}) {
   const normalizedRole = ROLE_KIND_VALUES.includes(role) ? role : "unknown";
@@ -362,6 +363,28 @@ export function evaluateCoordinationPreflight({
     );
   }
 
+  const compositionProjection = structured_dispatch_compatibility === null
+    ? null
+    : freezeDeep({
+        route_registered: dispatchRouteAvailable,
+        available: dispatchRouteAvailable &&
+          structured_dispatch_compatibility.available === true,
+        gate_outcome: structured_dispatch_compatibility.gate_outcome ?? "malformed_fact",
+        fact: structured_dispatch_compatibility.fact ?? null,
+        blocker: structured_dispatch_compatibility.blocker ?? null
+      });
+  if (compositionProjection !== null && compositionProjection.available !== true) {
+    const refusal = compositionProjection.blocker ?? {};
+    blockers.push(
+      buildBlocker(RUNTIME_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED, {
+        cause: refusal.cause ?? "stdio_mcp_lifecycle_protocol_incompatible",
+        recovery: refusal.recovery ??
+          "deploy one coherent build and restart the long-lived backend",
+        gate_outcome: compositionProjection.gate_outcome
+      })
+    );
+  }
+
   if (graph_impact_state) {
     const graphBlocker = evaluateGraphImpactBlocker(graph_impact_state);
     if (graphBlocker) {
@@ -418,6 +441,13 @@ export function evaluateCoordinationPreflight({
     },
     filesystem_diagnostics: diagnostics,
     available_structured_routes: [...routeNames].sort(),
+    structured_dispatch: compositionProjection ?? freezeDeep({
+      route_registered: dispatchRouteAvailable,
+      available: dispatchRouteAvailable,
+      gate_outcome: null,
+      fact: null,
+      blocker: null
+    }),
     blockers,
 
     analysis_blocked: blocking,
@@ -493,6 +523,7 @@ export async function runCoordinationPreflight({
   subject = null,
   target_dispatch_role = null,
   available_structured_routes = [],
+  structured_dispatch_compatibility = null,
   graph_impact_state = null
 } = {}) {
   if (!dir) {
@@ -515,6 +546,7 @@ export async function runCoordinationPreflight({
     docs_writable: docsWritable,
     wiki_writable: wikiWritable,
     available_structured_routes,
+    structured_dispatch_compatibility,
     graph_impact_state
   });
 }

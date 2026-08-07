@@ -1,0 +1,1222 @@
+{
+  "schema_version": "controlled-acceptance-contract.experimental.v0.1",
+  "vocabulary_version": "cv.experimental.0.33",
+  "profile_id": "acceptance-contract.standard.experimental.v0.1",
+  "references": [
+    {
+      "reference_id": "ref-results-operation",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/wiki-core/src/operations/work-record-review-results.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-evidence-recorder",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/wiki-mcp/src/lib/review-result-evidence-tools.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-attestation-recorder",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/wiki-mcp/src/lib/review-attestation-tools/register.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-target-unit-field",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "admission_review_target_unit"
+      }
+    },
+    {
+      "reference_id": "ref-review-unit-identity",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "review_unit_identity"
+      }
+    },
+    {
+      "reference_id": "ref-launch-digest",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "launch_time_selected_unit_digest"
+      }
+    },
+    {
+      "reference_id": "ref-terminal-run-status",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "trusted_terminal_run_status"
+      }
+    },
+    {
+      "reference_id": "ref-review-unit",
+      "type_term": "cc:lifecycle_entity",
+      "identity": {
+        "kind": "profile_term",
+        "term": "canonical_selected_review_unit"
+      }
+    },
+    {
+      "reference_id": "ref-implementation-target",
+      "type_term": "cc:lifecycle_entity",
+      "identity": {
+        "kind": "profile_term",
+        "term": "same_record_implementation_slice"
+      }
+    },
+    {
+      "reference_id": "ref-post-launch-movement",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "profile_term",
+        "term": "post_launch_canonical_movement"
+      }
+    },
+    {
+      "reference_id": "ref-stale-refusal",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "profile_term",
+        "term": "stale_review_unit_refusal"
+      }
+    },
+    {
+      "reference_id": "ref-changes-requested-evidence",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "profile_term",
+        "term": "changes_requested_result_evidence"
+      }
+    },
+    {
+      "reference_id": "ref-accepted-attestation",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "profile_term",
+        "term": "accepted_no_findings_attestation"
+      }
+    },
+    {
+      "reference_id": "ref-record-mutation",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "profile_term",
+        "term": "record_status_or_evidence_mutation"
+      }
+    },
+    {
+      "reference_id": "ref-caller-supplied-repair",
+      "type_term": "cc:resource",
+      "identity": {
+        "kind": "profile_term",
+        "term": "caller_supplied_digest_target_or_result_input"
+      }
+    },
+    {
+      "reference_id": "ref-generic-dependency",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "profile_term",
+        "term": "generic_slice_depends_on_or_blocks"
+      }
+    },
+    {
+      "reference_id": "ref-legacy-relation",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "profile_term",
+        "term": "legacy_record_level_work_item_relationship"
+      }
+    },
+    {
+      "reference_id": "ref-record-scoped-review-unit",
+      "type_term": "cc:lifecycle_entity",
+      "identity": {
+        "kind": "profile_term",
+        "term": "record_scoped_review_unit"
+      }
+    },
+    {
+      "reference_id": "ref-stored-results",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "profile_term",
+        "term": "existing_stored_results_and_attestations"
+      }
+    },
+    {
+      "reference_id": "ref-cce-authority",
+      "type_term": "cc:authority",
+      "identity": {
+        "kind": "profile_term",
+        "term": "cce_admission_and_policy_authority"
+      }
+    },
+    {
+      "reference_id": "ref-managed-dependency-resolver",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "profile_term",
+        "term": "managed_dependency_resolver"
+      }
+    },
+    {
+      "reference_id": "ref-backend-modules",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "profile_term",
+        "term": "provisioning_dependency_and_node_engine_backend_modules"
+      }
+    },
+    {
+      "reference_id": "ref-commit-bearing-refusal",
+      "type_term": "cc:invariant",
+      "identity": {
+        "kind": "profile_term",
+        "term": "commit_bearing_depends_on_refusal"
+      }
+    },
+    {
+      "reference_id": "ref-wk-1953",
+      "type_term": "cc:lifecycle_entity",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis",
+        "value": "WK-1953"
+      }
+    },
+    {
+      "reference_id": "ref-docs-launch-admission",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "docs/mcp-dispatch-launch-and-admission.md"
+      }
+    },
+    {
+      "reference_id": "ref-test-review-results",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/work-record-review-results.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-test-attestation-structured",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/review-attestation-tools-structured-result.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-test-evidence-structured",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/review-result-evidence-tools-structured-result.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-test-review-attestation",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/work-record-review-attestation.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-test-admissibility-core",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/work-record-dispatch-node-engine-admissibility-core.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-test-dispatch-registration",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/workspace-agent-dispatch-registration.test.mjs"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-target-field-resolves-implementation",
+      "subject_reference_id": "ref-target-unit-field",
+      "operator": "reference:resolves_to",
+      "applicability_context": {
+        "mode": "where",
+        "operand_reference_ids": [
+          "ref-review-unit"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-implementation-target"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-results-operation-rejects-generic-dependency",
+      "subject_reference_id": "ref-results-operation",
+      "operator": "reference:rejects",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-generic-dependency"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-run-status-carries-identity",
+      "subject_reference_id": "ref-terminal-run-status",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "before",
+        "operand_reference_ids": [
+          "ref-changes-requested-evidence",
+          "ref-accepted-attestation"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-review-unit-identity"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-identity-matches-review-unit",
+      "subject_reference_id": "ref-review-unit-identity",
+      "operator": "reference:matches",
+      "applicability_context": {
+        "mode": "before",
+        "operand_reference_ids": [
+          "ref-changes-requested-evidence",
+          "ref-accepted-attestation"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-review-unit"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-digest-matches-review-unit",
+      "subject_reference_id": "ref-launch-digest",
+      "operator": "reference:matches",
+      "applicability_context": {
+        "mode": "before",
+        "operand_reference_ids": [
+          "ref-changes-requested-evidence",
+          "ref-accepted-attestation"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-review-unit"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-evidence-recorder-refuses-on-movement",
+      "subject_reference_id": "ref-evidence-recorder",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "if",
+        "operand_reference_ids": [
+          "ref-post-launch-movement"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-stale-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-attestation-recorder-refuses-on-movement",
+      "subject_reference_id": "ref-attestation-recorder",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "if",
+        "operand_reference_ids": [
+          "ref-post-launch-movement"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-stale-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-no-mutation-on-refusal",
+      "subject_reference_id": "ref-record-mutation",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "if",
+        "operand_reference_ids": [
+          "ref-post-launch-movement"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-evidence-recorder-rejects-caller-repair",
+      "subject_reference_id": "ref-evidence-recorder",
+      "operator": "reference:rejects",
+      "applicability_context": {
+        "mode": "if",
+        "operand_reference_ids": [
+          "ref-post-launch-movement"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-caller-supplied-repair"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-attestation-recorder-rejects-caller-repair",
+      "subject_reference_id": "ref-attestation-recorder",
+      "operator": "reference:rejects",
+      "applicability_context": {
+        "mode": "if",
+        "operand_reference_ids": [
+          "ref-post-launch-movement"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-caller-supplied-repair"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-legacy-relation-supports-record-scope",
+      "subject_reference_id": "ref-legacy-relation",
+      "operator": "reference:supports",
+      "applicability_context": {
+        "mode": "where",
+        "operand_reference_ids": [
+          "ref-record-scoped-review-unit"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-record-scoped-review-unit"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-legacy-relation-authorizes-slice-evidence",
+      "subject_reference_id": "ref-legacy-relation",
+      "operator": "reference:authorizes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-changes-requested-evidence"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-stored-results-immutable",
+      "subject_reference_id": "ref-stored-results",
+      "operator": "boolean:immutable",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-target-field-grants-cce-authority",
+      "subject_reference_id": "ref-target-unit-field",
+      "operator": "reference:authorizes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-cce-authority"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-results-operation-uses-managed-resolver",
+      "subject_reference_id": "ref-results-operation",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-managed-dependency-resolver"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-backend-modules-immutable",
+      "subject_reference_id": "ref-backend-modules",
+      "operator": "boolean:immutable",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-commit-bearing-refusal-immutable",
+      "subject_reference_id": "ref-commit-bearing-refusal",
+      "operator": "boolean:immutable",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-implementation-target-depends-on-review-unit",
+      "subject_reference_id": "ref-implementation-target",
+      "operator": "reference:depends_on",
+      "applicability_context": {
+        "mode": "where",
+        "operand_reference_ids": [
+          "ref-wk-1953"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-review-unit"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-wk-1953-records-evidence",
+      "subject_reference_id": "ref-wk-1953",
+      "operator": "reference:records",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-changes-requested-evidence"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-docs-cover-identity-boundary",
+      "subject_reference_id": "ref-docs-launch-admission",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-target-unit-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-review-unit-identity"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-test-evidence-covers-recorder",
+      "subject_reference_id": "ref-test-evidence-structured",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-evidence-recorder"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-test-attestation-covers-recorder",
+      "subject_reference_id": "ref-test-attestation-structured",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-attestation-recorder"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-test-review-results-covers-relation",
+      "subject_reference_id": "ref-test-review-results",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-target-unit-field"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-test-review-attestation-covers-legacy",
+      "subject_reference_id": "ref-test-review-attestation",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-stored-results"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-test-admissibility-covers-topology",
+      "subject_reference_id": "ref-test-admissibility-core",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-1953"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-test-registration-covers-resolver",
+      "subject_reference_id": "ref-test-dispatch-registration",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-managed-dependency-resolver"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-evidence-recorder-persists-on-movement",
+      "subject_reference_id": "ref-evidence-recorder",
+      "operator": "reference:records",
+      "applicability_context": {
+        "mode": "counterfactual",
+        "operand_reference_ids": [
+          "ref-post-launch-movement"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-changes-requested-evidence"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-attestation-recorder-persists-on-movement",
+      "subject_reference_id": "ref-attestation-recorder",
+      "operator": "reference:records",
+      "applicability_context": {
+        "mode": "counterfactual",
+        "operand_reference_ids": [
+          "ref-post-launch-movement"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-accepted-attestation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-relation-derived-from-generic-dependency",
+      "subject_reference_id": "ref-results-operation",
+      "operator": "reference:resolves_to",
+      "applicability_context": {
+        "mode": "counterfactual",
+        "operand_reference_ids": [
+          "ref-generic-dependency"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-implementation-target"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-legacy-relation-accepted-for-slice-evidence",
+      "subject_reference_id": "ref-legacy-relation",
+      "operator": "reference:authorizes",
+      "applicability_context": {
+        "mode": "counterfactual",
+        "operand_reference_ids": [
+          "ref-review-unit"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-changes-requested-evidence"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-managed-resolver-invoked-for-relation",
+      "subject_reference_id": "ref-results-operation",
+      "operator": "reference:calls",
+      "applicability_context": {
+        "mode": "counterfactual",
+        "operand_reference_ids": [
+          "ref-managed-dependency-resolver"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-managed-dependency-resolver"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-topology-requires-target-depends-on-review",
+      "subject_reference_id": "ref-wk-1953",
+      "operator": "reference:depends_on",
+      "applicability_context": {
+        "mode": "counterfactual",
+        "operand_reference_ids": [
+          "ref-review-unit"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-review-unit"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-stored-results-rewritten",
+      "subject_reference_id": "ref-stored-results",
+      "operator": "boolean:immutable",
+      "applicability_context": {
+        "mode": "counterfactual",
+        "operand_reference_ids": [
+          "ref-stored-results"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-target-field-sole-relation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-target-field-resolves-implementation"
+    },
+    {
+      "claim_id": "claim-reject-generic-dependency",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-results-operation-rejects-generic-dependency"
+    },
+    {
+      "claim_id": "claim-run-status-carries-identity",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-run-status-carries-identity"
+    },
+    {
+      "claim_id": "claim-identity-subject-match",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-identity-matches-review-unit"
+    },
+    {
+      "claim_id": "claim-digest-match",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-digest-matches-review-unit"
+    },
+    {
+      "claim_id": "claim-evidence-recorder-refuses",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-evidence-recorder-refuses-on-movement"
+    },
+    {
+      "claim_id": "claim-attestation-recorder-refuses",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-attestation-recorder-refuses-on-movement"
+    },
+    {
+      "claim_id": "claim-no-mutation-on-refusal",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-no-mutation-on-refusal"
+    },
+    {
+      "claim_id": "claim-evidence-rejects-caller-repair",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-evidence-recorder-rejects-caller-repair"
+    },
+    {
+      "claim_id": "claim-attestation-rejects-caller-repair",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-attestation-recorder-rejects-caller-repair"
+    },
+    {
+      "claim_id": "claim-legacy-record-scope-preserved",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-legacy-relation-supports-record-scope"
+    },
+    {
+      "claim_id": "claim-legacy-not-sufficient-for-slice",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-legacy-relation-authorizes-slice-evidence"
+    },
+    {
+      "claim_id": "claim-stored-results-preserved",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-stored-results-immutable"
+    },
+    {
+      "claim_id": "claim-no-authority-granted",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-target-field-grants-cce-authority"
+    },
+    {
+      "claim_id": "claim-no-managed-resolver",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-results-operation-uses-managed-resolver"
+    },
+    {
+      "claim_id": "claim-backend-modules-unchanged",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-backend-modules-immutable"
+    },
+    {
+      "claim_id": "claim-commit-bearing-refusal-unchanged",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-commit-bearing-refusal-immutable"
+    },
+    {
+      "claim_id": "claim-target-not-depend-on-review",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-implementation-target-depends-on-review-unit"
+    },
+    {
+      "claim_id": "claim-topology-records-evidence",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-1953-records-evidence"
+    },
+    {
+      "claim_id": "claim-docs-state-boundary",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-docs-cover-identity-boundary"
+    },
+    {
+      "claim_id": "claim-verify-evidence-recorder-refusal",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-test-evidence-covers-recorder",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-evidence-recorder-persists-on-movement"
+    },
+    {
+      "claim_id": "claim-verify-attestation-recorder-refusal",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-test-attestation-covers-recorder",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-attestation-recorder-persists-on-movement"
+    },
+    {
+      "claim_id": "claim-verify-relation-authentication",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-test-review-results-covers-relation",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-relation-derived-from-generic-dependency"
+    },
+    {
+      "claim_id": "claim-verify-legacy-compatibility",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-test-review-attestation-covers-legacy",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-stored-results-rewritten"
+    },
+    {
+      "claim_id": "claim-verify-legacy-not-sufficient",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-test-review-results-covers-relation",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-legacy-relation-accepted-for-slice-evidence"
+    },
+    {
+      "claim_id": "claim-verify-topology",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-test-admissibility-covers-topology",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-topology-requires-target-depends-on-review"
+    },
+    {
+      "claim_id": "claim-verify-resolver-bypass",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-test-registration-covers-resolver",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-managed-resolver-invoked-for-relation"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verify-evidence-refusal",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-evidence-recorder-refusal",
+      "target_claim_id": "claim-evidence-recorder-refuses"
+    },
+    {
+      "relation_id": "rel-verify-attestation-refusal",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-attestation-recorder-refusal",
+      "target_claim_id": "claim-attestation-recorder-refuses"
+    },
+    {
+      "relation_id": "rel-verify-relation-auth",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-relation-authentication",
+      "target_claim_id": "claim-target-field-sole-relation"
+    },
+    {
+      "relation_id": "rel-verify-generic-rejection",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-relation-authentication",
+      "target_claim_id": "claim-reject-generic-dependency"
+    },
+    {
+      "relation_id": "rel-verify-legacy-compat",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-legacy-compatibility",
+      "target_claim_id": "claim-stored-results-preserved"
+    },
+    {
+      "relation_id": "rel-verify-legacy-insufficient",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-legacy-not-sufficient",
+      "target_claim_id": "claim-legacy-not-sufficient-for-slice"
+    },
+    {
+      "relation_id": "rel-verify-topology-claim",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-topology",
+      "target_claim_id": "claim-target-not-depend-on-review"
+    },
+    {
+      "relation_id": "rel-verify-resolver-claim",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-resolver-bypass",
+      "target_claim_id": "claim-no-managed-resolver"
+    },
+    {
+      "relation_id": "rel-identity-precedes-evidence",
+      "role": "precedes",
+      "source_claim_id": "claim-run-status-carries-identity",
+      "target_claim_id": "claim-evidence-recorder-refuses"
+    },
+    {
+      "relation_id": "rel-identity-precedes-attestation",
+      "role": "precedes",
+      "source_claim_id": "claim-run-status-carries-identity",
+      "target_claim_id": "claim-attestation-recorder-refuses"
+    },
+    {
+      "relation_id": "rel-digest-refines-identity",
+      "role": "refines",
+      "source_claim_id": "claim-digest-match",
+      "target_claim_id": "claim-identity-subject-match"
+    },
+    {
+      "relation_id": "rel-refusal-refines-no-mutation",
+      "role": "refines",
+      "source_claim_id": "claim-no-mutation-on-refusal",
+      "target_claim_id": "claim-evidence-recorder-refuses"
+    },
+    {
+      "relation_id": "rel-caller-repair-refines-evidence",
+      "role": "refines",
+      "source_claim_id": "claim-evidence-rejects-caller-repair",
+      "target_claim_id": "claim-evidence-recorder-refuses"
+    },
+    {
+      "relation_id": "rel-caller-repair-refines-attestation",
+      "role": "refines",
+      "source_claim_id": "claim-attestation-rejects-caller-repair",
+      "target_claim_id": "claim-attestation-recorder-refuses"
+    },
+    {
+      "relation_id": "rel-docs-traces-boundary",
+      "role": "traces",
+      "source_claim_id": "claim-docs-state-boundary",
+      "target_claim_id": "claim-no-authority-granted"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-recorder-enforcement",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-target-field-sole-relation",
+        "claim-reject-generic-dependency",
+        "claim-run-status-carries-identity",
+        "claim-identity-subject-match",
+        "claim-digest-match",
+        "claim-evidence-recorder-refuses",
+        "claim-attestation-recorder-refuses",
+        "claim-no-mutation-on-refusal",
+        "claim-evidence-rejects-caller-repair",
+        "claim-attestation-rejects-caller-repair"
+      ]
+    },
+    {
+      "collection_id": "set-legacy-compatibility",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-legacy-record-scope-preserved",
+        "claim-legacy-not-sufficient-for-slice",
+        "claim-stored-results-preserved"
+      ]
+    },
+    {
+      "collection_id": "set-non-authority-boundary",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-no-authority-granted",
+        "claim-backend-modules-unchanged",
+        "claim-commit-bearing-refusal-unchanged",
+        "claim-no-managed-resolver"
+      ]
+    },
+    {
+      "collection_id": "set-topology-proof",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-target-not-depend-on-review",
+        "claim-topology-records-evidence"
+      ]
+    },
+    {
+      "collection_id": "set-authored-enforcement-order",
+      "collection_kind": "ordered_sequence",
+      "member_claim_ids": [
+        "claim-run-status-carries-identity",
+        "claim-identity-subject-match",
+        "claim-digest-match",
+        "claim-target-field-sole-relation",
+        "claim-evidence-recorder-refuses",
+        "claim-attestation-recorder-refuses"
+      ]
+    }
+  ],
+  "residue": [
+    {
+      "residue_id": "res-no-prose-derivation",
+      "reason": "unsupported_concept",
+      "text": "The source contract forbids resolving the admission-review relationship by consulting prose or generic slice depends_on/blocks. The carrier can state that the operation rejects the generic dependency reference, but it cannot express the epistemic constraint that a resolution procedure must not read unstructured text as an authority source. The prohibition is on the method of derivation, not on any named entity.",
+      "candidate_concept": "prohibited_derivation_source"
+    },
+    {
+      "residue_id": "res-rejected-relationship-taxonomy",
+      "reason": "unsupported_concept",
+      "text": "The source contract enumerates nine distinct relationship shapes that must be rejected: absent, malformed, cross-record, self, non-implementation, writable-review, wrong-subject, stale-digest, and ambiguous. The carrier expresses rejection of a reference but cannot represent a closed taxonomy of malformed-relationship shapes, nor require that each shape be separately distinguished. Encoding them as one rejection claim loses the requirement that all nine be independently covered.",
+      "candidate_concept": "closed_refusal_taxonomy"
+    },
+    {
+      "residue_id": "res-recorded-bytes-preservation",
+      "reason": "unsupported_concept",
+      "text": "The source contract requires existing stored results and attestations to be preserved 'under their recorded bytes'. boolean:immutable asserts only that the artifact does not change; it cannot express byte-level identity as the preservation criterion, which is the operative standard for migration safety.",
+      "candidate_concept": "byte_identity_preservation"
+    },
+    {
+      "residue_id": "res-non-authority-enumeration",
+      "reason": "review_only",
+      "text": "Criterion 6 states the field and digest grant no CCE decision, admission, launch, integration, delivery, ref, lifecycle, write, or findings authority, and do not change reviewer/redteam result semantics. Only the CCE-authority instance is encoded as a representative MUST_NOT. The remaining eight non-granted authorities and the result-semantics invariance are retained here as an explicit review boundary rather than expanded into eight near-duplicate claims.",
+      "candidate_concept": "authority_non_grant_set"
+    },
+    {
+      "residue_id": "res-address-versus-contract-binding",
+      "reason": "ambiguous_semantics",
+      "text": "The source contract draws a fine distinction: this unit authenticates the selected review unit and its target address, but does not mint a new launch-to-persist binding over the independently mutable implementation-target contract, whose committed-target and review-receipt authority remains owned by its current contracts. No controlled operator separates authenticating an address from binding the contract reachable at that address, so the boundary cannot be stated positively and survives only as prose.",
+      "candidate_concept": "address_authentication_versus_contract_binding"
+    },
+    {
+      "residue_id": "res-stable-refusal-code-identity",
+      "reason": "unresolved_value",
+      "text": "The refusal is required to be a 'stable stale-review-unit refusal'. The carrier grounds the refusal state as a profile term but cannot express that its diagnostic code is a stable, named value that callers may depend on across versions. No concrete code string is fixed by the source contract either, so the stability requirement has no resolvable value to bind.",
+      "candidate_concept": "stable_diagnostic_code_identity"
+    },
+    {
+      "residue_id": "res-production-symbol-identity",
+      "reason": "unresolved_identity",
+      "text": "The three production modules are grounded by repository path only. The source contract's expected edit targets name functions ('slice-local review relationship resolution', 'accepted attestation launch-digest authentication', 'changes-requested evidence launch-digest authentication') that correspond to no resolvable exported symbol, so code_symbol identity could not be grounded without inventing names absent from the contract.",
+      "candidate_concept": "unresolved_function_target"
+    },
+    {
+      "residue_id": "res-admission-breadth-budget",
+      "reason": "other_operational_gap",
+      "text": "The Chassis Control Engine rejected this unit for dispatch with reject_threshold_exceeded on write_scope_test_count, observed 6 against a threshold of 5. The carrier expresses no admission-breadth budget over write scope, so neither the violated threshold nor the resulting decomposition obligation is representable as a contract claim. This is the operative reason the unit cannot be dispatched as authored.",
+      "candidate_concept": "admission_breadth_budget"
+    },
+    {
+      "residue_id": "res-loaded-mutation-obligation",
+      "reason": "unsupported_concept",
+      "text": "The source contract requires loaded mutations that remove either recorder's launch-digest comparison and prove the target-movement witnesses fail. Falsifying propositions capture the condition that must make each verification fail, but the carrier cannot express the obligation to actually construct and execute a mutated build as a distinct deliverable.",
+      "candidate_concept": "mutation_witness_obligation"
+    },
+    {
+      "residue_id": "res-registered-route-scope",
+      "reason": "unresolved_context",
+      "text": "The source contract requires the target-movement regressions to be public registered-route tests that refuse before any write, for both changes-requested evidence and accepted attestation. The carrier expresses test coverage of a component but cannot express that coverage must exercise the public registered route rather than an internal entry point, nor that refusal must precede any write attempt.",
+      "candidate_concept": "public_route_coverage_requirement"
+    }
+  ],
+  "annotations": [
+    {
+      "annotation_id": "ann-provenance-source-unit",
+      "kind": "provenance",
+      "text": "Authored from agent-chassis:WK-1340 SLICE-005, 'Consume the target field and launch-time digest in both review recorders', priority critical, work_kind implementation. Write scope as authored is 10 paths: 3 production modules, 6 test files, and docs/mcp-dispatch-launch-and-admission.md, with an expected changed-line budget of 480."
+    },
+    {
+      "annotation_id": "ann-provenance-authoring-time",
+      "kind": "provenance",
+      "text": "Authored by the coordinator after the fact, during an attempt to dispatch SLICE-005. The unit was never run through the controlled contract design check when it was originally shaped, despite being authority-affecting design."
+    },
+    {
+      "annotation_id": "ann-historical-redteam",
+      "kind": "historical",
+      "text": "SLICE-005's design was redteamed by SLICE-046 and counter-assessed by scope-constrained blueteam SLICE-048, which retired all blocking and medium claims. A later split redteam SLICE-063 and blueteam SLICE-064 confirmed a settlement ownership correction and rejected deeper native-spawn expansion. No policy or functional expansion was accepted in either pass."
+    },
+    {
+      "annotation_id": "ann-rationale-decomposition",
+      "kind": "rationale",
+      "text": "The closed sets in this contract are authored to expose candidate decomposition seams: recorder enforcement, legacy compatibility, the non-authority boundary, and the topology proof. Collection membership measures authored population only and does not by itself imply implementation cohesion or license a particular split."
+    },
+    {
+      "annotation_id": "ann-note-structural-only",
+      "kind": "note",
+      "text": "This carrier establishes experimental structural facts only. It is not CCE policy, evidence sufficiency, or dispatch authorization, and it does not alter the standing Chassis Control Engine rejection of SLICE-005."
+    }
+  ]
+}

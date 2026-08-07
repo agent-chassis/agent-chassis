@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "mcp-launcher-tools.json",
   "summary": "MCP launcher, runtime diagnostic, dispatch-readiness, and validation-run tools.",
-  "tool_count": 4,
+  "tool_count": 5,
   "tools": [
     {
       "tool_name": "workspace_node_engine_admission_runtime_diagnostic",
@@ -36,6 +36,7 @@
       "docs_refs": [
         "docs/agent-launch-quickstart.md",
         "docs/mcp-dispatch-runtime-contract.md",
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md"
       ],
@@ -124,6 +125,8 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "docs/work-record-ontology.md",
@@ -213,6 +216,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/mcp-operation-reference.md",
         "docs/enforcement-model.md"
@@ -223,7 +227,52 @@
         "packages/wiki-mcp/src/lib/work-record-read-tools.mjs",
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Orchestrator/operator MCP route for declared Node test validation without raw shell or raw exec. Managed implementation workers do not receive this tool; their only wiki-MCP capability is the closed-input commit primitive. Side effect: process_spawn. Caller input is exactly { unit, target } for the fixed enum command `node_test`; the handler loads the canonical work record/slice for `unit` itself and authorizes `target` solely from that unit's sections.structured_validation.allowed[] entries with command node_test. It then runs `node --check <target>` and, only if check passes, `node --test <target>` using argv arrays with shell:false. Node binary, cwd, env, per-step timeout, and output caps are internal server constants; caller-supplied authority-shaped fields (snapshot, runtime/env policy, node binary, cwd/workspace root, timeout, output cap, source digest, extra args) are rejected. Target must be repo-relative, canonical, existing, .js/.mjs, contained under the workspace repo, and not a symlink escape. Returns structured per-step evidence with node --test reported as skipped when node --check fails. The structured evidence is command-surface validation, not a paid Chassis Control Engine enforcement attestation; arbitrary-command, npm-script, and cross-repo validation remain follow-up scope."
+      "notes": "Orchestrator/operator MCP route for declared Node test validation without raw shell or raw exec. Managed implementation workers do not receive this tool; a managed worker's own declared-test route is workspace_worker_run_declared_test, whose unit and worktree are launcher-bound rather than caller-supplied. Side effect: process_spawn. Caller input is exactly { unit, target } for the fixed enum command `node_test`; the handler loads the canonical work record/slice for `unit` itself and authorizes `target` solely from that unit's sections.structured_validation.allowed[] entries with command node_test. It then runs `node --check <target>` and, only if check passes, `node --test <target>` using argv arrays with shell:false. Node binary, cwd, env, per-step timeout, and output caps are internal server constants; caller-supplied authority-shaped fields (snapshot, runtime/env policy, node binary, cwd/workspace root, timeout, output cap, source digest, extra args) are rejected. Target must be repo-relative, canonical, existing, .js/.mjs, contained under the workspace repo, and not a symlink escape. Returns structured per-step evidence with node --test reported as skipped when node --check fails. The structured evidence is command-surface validation, not a paid Chassis Control Engine enforcement attestation; arbitrary-command, npm-script, and cross-repo validation remain follow-up scope."
+    },
+    {
+      "tool_name": "workspace_worker_run_declared_test",
+      "display_name": "Workspace worker run declared test",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_worker_run_declared_test",
+      "task_ids": [
+        "run-validation"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent"
+      ],
+      "priority": 112,
+      "side_effects": [
+        "process_spawn"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "work_record",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/enforcement-model.md",
+        "docs/agent-launch-confinement-mcp-conduit.md",
+        "docs/mcp-operation-reference.md",
+        "docs/tool-discovery-surfaces.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-launcher-tools.json",
+        "packages/wiki-mcp/src/lib/worker-declared-test-tool.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/agent-launch-cli/src/lib/workspace-agent-validation-runner.mjs",
+        "packages/agent-launch-cli/src/lib/managed-worker-test-run-authority.mjs",
+        "packages/agent-launch-cli/src/lib/workspace-agent-family-bwrap-plan.mjs"
+      ],
+      "notes": "Worker-only launcher-owned capability that lets a managed implementation worker run one of its own unit's DECLARED node tests and read the output before committing (DEC-0158 clauses 3-4). A managed worker's namespace is exactly read_scope union write_scope with no dependency tree, so it cannot execute a test whose system under test imports a workspace package by bare specifier; this capability runs that test LAUNCHER-SIDE, in a separate bubblewrap-confined process against the run's own dense worktree, and returns the output. The worker's namespace is untouched: no new path is bound, mounted, stat-able, or readable inside it, and the worker's mutation set stays exactly its write_scope. Side effect: process_spawn. Caller input is exactly { target }. The unit and the worktree are bound from the dispatched run's launcher-minted identity binding, never from caller input; a caller-supplied unit, record, repo, workspace, worktree, cwd, base, or target set is refused rather than overridden, so a worker cannot select targets from another record's allowed[] or run against the landing checkout. The target is authorized solely from the BOUND unit's sections.structured_validation.allowed[] entries with command node_test; an undeclared target is refused, never widened to something broader. Confinement: repository mounted READ-ONLY with no writable write_scope (so a test byproduct cannot reach the write scope or be staged into the delivery commit), secrets masked, network denied, launcher-minted clean env, and an ephemeral tmpfs as the only writable location. A launcher-owned read-only identity-pinned dependency mount makes bare-specifier workspace imports resolve (DEC-0178 clause 4: launcher-provided non-repository runtime infrastructure is not repository content and needs no scope declaration); an unavailable, stale, or mismatched dependency tree degrades that run and is recorded as advisory evidence, and never refuses a dispatch. Node binary, argv, cwd, env, timeout, and output bounds are launcher facts and cannot be supplied or overridden. Output retains the head AND the tail of each stream so a failing assertion's diagnostics survive a chatty passing run; the elided middle is byte-accounted. The result is advisory: it carries no admission, review, or closure authority, adds no admission metric, and never substitutes for the mandatory findings-only review or authorizes integration."
     }
   ]
 }

@@ -3,9 +3,9 @@ import path from "node:path";
 
 import {
   SIDECAR_GRAPH_SCHEMA_VERSION,
-  classifySidecarGraphArtifactSchema,
   createSidecarGraphState
 } from "./sidecar-graph-schema.mjs";
+import { classifyReadSidecarGraphArtifact } from "./sidecar-graph-impact-artifact.mjs";
 import { extractSidecarGraph } from "./sidecar-graph-extractors.mjs";
 import { filterSidecarSourcePaths } from "./sidecar-paths.mjs";
 import { runSidecarGit } from "./sidecar-status.mjs";
@@ -294,7 +294,7 @@ export function selectGraph({ status, artifact, overlay }) {
 
 function mergeBaseAndOverlayGraph({ artifact, overlay }) {
   const overlayGraph = overlay.graph;
-  const classified = artifact ? classifySidecarGraphArtifactSchema(artifact) : null;
+  const classified = artifact ? classifyReadSidecarGraphArtifact(artifact) : null;
   const baseGraph =
     classified?.compatible && classified.graph_state.graph_available ? artifact.graph : null;
 
@@ -407,7 +407,7 @@ function mergeGraphByFilePrecedence({ baseGraph, overlayGraph, overlay }) {
 }
 
 function classifyBaseGraphSelection({ artifact }) {
-  const classified = artifact ? classifySidecarGraphArtifactSchema(artifact) : null;
+  const classified = artifact ? classifyReadSidecarGraphArtifact(artifact) : null;
 
   if (!classified?.compatible || !classified.graph_state.graph_available) {
     return {

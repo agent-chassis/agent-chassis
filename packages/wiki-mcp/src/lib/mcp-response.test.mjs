@@ -79,7 +79,7 @@ test("errorContent redacts a non-Error thrown value via String()", () => {
   assert.equal(result.content[0].text, "denied at [redacted absolute path], retry later");
 });
 
-test("errorContent preserves a structured error.envelope passthrough exactly", () => {
+test("errorContent keeps a structured error.envelope only in structuredContent", () => {
   const envelope = {
     code: "PATH_LEAK",
     category: "validation",
@@ -90,10 +90,10 @@ test("errorContent preserves a structured error.envelope passthrough exactly", (
   const result = errorContent({ envelope });
 
   assert.equal(result.isError, true);
-
   assert.deepEqual(result.structuredContent, envelope);
-  assert.equal(result.content[0].text, JSON.stringify(envelope, null, 2));
-  assert.ok(!result.content[0].text.includes("[redacted absolute path]"));
+  assert.match(result.content[0].text, /error envelope is available in structuredContent/u);
+  assert.ok(Buffer.byteLength(result.content[0].text, "utf8") <= 512);
+  assert.ok(!result.content[0].text.includes(envelope.message));
 });
 
 test("jsonContent returns an inline envelope for small payloads", () => {
@@ -101,7 +101,9 @@ test("jsonContent returns an inline envelope for small payloads", () => {
   const result = jsonContent(data);
   assert.deepEqual(result.structuredContent, data);
   assert.equal(result.content[0].type, "text");
-  assert.deepEqual(JSON.parse(result.content[0].text), data);
+  assert.match(result.content[0].text, /available in structuredContent/u);
+  assert.ok(Buffer.byteLength(result.content[0].text, "utf8") <= 512);
+  assert.ok(!result.content[0].text.includes(JSON.stringify(data)));
 });
 
 test("getResponseSpillConfig honors environment overrides", () => {

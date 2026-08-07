@@ -33,8 +33,8 @@ and explanations; CCE policy, admission, attestation, diagnostics,
 graph-impact/blast-radius, and recovery detail are exposed only after a canonical
 CCE-key posture is positively resolved. The registered tier is resolved from the
 canonical key posture (`decision`/`decision`/`decision`), never from caller input.
-See [docs/tool-discovery.md](tool-discovery.md) "Registered-Tier Exposure And
-Projection".
+See [docs/tool-discovery-tiers.md](tool-discovery-tiers.md) "Registered-Tier
+Exposure And Projection".
 ### Launcher-Owned Host Wiki-MCP Conduit
 
 [Detailed host-server and named-FIFO stdio conduit contract.](mcp-integration.md#transport)

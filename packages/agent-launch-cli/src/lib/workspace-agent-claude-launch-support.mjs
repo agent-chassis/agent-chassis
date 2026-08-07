@@ -1002,7 +1002,9 @@ export function createDefaultClaudeBwrapIsolatedSpawn({
     return spawnIsolated(plan, {
       env: opts?.env,
       stdio: opts?.stdio,
-      detached: false
+      detached: false,
+
+      terminalReviewSpawnBarrier: opts?.terminalReviewSpawnBarrier ?? null
     });
   };
 }

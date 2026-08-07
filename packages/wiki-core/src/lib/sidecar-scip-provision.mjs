@@ -1,8 +1,10 @@
 
 
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { execFile, spawn } from "node:child_process";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { promisify, types as utilTypes } from "node:util";
 
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
 
@@ -13,6 +15,14 @@ import {
   SCIP_CALL_GRAPH_UNAVAILABLE,
   SCIP_CALL_GRAPH_REASON_ENCLOSING_RANGE_UNPOPULATED
 } from "./sidecar-scip-normalize.mjs";
+
+export class SidecarScipProvisionError extends Error {
+  constructor(message, { code, cause = null } = {}) {
+    super(message, cause ? { cause } : undefined);
+    this.name = "SidecarScipProvisionError";
+    this.code = code;
+  }
+}
 
 export const SCIP_DEFAULT_CACHE_DIR = ".cache/repo-scip-index";
 
@@ -43,8 +53,9 @@ async function pathExists(target) {
   try {
     await stat(target);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
   }
 }
 
@@ -78,15 +89,25 @@ function defaultRunIndexer({ repoRoot, indexer, spec, cacheDir, tsconfigPath }) 
     });
   });
 }
+export function snapshotScipOptions(rawOptions, entries, label) {
+  if (rawOptions !== undefined && utilTypes.isProxy(rawOptions)) throw new TypeError(`${label} options must not be a Proxy`);
+  if (rawOptions !== undefined &&
+      ((typeof rawOptions !== "object" && typeof rawOptions !== "function") || rawOptions === null)) throw new TypeError(`${label} options must be an object`);
+  const options = Object.create(null);
+  for (const [key, fallback] of entries) {
+    const descriptor = rawOptions === undefined ? undefined : Object.getOwnPropertyDescriptor(rawOptions, key);
+    if (descriptor && !Object.hasOwn(descriptor, "value")) throw new TypeError(`${label} option '${key}' must be an own data property`);
+    options[key] = descriptor?.value === undefined ? fallback : descriptor.value;
+  }
+  return options;
+}
 
-export async function buildScipOverlay({
-  repoRoot,
-  baseFileNodeIds = null,
-  cacheDir = SCIP_DEFAULT_CACHE_DIR,
-  tsconfigPath = "tsconfig.json",
-  indexers = ["scip-typescript", "scip-python"],
-  runIndexer = defaultRunIndexer
-} = {}) {
+export async function buildScipOverlay(rawOptions) {
+  const { repoRoot, baseFileNodeIds, cacheDir, tsconfigPath, indexers, runIndexer, failOnIndexerError } = snapshotScipOptions(rawOptions, [
+    ["repoRoot", undefined], ["baseFileNodeIds", null], ["cacheDir", SCIP_DEFAULT_CACHE_DIR],
+    ["tsconfigPath", "tsconfig.json"], ["indexers", ["scip-typescript", "scip-python"]],
+    ["runIndexer", defaultRunIndexer], ["failOnIndexerError", false]
+  ], "SCIP overlay");
   if (typeof repoRoot !== "string" || repoRoot.length === 0) {
     throw new TypeError("buildScipOverlay requires repoRoot");
   }
@@ -179,6 +200,12 @@ export async function buildScipOverlay({
       }
     };
   } catch (error) {
+    if (failOnIndexerError) {
+      throw new SidecarScipProvisionError(
+        `authoritative SCIP indexing failed: ${String(error?.message ?? "unknown").slice(0, 500)}`,
+        { code: "scip_indexer_failed", cause: error }
+      );
+    }
 
     return emptyScipLayer({
       statusReason: SCIP_STATUS_INDEXER_UNAVAILABLE,
@@ -188,11 +215,79 @@ export async function buildScipOverlay({
   }
 }
 
-export async function clearScipCache({ repoRoot, cacheDir = SCIP_DEFAULT_CACHE_DIR } = {}) {
+async function removeSnapshotSymlinks(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const target = path.join(directory, entry.name);
+    if (entry.isSymbolicLink()) await rm(target, { force: true });
+    else if (entry.isDirectory()) await removeSnapshotSymlinks(target);
+  }
+}
+export async function buildScipOverlayFromCommittedSnapshot(rawOptions) {
+  const options = snapshotScipOptions(rawOptions, [["sourceRepoRoot", undefined],
+    ["committedHead", undefined], ["generatorIdentity", undefined],
+    ["baseFileNodeIds", null], ["cacheDir", SCIP_DEFAULT_CACHE_DIR],
+    ["tsconfigPath", "tsconfig.json"], ["indexers", ["scip-typescript", "scip-python"]],
+    ["runIndexer", defaultRunIndexer]
+  ], "committed-snapshot SCIP");
+  const { sourceRepoRoot, committedHead, generatorIdentity } = options;
+  if (typeof sourceRepoRoot !== "string" || sourceRepoRoot.length === 0)
+    throw new TypeError("committed-snapshot SCIP requires sourceRepoRoot");
+  if (typeof committedHead !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(committedHead)) {
+    throw new SidecarScipProvisionError(
+      "committed-snapshot SCIP requires one captured commit",
+      { code: "scip_snapshot_head_unstable" }
+    );
+  }
+  let snapshotContainer, result, failure;
+  try {
+    snapshotContainer = await mkdtemp(path.join(os.tmpdir(), "sidecar-scip-snapshot-"));
+    const snapshotRoot = path.join(snapshotContainer, "repo"), archivePath = path.join(snapshotContainer, "snapshot.tar");
+    await mkdir(snapshotRoot);
+    await promisify(execFile)("git", ["--no-replace-objects", "-C", sourceRepoRoot, "archive",
+      "--format=tar", `--output=${archivePath}`, committedHead], { maxBuffer: 1024 * 1024 });
+    await promisify(execFile)("tar", ["-xf", archivePath, "-C", snapshotRoot],
+      { maxBuffer: 1024 * 1024 });
+    await removeSnapshotSymlinks(snapshotRoot);
+    const overlayOptions = Object.assign(Object.create(null), options,
+      { repoRoot: snapshotRoot, failOnIndexerError: true });
+    const layer = await buildScipOverlay(overlayOptions);
+    result = {
+      ...layer,
+      input_identity: { index_head: committedHead.toLowerCase(), generator_identity: generatorIdentity }
+    };
+  } catch (error) {
+    failure =
+      error instanceof SidecarScipProvisionError
+        ? error
+        : new SidecarScipProvisionError(
+            `committed SCIP snapshot provisioning failed: ${String(error?.message ?? "unknown").slice(0, 500)}`,
+            { code: "scip_snapshot_provision_failed", cause: error }
+          );
+  }
+  if (snapshotContainer) {
+    try {
+      await rm(snapshotContainer, { recursive: true, force: true });
+    } catch (error) {
+      throw new SidecarScipProvisionError(
+        `committed SCIP snapshot cleanup failed: ${String(error?.message ?? "unknown").slice(0, 500)}`,
+        { code: "scip_snapshot_cleanup_failed", cause: failure ?? error }
+      );
+    }
+  }
+  if (failure) throw failure;
+  return result;
+}
+
+export async function clearScipCache(rawOptions) {
+  const { repoRoot, cacheDir } = snapshotScipOptions(rawOptions,
+    [["repoRoot", undefined], ["cacheDir", SCIP_DEFAULT_CACHE_DIR]], "SCIP cache cleanup");
   await rm(path.join(repoRoot, cacheDir), { recursive: true, force: true });
 }
 
-export async function writeScipCacheMeta({ repoRoot, cacheDir = SCIP_DEFAULT_CACHE_DIR, meta }) {
+export async function writeScipCacheMeta(rawOptions) {
+  const { repoRoot, cacheDir, meta } = snapshotScipOptions(rawOptions,
+    [["repoRoot", undefined], ["cacheDir", SCIP_DEFAULT_CACHE_DIR], ["meta", undefined]],
+    "SCIP cache metadata");
   const metaPath = path.join(repoRoot, cacheDir, "scip-cache-meta.json");
   await mkdir(path.join(repoRoot, cacheDir), { recursive: true });
   await writeFile(metaPath, `${JSON.stringify(meta, null, 2)}\n`, "utf8");

@@ -8,6 +8,7 @@ import {
   canonicalizeWorkRecordReadScope,
   canonicalizeWorkRecordJson,
   computeWorkRecordSourceDigest,
+  isForgeConfirmedMergePolicy,
   validateWorkRecord
 } from "../lib/work-record-schema.mjs";
 import { getWorkRecordPath, loadWorkRecordById, loadWorkRecordByPath } from "../lib/work-record-store.mjs";
@@ -661,6 +662,16 @@ export async function inspectWorkRecordAdmissionSidecarArtifacts({
   });
 }
 
+function refusesForgeConfirmedCompletion(persistedRecord, proposedRecord) {
+  if (proposedRecord.status !== "done") {
+    return false;
+  }
+  if (!isObject(persistedRecord)) {
+    return isForgeConfirmedMergePolicy(proposedRecord);
+  }
+  return isForgeConfirmedMergePolicy(persistedRecord) && persistedRecord.status !== "done";
+}
+
 export async function writeValidatedWorkRecord({
   dir = ".",
   record: inputRecord,
@@ -759,6 +770,12 @@ export async function writeValidatedWorkRecord({
         };
       }
 
+      if (refusesForgeConfirmedCompletion(currentLoaded.record, record)) {
+        return {
+          status: "forge_confirmed_completion_required"
+        };
+      }
+
       try {
         await rename(tempWrite.tempPath, canonicalRecordPath);
       } catch {
@@ -793,6 +810,26 @@ export async function writeValidatedWorkRecord({
         ...(expectedSourceDigest !== null && expectedSourceDigest !== undefined
           ? { expected_source_digest: expectedSourceDigest }
           : {})
+      };
+    }
+
+    if (writeResult.status === "forge_confirmed_completion_required") {
+      return {
+        valid: false,
+        written: false,
+        diagnostics: [
+          {
+            code: "forge_confirmed_completion_required",
+            severity: "error",
+            message:
+              "completion_policy forge_confirmed_merge requires forge-confirmed closeout; ordinary status mutation cannot set done",
+            path: "status"
+          }
+        ],
+        record,
+        source_digest: sourceDigest,
+        canonical_record_path: canonicalRecordPath,
+        record_id: recordId
       };
     }
 

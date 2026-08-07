@@ -1,15 +1,12 @@
 
 
 import { randomBytes } from "node:crypto";
+import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import {
-  computeWorkRecordSourceDigest,
-  projectSliceReviewReceiptContracts,
-  setWorkRecordStatusByUnit
+  setWorkRecordStatusByUnit,
+  writeValidatedWorkRecord
 } from "../../../wiki-core/src/index.mjs";
-import {
-  evaluateWorkRecordParentLifecycleContract
-} from "../../../wiki-core/src/lib/work-record-parent-lifecycle-contract.mjs";
 import {
   createManagedWorkerConfinementActivationBinding,
   createWorkspaceAgentDispatchBackend
@@ -56,31 +53,17 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/codex-worker-plan.mjs";
 
 import {
-  materializeTerminalCandidateCheckout,
   materializeTerminalReviewWorktree
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-review-materialization.mjs";
-import {
-  constructTerminalWkCandidate,
-  deriveTerminalCandidateCurrentRef,
-  deriveRecoveredTerminalWkCandidateIdentity,
-  defaultTerminalCandidateRunGit,
-  freezeRecoveredTerminalWkCandidateInputs,
-  freezeTerminalWkCandidateInputs,
-  projectTerminalWkCandidateFailure,
-  readTerminalCandidateCurrentRef,
-  verifyTerminalWkCandidateObjectBinding
-} from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
-import {
-  runAllTerminalCandidateValidations,
-  runTerminalCandidateValidation,
-  verifyTerminalCandidateDependencies
-} from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate-validation.mjs";
 import {
   runPostWorkerSliceLifecycle,
   TERMINAL_REVIEW_EVIDENCE_MODES
 } from "./dispatch-run-monitor-routes.mjs";
 import { WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION } from "./workspace-commit-tool.mjs";
-import { createStdioMcpConduit } from "@agent-chassis/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs";
+import {
+  assertManagedStdioMcpCompositionAuthority,
+  createManagedStdioMcpCompositionAuthority
+} from "@agent-chassis/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs";
 
 import {
   buildAcceptSucceedCodexExecutorTestSeams,
@@ -91,13 +74,28 @@ import {
   createThrowingTestExecutor
 } from "./dispatch-launch-test-seam-executors.mjs";
 
+import {
+  createTerminalCandidateCoordinator,
+  projectAuthenticatedTerminalCandidateFailure,
+  projectTerminalCandidateRecoveryReason
+} from "./dispatch-terminal-candidate-runtime.mjs";
+
 export { consumeDispatchCodexTestSeamEvidence };
+export {
+  createTerminalCandidateCoordinator,
+  projectAuthenticatedTerminalCandidateFailure,
+  projectTerminalCandidateRecoveryReason,
+  projectTerminalWkCandidateFailure,
+  TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
+  TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE,
+  TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE
+} from "./dispatch-terminal-candidate-runtime.mjs";
 
 const SESSION_IDENTITY_SCHEMA_VERSION = "workspace-agent-dispatch-session-identity.v1";
 const DISPATCH_CODEX_AUTHENTICATED_SMOKE_TIMEOUT_ENV_VAR =
   "WIKI_MCP_DISPATCH_CODEX_AUTHENTICATED_SMOKE_TIMEOUT_MS";
 
-function selectDispatchLaunchExecutor(env = process.env) {
+function selectDispatchLaunchExecutor(env = process.env, { createMcpConduit } = {}) {
   const fixture = String(env.WIKI_MCP_DISPATCH_BACKEND_TEST_FIXTURE ?? "").trim();
   if (fixture) {
     if (fixture === "accept_succeed") {
@@ -121,7 +119,10 @@ function selectDispatchLaunchExecutor(env = process.env) {
     if (seams === "accept_succeed_test_seams") {
       return createProductionCodexDispatchExecutor(
         env,
-        buildAcceptSucceedCodexExecutorTestSeams()
+        {
+          ...buildAcceptSucceedCodexExecutorTestSeams(),
+          createMcpConduit
+        }
       );
     }
     throw new Error(
@@ -130,7 +131,10 @@ function selectDispatchLaunchExecutor(env = process.env) {
   }
 
   const killTimeoutMs = resolveAuthenticatedSmokeKillTimeoutMs(env);
-  return createProductionCodexDispatchExecutor(env, { killTimeoutMs });
+  return createProductionCodexDispatchExecutor(env, {
+    killTimeoutMs,
+    createMcpConduit
+  });
 }
 
 function createProductionCodexDispatchExecutor(env, options = {}) {
@@ -138,7 +142,7 @@ function createProductionCodexDispatchExecutor(env, options = {}) {
     ...options,
     env,
     buildPlan: buildManagedWorkerGitlessCodexRolePlan,
-    createMcpConduit: createStdioMcpConduit
+    createMcpConduit: options.createMcpConduit
   });
 }
 
@@ -272,6 +276,12 @@ export function createCanonicalCommittedSliceIntegrationAdapter(mainRepo) {
         status,
         expectedSourceDigest
       });
+    const writeRecordCas = ({ record, expectedSourceDigest }) =>
+      writeValidatedWorkRecord({
+        dir: mainRepo,
+        record,
+        expectedSourceDigest
+      });
     return integrateCommittedSlice({
       mainRepo,
       worktreePath: context.worktree_path,
@@ -283,13 +293,23 @@ export function createCanonicalCommittedSliceIntegrationAdapter(mainRepo) {
       workerTerminated: false,
       transitionToReview: writeStatus,
       markSliceComplete: writeStatus,
+      writeRecordCas,
       boundaryAuthorization
     });
   };
 }
 
-export function buildDispatchLaunchExecutors(env = process.env) {
-  const codexExecutor = selectDispatchLaunchExecutor(env);
+export function buildDispatchLaunchExecutors(env = process.env, {
+  managedStdioMcpCompositionAuthority = createManagedStdioMcpCompositionAuthority()
+} = {}) {
+  const compositionAuthority = assertManagedStdioMcpCompositionAuthority(
+    managedStdioMcpCompositionAuthority
+  );
+
+  const managedCreateMcpConduit = compositionAuthority.createConduit;
+  const codexExecutor = selectDispatchLaunchExecutor(env, {
+    createMcpConduit: managedCreateMcpConduit
+  });
 
   return {
     codex: buildFamilyExecutorRegistryEntry({
@@ -299,7 +319,10 @@ export function buildDispatchLaunchExecutors(env = process.env) {
     }),
 
     claude: buildFamilyExecutorRegistryEntry({
-      executor: createClaudeWorkspaceAgentLaunchExecutor({ env }),
+      executor: createClaudeWorkspaceAgentLaunchExecutor({
+        env,
+        createMcpConduit: managedCreateMcpConduit
+      }),
       sourceReadMode: CLAUDE_FAMILY_SOURCE_READ_MODE,
       nativeReadCapability: CLAUDE_FAMILY_NATIVE_READ_CAPABILITY
     })
@@ -310,6 +333,9 @@ function mintDispatchSessionIdentity() {
 
   return `${SESSION_IDENTITY_SCHEMA_VERSION}.${randomBytes(12).toString("hex")}`;
 }
+
+export const DISPATCH_WORKSPACE_IDENTITY_UNCANONICALIZABLE_CODE =
+  "dispatch_workspace_identity_uncanonicalizable";
 
 export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
 
@@ -323,7 +349,19 @@ export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
     );
   }
 
-  const canonicalMainRepo = path.resolve(mainRepo);
+  let canonicalMainRepo;
+  try {
+    canonicalMainRepo = realpathSync(path.resolve(mainRepo));
+    if (!statSync(canonicalMainRepo).isDirectory()) {
+      throw Object.assign(new Error("not a directory"), { code: "ENOTDIR" });
+    }
+  } catch (error) {
+    const failure = new Error(
+      `${WIKI_MCP_WORKSPACE_DIR_ENV_VAR} must name an existing directory that canonicalizes to a real workspace root (${error?.code ?? error?.message ?? error})`
+    );
+    failure.code = DISPATCH_WORKSPACE_IDENTITY_UNCANONICALIZABLE_CODE;
+    throw failure;
+  }
   const launcherBase = path.dirname(canonicalMainRepo);
   const repoName = path.basename(canonicalMainRepo);
   const canonicalWorktreeRoot = path.join(launcherBase, ".agent-worktrees", repoName);
@@ -339,261 +377,6 @@ export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
     worktreeRoot: canonicalWorktreeRoot,
 
     managedConfinementActivation: createManagedWorkerConfinementActivationBinding()
-  });
-}
-
-function exactWkBoundContract({ recordId, initiative = null, mainRepo, wkSha }) {
-  let record;
-  try {
-    const result = defaultTerminalCandidateRunGit({
-      repo: mainRepo,
-      args: ["show", `${wkSha}:wiki/work-records/${recordId}.json`],
-      env: null
-    });
-    if (!result || result.ok !== true) {
-      throw new Error("exact WK record blob is unavailable");
-    }
-    record = JSON.parse(result.stdout);
-  } catch (error) {
-    throw new Error(`terminal candidate exact WK-bound contract is not parseable: ${error?.message ?? String(error)}`);
-  }
-  if (record?.id !== recordId || !/^IN-\d{4}$/u.test(record?.initiative ?? "") ||
-      (initiative !== null && record.initiative !== initiative)) {
-    throw new Error("terminal candidate exact WK-bound contract identity disagrees");
-  }
-  const allowed = Array.isArray(record?.sections?.structured_validation?.allowed)
-    ? record.sections.structured_validation.allowed
-    : [];
-  const targets = allowed
-    .filter((entry) => entry?.command === "node_test" && typeof entry.target === "string")
-    .map((entry) => entry.target);
-  const parentLifecycle = evaluateWorkRecordParentLifecycleContract(record);
-  let reviewUnit = null;
-  if (parentLifecycle.complete === true) {
-    const slice = parentLifecycle.terminal_review_contract_unit;
-    const contracts = projectSliceReviewReceiptContracts(record, slice.id);
-    if (contracts.slice_review_contract !== null) {
-      reviewUnit = Object.freeze({
-        record_id: recordId,
-        slice_id: slice.id,
-        subject: `${recordId}#${slice.id}`,
-        initiative: record.initiative,
-        parent_status: record.status ?? null,
-        canonical_parent_wk_contract: contracts.canonical_parent_wk_contract,
-        review_unit_contract: contracts.slice_review_contract
-      });
-    }
-  }
-  return Object.freeze({
-    initiative: record.initiative,
-    digest: computeWorkRecordSourceDigest(record),
-    targets: Object.freeze([...new Set(targets)].sort()),
-    review_unit: reviewUnit
-  });
-}
-
-function failTerminalCandidateRecovery(reason, cause = null) {
-  const error = new Error(reason);
-  error.code = reason;
-  if (cause !== null) error.cause = cause;
-  throw error;
-}
-
-function failTerminalCandidateConstruction(failure) {
-  const error = new Error(failure.message || "terminal_candidate_recovery_construction_failed");
-  error.code = "terminal_candidate_recovery_construction_failed";
-  error.terminal_candidate_failure = failure;
-  throw error;
-}
-
-export function createTerminalCandidateCoordinator({
-  mainRepo,
-  worktreeRoot,
-
-  runGit = defaultTerminalCandidateRunGit
-} = {}) {
-  if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
-      typeof worktreeRoot !== "string" || !path.isAbsolute(worktreeRoot) ||
-      typeof runGit !== "function") {
-    throw new Error("terminal candidate coordinator requires launcher-owned repository and worktree roots");
-  }
-  const cycles = new Map();
-
-  const prepareTerminalCandidate = async ({ integration, reviewUnit, wkId, wkRef, baseSha, baseRef = "main" }) => {
-    if (integration?.wk_ref !== wkRef || integration?.wk_sha == null || reviewUnit?.record_id !== wkId) {
-      throw new Error("terminal candidate preparation does not match the exact integrated WK identity");
-    }
-
-    if (typeof baseSha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(baseSha)) {
-      throw new Error("terminal candidate preparation requires the launcher-bound WK lifecycle base");
-    }
-    const canonical = exactWkBoundContract({
-      recordId: reviewUnit.record_id,
-      initiative: reviewUnit.initiative,
-      mainRepo,
-      wkSha: integration.wk_sha
-    });
-    const frozen = freezeTerminalWkCandidateInputs({
-      mainRepo,
-      baseSha,
-      baseRef,
-      wkRef,
-      canonicalWkId: wkId,
-      canonicalWkDigest: canonical.digest,
-      runGit
-    });
-    if (frozen.wk_tip !== integration.wk_sha) {
-      throw new Error("terminal candidate frozen WK tip disagrees with final integration");
-    }
-    const binding = constructTerminalWkCandidate({ frozen, runGit });
-    const candidateRoot = path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate);
-    const materialization = materializeTerminalCandidateCheckout({
-      binding,
-      candidateRoot,
-      runGit
-    });
-    const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
-    const state = Object.freeze({
-      binding,
-      materialization,
-      dependency_proof: dependencyProof,
-      review_unit: canonical.review_unit,
-      canonical_targets: canonical.targets,
-      validation_runtime_root: path.join(worktreeRoot, ".terminal-validation", wkId, binding.candidate)
-    });
-    cycles.set(wkId, state);
-    return state;
-  };
-
-  const recoverTerminalCandidate = async (wkId) => {
-    if (typeof wkId !== "string" || !/^WK-\d{4}$/u.test(wkId)) return null;
-    const currentRef = deriveTerminalCandidateCurrentRef({ canonicalWkId: wkId });
-    let candidate;
-    try {
-      candidate = readTerminalCandidateCurrentRef({
-        mainRepo,
-        canonicalWkId: wkId,
-        runGit
-      });
-    } catch (error) {
-      failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_unreadable", error);
-    }
-    let recoveredCanonical;
-    let derived;
-    try {
-      if (candidate === null) {
-
-        failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_absent");
-      } else {
-        recoveredCanonical = exactWkBoundContract({
-          recordId: wkId,
-          mainRepo,
-          wkSha: candidate
-        });
-        if (recoveredCanonical.review_unit === null) {
-          failTerminalCandidateRecovery("terminal_candidate_recovery_canonical_wk_binding_disagrees");
-        }
-        const wkRef = `refs/heads/wk/${recoveredCanonical.initiative}/${wkId}`;
-        const frozen = freezeRecoveredTerminalWkCandidateInputs({
-          mainRepo,
-          wkRef,
-          canonicalWkId: wkId,
-          candidate,
-          runGit
-        });
-        derived = deriveRecoveredTerminalWkCandidateIdentity({
-          frozen,
-          runGit
-        });
-      }
-    } catch (error) {
-      if (typeof error?.code === "string" &&
-          (error.code.startsWith("terminal_candidate_recovery_") ||
-            error.code.startsWith("terminal_candidate_construction_"))) {
-        throw error;
-      }
-
-      failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error));
-    }
-    if (derived.candidate !== candidate || derived.candidate_ref !== currentRef) {
-      failTerminalCandidateRecovery("terminal_candidate_recovery_no_deterministic_match");
-    }
-    const binding = Object.freeze({
-      ...derived,
-      candidate_ref_state: derived.candidate_ref_state === "derived"
-        ? "recovered"
-        : derived.candidate_ref_state
-    });
-    verifyTerminalWkCandidateObjectBinding({
-      binding,
-      runGit
-    });
-    const candidateRoot = path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate);
-    const materialization = materializeTerminalCandidateCheckout({
-      binding,
-      candidateRoot,
-      runGit
-    });
-    const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
-    const recoveredState = {
-      binding,
-      materialization,
-      dependency_proof: dependencyProof,
-      review_unit: recoveredCanonical.review_unit,
-      canonical_targets: recoveredCanonical.targets,
-      validation_runtime_root: path.join(worktreeRoot, ".terminal-validation", wkId, binding.candidate)
-    };
-    const validations = await runAllTerminalCandidateValidations({
-      binding,
-      materialization,
-      targets: recoveredState.canonical_targets,
-      runtimeRoot: recoveredState.validation_runtime_root,
-      runGit
-    });
-    if (!Array.isArray(validations)) {
-      failTerminalCandidateRecovery("terminal_candidate_recovery_validation_evidence_unavailable");
-    }
-    verifyTerminalWkCandidateObjectBinding({
-      binding,
-      runGit
-    });
-    const state = Object.freeze({
-      ...recoveredState,
-      validation_evidence: Object.freeze([...validations])
-    });
-    cycles.set(wkId, state);
-    return state;
-  };
-
-  const validateTerminalCandidate = async ({ terminalCandidate }) => runAllTerminalCandidateValidations({
-    binding: terminalCandidate.binding,
-    materialization: terminalCandidate.materialization,
-    targets: terminalCandidate.canonical_targets,
-    runtimeRoot: terminalCandidate.validation_runtime_root,
-    runGit
-  });
-
-  const runTerminalCandidateValidationForUnit = async ({ unit, target }) => {
-    const state = cycles.get(unit) ?? null;
-    if (state === null) return null;
-    if (!state.canonical_targets.includes(target)) {
-      throw new Error("terminal candidate target is not present in the frozen canonical whole-WK contract");
-    }
-    return runTerminalCandidateValidation({
-      binding: state.binding,
-      materialization: state.materialization,
-      target,
-      runtimeRoot: state.validation_runtime_root,
-      runGit
-    });
-  };
-
-  return Object.freeze({
-    prepareTerminalCandidate,
-    validateTerminalCandidate,
-    recoverTerminalCandidate,
-    runTerminalCandidateValidationForUnit,
-    resolve: (wkId) => cycles.get(wkId) ?? null
   });
 }
 
@@ -685,6 +468,17 @@ export function projectWkForgeHandoffRefusal(outcome) {
   });
 }
 
+function projectAuthenticatedWkForgeRecoveryRefusal(outcome, error) {
+  const refusal = projectWkForgeHandoffRefusal(outcome);
+  return Object.freeze({
+    ...refusal,
+    detail: Object.freeze({
+      ...refusal.detail,
+      recovery_detail: projectAuthenticatedTerminalCandidateFailure(error)
+    })
+  });
+}
+
 export function buildDispatchRuntime(env = process.env, {
   registeredTier = "free_local",
   sliceIntegrationCcePolicy = null,
@@ -693,7 +487,11 @@ export function buildDispatchRuntime(env = process.env, {
 
   void registeredTier;
   const dispatchSessionIdentity = mintDispatchSessionIdentity();
-  const launchExecutors = buildDispatchLaunchExecutors(env);
+  const managedStdioMcpCompositionAuthority =
+    createManagedStdioMcpCompositionAuthority();
+  const launchExecutors = buildDispatchLaunchExecutors(env, {
+    managedStdioMcpCompositionAuthority
+  });
 
   const worktreeProvisioning = resolveDispatchWorktreeProvisioningConfig(env);
 
@@ -730,6 +528,7 @@ export function buildDispatchRuntime(env = process.env, {
     launchExecutors && launchExecutors.codex
       ? createWorkspaceAgentDispatchBackend({
           launchExecutors,
+          managedStdioMcpCompositionAuthority,
           requireManagedProvisioning: true,
           worktreeProvisioning: worktreeProvisioningConfig,
           closedInputCommitComposition: WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION,
@@ -780,11 +579,12 @@ export function buildDispatchRuntime(env = process.env, {
             ok: false,
             category: WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY,
             detail: {
-              reason: typeof error?.code === "string" &&
-                  error.code.startsWith("terminal_candidate_recovery_")
-                ? error.code
-                : "terminal_candidate_recovery_failed"
+              reason: projectTerminalCandidateRecoveryReason(error)
             }
+          };
+          return {
+            accepted: false,
+            refusal: projectAuthenticatedWkForgeRecoveryRefusal(outcome, error)
           };
         }
         return outcome?.ok === true

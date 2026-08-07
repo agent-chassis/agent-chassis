@@ -22,6 +22,9 @@ import {
   evaluateGraphImpactBlocker,
   RUNTIME_BLOCKER_CODES
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
+import {
+  resolveNeedsReviewEnumerableRecovery
+} from "@agent-chassis/wiki-core/src/lib/work-record-dispatch-node-engine-admissibility-recovery-projection.mjs";
 
 import {
   generateAndPersistWorkRecordGraphImpactByUnit
@@ -34,8 +37,7 @@ import {
   AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD_SLICE,
   AGENT_DISPATCH_TOOL_NAME,
   DISPATCH_BLOCKER_CODES,
-  GRAPH_IMPACT_PERSISTENCE_TOOL_NAME,
-  WK_FORGE_HANDOFF_TOOL_NAME
+  GRAPH_IMPACT_PERSISTENCE_TOOL_NAME
 } from "../dispatch-tool-constants.mjs";
 import {
   buildBlockedDispatchResult,
@@ -53,6 +55,9 @@ import {
 } from "../work-record-write-route-helpers.mjs";
 import { REGISTERED_TIER_FREE_LOCAL, REGISTERED_TIER_PAID_CCE } from "../tool-profile.mjs";
 import { registerDiagnosticRoutes } from "../dispatch-diagnostic-routes.mjs";
+import { prepareCommittedHeadGraphAdmission } from "./graph-admission.mjs";
+import { registerCommittedSliceIntegrationRoute } from "./committed-slice-integration-route.mjs";
+import { registerForgeHandoffRoute } from "./forge-handoff-route.mjs";
 
 const DISPATCH_LAUNCH_BACKEND_REASON = "launch_backend_unavailable";
 const DISPATCH_LAUNCH_BACKEND_DETAIL = Object.freeze({
@@ -63,6 +68,110 @@ const DISPATCH_LAUNCH_BACKEND_DETAIL = Object.freeze({
 });
 
 const DECISIONS_WRITE_SCOPE_FORBIDDEN_DECISION_CODE = "decisions_write_scope_forbidden";
+
+const WORKER_ADMISSION_RECOVERY_SCHEMA_VERSION = "worker_admission.recovery.v1";
+const WORKER_ADMISSION_RECOVERY_ACTION_MAX = 16;
+const WORKER_ADMISSION_RECOVERY_TOKEN_MAX = 24;
+const WORKER_ADMISSION_RECOVERY_TOKEN_LENGTH_MAX = 128;
+const WORKER_ADMISSION_REASON_FACT_MAX = 24;
+
+const WORKER_ADMISSION_REASON_OBSERVED_STRING_MAX = 257;
+const REVIEW_THRESHOLD_REASON_CODES = new Set([
+  "review_threshold_exceeded",
+  "worker_admission.work_unit_atomicity.review_threshold_exceeded.v1"
+]);
+const KNOWN_NEEDS_REVIEW_REASON_CODES = new Set([
+  ...REVIEW_THRESHOLD_REASON_CODES,
+  "request_schema_unrecognized"
+]);
+const KNOWN_NEEDS_REVIEW_REASON_PREFIXES = Object.freeze([
+  "accepted_authority_",
+  "review_attestation_"
+]);
+
+const MANAGED_CORRECTIVE_CONTINUATION_CODE =
+  "agent_launch.managed_run.corrective_integrated_state_unresolved.v1";
+const CANONICAL_INTEGRATED_STATE_IMPOSSIBLE_CODE =
+  "agent_launch.canonical_integrated_lifecycle_state.impossible.v1";
+const MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND =
+  "agent_launch.managed_run.corrective_status_reconciliation.v1";
+const CANONICAL_STATUS_VALUES = Object.freeze([
+  "todo", "active", "blocked", "review", "done"
+]);
+
+function projectManagedCorrectiveStatusRecovery(refusal, subject) {
+  if (refusal?.reason !== "managed_run_identity_check_threw") return null;
+  const source = refusal?.detail;
+  const observed = source?.observed_canonical_status;
+  const recovery = source?.recovery;
+  if (source?.code !== MANAGED_CORRECTIVE_CONTINUATION_CODE ||
+      source?.cause_code !== CANONICAL_INTEGRATED_STATE_IMPOSSIBLE_CODE ||
+      !observed || typeof observed !== "object" || Array.isArray(observed) ||
+      !recovery || typeof recovery !== "object" || Array.isArray(recovery) ||
+      recovery.recovery_kind !== MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND ||
+      recovery.responsible_actor !== "coordinator" ||
+      recovery.next_action !== "reissue_subject_dispatch_after_canonical_status_reconciliation" ||
+      recovery.slice_unit !== subject ||
+      recovery.unit !== observed.record_id ||
+      !CANONICAL_STATUS_VALUES.includes(observed.parent_status) ||
+      !CANONICAL_STATUS_VALUES.includes(observed.slice_status) ||
+      observed.parent_status !== recovery.observed?.parent_status ||
+      observed.slice_status !== recovery.observed?.slice_status ||
+      recovery.expected?.parent_status !== "active" ||
+      recovery.expected?.slice_status !== "todo") {
+    return null;
+  }
+
+  const unit = recovery.unit;
+  return {
+    blockerCode: RUNTIME_BLOCKER_CODES.MANAGED_CORRECTIVE_STATUS_RECONCILIATION_REQUIRED,
+    reason: "corrective_status_reconciliation_required",
+    detail: {
+      observed: {
+        parent_status: observed.parent_status,
+        slice_status: observed.slice_status
+      },
+      expected: {
+        parent_status: "active",
+        slice_status: "todo"
+      },
+      recovery_kind: MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND,
+      unit,
+      slice_unit: subject,
+      next_call: {
+        route: "workspace_agent_dispatch",
+        arguments: { role: "worker", subject }
+      }
+    },
+    nextAction: `workspace_work_record_set_status(unit=${unit}, status=active)`
+  };
+}
+
+function projectManagedParentReviewRecovery(refusal, subject) {
+  if (refusal?.reason !== "managed_parent_wk_review_blocks_worker_dispatch") return null;
+  const source = refusal?.detail;
+  if (!source || typeof source !== "object" || Array.isArray(source) ||
+      source.parent_status !== "review") {
+    return null;
+  }
+
+  const unit = typeof source.record_id === "string"
+    ? source.record_id
+    : String(subject).split("#", 1)[0];
+  return {
+    blockerCode: RUNTIME_BLOCKER_CODES.MANAGED_PARENT_WK_REVIEW_BLOCKS_WORKER_DISPATCH,
+    reason: "managed_parent_wk_review_blocks_worker_dispatch",
+    detail: {
+      ...source,
+      actor_recovery: "coordinator",
+      recovery_route: "reconcile_parent_wk_review_state",
+      next_action: "workspace_agent_dispatch",
+      next_action_args: { role: "worker", subject },
+      next_action_call: `workspace_agent_dispatch(role=worker, subject=${subject})`
+    },
+    nextAction: `workspace_work_record_set_status(unit=${unit}, status=active)`
+  };
+}
 
 const RECOVERABLE_DISPATCH_STATES = new Set([
   "recoverable_missing",
@@ -149,6 +258,263 @@ function boundedRecoveryDetail(readiness, extra = {}) {
     recovery: readiness?.recovery ?? null,
     ...extra
   };
+}
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function boundedRecoveryToken(value) {
+  if (typeof value !== "string") return null;
+  if (value.length === 0 || value.length > WORKER_ADMISSION_RECOVERY_TOKEN_LENGTH_MAX) {
+    return null;
+  }
+  return value;
+}
+
+function boundedOpaqueControlId(value) {
+  return boundedRecoveryToken(value);
+}
+
+function projectRecoveryTokens(value) {
+  if (value === undefined) return { valid: true, value: undefined };
+  if (!Array.isArray(value) || value.length > WORKER_ADMISSION_RECOVERY_TOKEN_MAX) {
+    return { valid: false };
+  }
+  const tokens = [];
+  for (const item of value) {
+    const token = boundedRecoveryToken(item);
+    if (!token) return { valid: false };
+    tokens.push(token);
+  }
+  return { valid: true, value: tokens };
+}
+
+function projectCompactRecoveryAction(action) {
+  if (!isRecord(action)) return null;
+  const projected = { kind: action.kind };
+  for (const key of ["reason_codes", "problem_types", "fields", "controls"]) {
+    const tokens = projectRecoveryTokens(action[key]);
+    if (!tokens.valid) return null;
+    if (tokens.value !== undefined) projected[key] = tokens.value;
+  }
+  if (action.remedy_guidance !== undefined) {
+    projected.remedy_guidance = action.remedy_guidance;
+  }
+  return projected;
+}
+
+function projectCompactRecoveryV1(candidate) {
+  const recovery = resolveNeedsReviewEnumerableRecovery({ recovery: candidate, reasons: [] });
+  if (!recovery || recovery.schema_version !== WORKER_ADMISSION_RECOVERY_SCHEMA_VERSION) {
+    return null;
+  }
+  if (
+    !Array.isArray(recovery.actions) ||
+    recovery.actions.length === 0 ||
+    recovery.actions.length > WORKER_ADMISSION_RECOVERY_ACTION_MAX
+  ) {
+    return null;
+  }
+  const actions = recovery.actions.map(projectCompactRecoveryAction);
+  if (actions.some((action) => action === null)) return null;
+  return {
+    schema_version: recovery.schema_version,
+    projection_mode: recovery.projection_mode,
+    authority: recovery.authority,
+    requires_resubmission: recovery.requires_resubmission,
+    truncated: recovery.truncated,
+    actions
+  };
+}
+
+function knownNeedsReviewReasonCode(value) {
+  const code = boundedRecoveryToken(value);
+  if (!code) return null;
+  if (KNOWN_NEEDS_REVIEW_REASON_CODES.has(code)) return code;
+  return KNOWN_NEEDS_REVIEW_REASON_PREFIXES.some((prefix) => code.startsWith(prefix))
+    ? code
+    : null;
+}
+
+function projectReasonFact(value, { allowBoundedStringObserved = false } = {}) {
+  if (!isRecord(value)) return { state: "ignored" };
+  const allowedKeys = new Set([
+    "reason_code", "code", "reason_family", "control", "field", "observed", "threshold",
+    "evidence_keys"
+  ]);
+  if (Object.keys(value).some((key) => !allowedKeys.has(key))) return { state: "ignored" };
+  const reasonCode = knownNeedsReviewReasonCode(value.reason_code ?? value.code);
+  if (!reasonCode) return { state: "ignored" };
+  const fact = { reason_code: reasonCode };
+  const reasonFamily = boundedRecoveryToken(value.reason_family);
+  if (value.reason_family !== undefined && !reasonFamily) return { state: "mismatch" };
+  if (reasonFamily) fact.reason_family = reasonFamily;
+  const control = boundedOpaqueControlId(value.control);
+  if (value.control !== undefined && !control) return { state: "mismatch" };
+  if (control) fact.control = control;
+  const field = boundedOpaqueControlId(value.field);
+  if (value.field !== undefined && !field) return { state: "mismatch" };
+  if (field) fact.field = field;
+  if (
+    value.observed === null ||
+    typeof value.observed === "boolean" ||
+    (typeof value.observed === "number" && Number.isFinite(value.observed))
+  ) {
+    fact.observed = value.observed;
+  } else if (
+    allowBoundedStringObserved &&
+    typeof value.observed === "string" &&
+    value.observed.length <= WORKER_ADMISSION_REASON_OBSERVED_STRING_MAX
+  ) {
+    fact.observed = value.observed;
+  } else if (value.observed !== undefined) {
+    return { state: "mismatch" };
+  }
+  if (typeof value.threshold === "number" && Number.isFinite(value.threshold)) {
+    fact.threshold = value.threshold;
+  } else if (value.threshold !== undefined) {
+    return { state: "mismatch" };
+  }
+  return { state: "projected", fact };
+}
+
+function projectReasonFacts(sources) {
+  const projected = [];
+  const seen = new Set();
+  let mismatch = false;
+  for (const { values, allowBoundedStringObserved = false } of sources) {
+    if (!Array.isArray(values)) continue;
+    for (const value of values.slice(0, WORKER_ADMISSION_REASON_FACT_MAX)) {
+      const result = projectReasonFact(value, { allowBoundedStringObserved });
+      if (result.state === "mismatch") {
+        mismatch = true;
+        continue;
+      }
+      if (result.state !== "projected") continue;
+      const { fact } = result;
+      const signature = JSON.stringify(fact);
+      if (seen.has(signature)) continue;
+      seen.add(signature);
+      projected.push(fact);
+      if (projected.length === WORKER_ADMISSION_REASON_FACT_MAX) {
+        return { facts: projected, mismatch };
+      }
+    }
+  }
+  return { facts: projected, mismatch };
+}
+
+function selectedUnitForNeedsReview(subject, recovery) {
+  const match = /^(WK-\d{4})(?:#([^\s]+))?$/u.exec(subject ?? "");
+  if (!match) return null;
+  const selectedAddress = recovery?.selected_unit_address;
+  if (selectedAddress !== undefined && selectedAddress !== null && selectedAddress !== subject) {
+    return null;
+  }
+  return {
+    kind: match[2] ? "slice" : "work_item",
+    address: subject,
+    record_id: match[1],
+    slice_id: match[2] ?? null
+  };
+}
+
+function recoveryNextAction(recoveryState, recovery) {
+  if (recoveryState === "projection_mismatch") {
+    return "Preserve the needs_review refusal; ask the operator or CCE owner to repair worker_admission.recovery.v1, then revalidate.";
+  }
+  if (recoveryState === "legacy_reason_facts") {
+    return "Use the returned bounded reason facts for structured scope repair or the established operator route, then revalidate without inferring controls.";
+  }
+  const kinds = [...new Set(recovery.actions.map((action) => action.kind))];
+  if (kinds.length === 1 && kinds[0] === "obtain_review_attestation") {
+    return "Run workspace_work_record_shape_review_unit, workspace_agent_dispatch, workspace_agent_run_status, workspace_record_review_attestation, then workspace_validate_dispatch.";
+  }
+  if (kinds.length === 1 && kinds[0] === "split_or_reduce_scope") {
+    return "Use workspace_work_record_contract_edit to split or reduce the selected unit, then run workspace_validate_dispatch.";
+  }
+  return "Follow the bounded CCE recovery action group without substitution or local reordering, then run workspace_validate_dispatch.";
+}
+
+function projectNeedsReviewRefusal({ readiness, refusal, subject }) {
+  const admissibility = readiness?.admissibility;
+  const backendRecovery = refusal?.detail?.remote_needs_review_recovery;
+  const readinessRecoveryState = admissibility?.recovery_projection_state;
+  const rawCandidates = [];
+  let recoveryFieldPresent = false;
+  let explicitMismatch = backendRecovery?.recovery_source === "cce_recovery_v1_projection_mismatch";
+
+  if (readinessRecoveryState === "valid") {
+    recoveryFieldPresent = true;
+  } else if (readinessRecoveryState === "projection_mismatch") {
+    recoveryFieldPresent = true;
+    explicitMismatch = true;
+  } else if (readinessRecoveryState !== undefined && readinessRecoveryState !== "absent") {
+    explicitMismatch = true;
+  }
+
+  if (admissibility && Object.hasOwn(admissibility, "recovery")) {
+    recoveryFieldPresent = true;
+    rawCandidates.push(admissibility.recovery);
+  }
+  if (admissibility?.needs_review_recovery?.schema_version === WORKER_ADMISSION_RECOVERY_SCHEMA_VERSION) {
+    recoveryFieldPresent = true;
+    rawCandidates.push(admissibility.needs_review_recovery);
+  }
+  if (backendRecovery?.cce_recovery !== undefined) {
+    recoveryFieldPresent = true;
+    rawCandidates.push(backendRecovery.cce_recovery);
+  } else if (backendRecovery?.classification === "cce_recovery_v1") {
+    recoveryFieldPresent = true;
+    explicitMismatch = true;
+  }
+
+  const recoveries = rawCandidates.map(projectCompactRecoveryV1);
+  const missingValidReadinessRecovery = readinessRecoveryState === "valid" &&
+    !(admissibility && Object.hasOwn(admissibility, "recovery"));
+  const invalidRecovery = explicitMismatch || missingValidReadinessRecovery ||
+    recoveries.some((recovery) => recovery === null);
+  const distinctRecoveries = new Set(
+    recoveries.filter(Boolean).map((recovery) => JSON.stringify(recovery))
+  );
+  const recoveryMismatch = invalidRecovery || distinctRecoveries.size > 1;
+  const validRecovery = recoveryMismatch ? null : recoveries.find(Boolean) ?? null;
+  const reasonProjection = projectReasonFacts([
+    { values: backendRecovery?.reason_facts },
+    {
+      values: admissibility?.needs_review_recovery?.reason_facts,
+      allowBoundedStringObserved: true
+    },
+    { values: admissibility?.reasons, allowBoundedStringObserved: true }
+  ]);
+  const reasonFacts = reasonProjection.facts;
+  const selectedUnit = selectedUnitForNeedsReview(subject, backendRecovery);
+  const unitMismatch = selectedUnit === null;
+  const projectionMismatch = recoveryMismatch || reasonProjection.mismatch || unitMismatch;
+  const effectiveRecovery = projectionMismatch ? null : validRecovery;
+  const state = projectionMismatch
+    ? "projection_mismatch"
+    : effectiveRecovery
+      ? "valid_recovery_v1"
+      : "legacy_reason_facts";
+  const detail = {
+    refusal_kind: "worker_admission_remote_needs_review",
+    admissibility_status: "needs_review",
+    launch_authoritative: false,
+    recovery_contract: state,
+    ...(selectedUnit ? { selected_unit: selectedUnit } : {}),
+    ...(reasonFacts.length > 0 ? { reason_facts: reasonFacts } : {}),
+    ...(effectiveRecovery ? { worker_admission_recovery: effectiveRecovery } : {})
+  };
+  if (state === "projection_mismatch") {
+    detail.recovery_mismatch = {
+      code: "worker_admission_recovery_contract_mismatch",
+      expected_schema_version: WORKER_ADMISSION_RECOVERY_SCHEMA_VERSION,
+      recovery_field_present: recoveryFieldPresent
+    };
+  }
+  return { detail, nextAction: recoveryNextAction(state, effectiveRecovery) };
 }
 
 function nodeEngineRefusal(readiness) {
@@ -451,48 +817,19 @@ export function registerDispatchTools({
               }));
             }
 
-            let recoveredGraphImpact = null;
-            if (graphDerivationRequiredForDispatch(readiness.recovery?.graph_impact)) {
-              let generated;
-              try {
-                generated = await generateGraphImpactEvidence({
-                  dir: workspace.dir,
-                  unitAddress: args.subject
-                });
-              } catch {
-
-                return jsonContent(buildBlockedDispatchResult({
-                  blockerCode: RUNTIME_BLOCKER_CODES.GRAPH_IMPACT_QUERY_ERROR,
-                  reason: "graph_impact_query_error",
-                  detail: boundedRecoveryDetail(readiness, { issue: "graph_generation_failed" })
-                }));
-              }
-              if (generated?.graph_available !== true) {
-
-                return jsonContent(buildBlockedDispatchResult({
-                  blockerCode: RUNTIME_BLOCKER_CODES.GRAPH_IMPACT_QUERY_ERROR,
-                  reason: "graph_head_unbuildable",
-                  detail: boundedRecoveryDetail(readiness, { outcome: generated?.outcome ?? "graph_unavailable" })
-                }));
-              }
-
-              recoveredGraphImpact = generated.graph_impact_envelope ?? null;
-              if (!recoveredGraphImpact) {
-                return jsonContent(buildBlockedDispatchResult({
-                  blockerCode: DISPATCH_BLOCKER_CODES.WORK_RECORD_READINESS_FAILURE,
-                  reason: "graph_impact_recovery_failed",
-                  detail: boundedRecoveryDetail(readiness, { outcome: generated?.outcome ?? "not_persisted" })
-                }));
-              }
-            }
-
-            readiness = await validateDispatch({
+            const prepared = await prepareCommittedHeadGraphAdmission({
+              readiness,
               dir: workspace.dir,
               unitAddress: args.subject,
-              dispatch_role: readinessDispatchRole,
-              mode: "strict",
-              graph_impact: recoveredGraphImpact
+              readinessDispatchRole,
+              graphDerivationRequiredForDispatch,
+              generateGraphImpactEvidence,
+              validateDispatch,
+              boundedRecoveryDetail
             });
+            readiness = prepared.readiness;
+            if (prepared.refusal) return jsonContent(prepared.refusal);
+            const recoveredGraphImpact = prepared.recoveredGraphImpact;
 
             if (Object.values(readiness.recovery ?? {}).includes("nonrecoverable_integrity_failure")) {
               return jsonContent(buildBlockedDispatchResult({
@@ -624,13 +961,17 @@ export function registerDispatchTools({
             const neRefusal = nodeEngineRefusal(readiness);
             if (neRefusal) {
               privateHandoff = null;
+              const needsReviewProjection = readiness.admissibility?.status === "needs_review"
+                ? projectNeedsReviewRefusal({ readiness, subject: args.subject })
+                : null;
               return jsonContent(buildBlockedDispatchResult({
                 blockerCode: neRefusal.code,
                 reason: neRefusal.reason,
-                detail: boundedRecoveryDetail(readiness, {
+                detail: needsReviewProjection?.detail ?? boundedRecoveryDetail(readiness, {
                   admissibility_status: readiness.admissibility?.status ?? null,
                   diagnostic_code: readiness.admissibility?.diagnostic_code ?? null
-                })
+                }),
+                nextAction: needsReviewProjection?.nextAction ?? null
               }));
             }
 
@@ -804,15 +1145,21 @@ export function registerDispatchTools({
         });
         if (!launch || launch.accepted !== true) {
           const refusal = launch?.refusal ?? {};
+          const correctiveRecovery = projectManagedCorrectiveStatusRecovery(refusal, args.subject);
+          const parentReviewRecovery = projectManagedParentReviewRecovery(refusal, args.subject);
+          const needsReviewRecovery = refusal.reason === "worker_admission_remote_needs_review"
+            ? projectNeedsReviewRefusal({ readiness, refusal, subject: args.subject })
+            : null;
           return jsonContent(
             buildBlockedDispatchResult({
-              blockerCode: mapBackendRefusalToDispatchCode(refusal.code),
-              reason: refusal.reason ?? "launch_backend_refused",
-              detail: {
+              blockerCode: correctiveRecovery?.blockerCode ?? parentReviewRecovery?.blockerCode ?? mapBackendRefusalToDispatchCode(refusal.code),
+              reason: correctiveRecovery?.reason ?? parentReviewRecovery?.reason ?? refusal.reason ?? "launch_backend_refused",
+              detail: correctiveRecovery?.detail ?? parentReviewRecovery?.detail ?? needsReviewRecovery?.detail ?? {
                 app: dispatchApp,
                 backend_refusal: refusal.detail ?? null,
                 admission: admissionDetail
-              }
+              },
+              nextAction: correctiveRecovery?.nextAction ?? parentReviewRecovery?.nextAction ?? needsReviewRecovery?.nextAction ?? null
             })
           );
         }
@@ -849,158 +1196,19 @@ export function registerDispatchTools({
     }
   );
 
-  registerTool(
-    COMMITTED_SLICE_INTEGRATION_TOOL_NAME,
-    {
-      description:
-        "Request exact committed-slice integration as an orchestrator continuation. A slice with no remaining tree delta succeeds idempotently with empty_delivery:true and leaves the WK ref unchanged even when its tip is a proper ancestor, its worktree is absent, or lifecycle/review evidence is absent or ambiguous. Findings-only reviewer and redteam results are append-only advisory evidence with no admission or veto authority; clean output cannot authorize and findings cannot prohibit this operation. The orchestrator may accept, reject, or defer individual retained findings, but those dispositions are request facts, not authorization. CCE alone owns any configured organization-policy decision. Paid-tier presence by itself configures no gate and implies no decision. With no configured gate the server proceeds on DEC-0133 free substrate and reports a non-audit posture; with a configured gate, a missing, unavailable, malformed, unratified, denied, or target-mismatched CCE decision fails closed. Input is closed to repo alias, canonical slice subject, and advisory dispositions; refs, SHAs, receipts, review results, policy verdicts, CCE attestations, liveness, and other authority carriers are rejected. The server re-derives the exact target and performs CAS-safe idempotent integration exactly once.",
-      inputSchema: z.object({
-        repo: z.string().optional(),
-        subject: z.string(),
-        dispositions: z.array(z.object({
-          review_run_id: z.string(),
-          finding_id: z.string(),
-          disposition: z.enum(["accept", "reject", "defer"])
-        }).strict()).optional(),
-        ...Object.fromEntries(
-          [
-            ...CALLER_NODE_ENGINE_AUTHORITY_FIELDS,
-            ...CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS,
-            ...CALLER_CCE_POLICY_AUTHORITY_FIELDS
-          ].map((field) => [field, z.unknown().optional()])
-        )
-      }).strict()
-    },
-    async (args) => {
-      try {
-        const refusedFields = [
-          ...CALLER_NODE_ENGINE_AUTHORITY_FIELDS,
-          ...CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS,
-          ...CALLER_CCE_POLICY_AUTHORITY_FIELDS
-        ].filter((field) => Object.prototype.hasOwnProperty.call(args ?? {}, field));
-        if (refusedFields.length > 0) {
-          return jsonContent(buildBlockedDispatchResult({
-            blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
-            reason: "caller_supplied_integration_authority",
-            detail: { refused_fields: refusedFields }
-          }));
-        }
-        if (typeof args?.subject !== "string" || !/^WK-\d{4}#SLICE-\d{3}$/u.test(args.subject)) {
-          return jsonContent(buildBlockedDispatchResult({
-            blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
-            reason: "committed_slice_integration_subject_invalid",
-            detail: { subject: typeof args?.subject === "string" ? args.subject : null }
-          }));
-        }
-        resolveWorkspaceRepo(workspaceRepos, args?.repo);
-        if (typeof dispatchBackend?.requestCommittedSliceIntegration !== "function") {
-          return jsonContent(buildBlockedDispatchResult({
-            blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
-            reason: "committed_slice_integration_backend_unavailable",
-            detail: { missing_backend: "requestCommittedSliceIntegration" }
-          }));
-        }
-        const result = await dispatchBackend.requestCommittedSliceIntegration({
-          subject: args.subject,
-          dispositions: args.dispositions
-        });
-        if (result?.integrated === true) {
-          return jsonContent({
-            schema_version: "workspace-integrate-committed-slice.v1",
-            accepted: true,
-            subject: args.subject,
-            integration: result,
-            blocker: null
-          });
-        }
-        const refusal = result?.refusal ?? null;
-        return jsonContent(buildBlockedDispatchResult({
-          blockerCode: refusal?.code?.includes("unavailable") || refusal?.code?.includes("missing")
-            ? DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE
-            : DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
-          reason: refusal?.reason ?? result?.reason ?? "committed_slice_integration_refused",
-          detail: refusal === null
-            ? (typeof result?.code === "string" ? { code: result.code } : null)
-            : { cce_policy_refusal: refusal }
-        }));
-      } catch (error) {
-        return jsonContent(buildBlockedDispatchResult({
-          blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
-          reason: "dispatch_tool_exception",
-          detail: buildDispatchToolExceptionDetail(COMMITTED_SLICE_INTEGRATION_TOOL_NAME, error)
-        }));
-      }
-    }
-  );
+  registerCommittedSliceIntegrationRoute({
+    registerTool, workspaceRepos, z, jsonContent, resolveWorkspaceRepo, dispatchBackend,
+    committedSliceIntegrationToolName: COMMITTED_SLICE_INTEGRATION_TOOL_NAME,
+    callerNodeEngineAuthorityFields: CALLER_NODE_ENGINE_AUTHORITY_FIELDS,
+    callerCommittedSliceAuthorityFields: CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS,
+    callerCcePolicyAuthorityFields: CALLER_CCE_POLICY_AUTHORITY_FIELDS
+  });
 
-  registerTool(
-    WK_FORGE_HANDOFF_TOOL_NAME,
-    {
-      description:
-        "Request publication of the exact terminal candidate through the host forge executor. Reviewer and redteam results are advisory evidence: clean output cannot authorize and findings cannot veto. CCE alone decides a configured organization-policy gate; paid tier alone configures no policy. Configured missing, unavailable, malformed, unratified, denied, or target-mismatched evidence fails closed; no configured gate follows DEC-0133 free substrate and reports non-audit. Orchestrator/operator only. Input is closed to a workspace alias and canonical record-level assigned_unit. The server derives L/W/B/C, candidate-bound record, materialization, remote, branch, and PR. After restart it reads only the fixed current-candidate ref: a present target is mechanically recovered, while an absent ref triggers deterministic first-cycle construction and absent-ref expected-old CAS before exact validation. Monitor memory, historical bindings, and legacy candidate refs are irrelevant. Per DEC-0169, later landing-ref movement does not invalidate review or block publication of unchanged C; merge readiness belongs to the configured merge actor and CCE policy. Missing, ambiguous, moved, or inconsistent required Git/object/record/remote facts other than normal current-ref absence refuse. Exact branch and PR state recovers without duplication. Credentials and raw process output never enter requests or results.",
-      inputSchema: z.object({
-        repo: z.string().optional(),
-        assigned_unit: z.string()
-      }).strict()
-    },
-    async (args) => {
-      try {
-        const assignedUnit = args?.assigned_unit;
-        if (typeof assignedUnit !== "string" || !/^WK-\d{4}$/u.test(assignedUnit)) {
-          return jsonContent(
-            buildBlockedDispatchResult({
-              blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
-              reason: "wk_forge_handoff_subject_invalid",
-              detail: { assigned_unit: typeof assignedUnit === "string" ? assignedUnit : null }
-            })
-          );
-        }
-
-        resolveWorkspaceRepo(workspaceRepos, args?.repo);
-        if (typeof wkForgeHandoffAdapter !== "function") {
-          return jsonContent(
-            buildBlockedDispatchResult({
-              blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
-              reason: "wk_forge_handoff_executor_unavailable",
-              detail: { missing_backend: "wk_forge_handoff_adapter" }
-            })
-          );
-        }
-        const outcome = await wkForgeHandoffAdapter({ assigned_unit: assignedUnit });
-        if (outcome && outcome.accepted === true) {
-          return jsonContent({
-            schema_version: "workspace-wk-forge-handoff.v1",
-            assigned_unit: assignedUnit,
-            forge_handoff: outcome.forge_handoff,
-            blocker: null
-          });
-        }
-        const refusal = (outcome && typeof outcome.refusal === "object" && outcome.refusal !== null)
-          ? outcome.refusal
-          : {};
-        const blockerCode =
-          mapBackendRefusalToDispatchCode(refusal.code) ??
-          DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED;
-        return jsonContent(
-          buildBlockedDispatchResult({
-            blockerCode,
-            reason: typeof refusal.reason === "string" ? refusal.reason : "wk_forge_handoff_refused",
-            detail: refusal.detail ?? (typeof refusal.category === "string"
-              ? { category: refusal.category }
-              : null)
-          })
-        );
-      } catch (error) {
-        return jsonContent(
-          buildBlockedDispatchResult({
-            blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
-            reason: "dispatch_tool_exception",
-            detail: buildDispatchToolExceptionDetail(WK_FORGE_HANDOFF_TOOL_NAME, error)
-          })
-        );
-      }
-    }
-  );
+  registerForgeHandoffRoute({
+    registerTool, workspaceRepos, z, jsonContent, resolveWorkspaceRepo,
+    invokeWkForgeHandoffAdapter: typeof wkForgeHandoffAdapter === "function" ? async (assignedUnit) =>
+      await wkForgeHandoffAdapter({ assigned_unit: assignedUnit }) : null
+  });
 
   const ctx = {
     registerTool,

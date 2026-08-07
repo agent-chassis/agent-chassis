@@ -73,6 +73,8 @@ Every `WK-*` and slice follows one standard lifecycle:
 6. Remediate review findings until no blocking or medium findings remain, or record the remainder as explicit blockers.
 7. Record closure and status: surfaces changed, validation run, blockers, and follow-on work. Move remaining work into a new or existing `WK-*` rather than leaving unchecked tasks on a closed item. When the change adds a new agent-usable capability, surface it in the same change on an always-on agent surface this repo has adopted.
 
+Integration is the coordinator's action and the only way a slice's delivery reaches the WK's accumulated ref. An unintegrated delivery is invisible to every later slice, whose worker starts from the unadvanced ref — that is how a remediation slice rebuilds its predecessor's work instead of iterating on it. A slice is reviewed before it integrates, and the final whole-WK candidate is reviewed before it is published. What those reviews return is advisory: the coordinator accepts, rejects, or defers each finding and records the disposition rather than treating severity as a veto.
+
 Routine read-only verification — validate work records, lint, inspect a generated artifact, check dispatch or adoption readiness, query graph impact, or refresh status — is coordinator-owned and must not spawn an implementation slice on its own. Create an implementation WK or slice only when the task requires a write to a repo-owned source, doc, or configuration surface.
 
 ## Coordinator Duties

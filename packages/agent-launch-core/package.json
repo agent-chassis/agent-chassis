@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/agent-launch-core",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -28,6 +28,7 @@
     "./src/lib/agent-role-result-schema-path.mjs": "./src/lib/agent-role-result-schema-path.mjs",
     "./src/lib/agent-role-result.mjs": "./src/lib/agent-role-result.mjs",
     "./src/lib/config.mjs": "./src/lib/config.mjs",
+    "./src/lib/durable-runtime-state.mjs": "./src/lib/durable-runtime-state.mjs",
     "./src/lib/filesystem.mjs": "./src/lib/filesystem.mjs",
     "./src/lib/launcher-context-mint.mjs": "./src/lib/launcher-context-mint.mjs",
     "./src/lib/registry.mjs": "./src/lib/registry.mjs",
@@ -39,6 +40,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@agent-chassis/wiki-core": "^0.5.4"
+    "@agent-chassis/wiki-core": "^0.5.5"
   }
 }

@@ -82,16 +82,25 @@ export function createBackendScope(ctx) {
       const selectedUnitContract = record.slices.find(
         (candidate) => candidate?.id === dependencies.slice.id
       );
+
       const authority = resolveFrozenWorkerScopeAuthority({
         mainRepo: worktreeProvisioningConfig.mainRepo,
         subject,
         record,
-        slice: selectedUnitContract
+        slice: selectedUnitContract,
+        scopeBase: dependencies.scope_existence_base,
+        deps: worktreeProvisioningConfig.deps ?? {}
       });
       const snapshot = Object.freeze({
         authority,
         record,
-        selected_unit_contract: selectedUnitContract
+        selected_unit_contract: selectedUnitContract,
+
+        scope_existence: Object.freeze({
+          main_repo: worktreeProvisioningConfig.mainRepo,
+          base: dependencies.scope_existence_base,
+          run_git: worktreeProvisioningConfig.deps?.runGit ?? null
+        })
       });
       registeredWorkerScopeSnapshots.add(snapshot);
       return { ok: true, snapshot };

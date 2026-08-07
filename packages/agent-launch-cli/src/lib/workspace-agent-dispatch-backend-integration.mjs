@@ -1,9 +1,13 @@
 
 
 import path from "node:path";
-import { setWorkRecordStatusByUnit } from "@agent-chassis/wiki-core";
+import {
+  setWorkRecordStatusByUnit,
+  writeValidatedWorkRecord
+} from "@agent-chassis/wiki-core";
 import {
   integrateCommittedSlice,
+  recoverZeroDeltaIntegratedSlice,
   SLICE_INTEGRATION_BOUNDARY_AUTHORIZATION_SCHEMA_VERSION,
   SLICE_INTEGRATION_POLICY_POSTURES
 } from "./slice-integration.mjs";
@@ -14,15 +18,20 @@ import {
   resolveCommittedSliceReviewAdmission
 } from "./committed-slice-review-admission.mjs";
 import {
-  deepFreezeCanonicalSnapshot,
-  resolveCanonicalSliceReviewUnit,
-  verifyFrozenSliceReviewTargetAgainstObjectStore,
   resolveCanonicalSliceIntegrationUnit
 } from "./backend-scope-authority.mjs";
 import {
-  digestTrustedExactReviewEvidence,
-  receiptCarriesUsableReviewVerdict
-} from "./workspace-agent-dispatch-run-receipt.mjs";
+  AUTHENTICATED_INTEGRATION_CONTINUATION,
+  brandedContinuation,
+  continuationRefusal,
+  createBackendIntegrationContinuation,
+  INTEGRATION_CONTINUATION_DIAGNOSTIC_CODE
+} from "./workspace-agent-dispatch-backend-integration-continuation.mjs";
+
+export {
+  AUTHENTICATED_INTEGRATION_CONTINUATION,
+  INTEGRATION_CONTINUATION_DIAGNOSTIC_CODE
+};
 
 export function createCanonicalCommittedSliceIntegrationAdapter(mainRepo) {
   const canonicalMainRepo = path.resolve(mainRepo ?? "");
@@ -57,6 +66,11 @@ export function createCanonicalCommittedSliceIntegrationAdapter(mainRepo) {
       workerTerminated: false,
       transitionToReview: writeStatus,
       markSliceComplete: writeStatus,
+      writeRecordCas: ({ record, expectedSourceDigest }) => writeValidatedWorkRecord({
+        dir: canonicalMainRepo,
+        record,
+        expectedSourceDigest
+      }),
       boundaryAuthorization
     });
   };
@@ -191,13 +205,30 @@ function emptySliceReviewAdvisoryEvidence(context, observationDiagnostic = null)
   });
 }
 
+const INTEGRATION_CLOSEOUT_CONTINUATION = Object.freeze({
+  schema_version: "workspace-agent-closeout-workflow-continuation.v1",
+  advisory: true,
+  authority: "none",
+  grants_authority: false,
+  stage: "resume_original_worker_monitor",
+  decision_required: false,
+  ordered_steps: Object.freeze([
+    Object.freeze({ order: 1, action: "resume_original_worker_monitor", state: "current" })
+  ]),
+  monitor_resumption: Object.freeze({
+    tools: Object.freeze(["workspace_agent_run_status", "workspace_agent_run_wait"]),
+    monitor_handle_source: "launcher_minted_original_worker_monitor_handle",
+    monitor_handle_included: false,
+    instruction: "Reuse the launcher-minted handle from the original worker monitor."
+  })
+});
+
 export function createBackendIntegration(ctx) {
   const {
     worktreeProvisioningConfig,
     reviewContextRunGit,
     sliceIntegrationCcePolicy,
     frozenSliceReviewContexts,
-    exactSliceReviewReceiptStore,
     canonicalCommittedSliceIntegration,
     canonicalCommittedSliceIntegrations,
     canonicalCommittedSliceIntegrationAttempts,
@@ -205,6 +236,11 @@ export function createBackendIntegration(ctx) {
   } = ctx;
 
   const resolveSliceReviewEvidenceSet = (args) => ctx.resolveSliceReviewEvidenceSet(args);
+
+  const {
+    resolveDurableZeroDeltaIntegrationContinuation,
+    resolveCorrectiveFindingsContext
+  } = createBackendIntegrationContinuation(ctx);
 
   async function resolveSliceIntegrationBoundaryAuthorization({
     context,
@@ -343,6 +379,24 @@ export function createBackendIntegration(ctx) {
         worktreeProvisioningConfig.mainRepo,
         subject
       );
+      const recovered = await recoverZeroDeltaIntegratedSlice({
+        mainRepo: worktreeProvisioningConfig.mainRepo,
+        unitAddress: `${integrationUnit.initiative}/${integrationUnit.record_id}/${integrationUnit.slice_id}`,
+        sliceRef: `refs/heads/slice/${integrationUnit.initiative}/${integrationUnit.record_id}/${integrationUnit.slice_id}`,
+        wkRef: `refs/heads/wk/${integrationUnit.initiative}/${integrationUnit.record_id}`,
+        writeRecordCas: ({ record, expectedSourceDigest }) => writeValidatedWorkRecord({
+          dir: worktreeProvisioningConfig.mainRepo,
+          record,
+          expectedSourceDigest
+        }),
+        deps: { runGit: reviewContextRunGit }
+      });
+      if (recovered !== null) {
+        return Object.freeze({
+          ...recovered,
+          closeout_continuation: INTEGRATION_CLOSEOUT_CONTINUATION
+        });
+      }
       const admission = resolveCommittedSliceReviewAdmission({
         mainRepo: worktreeProvisioningConfig.mainRepo,
         worktreeRoot: worktreeProvisioningConfig.worktreeRoot,
@@ -428,7 +482,10 @@ export function createBackendIntegration(ctx) {
         const result = Object.freeze({
           ...integration,
           advisory_review_evidence: evidence,
-          orchestrator_dispositions: orchestratorDispositions
+          orchestrator_dispositions: orchestratorDispositions,
+          ...(integration?.integrated === true
+            ? { closeout_continuation: INTEGRATION_CLOSEOUT_CONTINUATION }
+            : {})
         });
         canonicalCommittedSliceIntegrations.set(key, Promise.resolve(result));
         return result;
@@ -442,63 +499,35 @@ export function createBackendIntegration(ctx) {
     }
   }
 
-  async function resolveCommittedSliceIntegrationContinuation({ subject } = {}) {
+  async function resolveCommittedSliceIntegrationContinuation({ subject, status } = {}) {
     const context = frozenSliceReviewContexts.get(subject) ?? null;
-    if (context === null) return null;
-    const completed = canonicalCommittedSliceIntegrations.get(
-      committedSliceIntegrationTargetKey(context)
-    );
-    if (completed === undefined) return null;
-    const integration = await completed;
-    return Object.freeze({
-      requested: true,
-      completed: integration?.integrated === true,
-      reviewed_sha: context.reviewed_sha
-    });
-  }
-
-  async function resolveCorrectiveFindingsContext({ subject, workspace_dir: workspaceDir }) {
-    if (exactSliceReviewReceiptStore === null ||
-        path.resolve(workspaceDir ?? "") !== worktreeProvisioningConfig?.mainRepo ||
-        !EXACT_IMPLEMENTATION_SLICE_RE.test(subject ?? "")) return null;
-    const targetContext = frozenSliceReviewContexts.get(subject) ?? null;
-    if (targetContext === null) return null;
-    const receipts = await exactSliceReviewReceiptStore.loadAll({
-      unit_address: subject,
-      committed_target_digest: targetContext.committed_target_digest
-    });
-    const findingsReceipts = receipts.filter((receipt) =>
-      receiptCarriesUsableReviewVerdict(receipt) &&
-      receipt.structured_outcome?.outcome === "changes_requested"
-    );
-    if (findingsReceipts.length === 0) return null;
-    const receipt = findingsReceipts[0];
-    const current = resolveCanonicalSliceReviewUnit(worktreeProvisioningConfig.mainRepo, subject);
-    if (digestTrustedExactReviewEvidence(current.canonical_parent_wk_contract) !== receipt.canonical_parent_contract_digest ||
-        digestTrustedExactReviewEvidence(current.review_unit_contract) !== receipt.slice_review_contract_digest) return null;
-    const context = {
-      slice_ref: receipt.slice_ref,
-      reviewed_sha: receipt.reviewed_sha,
-      diff_base_sha: receipt.diff_base_sha
-    };
-    if (verifyFrozenSliceReviewTargetAgainstObjectStore({
-      mainRepo: worktreeProvisioningConfig.mainRepo,
-      context,
-      runGit: reviewContextRunGit
-    }).ok !== true) return null;
-    return deepFreezeCanonicalSnapshot({
-      schema_version: "workspace-agent-trusted-corrective-findings-context.v1",
-      authority: "launcher_exact_review_receipt",
-      unit_address: subject,
-      source_worker_run_id: targetContext.source_worker_run_id ?? null,
-      source_worker_monitor_handle: targetContext.source_worker_monitor_handle ?? null,
-      review_run_ids: findingsReceipts.map((entry) => entry.review_run_id),
-      review_monitor_handles: findingsReceipts.map((entry) => entry.review_monitor_handle),
-      reviewed_sha: receipt.reviewed_sha,
-      diff_base_sha: receipt.diff_base_sha,
-      findings: findingsReceipts.flatMap((entry) => entry.structured_outcome.findings),
-      trusted_evidence_digests: findingsReceipts.map((entry) => entry.trusted_evidence_digest)
-    });
+    if (context !== null) {
+      const completed = canonicalCommittedSliceIntegrations.get(
+        committedSliceIntegrationTargetKey(context)
+      );
+      if (completed !== undefined) {
+        if (status?.subject !== context.source_worker_subject ||
+            status?.run_id !== context.source_worker_run_id ||
+            status?.monitor_handle !== context.source_worker_monitor_handle) {
+          continuationRefusal("warm_worker_tuple_mismatch", {
+            expected_subject: context.source_worker_subject ?? null,
+            actual_subject: status?.subject ?? null,
+            expected_run_id: context.source_worker_run_id ?? null,
+            actual_run_id: status?.run_id ?? null,
+            expected_monitor_handle: context.source_worker_monitor_handle ?? null,
+            actual_monitor_handle: status?.monitor_handle ?? null
+          });
+        }
+        const integration = await completed;
+        return brandedContinuation({
+          requested: true,
+          completed: integration?.integrated === true,
+          reviewed_sha: context.reviewed_sha,
+          ...(integration?.integrated === true ? { integration } : {})
+        });
+      }
+    }
+    return resolveDurableZeroDeltaIntegrationContinuation({ subject, status });
   }
 
   return {

@@ -3,6 +3,7 @@
 import {
   BACKEND_REFUSAL_CODES
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
+import { spawn } from "node:child_process";
 import {
   WIKI_MCP_ASSIGNED_UNIT_ENV_VAR,
   WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR,
@@ -63,27 +64,53 @@ export function buildAcceptSucceedCodexExecutorTestSeams() {
 
     spawn: (plan) => {
       const childArgs = Array.isArray(plan?.childArgs) ? plan.childArgs : [];
+      const child = createCodexExecutorTestSeamChild();
+      let stdinClosed = false;
       dispatchCodexTestSeamEvidence.push(Object.freeze({
         repo: typeof plan?.repo === "string" ? plan.repo : null,
         cwd: typeof plan?.cwd === "string" ? plan.cwd : null,
-        wiki_mcp_child_env: captureDispatchCodexTestWikiChildEnv(childArgs)
+        sparse_worker_namespace: plan?.sparseWorkerNamespace === null || plan?.sparseWorkerNamespace === undefined
+          ? null
+          : Object.freeze({
+              authority: Object.freeze({
+                read_scope: Object.freeze([...plan.sparseWorkerNamespace.authority.read_scope]),
+                repo_paths: Object.freeze([...plan.sparseWorkerNamespace.authority.repo_paths]),
+                write_scope: Object.freeze([...plan.sparseWorkerNamespace.authority.write_scope])
+              }),
+              readable: Object.freeze(plan.sparseWorkerNamespace.readable.map((entry) => entry.absolute)),
+              writable: Object.freeze(plan.sparseWorkerNamespace.writable.map((entry) => entry.absolute))
+            }),
+        bwrap_args: Object.freeze(Array.isArray(plan?.bwrapArgs) ? [...plan.bwrapArgs] : []),
+        writable_roots: Object.freeze(Array.isArray(plan?.writableRoots) ? [...plan.writableRoots] : []),
+        writable_files: Object.freeze(Array.isArray(plan?.writableFiles)
+          ? plan.writableFiles.map((entry) => Object.freeze({
+              real: entry.real,
+              precreated: entry.precreated
+            }))
+          : []),
+        wiki_mcp_child_env: captureDispatchCodexTestWikiChildEnv(childArgs),
+        close_stdin: () => {
+          if (stdinClosed) return;
+          stdinClosed = true;
+          child.process.stdin.end();
+        },
+        terminal: child.terminal
       }));
-      return createCodexExecutorTestSeamChild();
+      return child.process;
     }
   };
 }
 
 function createCodexExecutorTestSeamChild() {
-  const listeners = { exit: [], error: [] };
-  setImmediate(() => {
-    for (const listener of listeners.exit) listener(0, null);
+
+  const child = spawn(process.execPath, ["-e", "process.stdin.resume();"], {
+    stdio: ["pipe", "ignore", "ignore"]
   });
-  return {
-    pid: 0,
-    on(event, listener) {
-      if (event in listeners && typeof listener === "function") listeners[event].push(listener);
-    }
-  };
+  const terminal = new Promise((resolve, reject) => {
+    child.once("exit", (code, signal) => resolve({ code, signal }));
+    child.once("error", reject);
+  });
+  return { process: child, terminal };
 }
 
 export function createAcceptThenSucceedTestExecutor() {

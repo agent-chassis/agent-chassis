@@ -54,6 +54,31 @@ function resolveWorkspacePath(targetDir, requestedPath) {
   return { absolutePath, relativePath: containment || relativeInput };
 }
 
+async function loadDependencyRecords({ record, targetDir, recordStore }) {
+  const resolved = new Map();
+  const dependencies = Array.isArray(record.depends_on) ? record.depends_on : [];
+
+  for (const dependency of dependencies) {
+    if (typeof dependency !== "string") continue;
+    const parsed = parseWorkRecordSummaryUnit(dependency.trim());
+    if (!parsed || parsed.record_id === record.id) continue;
+
+    try {
+      const loaded = await loadWorkRecordById({
+        dir: targetDir,
+        id: parsed.record_id,
+        recordStore
+      });
+      if (loaded?.valid !== true || loaded.record?.id !== parsed.record_id) continue;
+      resolved.set(dependency.trim(), loaded.record);
+    } catch {
+
+    }
+  }
+
+  return (dependency) => resolved.get(dependency) ?? null;
+}
+
 export async function getWorkRecordSummary({
   dir = ".",
   id = null,
@@ -150,10 +175,16 @@ export async function getWorkRecordSummary({
     });
   }
 
+  const dependencyResolver = await loadDependencyRecords({
+    record: loaded.record,
+    targetDir,
+    recordStore
+  });
   const summary = summarizeWorkRecord(loaded.record, {
     unit: parsedUnit,
     verbose,
-    include_full_summary
+    include_full_summary,
+    dependencyResolver
   });
   if (parsedUnit && parsedUnit.kind === "slice" && summary.selected_unit_summary == null) {
     return buildLoadedResult(loaded, {

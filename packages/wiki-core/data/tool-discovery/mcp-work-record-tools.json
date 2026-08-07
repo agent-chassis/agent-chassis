@@ -36,6 +36,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "docs/work-record-ontology.md",
@@ -83,6 +84,8 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "docs/work-record-ontology.md",
@@ -131,6 +134,8 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery-tiers.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md"
       ],
@@ -142,7 +147,7 @@
         "packages/wiki-core/src/lib/work-record-review-results.mjs",
         "packages/wiki-core/src/operations/work-record-review-results.mjs"
       ],
-      "notes": "Agent-safe MCP route for recording coordination-only review-result evidence onto a WK or slice when a trusted reviewer or redteam run yields `changes_requested` role-result evidence or structured missing-result/runtime-failure evidence. Keeps this surface distinct from accepted/no-findings review attestation and from completion-satisfying review evidence. Binds the selected unit to the canonical record and source_digest and derives facts from launcher/backend-minted run status, not caller prose, shell output, or raw final_result bodies. Records evidence only: it does not write accepted_authorities[], does not locally convert needs_review to admit, and does not replace Chassis Control Engine admission-time review validation."
+      "notes": "Agent-safe MCP route for recording coordination-only review-result evidence onto a WK or slice when a trusted reviewer or redteam run yields `changes_requested` role-result evidence, a structured missing result, an invalid structured result, or a runtime failure. An invalid structured result keeps its own evidence class (`invalid_result`, `malformed_result`, `oversized_result`, `duplicate_result`, `multiple_result`, `ordinary_json_result`, `trailing_prose_result`) and never collapses into `missing_result`; `missing_result` covers only a run with no structured result at all or an explicit launcher `final_result.kind: \"missing_result\"`. Retained diagnostics are bounded and travel with the complete diagnostic count as delivered by the trusted launcher projection, which is itself already bounded upstream. Keeps this surface distinct from accepted/no-findings review attestation and from completion-satisfying review evidence. Binds the selected unit to the canonical record and source_digest and derives facts from launcher/backend-minted run status, not caller prose, shell output, or raw final_result bodies. Records evidence only: it does not write accepted_authorities[], does not locally convert needs_review to admit, and does not replace Chassis Control Engine admission-time review validation."
     },
     {
       "tool_name": "assign_work_record_to_initiative",

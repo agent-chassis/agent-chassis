@@ -1,7 +1,10 @@
 
 
 import { spawnSync } from "node:child_process";
-import { computeWorkRecordSourceDigest } from "../../../wiki-core/src/index.mjs";
+import {
+  computeWorkRecordSourceDigest,
+  WORK_RECORD_CLOSURE_FIELD_NAMES
+} from "../../../wiki-core/src/lib/work-record-schema.mjs";
 
 import {
   WK_FORGE_HANDOFF_RESULT_SCHEMA_VERSION,
@@ -17,6 +20,11 @@ import {
   assertTerminalCandidateMaterialization,
   verifyTerminalCandidateCheckout
 } from "./terminal-review-materialization.mjs";
+import {
+  authenticateTerminalCloseoutProjection,
+  authenticateTerminalReviewProjection,
+  isWorkRecordUpdatedDate
+} from "./wk-forge-handoff-recovery.mjs";
 
 export { WK_FORGE_HANDOFF_FAILURE_CATEGORIES };
 
@@ -24,6 +32,7 @@ export const FORGE_LANDING_BRANCH_ENV_VAR = "AGENT_LAUNCH_FORGE_LANDING_BRANCH";
 
 export const PULL_REQUEST_PAGE_LIMIT = 20;
 export const PULL_REQUEST_PAGE_SIZE = 100;
+export const PULL_REQUEST_URL_MAX_LENGTH = 2048;
 
 const WK_RECORD_RE = /^WK-\d{4}$/u;
 const INITIATIVE_RE = /^IN-\d{4}$/u;
@@ -31,6 +40,16 @@ const OBJECT_ID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const FORGE_HOST_RE = /^[a-z0-9.-]+$/u;
 const FORGE_SEGMENT_RE = /^[A-Za-z0-9._-]+$/u;
 const BRANCH_RE = /^[A-Za-z0-9][A-Za-z0-9._\-/]*$/u;
+const PULL_REQUEST_STATES = new Set(["open", "closed"]);
+
+const WK_C_STATUSES = new Set(["todo"]);
+const SAME_RECORD_SLICE_RE = /^SLICE-\d{3}$/u;
+const SAME_RECORD_DEPENDENCY_RE = /^WK-\d{4}#(SLICE-\d{3})$/u;
+const PULL_REQUEST_MERGEABLE_STATES = new Set([
+  "clean", "dirty", "unstable", "blocked", "behind", "has_hooks", "unknown", "draft"
+]);
+const PULL_REQUEST_URL_SECRET_SHAPE_RE =
+  /(?:github_pat_|gh[pousr]_|x-access-token|(?:access[_-]?token|api[_-]?key|authorization|bearer|password|passwd|secret|credential)[=:@/])/iu;
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -318,6 +337,323 @@ function deriveForgeBranchName({ initiative, wk, candidate }) {
   return `handoff/wk/${initiative}/${wk}/${candidate}`;
 }
 
+function readCommitJson(runGit, repo, commit, path) {
+  try {
+    return JSON.parse(git(runGit, repo, ["show", `${commit}:${path}`]));
+  } catch {
+    return null;
+  }
+}
+
+function soleParent(runGit, repo, commit) {
+  try {
+    const parts = git(runGit, repo, ["rev-list", "--parents", "-n", "1", commit]).split(/\s+/u);
+    return parts.length === 2 && OBJECT_ID_RE.test(parts[0]) && OBJECT_ID_RE.test(parts[1])
+      ? parts[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+function changedPaths(runGit, repo, parent, commit) {
+  try {
+    return git(runGit, repo, ["diff-tree", "--no-commit-id", "--name-status", "-r", parent, commit])
+      .split("\n").filter(Boolean).map((line) => line.split(/\s+/u));
+  } catch {
+    return null;
+  }
+}
+
+function isExactWkOnlyModification(runGit, repo, parent, commit, path) {
+  try {
+    const lines = git(runGit, repo, [
+      "diff-tree", "--no-commit-id", "--raw", "-r", "--no-renames", parent, commit
+    ]).split("\n").filter(Boolean);
+    if (lines.length !== 1) return false;
+    const match = /^:(\d{6}) (\d{6}) ([0-9a-f]{40,64}) ([0-9a-f]{40,64}) (\w+)\t(.+)$/u.exec(lines[0]);
+    return match !== null && match[1] === match[2] && match[5] === "M" && match[6] === path;
+  } catch {
+    return false;
+  }
+}
+
+function sameJson(a, b) {
+  return canonicalJson(a) === canonicalJson(b);
+}
+
+function isCanonicalTerminalReviewSlice(slice) {
+  const stringArray = (value) => Array.isArray(value) &&
+    value.every((item) => typeof item === "string" && item.length > 0);
+  const dispatchIntent = slice?.dispatch_intent;
+  return isPlainObject(slice) && typeof slice.id === "string" &&
+    /^SLICE-\d{3}$/u.test(slice.id) && typeof slice.title === "string" &&
+    slice.title.length > 0 && slice.work_kind === "review" &&
+    typeof slice.owner === "string" && slice.owner.length > 0 &&
+    ["low", "medium", "high", "critical"].includes(slice.priority) &&
+    slice.status === "review" && slice.review_purpose === "terminal_whole_wk" &&
+    stringArray(slice.depends_on) && stringArray(slice.read_scope) &&
+    stringArray(slice.repo_paths) && Array.isArray(slice.write_scope) &&
+    slice.write_scope.length === 0 && isPlainObject(dispatchIntent) &&
+    dispatchIntent.intended_agent_role === "reviewer" &&
+    dispatchIntent.target_unit === "slice" &&
+    dispatchIntent.requires_graph_impact === false &&
+    dispatchIntent.requires_escalation === false &&
+    isPlainObject(slice.acceptance) && stringArray(slice.acceptance.criteria) &&
+    stringArray(slice.acceptance.validation);
+}
+
+function isTerminalReviewProjection(before, after, wk) {
+  if (!isPlainObject(before) || !isPlainObject(after) || before.id !== wk || after.id !== wk ||
+      !WK_C_STATUSES.has(before.status) || after.status !== "review") return false;
+  const beforeWithoutStatus = { ...before };
+  const afterWithoutStatus = { ...after };
+  delete beforeWithoutStatus.status;
+  delete afterWithoutStatus.status;
+  if (!Array.isArray(beforeWithoutStatus.slices) || !Array.isArray(afterWithoutStatus.slices)) return false;
+  const beforeSlices = beforeWithoutStatus.slices;
+  const afterSlices = afterWithoutStatus.slices;
+  delete beforeWithoutStatus.slices;
+  delete afterWithoutStatus.slices;
+  if (!sameJson(beforeWithoutStatus, afterWithoutStatus)) return false;
+  const addedTerminalReview = afterSlices.length === beforeSlices.length + 1 &&
+    beforeSlices.every((slice, index) => sameJson(slice, afterSlices[index]));
+  if (afterSlices.length !== beforeSlices.length && !addedTerminalReview) return false;
+  const slicesToCompare = addedTerminalReview ? afterSlices.slice(0, beforeSlices.length) : afterSlices;
+  if (addedTerminalReview) {
+    const added = afterSlices.at(-1);
+    if (!isCanonicalTerminalReviewSlice(added)) return false;
+  }
+  let changed = addedTerminalReview ? 1 : 0;
+  let terminalReview = addedTerminalReview ? 1 : 0;
+  for (let i = 0; i < slicesToCompare.length; i += 1) {
+    const left = beforeSlices[i];
+    const right = afterSlices[i];
+    if (!isPlainObject(left) || !isPlainObject(right)) return false;
+    const leftCopy = { ...left };
+    const rightCopy = { ...right };
+    const isTerminal = leftCopy.work_kind === "review" && leftCopy.review_purpose === "terminal_whole_wk" &&
+      rightCopy.work_kind === "review" && rightCopy.review_purpose === "terminal_whole_wk";
+    if (isTerminal) terminalReview += 1;
+    if (leftCopy.status !== rightCopy.status) {
+      if (!isTerminal || leftCopy.status !== "todo" || rightCopy.status !== "review") return false;
+      delete leftCopy.status;
+      delete rightCopy.status;
+      changed += 1;
+    }
+    if (!sameJson(leftCopy, rightCopy)) return false;
+  }
+  return terminalReview === 1 && changed === 1;
+}
+
+function canonicalClosure(value) {
+  if (!isPlainObject(value)) return false;
+  const keys = Object.keys(value).sort();
+  const expected = [...WORK_RECORD_CLOSURE_FIELD_NAMES].sort();
+  return keys.length === expected.length && keys.every((key, index) => key === expected[index]) &&
+    typeof value.summary === "string" &&
+    Array.isArray(value.validation) && value.validation.every((entry) => typeof entry === "string") &&
+    Array.isArray(value.follow_ups) && value.follow_ups.every((entry) => typeof entry === "string");
+}
+
+function sameRecordDependency(entry, wk) {
+  if (typeof entry !== "string" || entry.includes(":")) return null;
+  if (SAME_RECORD_SLICE_RE.test(entry)) return entry;
+  const match = SAME_RECORD_DEPENDENCY_RE.exec(entry);
+  return match !== null && entry.startsWith(`${wk}#`) ? match[1] : null;
+}
+
+function isFinalSliceCloseoutProjection(before, after, wk) {
+  if (!isPlainObject(before) || !isPlainObject(after) || before.id !== wk || after.id !== wk ||
+      before.status !== "review" || after.status !== "review" ||
+      !Array.isArray(before.slices) || !Array.isArray(after.slices) ||
+      before.slices.length !== after.slices.length) return false;
+
+  const beforeCopy = structuredClone(before);
+  const afterCopy = structuredClone(after);
+
+  if (!isWorkRecordUpdatedDate(beforeCopy.updated) ||
+      !isWorkRecordUpdatedDate(afterCopy.updated)) return false;
+  const updatedChanged = beforeCopy.updated !== afterCopy.updated;
+  delete beforeCopy.updated;
+  delete afterCopy.updated;
+
+  const reviewSlices = beforeCopy.slices.filter((slice) =>
+    isPlainObject(slice) && slice.work_kind === "review" && slice.review_purpose === "terminal_whole_wk"
+  );
+  if (reviewSlices.length !== 1 || !isCanonicalTerminalReviewSlice(reviewSlices[0])) return false;
+  const reviewIndex = beforeCopy.slices.indexOf(reviewSlices[0]);
+  const reviewAfter = afterCopy.slices[reviewIndex];
+  if (!sameJson(reviewSlices[0], reviewAfter)) return false;
+
+  const declared = reviewSlices[0].depends_on;
+  if (!Array.isArray(declared) || !sameJson(declared, reviewAfter?.depends_on)) return false;
+  let closeout = null;
+  for (let index = 0; index < beforeCopy.slices.length; index += 1) {
+    const beforeSlice = beforeCopy.slices[index];
+    const afterSlice = afterCopy.slices[index];
+    if (index === reviewIndex) continue;
+    const sliceId = isPlainObject(beforeSlice) && typeof beforeSlice.id === "string"
+      ? beforeSlice.id : null;
+    const dependency = declared.map((entry) => sameRecordDependency(entry, wk)).find((id) => id === sliceId);
+    if (dependency === null || dependency === undefined) {
+      if (!sameJson(beforeSlice, afterSlice)) return false;
+      continue;
+    }
+
+    if (sameJson(beforeSlice, afterSlice)) continue;
+    if (closeout !== null || !isPlainObject(beforeSlice) || !isPlainObject(afterSlice) ||
+        beforeSlice.work_kind !== "implementation" || afterSlice.work_kind !== "implementation" ||
+        beforeSlice.status !== "review" || afterSlice.status !== "done" ||
+        !isPlainObject(beforeSlice.sections) || !isPlainObject(afterSlice.sections) ||
+        Object.hasOwn(beforeSlice.sections, "closure") || !Object.hasOwn(afterSlice.sections, "closure") ||
+        !canonicalClosure(afterSlice.sections.closure)) return false;
+    const beforeWithoutStatus = { ...beforeSlice, sections: { ...beforeSlice.sections } };
+    const afterWithoutStatus = { ...afterSlice, sections: { ...afterSlice.sections } };
+    delete beforeWithoutStatus.status;
+    delete afterWithoutStatus.status;
+    delete beforeWithoutStatus.sections.closure;
+    delete afterWithoutStatus.sections.closure;
+    if (!sameJson(beforeWithoutStatus, afterWithoutStatus)) return false;
+    closeout = dependency;
+  }
+  if (closeout === null) return false;
+  delete beforeCopy.slices;
+  delete afterCopy.slices;
+  return sameJson(beforeCopy, afterCopy);
+}
+
+function isTerminalReviewAndFinalSliceCloseoutProjection(before, after, wk) {
+  if (!isPlainObject(before) || !isPlainObject(after) || before.id !== wk || after.id !== wk ||
+      !WK_C_STATUSES.has(before.status) || after.status !== "review" ||
+      !Array.isArray(before.slices) || !Array.isArray(after.slices) ||
+      before.slices.length !== after.slices.length) return false;
+  const beforeCopy = structuredClone(before);
+  const afterCopy = structuredClone(after);
+
+  if (!isWorkRecordUpdatedDate(beforeCopy.updated) ||
+      !isWorkRecordUpdatedDate(afterCopy.updated)) return false;
+  delete beforeCopy.updated;
+  delete afterCopy.updated;
+  const terminalIndexes = beforeCopy.slices.flatMap((slice, index) =>
+    isPlainObject(slice) && slice.work_kind === "review" && slice.review_purpose === "terminal_whole_wk"
+      ? [index] : []);
+  if (terminalIndexes.length !== 1) return false;
+  const terminalIndex = terminalIndexes[0];
+  const beforeTerminal = beforeCopy.slices[terminalIndex];
+  const afterTerminal = afterCopy.slices[terminalIndex];
+  if (!isPlainObject(beforeTerminal) || !isPlainObject(afterTerminal) ||
+      !isCanonicalTerminalReviewSlice(afterTerminal) || beforeTerminal.status !== "todo") return false;
+  const terminalBefore = { ...beforeTerminal };
+  const terminalAfter = { ...afterTerminal };
+  delete terminalBefore.status;
+  delete terminalAfter.status;
+  if (!sameJson(terminalBefore, terminalAfter)) return false;
+  const declared = beforeTerminal.depends_on;
+  if (!Array.isArray(declared) || !sameJson(declared, afterTerminal.depends_on)) return false;
+
+  let closeout = null;
+  let closeoutIndex = -1;
+  for (let index = 0; index < beforeCopy.slices.length; index += 1) {
+    if (index === terminalIndex) continue;
+    const beforeSlice = beforeCopy.slices[index];
+    const afterSlice = afterCopy.slices[index];
+    const sliceId = isPlainObject(beforeSlice) && typeof beforeSlice.id === "string"
+      ? beforeSlice.id : null;
+    const dependency = declared.map((entry) => sameRecordDependency(entry, wk)).find((id) => id === sliceId);
+    if (dependency === null || dependency === undefined) {
+      if (!sameJson(beforeSlice, afterSlice)) return false;
+      continue;
+    }
+    if (sameJson(beforeSlice, afterSlice)) continue;
+    if (closeout !== null || !isPlainObject(beforeSlice) || !isPlainObject(afterSlice) ||
+        beforeSlice.work_kind !== "implementation" || afterSlice.work_kind !== "implementation" ||
+        beforeSlice.status !== "review" || afterSlice.status !== "done" ||
+        !isPlainObject(beforeSlice.sections) || !isPlainObject(afterSlice.sections) ||
+        Object.hasOwn(beforeSlice.sections, "closure") || !Object.hasOwn(afterSlice.sections, "closure") ||
+        !canonicalClosure(afterSlice.sections.closure)) return false;
+    const beforeWithoutStatus = { ...beforeSlice, sections: { ...beforeSlice.sections } };
+    const afterWithoutStatus = { ...afterSlice, sections: { ...afterSlice.sections } };
+    delete beforeWithoutStatus.status;
+    delete afterWithoutStatus.status;
+    delete beforeWithoutStatus.sections.closure;
+    delete afterWithoutStatus.sections.closure;
+    if (!sameJson(beforeWithoutStatus, afterWithoutStatus)) return false;
+    closeout = dependency;
+    closeoutIndex = index;
+  }
+  if (closeout === null) return false;
+
+  delete beforeCopy.status;
+  delete afterCopy.status;
+  delete beforeCopy.slices[terminalIndex].status;
+  delete afterCopy.slices[terminalIndex].status;
+  delete beforeCopy.slices[closeoutIndex].status;
+  delete afterCopy.slices[closeoutIndex].status;
+  delete afterCopy.slices[closeoutIndex].sections.closure;
+  return sameJson(beforeCopy, afterCopy);
+}
+
+export function authenticateWkCloseoutChain({ mainRepo, wk, candidate, head, deps = {} } = {}) {
+  const runGit = deps.runGit ?? defaultRunGit;
+  if (typeof mainRepo !== "string" || !WK_RECORD_RE.test(wk) ||
+      !OBJECT_ID_RE.test(candidate ?? "") || !OBJECT_ID_RE.test(head ?? "") || head === candidate) {
+    return null;
+  }
+  const path = `wiki/work-records/${wk}.json`;
+  const initialCandidateRecord = readCommitJson(runGit, mainRepo, candidate, path);
+  const headRecord = readCommitJson(runGit, mainRepo, head, path);
+  if (authenticateTerminalCloseoutProjection({
+    candidateRecord: initialCandidateRecord, liveRecord: headRecord
+  }).ok === true && isExactWkOnlyModification(runGit, mainRepo, candidate, head, path) &&
+      soleParent(runGit, mainRepo, head) === candidate) {
+    return Object.freeze({ head, review_state: candidate });
+  }
+  const reviewParent = soleParent(runGit, mainRepo, head);
+  if (reviewParent === candidate && isExactWkOnlyModification(runGit, mainRepo, candidate, head, path)) {
+    const candidateRecord = readCommitJson(runGit, mainRepo, candidate, path);
+    const closeoutRecord = readCommitJson(runGit, mainRepo, head, path);
+    if (isFinalSliceCloseoutProjection(candidateRecord, closeoutRecord, wk)) {
+      return Object.freeze({ head, review_state: candidate });
+    }
+  }
+  if (reviewParent !== candidate) {
+    const completionParent = reviewParent;
+    if (completionParent === null) return null;
+    const reviewStateParent = soleParent(runGit, mainRepo, completionParent);
+    if (reviewStateParent !== candidate) return null;
+    const reviewChanges = changedPaths(runGit, mainRepo, candidate, completionParent);
+    const completionChanges = changedPaths(runGit, mainRepo, completionParent, head);
+    if (!reviewChanges || !completionChanges || reviewChanges.length !== 1 || completionChanges.length !== 1 ||
+        !isExactWkOnlyModification(runGit, mainRepo, candidate, completionParent, path) ||
+        !isExactWkOnlyModification(runGit, mainRepo, completionParent, head, path)) return null;
+    const candidateRecord = readCommitJson(runGit, mainRepo, candidate, path);
+    const reviewRecord = readCommitJson(runGit, mainRepo, completionParent, path);
+    const completionRecord = readCommitJson(runGit, mainRepo, head, path);
+    const reviewProjection = authenticateTerminalReviewProjection({
+      candidateRecord, liveRecord: reviewRecord
+    });
+    if (reviewProjection.ok !== true &&
+        authenticateTerminalCloseoutProjection({ candidateRecord, liveRecord: reviewRecord }).ok !== true &&
+        !isTerminalReviewProjection(candidateRecord, reviewRecord, wk) &&
+        !isTerminalReviewAndFinalSliceCloseoutProjection(candidateRecord, reviewRecord, wk) ||
+        !isPlainObject(completionRecord) || completionRecord.id !== wk) return null;
+    if (completionRecord.status !== "done") return null;
+    const reviewForCompletion = { ...reviewRecord };
+    const completionWithoutStatus = { ...completionRecord };
+    delete reviewForCompletion.status;
+    delete completionWithoutStatus.status;
+    if (!sameJson(reviewForCompletion, completionWithoutStatus)) return null;
+    return Object.freeze({ head, review_state: completionParent });
+  }
+  const reviewChanges = changedPaths(runGit, mainRepo, candidate, head);
+  if (!reviewChanges || reviewChanges.length !== 1 ||
+      !isExactWkOnlyModification(runGit, mainRepo, candidate, head, path)) return null;
+  const candidateRecord = readCommitJson(runGit, mainRepo, candidate, path);
+  const reviewRecord = readCommitJson(runGit, mainRepo, head, path);
+  if (!isTerminalReviewProjection(candidateRecord, reviewRecord, wk)) return null;
+  return Object.freeze({ head, review_state: head });
+}
+
 export function buildGhForge({ repository, mainRepo, deps = {} }) {
   const runGit = deps.runGit ?? defaultRunGit;
   const runGh = deps.runGh ?? defaultRunGh;
@@ -455,18 +791,51 @@ export function buildGhForge({ repository, mainRepo, deps = {} }) {
 }
 
 function validateObservedPullRequest({ item, repository, base, head }) {
-  if (!isPlainObject(item)) return null;
-  if (typeof item.number !== "number" || !Number.isInteger(item.number) || item.number <= 0) return null;
-  if (!sameForgeRepository(item.repository, repository)) return null;
-  if (item.base_ref !== base || item.head_ref !== head) return null;
-  return Object.freeze({
-    number: item.number,
-    state: typeof item.state === "string" ? item.state : null,
-    merged: item.merged === true,
-    url: typeof item.url === "string" ? item.url : null,
-    mergeable_state: typeof item.mergeable_state === "string" ? item.mergeable_state : null,
-    head_sha: typeof item.head_sha === "string" ? item.head_sha : null
-  });
+  try {
+    if (!isPlainObject(item)) return null;
+
+    const number = item.number;
+    const itemRepository = item.repository;
+    const baseRef = item.base_ref;
+    const headRef = item.head_ref;
+    const state = item.state;
+    const merged = item.merged;
+    const mergeableStateValue = item.mergeable_state;
+    const headSha = item.head_sha;
+    const url = item.url;
+
+    if (!Number.isSafeInteger(number) || number <= 0) return null;
+    if (!sameForgeRepository(itemRepository, repository)) return null;
+    if (baseRef !== base || headRef !== head) return null;
+    if (!PULL_REQUEST_STATES.has(state) || typeof merged !== "boolean") return null;
+    if (merged === true && state !== "closed") return null;
+    const mergeableState = mergeableStateValue === undefined ? null : mergeableStateValue;
+    if (mergeableState !== null && !PULL_REQUEST_MERGEABLE_STATES.has(mergeableState)) return null;
+    if (typeof headSha !== "string" || !OBJECT_ID_RE.test(headSha) || /^0+$/u.test(headSha)) {
+      return null;
+    }
+    if (typeof url !== "string" || url.length === 0 ||
+        Buffer.byteLength(url, "utf8") > PULL_REQUEST_URL_MAX_LENGTH || url.includes("%") ||
+        /[^\x21-\x7e]/u.test(url)) return null;
+    const parsedUrl = new URL(url);
+    const canonicalUrl = parsedUrl.href;
+    if (parsedUrl.protocol !== "https:" || parsedUrl.hostname.length === 0 ||
+        parsedUrl.username !== "" || parsedUrl.password !== "" || parsedUrl.search !== "" ||
+        parsedUrl.hash !== "" || canonicalUrl !== url || canonicalUrl.includes("%") ||
+        /[^\x21-\x7e]/u.test(canonicalUrl) ||
+        PULL_REQUEST_URL_SECRET_SHAPE_RE.test(url) ||
+        PULL_REQUEST_URL_SECRET_SHAPE_RE.test(canonicalUrl)) return null;
+    return Object.freeze({
+      number,
+      state,
+      merged,
+      url,
+      mergeable_state: mergeableState,
+      head_sha: headSha
+    });
+  } catch {
+    return null;
+  }
 }
 
 async function observeExactPullRequests({ forge, repository, base, head }) {
@@ -478,17 +847,21 @@ async function observeExactPullRequests({ forge, repository, base, head }) {
     } catch {
       return { ok: false, reason: "pull_request_transport_failed" };
     }
-    if (!isPlainObject(response) || response.kind !== "ok" || !Array.isArray(response.items)) {
+    try {
+      if (!isPlainObject(response) || response.kind !== "ok" || !Array.isArray(response.items)) {
+        return { ok: false, reason: "pull_request_observation_unusable" };
+      }
+      for (const item of response.items) {
+        const validated = validateObservedPullRequest({ item, repository, base, head });
+        if (validated === null) {
+          return { ok: false, reason: "observed_pull_request_identity_mismatch" };
+        }
+        matches.push(validated);
+      }
+      if (response.has_next !== true) return { ok: true, matches };
+    } catch {
       return { ok: false, reason: "pull_request_observation_unusable" };
     }
-    for (const item of response.items) {
-      const validated = validateObservedPullRequest({ item, repository, base, head });
-      if (validated === null) {
-        return { ok: false, reason: "observed_pull_request_identity_mismatch" };
-      }
-      matches.push(validated);
-    }
-    if (response.has_next !== true) return { ok: true, matches };
   }
   return { ok: false, reason: "pull_request_page_limit_exceeded" };
 }
@@ -584,13 +957,20 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
     let moved = guard();
     if (moved !== null) return moved;
     let branchObservation = await forge.observeRemoteBranch({ branch });
+    let authenticatedHead = binding.candidate;
     moved = guard();
     if (moved !== null) return moved;
     if (branchObservation?.kind === "present") {
       if (branchObservation.sha !== binding.candidate) {
-        return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
-          stage: "branch", expected: binding.candidate, observed: branchObservation.sha
+        const closeout = authenticateWkCloseoutChain({
+          mainRepo, wk, candidate: binding.candidate, head: branchObservation.sha, deps
         });
+        if (closeout === null) {
+          return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
+            stage: "branch", expected: binding.candidate, observed: branchObservation.sha
+          });
+        }
+        authenticatedHead = closeout.head;
       }
     } else if (branchObservation?.kind === "absent") {
       moved = guard();
@@ -657,11 +1037,11 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
       }
     }
     const pullRequest = observedPrs.matches[0];
-    if (pullRequest.head_sha !== binding.candidate) {
+    if (pullRequest.head_sha !== authenticatedHead || branchObservation.sha !== authenticatedHead) {
       return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
         stage: "pull_request",
         reason: "pull_request_head_sha_disagrees",
-        expected: binding.candidate,
+        expected: authenticatedHead,
         observed: pullRequest.head_sha
       });
     }
@@ -680,7 +1060,7 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
       assigned_unit: wk,
       initiative,
       branch,
-      commit: binding.candidate,
+      commit: authenticatedHead,
       tree: binding.candidate_tree,
       parent: binding.base,
       base_branch: landing,
@@ -691,10 +1071,9 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
       pull_request: pullRequest,
       proposal_authority: "configured_forge_and_human_merge_actor"
     }) };
-  } catch (error) {
+  } catch {
     return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE, {
-      reason: "terminal_candidate_publication_threw",
-      message: error?.message ?? String(error)
+      reason: "terminal_candidate_publication_threw"
     });
   }
 }

@@ -341,7 +341,9 @@ function evaluateWorkRecordWrapperGateInternal({
   workerAdmission = null,
   remoteWorkerAdmission = null,
   launchTimestamp = new Date().toISOString(),
-  supplementalInstructions = []
+  supplementalInstructions = [],
+
+  terminalStructuredRoleResultMode = undefined
 } = {}) {
   const parsedUnit = parseWorkRecordUnitAddress(unitAddress);
   const normalizedReadiness = normalizeReadinessEnvelope(readiness);
@@ -588,7 +590,8 @@ function evaluateWorkRecordWrapperGateInternal({
       canonicalSummary: summary,
       agentBrief: normalizedBrief.value,
       supplementalInstructions,
-      launchTimestamp
+      launchTimestamp,
+      terminalStructuredRoleResultMode
     })
   };
 }
@@ -601,7 +604,9 @@ export function buildWorkRecordLaunchPacket({
   canonicalSummary,
   agentBrief,
   launchTimestamp = new Date().toISOString(),
-  supplementalInstructions = []
+  supplementalInstructions = [],
+
+  terminalStructuredRoleResultMode = undefined
 } = {}) {
   const parsedUnit = parseWorkRecordUnitAddress(unitAddress);
   const normalizedReadiness = normalizeReadinessEnvelope(readiness);
@@ -804,7 +809,9 @@ export function buildWorkRecordLaunchPacket({
       readiness: normalizedReadiness.value,
       agentBrief: normalizedBrief.value,
       launchTimestamp,
-      supplementalInstructions: launchSupplementalInstructions
+      supplementalInstructions: launchSupplementalInstructions,
+
+      terminalStructuredRoleResultMode
     })
   };
 }

@@ -12,7 +12,8 @@ import {
   STDIO_MCP_CONDUIT_ERROR_CODES,
   assertTrustedStdioMcpConduitBinding,
   failStdioMcpConduit,
-  normalizeStdioMcpConduitRole
+  normalizeStdioMcpConduitRole,
+  projectStdioMcpChannelClientRegistration
 } from "./stdio-mcp-conduit-contract.mjs";
 import {
   mintTrustedStdioMcpConduitAuthority
@@ -29,8 +30,10 @@ export function buildCodexStdioMcpRegistrationOverrides(binding) {
     failStdioMcpConduit(STDIO_MCP_CONDUIT_ERROR_CODES.FIFO_IDENTITY_MISMATCH,
       "Codex registration requires its exact launcher-minted Codex conduit binding");
   }
-  const command = JSON.stringify(binding.relay.command);
-  const args = [...binding.relay.args].map((value) => JSON.stringify(value)).join(",");
+
+  const relay = projectStdioMcpChannelClientRegistration(binding);
+  const command = JSON.stringify(relay.command);
+  const args = [...relay.args].map((value) => JSON.stringify(value)).join(",");
   return Object.freeze([
     `mcp_servers={wiki={enabled=true,command=${command},args=[${args}],startup_timeout_sec=${STDIO_MCP_CLIENT_READINESS_TIMEOUT_SEC}}}`
   ]);

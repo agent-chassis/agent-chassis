@@ -17,6 +17,13 @@ export const REVIEW_RESULT_REVIEWER_ROLE_CLASS_VALUES = Object.freeze(["reviewer
 export const REVIEW_RESULT_EVIDENCE_CLASS_VALUES = Object.freeze([
   "changes_requested",
   "missing_result",
+  "malformed_result",
+  "invalid_result",
+  "oversized_result",
+  "duplicate_result",
+  "multiple_result",
+  "ordinary_json_result",
+  "trailing_prose_result",
   "runtime_failure"
 ]);
 export const REVIEW_RESULT_TERMINAL_SUCCESS_STATUS_VALUES = Object.freeze(["succeeded", "completed"]);
@@ -40,15 +47,37 @@ export const REVIEW_RESULT_STRUCTURED_MISSING_STATUS_VALUES = Object.freeze([
   "ordinary_json",
   "trailing_prose"
 ]);
-export const REVIEW_RESULT_REVIEWED_CONTROL_ID_VALUES = Object.freeze([
-  "write_scope_total_loc",
-  "max_write_file_loc",
-  "write_scope_count",
-  "acceptance_criteria_count",
-  "validation_command_count",
-  "expected_changed_line_budget",
-  "declared_runtime_mode_count",
-  "artifact_kind_count"
+
+export const REVIEW_RESULT_STRUCTURED_STATUS_PRECEDENCE = Object.freeze([
+  Object.freeze({
+    status: "oversized",
+    codes: Object.freeze(["response_oversized", "payload_oversized"])
+  }),
+  Object.freeze({ status: "multiple", codes: Object.freeze(["multiple_json_candidates"]) }),
+  Object.freeze({ status: "duplicate", codes: Object.freeze(["duplicate_json_key"]) }),
+  Object.freeze({ status: "ordinary_json", codes: Object.freeze(["ordinary_json_code_block"]) }),
+  Object.freeze({ status: "trailing_prose", codes: Object.freeze(["trailing_prose_after_result"]) }),
+  Object.freeze({ status: "malformed", codes: Object.freeze(["malformed_json"]) })
+]);
+
+const REVIEW_RESULT_STRUCTURED_STATUS_EVIDENCE_CLASS = Object.freeze({
+  missing: "missing_result",
+  absent: "missing_result",
+  malformed: "malformed_result",
+  invalid: "invalid_result",
+  oversized: "oversized_result",
+  duplicate: "duplicate_result",
+  multiple: "multiple_result",
+  ordinary_json: "ordinary_json_result",
+  trailing_prose: "trailing_prose_result"
+});
+
+const REVIEW_RESULT_ROLE_OUTCOME_SET = new Set([
+  "no_findings",
+  "passed_no_blocking_or_medium_findings",
+  "changes_requested",
+  "blocked",
+  "failed"
 ]);
 
 const REVIEW_RESULT_REVIEWER_ROLE_CLASS_SET = new Set(REVIEW_RESULT_REVIEWER_ROLE_CLASS_VALUES);
@@ -56,7 +85,6 @@ const REVIEW_RESULT_EVIDENCE_CLASS_SET = new Set(REVIEW_RESULT_EVIDENCE_CLASS_VA
 const REVIEW_RESULT_TERMINAL_SUCCESS_STATUS_SET = new Set(REVIEW_RESULT_TERMINAL_SUCCESS_STATUS_VALUES);
 const REVIEW_RESULT_RUNTIME_FAILURE_STATUS_SET = new Set(REVIEW_RESULT_RUNTIME_FAILURE_STATUS_VALUES);
 const REVIEW_RESULT_STRUCTURED_MISSING_STATUS_SET = new Set(REVIEW_RESULT_STRUCTURED_MISSING_STATUS_VALUES);
-const REVIEW_RESULT_REVIEWED_CONTROL_ID_SET = new Set(REVIEW_RESULT_REVIEWED_CONTROL_ID_VALUES);
 const REVIEW_RESULT_FINDING_SEVERITY_SET = new Set(["critical", "high", "medium", "low", "info"]);
 const REVIEW_RESULT_FINDING_COUNT_FIELDS = Object.freeze([
   "total",
@@ -141,6 +169,8 @@ const FORBIDDEN_AUTHORITY_KEY_NAMES = new Set([
 ]);
 const ALLOWED_STRUCTURED_RESULT_PATHS = new Set([
   "$.structured_role_result.authority",
+
+  "$.structured_role_result.claims.reported_outcome",
   "$.structured_role_result.result.reported_outcome",
   "$.structured_role_result.result.summary"
 ]);
@@ -326,8 +356,9 @@ function normalizeFindings(value) {
       affected_paths: affectedPaths
     };
     if (Object.prototype.hasOwnProperty.call(entry, "control_id")) {
+
       const controlId = boundedString(entry.control_id);
-      if (!controlId || !REVIEW_RESULT_REVIEWED_CONTROL_ID_SET.has(controlId)) return null;
+      if (!controlId) return null;
       finding.control_id = controlId;
     }
     findings.push(finding);
@@ -364,9 +395,9 @@ function normalizeReviewedControls(value) {
     if (!isObject(entry)) return null;
     const controlId = boundedString(entry.control_id);
     const result = boundedString(entry.result);
+
     if (
       !controlId ||
-      !REVIEW_RESULT_REVIEWED_CONTROL_ID_SET.has(controlId) ||
       seen.has(controlId) ||
       (result !== "pass" && result !== "fail")
     ) {
@@ -378,17 +409,56 @@ function normalizeReviewedControls(value) {
   return controls.sort((left, right) => left.control_id.localeCompare(right.control_id));
 }
 
+export function deriveStructuredResultStatusFromDiagnostics(diagnostics) {
+  const codes = new Set();
+  for (const entry of Array.isArray(diagnostics) ? diagnostics : []) {
+    if (!isObject(entry)) continue;
+    const code = normalizeStringEntry(entry.code);
+    if (code) codes.add(code);
+  }
+  for (const tier of REVIEW_RESULT_STRUCTURED_STATUS_PRECEDENCE) {
+    if (tier.codes.some((code) => codes.has(code))) return tier.status;
+  }
+  return "invalid";
+}
+
+function normalizeCompleteDiagnosticCount(value) {
+  const suppliedCount = Array.isArray(value.diagnostics) ? value.diagnostics.length : 0;
+  const stated = value.diagnostic_count;
+  if (stated === undefined || stated === null) return suppliedCount;
+  if (!Number.isInteger(stated) || stated < 0) return null;
+  if (stated < suppliedCount) return null;
+  return stated;
+}
+
 function normalizeStructuredRoleResult(value) {
   if (!isObject(value)) return null;
   if (value.valid !== true) {
+    const diagnostics = normalizeDiagnostics(value.diagnostics);
+    const diagnosticCount = normalizeCompleteDiagnosticCount(value);
+    if (diagnosticCount === null) return null;
+
+    const explicitStatus = boundedStableCode(value.structured_result_status);
+    if (value.structured_result_status !== undefined && value.structured_result_status !== null) {
+      if (!REVIEW_RESULT_STRUCTURED_MISSING_STATUS_SET.has(explicitStatus)) return null;
+    }
     return {
       valid: false,
-      diagnostics: normalizeDiagnostics(value.diagnostics),
+      diagnostics,
+      diagnostic_count: diagnosticCount,
+      status: explicitStatus ?? deriveStructuredResultStatusFromDiagnostics(value.diagnostics),
       candidate: normalizeCandidate(value.candidate)
     };
   }
-  if (!isObject(value.result)) return null;
-  const result = value.result;
+
+  const legacyResult = value.result;
+  if (legacyResult !== undefined && !isObject(legacyResult)) return null;
+  const legacyFindings = legacyResult?.findings;
+  if (legacyFindings !== undefined && !Array.isArray(legacyFindings)) return null;
+  if (!Array.isArray(legacyFindings)) {
+    return normalizeNarrowedStructuredRoleResult(value);
+  }
+  const result = legacyResult;
   const reportedRole = boundedString(result.reported_role);
   const reportedSubject = boundedString(result.reported_subject);
   const reportedOutcome = boundedString(result.reported_outcome);
@@ -415,6 +485,7 @@ function normalizeStructuredRoleResult(value) {
 
   return {
     valid: true,
+    projection: "full",
     result: {
       reported_role: reportedRole,
       reported_subject: reportedSubject,
@@ -426,6 +497,59 @@ function normalizeStructuredRoleResult(value) {
     },
     candidate: normalizeCandidate(value.candidate)
   };
+}
+
+function normalizeNarrowedStructuredRoleResult(value) {
+  const claims = isObject(value.claims) ? value.claims : null;
+  const result = isObject(value.result) ? value.result : null;
+  const reportedRole = boundedString(claims?.reported_role ?? result?.reported_role);
+  const reportedSubject = boundedString(claims?.reported_subject ?? result?.reported_subject);
+  const reportedOutcome = boundedString(claims?.reported_outcome ?? result?.reported_outcome);
+  if (!reportedRole || !reportedSubject || !reportedOutcome) return null;
+  if (!REVIEW_RESULT_ROLE_OUTCOME_SET.has(reportedOutcome)) return null;
+
+  const rawCounts = result?.finding_counts ?? value.finding_counts;
+  let findingCounts = null;
+  if (rawCounts !== undefined && rawCounts !== null) {
+    findingCounts = normalizeFindingCounts(rawCounts);
+    if (!findingCounts) return null;
+    if (!isConsistentNarrowedOutcome(reportedOutcome, findingCounts)) return null;
+  }
+
+  const reviewedControlCount = normalizeReviewedControlCount(value, result);
+  if (reviewedControlCount === null) return null;
+
+  return {
+    valid: true,
+    projection: "narrowed",
+    result: {
+      reported_role: reportedRole,
+      reported_subject: reportedSubject,
+      reported_outcome: reportedOutcome,
+      finding_counts: findingCounts,
+      reviewed_control_count: reviewedControlCount
+    },
+    candidate: normalizeCandidate(value.candidate)
+  };
+}
+
+function normalizeReviewedControlCount(value, result) {
+  const controls = result?.reviewed_controls ?? value.reviewed_controls;
+  if (Array.isArray(controls)) return controls.length;
+  if (controls !== undefined && controls !== null) return null;
+  const count = result?.reviewed_control_count ?? value.reviewed_control_count;
+  if (count === undefined || count === null) return undefined;
+  if (!Number.isInteger(count) || count < 0) return null;
+  return count;
+}
+
+function isConsistentNarrowedOutcome(outcome, counts) {
+  if (outcome === "no_findings") return counts.total === 0;
+  if (outcome === "changes_requested") return counts.total > 0;
+  if (outcome === "passed_no_blocking_or_medium_findings") {
+    return counts.blocking === 0 && counts.critical === 0 && counts.high === 0 && counts.medium === 0;
+  }
+  return true;
 }
 
 function isConsistentReviewerOutcome(outcome, findings, counts) {
@@ -464,7 +588,12 @@ function normalizeDiagnostics(value) {
   return diagnostics;
 }
 
-function deriveNonCompletionClass(runRef, structuredRoleResult) {
+function resolveStructuredResultStatus(runRef, structuredRoleResult) {
+  if (structuredRoleResult?.valid === false) return structuredRoleResult.status;
+  return runRef.structured_result_status ?? null;
+}
+
+function deriveNonCompletionClass(runRef, structuredResultStatus, structuredRoleResult) {
   if (structuredRoleResult?.valid === true) {
     return structuredRoleResult.result.reported_outcome === "changes_requested"
       ? "changes_requested"
@@ -475,9 +604,9 @@ function deriveNonCompletionClass(runRef, structuredRoleResult) {
   }
   if (
     REVIEW_RESULT_TERMINAL_SUCCESS_STATUS_SET.has(runRef.terminal_status) &&
-    REVIEW_RESULT_STRUCTURED_MISSING_STATUS_SET.has(runRef.structured_result_status)
+    REVIEW_RESULT_STRUCTURED_MISSING_STATUS_SET.has(structuredResultStatus)
   ) {
-    return "missing_result";
+    return REVIEW_RESULT_STRUCTURED_STATUS_EVIDENCE_CLASS[structuredResultStatus];
   }
   return null;
 }
@@ -519,38 +648,62 @@ export function computeReviewResultEvidenceDigest(evidence) {
   return computeNormalizedInputDigest(reviewResultEvidenceBoundedFacts(evidence));
 }
 
-function buildRoleResultFacts(structuredRoleResult) {
-  const result = structuredRoleResult.result;
+function roleResultDigestFacts(roleResult) {
   const facts = {
-    result_digest: computeNormalizedInputDigest({
-      reported_role: result.reported_role,
-      reported_subject: result.reported_subject,
-      reported_outcome: result.reported_outcome,
-      findings: result.findings,
-      finding_counts: result.finding_counts,
-      reviewed_controls: result.reviewed_controls
-    }),
-    reported_role: result.reported_role,
-    reported_subject: result.reported_subject,
-    reported_outcome: result.reported_outcome,
-    findings: result.findings,
-    finding_counts: result.finding_counts,
-    reviewed_controls: result.reviewed_controls
+    reported_role: roleResult.reported_role,
+    reported_subject: roleResult.reported_subject,
+    reported_outcome: roleResult.reported_outcome
   };
-  if (result.summary) facts.summary = result.summary;
-  if (structuredRoleResult.candidate) facts.candidate = structuredRoleResult.candidate;
+  if (roleResult.findings !== undefined) facts.findings = roleResult.findings;
+  if (roleResult.finding_counts !== undefined) facts.finding_counts = roleResult.finding_counts;
+  if (roleResult.reviewed_controls !== undefined) {
+    facts.reviewed_controls = roleResult.reviewed_controls;
+  }
+  if (roleResult.reviewed_control_count !== undefined) {
+    facts.reviewed_control_count = roleResult.reviewed_control_count;
+  }
   return facts;
 }
 
-function buildRuntimeResultFacts(evidenceClass, runRef, structuredRoleResult) {
+function buildRoleResultFacts(structuredRoleResult) {
+  const result = structuredRoleResult.result;
+  const facts = {
+    reported_role: result.reported_role,
+    reported_subject: result.reported_subject,
+    reported_outcome: result.reported_outcome
+  };
+  if (structuredRoleResult.projection === "full") {
+    facts.findings = result.findings;
+    facts.finding_counts = result.finding_counts;
+    facts.reviewed_controls = result.reviewed_controls;
+    if (result.summary) facts.summary = result.summary;
+  } else {
+    if (result.finding_counts) facts.finding_counts = result.finding_counts;
+    if (result.reviewed_control_count !== undefined) {
+      facts.reviewed_control_count = result.reviewed_control_count;
+    }
+  }
+  if (structuredRoleResult.candidate) facts.candidate = structuredRoleResult.candidate;
+
+  return { result_digest: computeRoleResultDigest(roleResultDigestFacts(facts)), ...facts };
+}
+
+function buildRuntimeResultFacts(
+  evidenceClass,
+  runRef,
+  structuredResultStatus,
+  structuredRoleResult
+) {
   const facts = { evidence_class: evidenceClass };
-  if (runRef.structured_result_status) facts.structured_result_status = runRef.structured_result_status;
+  if (structuredResultStatus) facts.structured_result_status = structuredResultStatus;
   if (runRef.runtime_failure_code) facts.runtime_failure_code = runRef.runtime_failure_code;
   if (runRef.diagnostic_ref) facts.diagnostic_ref = runRef.diagnostic_ref;
   if (structuredRoleResult?.valid === false) {
     facts.structured_role_result = {
       valid: false,
       diagnostics: structuredRoleResult.diagnostics,
+
+      diagnostic_count: structuredRoleResult.diagnostic_count,
       candidate: structuredRoleResult.candidate
     };
   }
@@ -600,7 +753,8 @@ export function buildReviewResultEvidence(input) {
     return refuse(CODES.malformed, "structured_role_result is malformed or unbounded");
   }
 
-  const evidenceClass = deriveNonCompletionClass(runRef, structuredRoleResult);
+  const structuredResultStatus = resolveStructuredResultStatus(runRef, structuredRoleResult);
+  const evidenceClass = deriveNonCompletionClass(runRef, structuredResultStatus, structuredRoleResult);
   if (!evidenceClass) {
     if (structuredRoleResult?.valid === true) {
       const reportedOutcome = structuredRoleResult.result.reported_outcome;
@@ -612,7 +766,7 @@ export function buildReviewResultEvidence(input) {
       }
       return refuse(CODES.unsupportedOutcome, "structured role-result outcome is not supported for review-result evidence");
     }
-    return refuse(CODES.missingStructuredResult, "trusted run metadata does not prove changes_requested, missing_result, or runtime_failure");
+    return refuse(CODES.missingStructuredResult, "trusted run metadata does not prove a supported non-completion review-result class");
   }
 
   if (evidenceClass === "changes_requested") {
@@ -652,7 +806,12 @@ export function buildReviewResultEvidence(input) {
   if (evidenceClass === "changes_requested") {
     evidence.role_result = buildRoleResultFacts(structuredRoleResult);
   } else {
-    evidence.runtime_result = buildRuntimeResultFacts(evidenceClass, runRef, structuredRoleResult);
+    evidence.runtime_result = buildRuntimeResultFacts(
+      evidenceClass,
+      runRef,
+      structuredResultStatus,
+      structuredRoleResult
+    );
   }
   evidence.evidence_digest = computeReviewResultEvidenceDigest(evidence);
   return { ok: true, evidence: cloneJson(evidence), ...COORDINATION_ONLY_EFFECTS };
@@ -690,45 +849,71 @@ function isWellFormedChangesRequestedEvidence(evidence) {
   if (!isObject(evidence.role_result) || evidence.runtime_result !== undefined) return false;
   const runRef = normalizeRunRef(evidence.review_run_ref);
   if (!REVIEW_RESULT_TERMINAL_SUCCESS_STATUS_SET.has(runRef.terminal_status)) return false;
-  if (evidence.role_result.reported_role !== evidence.reviewer_role_class) return false;
-  if (evidence.role_result.reported_subject !== runRef.subject_address) return false;
-  if (evidence.role_result.reported_outcome !== "changes_requested") return false;
-  const findings = normalizeFindings(evidence.role_result.findings);
-  const counts = normalizeFindingCounts(evidence.role_result.finding_counts);
-  const controls = normalizeReviewedControls(evidence.role_result.reviewed_controls);
-  if (!findings || !counts || !controls || !countsEqual(counts, recomputeFindingCounts(findings))) return false;
-  if (!isSha256(evidence.role_result.result_digest)) return false;
-  if (computeRoleResultDigest(evidence.role_result) !== evidence.role_result.result_digest) return false;
-  const summary = evidence.role_result.summary;
-  if (summary !== undefined && summary !== null && !boundedString(summary, MAX_SUMMARY_LENGTH)) return false;
+  const roleResult = evidence.role_result;
+  if (roleResult.reported_role !== evidence.reviewer_role_class) return false;
+  if (roleResult.reported_subject !== runRef.subject_address) return false;
+  if (roleResult.reported_outcome !== "changes_requested") return false;
+  if (!isSha256(roleResult.result_digest)) return false;
+  if (computeRoleResultDigest(roleResultDigestFacts(roleResult)) !== roleResult.result_digest) {
+    return false;
+  }
+  const summary = roleResult.summary;
+  if (summary !== undefined && summary !== null && !boundedString(summary, MAX_SUMMARY_LENGTH)) {
+    return false;
+  }
+
+  if (roleResult.findings !== undefined) {
+    const findings = normalizeFindings(roleResult.findings);
+    const counts = normalizeFindingCounts(roleResult.finding_counts);
+    const controls = normalizeReviewedControls(roleResult.reviewed_controls);
+    if (!findings || !counts || !controls) return false;
+    if (!countsEqual(counts, recomputeFindingCounts(findings))) return false;
+    return true;
+  }
+  if (roleResult.reviewed_controls !== undefined) return false;
+  if (roleResult.finding_counts !== undefined && roleResult.finding_counts !== null) {
+    const counts = normalizeFindingCounts(roleResult.finding_counts);
+    if (!counts || !isConsistentNarrowedOutcome("changes_requested", counts)) return false;
+  }
+  const reviewedControlCount = roleResult.reviewed_control_count;
+  if (
+    reviewedControlCount !== undefined &&
+    (!Number.isInteger(reviewedControlCount) || reviewedControlCount < 0)
+  ) {
+    return false;
+  }
   return true;
 }
 
-function computeRoleResultDigest(roleResult) {
-  return computeNormalizedInputDigest({
-    reported_role: roleResult.reported_role,
-    reported_subject: roleResult.reported_subject,
-    reported_outcome: roleResult.reported_outcome,
-    findings: roleResult.findings,
-    finding_counts: roleResult.finding_counts,
-    reviewed_controls: roleResult.reviewed_controls
-  });
+function computeRoleResultDigest(digestFacts) {
+  return computeNormalizedInputDigest(digestFacts);
 }
 
 function isWellFormedRuntimeEvidence(evidence) {
   if (!isObject(evidence.runtime_result) || evidence.role_result !== undefined) return false;
   const runRef = normalizeRunRef(evidence.review_run_ref);
-  if (evidence.runtime_result.evidence_class !== evidence.evidence_class) return false;
-  if (evidence.evidence_class === "missing_result") {
-    return (
-      REVIEW_RESULT_TERMINAL_SUCCESS_STATUS_SET.has(runRef.terminal_status) &&
-      REVIEW_RESULT_STRUCTURED_MISSING_STATUS_SET.has(runRef.structured_result_status)
-    );
-  }
+  const runtimeResult = evidence.runtime_result;
+  if (runtimeResult.evidence_class !== evidence.evidence_class) return false;
   if (evidence.evidence_class === "runtime_failure") {
     return REVIEW_RESULT_RUNTIME_FAILURE_STATUS_SET.has(runRef.terminal_status);
   }
-  return false;
+
+  const expectedClass = REVIEW_RESULT_STRUCTURED_STATUS_EVIDENCE_CLASS[
+    runtimeResult.structured_result_status
+  ];
+  if (expectedClass !== evidence.evidence_class) return false;
+  if (!REVIEW_RESULT_TERMINAL_SUCCESS_STATUS_SET.has(runRef.terminal_status)) return false;
+  const structured = runtimeResult.structured_role_result;
+  if (structured === undefined) return true;
+  if (!isObject(structured) || structured.valid !== false) return false;
+  if (!Array.isArray(structured.diagnostics)) return false;
+  if (
+    !Number.isInteger(structured.diagnostic_count) ||
+    structured.diagnostic_count < structured.diagnostics.length
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export function validateReviewResultEvidence(evidence, expectation = {}) {

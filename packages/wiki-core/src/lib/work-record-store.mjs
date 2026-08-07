@@ -8,6 +8,11 @@ import {
 } from "./work-record-schema.mjs";
 
 export const WORK_RECORD_DIRECTORY_NAME = "wiki/work-records";
+export const WORK_RECORD_SCAN_TEMP_DIRECTORY_PREFIXES = [
+  ".record-tmp-",
+  ".work-record-escalation-",
+  ".graph-sidecar-tmp-"
+];
 
 function hasOwn(object, key) {
   return Object.prototype.hasOwnProperty.call(object, key);
@@ -67,6 +72,9 @@ export async function listWorkRecordJsonPaths(targetDir = ".") {
     for (const entry of dirEntries) {
       const absolutePath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
+        if (WORK_RECORD_SCAN_TEMP_DIRECTORY_PREFIXES.some((prefix) => entry.name.startsWith(prefix))) {
+          continue;
+        }
         await walk(absolutePath);
         continue;
       }

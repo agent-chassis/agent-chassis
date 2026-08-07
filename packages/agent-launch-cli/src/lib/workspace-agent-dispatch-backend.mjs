@@ -41,6 +41,16 @@ export {
 import { DISPATCH_FORBIDDEN_ENVELOPE_TOKENS } from "./dispatch-envelope-policy.mjs";
 
 import {
+  createManagedStdioMcpCompositionGate
+} from "./backend-managed-stdio-composition-gate.mjs";
+import {
+  createFrozenReviewContextStores
+} from "./backend-frozen-review-context-stores.mjs";
+import {
+  createManagedLifecycleCapabilityAuthorityFacts
+} from "./backend-managed-lifecycle-capability-facts.mjs";
+
+import {
   defaultRunIdFactory,
   defaultMonitorHandleFactory
 } from "./workspace-agent-dispatch-refusal.mjs";
@@ -48,8 +58,7 @@ import { createDispatchRunLifecycle } from "./workspace-agent-dispatch-run-lifec
 import { createExactSliceReviewReceiptStore } from "./workspace-agent-dispatch-run-receipt.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import {
-  hasExactClosedInputCommitComposition,
-  hasManagedConfinementActivation
+  hasExactClosedInputCommitComposition
 } from "./backend-review-identity.mjs";
 import { resolveCanonicalFindingsOnlyReviewUnit } from "./backend-scope-authority.mjs";
 import {
@@ -58,8 +67,7 @@ import {
 } from "./backend-provisioning-state.mjs";
 import {
   maybeWrapExecutorWithWorktreeProvisioning,
-  maybeWrapRegistryEntryWithWorktreeProvisioning,
-  managedLifecycleCapabilityFact
+  maybeWrapRegistryEntryWithWorktreeProvisioning
 } from "./backend-worktree-binding.mjs";
 
 import { createBackendScope } from "./workspace-agent-dispatch-backend-scope.mjs";
@@ -142,79 +150,45 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
       };
 
   const requireManagedProvisioning = options.requireManagedProvisioning === true;
+  const managedStdioMcpCompositionAuthority =
+    options.managedStdioMcpCompositionAuthority ?? null;
+  const testCompositionFact = options.__testHooks === true &&
+      Object.prototype.hasOwnProperty.call(options, "__managedStdioMcpCompositionFact")
+    ? options.__managedStdioMcpCompositionFact
+    : undefined;
+
+  const {
+    resolveManagedStdioMcpComposition,
+    gateManagedExecutor
+  } = createManagedStdioMcpCompositionGate({
+    managedStdioMcpCompositionAuthority,
+    testCompositionFact
+  });
   const attemptStateAuthority = createLauncherOwnedManagedAttemptStateAuthority();
   const registeredWorkerScopeSnapshots = new WeakSet();
-  const frozenReviewContextsByTarget = new Map();
-  const currentReviewTargetBySubject = new Map();
-  const currentTerminalReviewTargetByWk = new Map();
   const wholeReviewRunContexts = new Map();
   const terminalCandidateRecoveryInFlight = new Map();
+
+  const terminalReviewAttemptContracts = new Map();
+  const terminalReviewAttemptContractBySubject = new Map();
   const recoverTerminalCandidate = typeof options.recoverTerminalCandidate === "function"
     ? options.recoverTerminalCandidate
     : null;
-  const wholeReviewTargetKey = (context) => JSON.stringify([
-    context.review_subject,
-    context.candidate_sha ?? context.wk_sha,
-    context.base_sha ?? context.diff_base_sha,
-    context.canonical_wk_digest ?? null
-  ]);
-  const frozenReviewContexts = Object.freeze({
-    get(subject) {
-      const key = currentReviewTargetBySubject.get(subject);
-      return key === undefined ? undefined : frozenReviewContextsByTarget.get(key);
-    },
-    set(subject, context) {
-      const key = wholeReviewTargetKey(context);
-      frozenReviewContextsByTarget.set(key, context);
-      currentReviewTargetBySubject.set(subject, key);
-      if (context.review_identity_kind === "terminal_candidate" &&
-          typeof context.record_id === "string") {
-        currentTerminalReviewTargetByWk.set(context.record_id, key);
-      }
-      return this;
-    },
-    has(subject) { return this.get(subject) !== undefined; },
-    values() { return frozenReviewContextsByTarget.values(); }
-  });
 
-  const frozenSliceReviewContextsByTarget = new Map();
-  const currentSliceReviewTargetBySubject = new Map();
+  const {
+    frozenReviewContextsByTarget,
+    currentTerminalReviewTargetByWk,
+    wholeReviewTargetKey,
+    frozenReviewContexts,
+    sliceReviewTargetKey,
+    committedSliceIntegrationTargetKey,
+    frozenSliceReviewContexts
+  } = createFrozenReviewContextStores();
   const sliceReviewRunContexts = new Map();
   const canonicalCommittedSliceIntegrations = new Map();
   const canonicalCommittedSliceIntegrationAttempts = new Map();
 
   const sliceIntegrationCcePolicy = options.sliceIntegrationCcePolicy ?? null;
-  const sliceReviewTargetKey = (context) => JSON.stringify([
-    context.review_subject,
-    context.reviewed_sha,
-    context.diff_base_sha,
-    context.committed_target_digest ?? context.worktree_identity_digest
-  ]);
-  const committedSliceIntegrationTargetKey = (context) => JSON.stringify([
-    context.review_subject,
-    context.slice_ref,
-    context.reviewed_sha,
-    context.diff_base_sha,
-    context.committed_target_digest
-  ]);
-  const frozenSliceReviewContexts = Object.freeze({
-    get(subject) {
-      const key = currentSliceReviewTargetBySubject.get(subject);
-      return key === undefined ? undefined : frozenSliceReviewContextsByTarget.get(key);
-    },
-    set(subject, context) {
-      const key = sliceReviewTargetKey(context);
-      frozenSliceReviewContextsByTarget.set(key, context);
-      currentSliceReviewTargetBySubject.set(subject, key);
-      return this;
-    },
-    has(subject) {
-      return this.get(subject) !== undefined;
-    },
-    values() {
-      return frozenSliceReviewContextsByTarget.values();
-    }
-  });
   const recoveredIntegratedRuns = new Map();
   const exactSliceReviewReceiptStore = options.exactSliceReviewReceiptStore ??
     (requireManagedProvisioning && worktreeProvisioningConfig?.mainRepo
@@ -256,6 +230,8 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     currentTerminalReviewTargetByWk,
     wholeReviewRunContexts,
     terminalCandidateRecoveryInFlight,
+    terminalReviewAttemptContracts,
+    terminalReviewAttemptContractBySubject,
     recoverTerminalCandidate,
     wholeReviewTargetKey,
     frozenReviewContexts,
@@ -290,7 +266,7 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
       const candidate = launchExecutors[app];
       if (typeof candidate === "function") {
         executors[app] = maybeWrapExecutorWithWorktreeProvisioning(
-          candidate,
+          requireManagedProvisioning ? gateManagedExecutor(candidate) : candidate,
           app,
           worktreeProvisioningConfig,
           requireManagedProvisioning,
@@ -299,8 +275,11 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
         );
         executorRegistryEntries[app] = executors[app];
       } else if (candidate && typeof candidate === "object" && typeof candidate.executor === "function") {
+        const gatedCandidate = requireManagedProvisioning
+          ? { ...candidate, executor: gateManagedExecutor(candidate.executor) }
+          : candidate;
         const wrapped = maybeWrapRegistryEntryWithWorktreeProvisioning(
-          candidate,
+          gatedCandidate,
           app,
           worktreeProvisioningConfig,
           requireManagedProvisioning,
@@ -313,7 +292,7 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     }
   } else if (typeof launchExecutor === "function") {
     executors.codex = maybeWrapExecutorWithWorktreeProvisioning(
-      launchExecutor,
+      requireManagedProvisioning ? gateManagedExecutor(launchExecutor) : launchExecutor,
       "codex",
       worktreeProvisioningConfig,
       requireManagedProvisioning,
@@ -346,7 +325,10 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     checkPriorManagedAttempt: backendContext.checkPriorManagedAttempt,
     publishPendingManagedRunIdentity: backendContext.publishPendingManagedRunIdentity,
     bindManagedRunOuterIdentity: backendContext.bindManagedRunOuterIdentity,
-    releaseManagedRunSubjectReservationForLaunch: backendContext.releaseManagedRunSubjectReservationForLaunch
+    releaseManagedRunSubjectReservationForLaunch: backendContext.releaseManagedRunSubjectReservationForLaunch,
+
+    verifyTerminalReviewAttemptContractAtSpawn: (contract) =>
+      backendContext.verifyTerminalReviewAttemptContractAtSpawn(contract)
   });
   backendContext.lifecycle = lifecycle;
 
@@ -355,41 +337,15 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
   Object.assign(backendContext, createBackendRecovery(backendContext));
   Object.assign(backendContext, createBackendRouting(backendContext));
 
-  const getManagedLifecycleCapabilityAuthorityFacts = async () => Object.freeze({
-    native_edit: managedLifecycleCapabilityFact(
-      Object.keys(executors).length > 0,
-      "agent_launch.dispatch_backend.executor_registry"
-    ),
-    repository_read_boundary: managedLifecycleCapabilityFact(
-      hasManagedConfinementActivation(worktreeProvisioningConfig),
-      "agent_launch.dispatch_backend.repository_read_boundary"
-    ),
-    commit: managedLifecycleCapabilityFact(
+  const getManagedLifecycleCapabilityAuthorityFacts =
+    createManagedLifecycleCapabilityAuthorityFacts({
+      resolveManagedStdioMcpComposition,
+      executors,
+      worktreeProvisioningConfig,
+      requireManagedProvisioning,
       closedInputCommitCompositionInstalled,
-      "agent_launch.dispatch_backend.closed_input_commit_composition"
-    ),
-    managed_worktree_provisioning: managedLifecycleCapabilityFact(
-      worktreeProvisioningConfig !== null && requireManagedProvisioning,
-      "agent_launch.dispatch_backend.worktree_provisioning"
-    ),
-    slice_to_wk_integration: managedLifecycleCapabilityFact(
-      postWorkerSliceLifecycle !== null && worktreeProvisioningConfig !== null && requireManagedProvisioning,
-      "agent_launch.dispatch_backend.terminal_slice_integration"
-    ),
-    wk_context_review: managedLifecycleCapabilityFact(
-      postWorkerSliceLifecycle !== null && worktreeProvisioningConfig !== null && requireManagedProvisioning,
-      "agent_launch.dispatch_backend.frozen_wk_review_context"
-    ),
-
-    slice_context_review: managedLifecycleCapabilityFact(
-      postWorkerSliceLifecycle !== null && worktreeProvisioningConfig !== null && requireManagedProvisioning,
-      "agent_launch.dispatch_backend.frozen_slice_review_context"
-    ),
-    automatic_main_promotion: managedLifecycleCapabilityFact(
-      false,
-      "agent_launch.dispatch_backend.main_promotion_unwired"
-    )
-  });
+      postWorkerSliceLifecycle
+    });
 
   return {
     schema_version: WORKSPACE_AGENT_DISPATCH_BACKEND_SCHEMA_VERSION,
@@ -398,6 +354,8 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     waitForRunStatus: lifecycle.waitForRunStatus,
     planLaunch: lifecycle.planLaunch,
     getManagedLifecycleCapabilityAuthorityFacts,
+    getManagedStdioMcpCompositionCompatibility: () =>
+      resolveManagedStdioMcpComposition(),
     isLauncherOwnedExactSliceReviewAdmission: backendContext.isLauncherOwnedExactSliceReviewAdmission,
 
     resolveSliceReviewEvidenceSet: backendContext.resolveSliceReviewEvidenceSet,

@@ -30,16 +30,6 @@ export const AGENT_ROLE_RESULT_COUNT_FIELDS = Object.freeze([
   "low",
   "info"
 ]);
-export const AGENT_ROLE_RESULT_REVIEWED_CONTROLS = Object.freeze([
-  "write_scope_total_loc",
-  "max_write_file_loc",
-  "write_scope_count",
-  "acceptance_criteria_count",
-  "validation_command_count",
-  "expected_changed_line_budget",
-  "declared_runtime_mode_count",
-  "artifact_kind_count"
-]);
 
 export const DEFAULT_AGENT_ROLE_RESULT_LIMITS = Object.freeze({
   maxResponseBytes: 128 * 1024,
@@ -393,24 +383,10 @@ function validateReviewedControls(value, add, workerRole) {
 
 function validateControlId(controlId, path, add) {
   if (typeof controlId !== "string" || controlId.trim().length === 0) {
-    add("invalid_reviewed_control", "control_id must be a non-empty string from the closed vocabulary", path);
-    return false;
-  }
-  if (!AGENT_ROLE_RESULT_REVIEWED_CONTROLS.includes(controlId)) {
-    add("invalid_reviewed_control", "control_id is outside the closed reviewed_controls vocabulary", path, {
-      reason: classifyInvalidControlId(controlId)
-    });
+    add("invalid_reviewed_control", "control_id must be a non-empty string", path);
     return false;
   }
   return true;
-}
-
-function classifyInvalidControlId(controlId) {
-  if (controlId.trim().length === 0) return "empty";
-  if (controlId.includes(":")) return "namespaced";
-  if (/^(review|quality|general|all|none)$/i.test(controlId)) return "generic";
-  if (/\s|[.!?]/.test(controlId)) return "prose_like";
-  return "unknown";
 }
 
 function validateOutcomeConsistency(outcome, findings, counts, add) {

@@ -36,11 +36,16 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
 
+export const TRUSTED_CORRECTIVE_FINDINGS_CONTEXT_SCHEMA_VERSION =
+  "workspace-agent-trusted-corrective-findings-context.v1";
 const TRUSTED_CORRECTIVE_FINDINGS_FIELDS = Object.freeze([
   "schema_version", "authority", "unit_address", "source_worker_run_id",
-  "source_worker_monitor_handle", "review_run_id", "review_monitor_handle",
-  "reviewed_sha", "diff_base_sha", "findings", "finding_counts",
-  "trusted_evidence_digest"
+  "source_worker_monitor_handle", "review_run_ids", "review_monitor_handles",
+  "reviewed_sha", "diff_base_sha", "findings", "trusted_evidence_digests"
+]);
+
+const TRUSTED_CORRECTIVE_PROVENANCE_FIELDS = Object.freeze([
+  "review_run_ids", "review_monitor_handles", "trusted_evidence_digests"
 ]);
 const TRUSTED_CORRECTIVE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
 const TRUSTED_CORRECTIVE_OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
@@ -50,6 +55,27 @@ const TRUSTED_CORRECTIVE_COUNT_FIELDS = Object.freeze([
   "total", "blocking", "critical", "high", "medium", "low", "info"
 ]);
 
+const TRUSTED_CORRECTIVE_MAX_REVIEW_RECEIPTS = 64;
+const TRUSTED_CORRECTIVE_MAX_FINDINGS = 512;
+const TRUSTED_CORRECTIVE_MAX_AFFECTED_PATHS = 128;
+const TRUSTED_CORRECTIVE_RENDER_TEXT_LIMIT = 200;
+const TRUSTED_CORRECTIVE_RENDER_TRUNCATION_MARKER = "[truncated]";
+const TRUSTED_CORRECTIVE_RENDER_ABSENT = "(none)";
+
+function isTrustedCorrectiveId(value) {
+  return typeof value === "string" && TRUSTED_CORRECTIVE_ID_RE.test(value);
+}
+
+function isTrustedCorrectiveOptionalId(value) {
+  return value === null || isTrustedCorrectiveId(value);
+}
+function isTrustedCorrectiveDigest(value) {
+  return typeof value === "string" && TRUSTED_CORRECTIVE_DIGEST_RE.test(value);
+}
+function isTrustedCorrectiveOid(value) {
+  return typeof value === "string" && TRUSTED_CORRECTIVE_OID_RE.test(value);
+}
+
 function isTrustedCorrectiveFinding(value) {
   const keys = isPlainObject(value) ? Object.keys(value).sort() : [];
   const required = ["affected_paths", "blocking", "id", "severity", "title"];
@@ -58,7 +84,10 @@ function isTrustedCorrectiveFinding(value) {
     keys.every((field) => allowed.has(field)) &&
     isNonEmptyString(value.id) && isNonEmptyString(value.title) &&
     TRUSTED_CORRECTIVE_SEVERITIES.has(value.severity) &&
+    (!Object.prototype.hasOwnProperty.call(value, "control_id") ||
+      value.control_id === null || isNonEmptyString(value.control_id)) &&
     typeof value.blocking === "boolean" && Array.isArray(value.affected_paths) &&
+    value.affected_paths.length <= TRUSTED_CORRECTIVE_MAX_AFFECTED_PATHS &&
     value.affected_paths.every((entry) => isPlainObject(entry) &&
       Object.keys(entry).sort().join("|") === "line|path" &&
       isNonEmptyString(entry.path) && !path.posix.isAbsolute(entry.path) &&
@@ -66,43 +95,70 @@ function isTrustedCorrectiveFinding(value) {
       (entry.line === null || (Number.isInteger(entry.line) && entry.line > 0)));
 }
 
-function hasExactTrustedCorrectiveCounts(counts, findings) {
-  if (!isPlainObject(counts) ||
-      Object.keys(counts).sort().join("|") !== [...TRUSTED_CORRECTIVE_COUNT_FIELDS].sort().join("|") ||
-      TRUSTED_CORRECTIVE_COUNT_FIELDS.some((field) => !Number.isInteger(counts[field]) || counts[field] < 0)) {
-    return false;
+function hasAlignedTrustedCorrectiveProvenance(value) {
+  const lengths = new Set();
+  for (const field of TRUSTED_CORRECTIVE_PROVENANCE_FIELDS) {
+    const entries = value[field];
+    if (!Array.isArray(entries) || entries.length === 0 ||
+        entries.length > TRUSTED_CORRECTIVE_MAX_REVIEW_RECEIPTS) {
+      return false;
+    }
+    const isValidMember = field === "trusted_evidence_digests"
+      ? isTrustedCorrectiveDigest
+      : isTrustedCorrectiveId;
+    if (!entries.every(isValidMember)) return false;
+    lengths.add(entries.length);
   }
-  const expected = Object.fromEntries(TRUSTED_CORRECTIVE_COUNT_FIELDS.map((field) => [field, 0]));
-  expected.total = findings.length;
+  return lengths.size === 1;
+}
+
+export function deriveTrustedCorrectiveFindingCounts(findings) {
+  const counts = Object.fromEntries(TRUSTED_CORRECTIVE_COUNT_FIELDS.map((field) => [field, 0]));
   for (const finding of findings) {
-    expected[finding.severity] += 1;
-    if (finding.blocking) expected.blocking += 1;
+    counts.total += 1;
+    counts[finding.severity] += 1;
+    if (finding.blocking) counts.blocking += 1;
   }
-  return TRUSTED_CORRECTIVE_COUNT_FIELDS.every((field) => counts[field] === expected[field]);
+  return Object.freeze(counts);
 }
 
 export function validateTrustedCorrectiveFindingsContext(value, { subject } = {}) {
   const keys = isPlainObject(value) ? Object.keys(value).sort() : [];
   const expected = [...TRUSTED_CORRECTIVE_FINDINGS_FIELDS].sort();
+
   const exact = keys.length === expected.length &&
     keys.every((field, index) => field === expected[index]);
   const valid = exact &&
-    value.schema_version === "workspace-agent-trusted-corrective-findings-context.v1" &&
+    value.schema_version === TRUSTED_CORRECTIVE_FINDINGS_CONTEXT_SCHEMA_VERSION &&
     value.authority === "launcher_exact_review_receipt" &&
+    typeof value.unit_address === "string" &&
     /^WK-\d{4}#SLICE-\d{3}$/u.test(value.unit_address) &&
     value.unit_address === subject &&
-    ["source_worker_run_id", "source_worker_monitor_handle", "review_run_id", "review_monitor_handle"]
-      .every((field) => TRUSTED_CORRECTIVE_ID_RE.test(value[field])) &&
-    TRUSTED_CORRECTIVE_OID_RE.test(value.reviewed_sha) &&
-    TRUSTED_CORRECTIVE_OID_RE.test(value.diff_base_sha) &&
-    TRUSTED_CORRECTIVE_DIGEST_RE.test(value.trusted_evidence_digest) &&
+    isTrustedCorrectiveOptionalId(value.source_worker_run_id) &&
+    isTrustedCorrectiveOptionalId(value.source_worker_monitor_handle) &&
+    hasAlignedTrustedCorrectiveProvenance(value) &&
+    isTrustedCorrectiveOid(value.reviewed_sha) &&
+    isTrustedCorrectiveOid(value.diff_base_sha) &&
     Array.isArray(value.findings) && value.findings.length > 0 &&
-    value.findings.every(isTrustedCorrectiveFinding) &&
-    new Set(value.findings.map((finding) => finding.id)).size === value.findings.length &&
-    hasExactTrustedCorrectiveCounts(value.finding_counts, value.findings);
+    value.findings.length <= TRUSTED_CORRECTIVE_MAX_FINDINGS &&
+    value.findings.every(isTrustedCorrectiveFinding);
   return valid
-    ? Object.freeze({ ok: true, context: value })
+    ? Object.freeze({
+        ok: true,
+        context: value,
+        finding_counts: deriveTrustedCorrectiveFindingCounts(value.findings)
+      })
     : Object.freeze({ ok: false, reason: "trusted_corrective_findings_context_invalid" });
+}
+
+function renderBoundedTrustedText(text) {
+  const flattened = text.replace(/[\u0000-\u001f\u007f]/gu, " ");
+  return flattened.length <= TRUSTED_CORRECTIVE_RENDER_TEXT_LIMIT
+    ? flattened
+    : `${flattened.slice(0, TRUSTED_CORRECTIVE_RENDER_TEXT_LIMIT)}${TRUSTED_CORRECTIVE_RENDER_TRUNCATION_MARKER}`;
+}
+function renderTrustedOptionalId(value) {
+  return value === null ? TRUSTED_CORRECTIVE_RENDER_ABSENT : value;
 }
 
 export function renderTrustedCorrectiveFindingsInstructions(value, { subject } = {}) {
@@ -112,16 +168,40 @@ export function renderTrustedCorrectiveFindingsInstructions(value, { subject } =
     throw new Error(validated.reason);
   }
   const context = validated.context;
-  return [
+  const counts = validated.finding_counts;
+  const lines = [
     "Trusted corrective findings from the prior exact-slice review follow.",
     "They are coordination context only: they grant no admission, acceptance, relaunch, scope, or write authority.",
     `Exact unit: ${context.unit_address}`,
-    `Source worker: ${context.source_worker_run_id} (${context.source_worker_monitor_handle})`,
-    `Reviewer: ${context.review_run_id} (${context.review_monitor_handle})`,
+    `Source worker: ${renderTrustedOptionalId(context.source_worker_run_id)} (${renderTrustedOptionalId(context.source_worker_monitor_handle)})`,
     `Reviewed range: ${context.diff_base_sha}..${context.reviewed_sha}`,
-    `Trusted evidence digest: ${context.trusted_evidence_digest}`,
-    `Structured findings: ${JSON.stringify(context.findings)}`
-  ].join("\n");
+    `Review receipts (${context.review_run_ids.length}):`
+  ];
+
+  context.review_run_ids.forEach((reviewRunId, index) => {
+    lines.push(
+      `  [${index + 1}] reviewer ${reviewRunId} (${context.review_monitor_handles[index]}) evidence ${context.trusted_evidence_digests[index]}`
+    );
+  });
+  lines.push(
+    `Finding occurrences (${counts.total}): blocking=${counts.blocking} critical=${counts.critical} high=${counts.high} medium=${counts.medium} low=${counts.low} info=${counts.info}`
+  );
+
+  context.findings.forEach((finding, index) => {
+    const controlId = Object.prototype.hasOwnProperty.call(finding, "control_id") &&
+      finding.control_id !== null
+      ? renderBoundedTrustedText(finding.control_id)
+      : TRUSTED_CORRECTIVE_RENDER_ABSENT;
+    lines.push(
+      `  [${index + 1}] ${renderBoundedTrustedText(finding.id)} severity=${finding.severity} blocking=${finding.blocking} control=${controlId} title=${renderBoundedTrustedText(finding.title)}`
+    );
+    for (const entry of finding.affected_paths) {
+      lines.push(
+        `      - ${renderBoundedTrustedText(entry.path)}:${entry.line === null ? "-" : entry.line}`
+      );
+    }
+  });
+  return lines.join("\n");
 }
 
 export const LAUNCHER_DISPATCH_ROLES = Object.freeze([...BACKEND_ACCEPTED_ROLES]);

@@ -5,6 +5,21 @@ The launcher owns one host-side `@agent-chassis/wiki-mcp` process for each
 confined Claude or Codex dispatch. The model sandbox never contains a Node
 interpreter, package tree, dependency installation, or wiki-MCP runtime.
 
+## Result channels
+
+For a non-spilled tool result, `structuredContent` is the sole complete
+machine-readable payload. The text block in `content` is only a useful
+descriptor of where that payload is available and is capped at 512 UTF-8 bytes;
+it never contains a second JSON serialization or payload preview. Structured
+error envelopes follow the same rule and retain `isError: true`. An
+unstructured thrown error has no machine envelope, so its redacted message
+remains in the bounded text descriptor.
+
+The inline byte gate counts the structured payload once plus bounded MCP frame
+overhead. A payload that fits that single-copy envelope remains inline; a larger
+payload keeps the existing file-backed spill descriptor, content reference,
+ranged continuation, refusal, and error-envelope contracts.
+
 ## Transport
 
 The only model-to-server transport is transparent stdio over one launcher-minted
@@ -32,6 +47,31 @@ request `tools/list`. Only after the client has opened both bound objects does
 the launcher close anchors and unlink both FIFO names. Timeout, early EOF,
 client/relay/server exit, type or identity mismatch, tool-surface mismatch,
 cancellation, cleanup failure, and reaping failure are typed and fail closed.
+
+Lifecycle compatibility is established by the host wiki-MCP process that was
+actually spawned. Its initial launcher-only
+`wiki-mcp-launcher-readiness.v2` registration includes
+`lifecycle_protocol_generation: stdio-mcp-conduit-lifecycle-vocabulary.v1`,
+loaded from that process's conduit contract. The long-lived launcher compares
+the announcement with its own loaded generation before the family executor can
+spawn a confined worker, reviewer, redteam, or orchestrator. No request field,
+environment value, filesystem fingerprint, backend generation, or historical
+state supplies the comparison.
+
+Only equality permits initialize and exact `tools/list`. Old, missing,
+malformed, unknown, or incompatible generation evidence returns the existing
+`operator_recovery_needed` blocker and bounded coherent-build/restart detail.
+It authenticates no delivery, creates no review or integration transition, and
+opens no retry or fallback. A legacy consumer may instead return its existing
+unknown-lifecycle readiness blocker for the v2 registration, still before child
+spawn.
+
+After registration, the launcher enforces a single-generation phase machine:
+await server registration/generation, server compatible, await initialize,
+await exact `tools/list`, ready, client closed, and terminal (or failed).
+Duplicates, close-before-readiness, evidence after close, unknown schemas, and
+impossible transitions preserve the first typed failure and use the same
+exactly-once cleanup settlement.
 
 The public dispatch-facing taxonomy is producer-complete. Construction and
 binding failures use `stdio_mcp_conduit_input_invalid`,
@@ -98,6 +138,34 @@ separate post-integration outcome and does not undo or relabel the integration.
 
 When no trusted conduit plan is supplied, the generic bubblewrap planner and
 spawn primitive retain their ordinary behavior.
+
+## Prospective work-record preflight
+
+`workspace_preflight_dispatch` is the read-only companion to
+`workspace_validate_dispatch`. It accepts a proposed, unpersisted work-record
+or slice body and returns the same readiness projection that
+`workspace_validate_dispatch` returns for a persisted record. This lets an
+author inspect the proposed contract before writing it, instead of persisting,
+being refused, rewriting, and re-persisting one revision at a time.
+
+This exists because admission reports one control at a time. A proposal that
+trips several constraints is refused once per constraint: after the first is
+cleared, the next becomes visible. While shaping this work record, a slice was
+first refused for `write_scope_total_loc`; only after that was cleared did
+`write_scope_count` surface behind it. The preflight exposes that sequence
+before any canonical write, so authors can see the projection in advance.
+
+The route is non-mutating with respect to canonical records and admission
+sidecars. It may write only the git-ignored code-index derived cache authorized
+by accepted decision section 5: the artifact and its directory, the lease
+directory, and the lock, candidate-slot, lease, heartbeat, publication, and
+release files. Those files may be produced on any `index_action` rebuild
+verdict, not only when HEAD is stale.
+
+The route reports whatever admission returns and defines none of it: it sets no
+thresholds, verdicts, or remedy selection, and does not duplicate admission
+policy. Admission remains the authority for the projection and its refusal
+reason.
 
 ## Tool input schema publication
 

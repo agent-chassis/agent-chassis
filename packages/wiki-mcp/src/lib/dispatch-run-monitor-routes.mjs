@@ -5,6 +5,12 @@ import path from "node:path";
 import {
   refuseCallerSuppliedIdentityFields
 } from "@agent-chassis/wiki-core/src/lib/agent-dispatch-identity.mjs";
+import { buildCloseoutWorkflowContinuation } from "./dispatch-closeout-continuation.mjs";
+import {
+  buildLifecycleFailure,
+  publishableLifecycleFailure,
+  RecordedLifecycleFailure
+} from "./dispatch-lifecycle-failure-disclosure.mjs";
 import {
   createLifecycleCheckpoint,
   LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
@@ -29,7 +35,6 @@ import {
   mapBackendRefusalToDispatchCode,
   omitNullFields,
   resolveMonitorHandleAlwaysUnknown,
-  SAFE_POSTCHECK_MISMATCH_FIELDS,
   summarizeRunStatusFinalResult
 } from "./dispatch-tool-helpers.mjs";
 
@@ -50,45 +55,12 @@ export {
 
 export { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
 
-function buildLifecycleFailure(checkpoint, error) {
-  const detail = buildDispatchToolExceptionDetail("post_worker_slice_lifecycle", error);
-  const failure = {
-    invoked: true,
-    phase: checkpoint.phase,
-    integrated: checkpoint.phase !== POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION,
-    error_code: error?.code ?? "agent_launch.slice_lifecycle.failed.v1",
-    error_message: detail.error_message,
-    error_message_truncated: detail.error_message_truncated
-  };
-
-  if (detail.postcheck_mismatch_field !== undefined) {
-    failure.postcheck_mismatch_field = detail.postcheck_mismatch_field;
-  }
-  if (checkpoint.integration) failure.integration = checkpoint.integration;
-  return Object.freeze(failure);
-}
-
-function publishableLifecycleFailure(lifecycle) {
-  if (lifecycle === null || typeof lifecycle !== "object") return lifecycle ?? null;
-  if (!Object.hasOwn(lifecycle, "postcheck_mismatch_field")) return lifecycle;
-  const value = lifecycle.postcheck_mismatch_field;
-  if (typeof value === "string" && SAFE_POSTCHECK_MISMATCH_FIELDS.includes(value)) {
-    return lifecycle;
-  }
-  const bounded = { ...lifecycle };
-  delete bounded.postcheck_mismatch_field;
-  return Object.freeze(bounded);
-}
-
-class RecordedLifecycleFailure extends Error {
-  constructor(failure) {
-    super("post-worker slice lifecycle invocation failed");
-    this.name = "RecordedLifecycleFailure";
-    this.failure = failure;
-  }
-}
-
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+export {
+  buildCloseoutWorkflowContinuation,
+  CLOSEOUT_WORKFLOW_CONTINUATION_SCHEMA_VERSION
+} from "./dispatch-closeout-continuation.mjs";
 
 export function registerRunMonitorRoutes(ctx) {
   const {
@@ -317,6 +289,14 @@ export function registerRunMonitorRoutes(ctx) {
         if (!terminality.terminal) {
           accepted.next_action = resolveTopLevelNextAction(terminality.lifecycle_resolution);
         }
+        const closeoutContinuation = await buildCloseoutWorkflowContinuation({
+          dispatchBackend,
+          status,
+          lifecycle
+        });
+        if (closeoutContinuation !== null) {
+          accepted.closeout_continuation = closeoutContinuation;
+        }
 
         if (lifecycle) accepted.slice_lifecycle = publishableLifecycleFailure(lifecycle);
         if (finalResult) {
@@ -536,6 +516,14 @@ export function registerRunMonitorRoutes(ctx) {
         }
         if (!terminality.terminal) {
           accepted.next_action = resolveTopLevelNextAction(terminality.lifecycle_resolution);
+        }
+        const closeoutContinuation = await buildCloseoutWorkflowContinuation({
+          dispatchBackend,
+          status: waitResult,
+          lifecycle
+        });
+        if (closeoutContinuation !== null) {
+          accepted.closeout_continuation = closeoutContinuation;
         }
 
         if (lifecycle) accepted.slice_lifecycle = publishableLifecycleFailure(lifecycle);

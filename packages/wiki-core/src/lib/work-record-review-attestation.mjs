@@ -22,17 +22,6 @@ export const REVIEW_ATTESTATION_SCHEMA_VERSION = "review-attestation.v1";
 
 export const REVIEW_ATTESTATION_AUTHORITY = "portfolio_local_reference";
 export const REVIEW_ATTESTATION_REVIEWER_ROLE_CLASS_VALUES = Object.freeze(["reviewer", "redteam"]);
-export const REVIEW_ATTESTATION_CONTROL_ID_VALUES = Object.freeze([
-  "write_scope_total_loc",
-  "max_write_file_loc",
-  "write_scope_count",
-  "acceptance_criteria_count",
-  "validation_command_count",
-  "expected_changed_line_budget",
-  "declared_runtime_mode_count",
-  "artifact_kind_count"
-]);
-const REVIEW_ATTESTATION_CONTROL_ID_SET = new Set(REVIEW_ATTESTATION_CONTROL_ID_VALUES);
 
 export const REVIEW_ATTESTATION_DISPOSITION_VALUES = Object.freeze(["accepted_no_findings", "accepted_with_nonblocking_findings"]);
 
@@ -87,17 +76,13 @@ function isoTimestampMs(value) {
   return Number.isFinite(ms) ? ms : null;
 }
 
-function isReviewedControlId(value) {
-  const normalized = normalizeStringEntry(value);
-  return Boolean(normalized && REVIEW_ATTESTATION_CONTROL_ID_SET.has(normalized));
-}
 function normalizeControlIds(values) {
   if (!Array.isArray(values)) return null;
   const controls = [];
   const seen = new Set();
   for (const value of values) {
     const normalized = normalizeStringEntry(value);
-    if (!normalized || !isReviewedControlId(normalized) || seen.has(normalized)) return null;
+    if (!normalized || seen.has(normalized)) return null;
     seen.add(normalized);
     controls.push(normalized);
   }

@@ -1,4 +1,5 @@
 
+import { lstatSync } from "node:fs";
 import path from "node:path";
 import {
   isPlainObject,
@@ -30,7 +31,7 @@ async function loadDefaultIntegrationDeps() {
       SliceIntegrationError,
       SLICE_INTEGRATION_DIAGNOSTIC_CODES
     },
-    { setWorkRecordStatusByUnit },
+    { setWorkRecordStatusByUnit, writeValidatedWorkRecord },
     { digestTrustedExactReviewEvidence },
     { releaseRetainedSlice }
   ] = await Promise.all([
@@ -48,12 +49,23 @@ async function loadDefaultIntegrationDeps() {
     SliceIntegrationError,
     SLICE_INTEGRATION_DIAGNOSTIC_CODES,
     setWorkRecordStatusByUnit,
+    writeValidatedWorkRecord,
     digestTrustedExactReviewEvidence,
     releaseRetainedSlice,
   };
 }
 
 const INTEGRATION_OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+export const INTEGRATED_SLICE_CLEANUP_STATES = Object.freeze({
+
+  NOT_REQUIRED: "not_required",
+
+  CONFIRMED_RELEASED: "confirmed_released"
+});
+
+export const INTEGRATED_SLICE_CLEANUP_UNCERTAIN_CODE =
+  "agent_launch.slice_integration.integrated_cleanup_uncertain.v1";
 
 function integrationResolvedCommit(runGit, repo, value, SliceIntegrationError, codes) {
   const result = runGit({ repo, args: ["rev-parse", "--verify", `${value}^{commit}`] });
@@ -70,6 +82,92 @@ function integrationResolvedCommit(runGit, repo, value, SliceIntegrationError, c
 export const TERMINAL_REVIEW_EVIDENCE_COMPOSITIONS = Object.freeze({
   LIVE_MATERIALIZER: "live_materializer"
 });
+
+function assertFreshIntegrationSliceBaseAdmission({
+  wkBinding, sliceBinding, SliceIntegrationError, codes
+}) {
+  if (wkBinding.wk_tip_sha !== sliceBinding.base_sha) {
+    throw new SliceIntegrationError("agent-launch trusted integration: full WK binding is missing or its moving wk_tip_sha does not match the slice's frozen base", {
+      code: codes.BINDING_MISMATCH
+    });
+  }
+}
+
+function confirmIntegratedSliceCleanup({
+  runGit, mainRepo, sliceRef, wkRef, sliceBinding, wkBinding, recovered,
+  SliceIntegrationError, codes
+}) {
+  const refuse = (message, detail = null) => {
+    throw new SliceIntegrationError(`agent-launch trusted integration: ${message}`, {
+      code: codes.BINDING_MISMATCH,
+      detail
+    });
+  };
+
+  if (!isPlainObject(recovered) || recovered.integrated !== true ||
+      recovered.recovered !== true || recovered.transition?.written !== false ||
+      recovered.previous_wk_sha !== null) {
+    refuse("integrated-slice cleanup requires a read-only recovered integration result");
+  }
+  if (recovered.slice_ref !== sliceRef || recovered.wk_ref !== wkRef) {
+    refuse("integrated-slice cleanup result does not name the exact bound slice and WK refs", {
+      slice_ref: recovered.slice_ref ?? null,
+      wk_ref: recovered.wk_ref ?? null
+    });
+  }
+  for (const field of ["slice_sha", "delivery_sha", "wk_sha"]) {
+    if (!INTEGRATION_OID_RE.test(String(recovered[field] ?? ""))) {
+      refuse("integrated-slice cleanup result carries a noncanonical commit id", { field });
+    }
+  }
+
+  const wkTip = integrationResolvedCommit(runGit, mainRepo, wkRef, SliceIntegrationError, codes);
+  if (wkTip !== recovered.wk_sha) {
+    refuse("the current WK tip no longer matches the proven integrated marker state", {
+      wk_tip: wkTip,
+      proven_wk_sha: recovered.wk_sha
+    });
+  }
+  const sliceTip = integrationResolvedCommit(runGit, mainRepo, sliceRef, SliceIntegrationError, codes);
+  if (sliceTip !== recovered.delivery_sha) {
+    refuse("the retained exact-slice delivery no longer matches the proven integrated delivery", {
+      slice_tip: sliceTip,
+      proven_delivery_sha: recovered.delivery_sha
+    });
+  }
+
+  const ancestor = runGit({
+    repo: mainRepo,
+    args: ["merge-base", "--is-ancestor", wkBinding.base_sha, wkTip]
+  });
+  if (!ancestor || ancestor.ok !== true) {
+    refuse("the WK binding's fixed fork is not retained in the current WK tip", {
+      base_sha: wkBinding.base_sha,
+      wk_tip: wkTip
+    });
+  }
+
+  let state;
+  try {
+    lstatSync(sliceBinding.worktree_path);
+    state = INTEGRATED_SLICE_CLEANUP_STATES.NOT_REQUIRED;
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      throw new SliceIntegrationError("agent-launch trusted integration: the exact-slice checkout could not be observed, so integrated cleanup is uncertain", {
+        code: INTEGRATED_SLICE_CLEANUP_UNCERTAIN_CODE,
+        detail: { errno: typeof error?.code === "string" ? error.code : null }
+      });
+    }
+    state = INTEGRATED_SLICE_CLEANUP_STATES.CONFIRMED_RELEASED;
+  }
+  return Object.freeze({
+    state,
+    reaped: null,
+    reason: "integration_recovered",
+
+    cleanup_only: true
+  });
+}
 
 export async function defaultIntegrateManagedWorkerSlice({
   mainRepo,
@@ -88,6 +186,7 @@ export async function defaultIntegrateManagedWorkerSlice({
     SliceIntegrationError,
     SLICE_INTEGRATION_DIAGNOSTIC_CODES: codes,
     setWorkRecordStatusByUnit,
+    writeValidatedWorkRecord,
     digestTrustedExactReviewEvidence: configuredEvidenceDigest,
     releaseRetainedSlice
   } = deps ?? await loadDefaultIntegrationDeps();
@@ -113,8 +212,7 @@ export async function defaultIntegrateManagedWorkerSlice({
 
   if (!isPlainObject(wkBinding) ||
       typeof wkBinding.worktree_path !== "string" || !path.isAbsolute(wkBinding.worktree_path) ||
-      typeof wkBinding.wk_tip_sha !== "string" || !WK_TIP_SHA_RE.test(wkBinding.wk_tip_sha) ||
-      wkBinding.wk_tip_sha !== sliceBinding.base_sha) {
+      typeof wkBinding.wk_tip_sha !== "string" || !WK_TIP_SHA_RE.test(wkBinding.wk_tip_sha)) {
     throw new SliceIntegrationError("agent-launch trusted integration: full WK binding is missing or its moving wk_tip_sha does not match the slice's frozen base", {
       code: codes.BINDING_MISMATCH
     });
@@ -161,7 +259,6 @@ export async function defaultIntegrateManagedWorkerSlice({
       code: codes.BINDING_MISMATCH
     });
   }
-  const commit = integrationResolvedCommit(runGit, mainRepo, sliceRef, SliceIntegrationError, codes);
 
   if (!Object.values(TERMINAL_REVIEW_EVIDENCE_COMPOSITIONS).includes(terminalReviewEvidenceComposition)) {
     throw new SliceIntegrationError("agent-launch trusted integration: launcher-owned terminal review evidence composition is invalid", {
@@ -180,7 +277,40 @@ export async function defaultIntegrateManagedWorkerSlice({
       })
     : null;
 
-  const integration = recoveredIntegration ?? await integrateCommittedSlice({
+  if (recoveredIntegration !== null) {
+    const cleanup = confirmIntegratedSliceCleanup({
+      runGit,
+      mainRepo,
+      sliceRef,
+      wkRef,
+      sliceBinding,
+      wkBinding,
+      recovered: recoveredIntegration,
+      SliceIntegrationError,
+      codes
+    });
+
+    return Object.freeze({
+      ...recoveredIntegration,
+      cleanup,
+      terminal_review_evidence: null
+    });
+  }
+
+  assertFreshIntegrationSliceBaseAdmission({
+    wkBinding, sliceBinding, SliceIntegrationError, codes
+  });
+  const commit = integrationResolvedCommit(runGit, mainRepo, sliceRef, SliceIntegrationError, codes);
+
+  const writeRecordCas = async ({
+    record,
+    expectedSourceDigest
+  }) => writeValidatedWorkRecord({
+    dir: mainRepo,
+    record,
+    expectedSourceDigest,
+  });
+  const integration = await integrateCommittedSlice({
       mainRepo,
       worktreePath: sliceBinding.worktree_path,
       unitAddress: sliceBinding.unit_address,
@@ -191,11 +321,12 @@ export async function defaultIntegrateManagedWorkerSlice({
       workerTerminated: true,
       transitionToReview: async ({ unitAddress, status: nextStatus, expectedSourceDigest }) =>
         setWorkRecordStatusByUnit({ dir: mainRepo, unitAddress, status: nextStatus, expectedSourceDigest }),
+      writeRecordCas,
       deps: { runGit }
     });
 
   let cleanup;
-  if (recoveredIntegration === null) {
+  {
     try {
       if (typeof releaseRetainedSlice !== "function") {
         throw new Error("writable trusted runtime exact-slice reaper is unavailable");
@@ -246,12 +377,6 @@ export async function defaultIntegrateManagedWorkerSlice({
         detail: error?.detail ?? null
       });
     }
-  } else {
-    cleanup = Object.freeze({
-      state: "not_required",
-      reaped: null,
-      reason: "integration_recovered"
-    });
   }
 
   if (integration?.review_target == null) {

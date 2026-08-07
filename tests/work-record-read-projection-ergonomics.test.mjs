@@ -606,6 +606,9 @@ test("work-record summary compact default: matches read/get suppressed-status an
     assert.equal(summary.slice_status_counts.active, readResult.slice_counts.by_status.active);
     assert.equal(summary.slice_status_counts.todo, readResult.slice_counts.by_status.todo);
     assert.equal(summary.slice_status_counts.blocked, readResult.slice_counts.by_status.blocked);
+    assert.equal(summary.slices_total, summary.slice_count);
+    assert.equal(summary.slices_returned, 3);
+    assert.equal(summary.slices_truncated, true);
 
     assert.equal(summary.slices.length, 3, "summary must include only non-suppressed slice rows");
     const summaryIds = summary.slices.map((s) => s.id);
@@ -661,6 +664,10 @@ test("work-record summary selected slice: includes selected notes and shared byt
     assert.equal(stringNoteResult.selected_unit.kind, "slice");
     assert.equal(stringNoteResult.summary.selected_unit_summary.id, "active-slice");
     assert.equal(stringNoteResult.summary.selected_unit_summary.agent_notes, "string note body");
+    assert.deepEqual(
+      stringNoteResult.summary.selected_unit_summary.validation,
+      ["node --test tests/active.test.mjs"]
+    );
     assert.equal(
       stringNoteResult.summary.selected_unit_summary.agent_notes_bytes,
       Buffer.byteLength("string note body", "utf8")
@@ -703,18 +710,21 @@ test("work-record summary compact default: WK-0732-shaped tracker stays bounded"
 
     const result = await getWorkRecordSummary({ dir: tempDir, unit: "WK-9916" });
     const summary = result.summary;
-    const serializedBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+    const serializedBytes = Buffer.byteLength(JSON.stringify(result, null, 2), "utf8");
 
     assert.equal(result.valid, true);
     assert.equal(summary.slice_count, 123);
     assert.equal(summary.slice_status_counts.done, 92);
     assert.equal(summary.slice_status_counts.cancelled, 10);
     assert.equal(summary.slice_status_counts.parked, 8);
-    assert.equal(summary.slice_detail_omissions.count, 110);
-    assert.equal(summary.slices.length, 13, "summary should include only current/non-suppressed rows");
+    assert.equal(summary.slice_detail_omissions.count, 120);
+    assert.equal(summary.slices.length, 3, "summary must hard-cap current slice rows");
+    assert.equal(summary.slices_total, 123);
+    assert.equal(summary.slices_returned, 3);
+    assert.equal(summary.slices_truncated, true);
     assert.ok(
-      serializedBytes < 20000,
-      `WK-0732-shaped compact summary must stay comfortably bounded: ${serializedBytes} bytes`
+      serializedBytes <= 4096,
+      `large compact summary must stay within 4096 pretty-printed bytes: ${serializedBytes}`
     );
     assert.equal(JSON.stringify(summary).includes("Closure for done-slice-0"), false);
     assert.equal(JSON.stringify(summary).includes("record-level note body"), false);

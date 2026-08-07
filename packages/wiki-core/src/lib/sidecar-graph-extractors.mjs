@@ -794,14 +794,14 @@ function parseImportFacts({ provider, relativePath, text }) {
   }
 
   const parser = new Parser();
+  let tree = null;
   try {
     parser.setLanguage(language);
-    const tree = parser.parse(text);
+    tree = parser.parse(text);
     const facts =
       languageKey === "python"
         ? collectPythonImportFacts({ rootNode: tree.rootNode, text, languageKey })
         : collectJavaScriptImportFacts({ rootNode: tree.rootNode, text, languageKey });
-    tree.delete();
     return { facts, unavailable: false };
   } catch (error) {
     return {
@@ -810,6 +810,7 @@ function parseImportFacts({ provider, relativePath, text }) {
       reason: error instanceof Error ? error.message : String(error)
     };
   } finally {
+    tree?.delete();
     parser.delete();
   }
 }

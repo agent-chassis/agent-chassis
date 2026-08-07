@@ -59,6 +59,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
       ],
@@ -92,6 +93,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
       ],
@@ -123,6 +125,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
       ],
@@ -155,6 +158,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/operating-model.md"
       ],
@@ -332,6 +336,7 @@
         "operator_only"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/operating-model.md"
       ],

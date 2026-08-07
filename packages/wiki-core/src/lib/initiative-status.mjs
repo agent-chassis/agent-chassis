@@ -9,6 +9,9 @@ const INITIATIVE_STATUS_TAXONOMY_RELATIVE_PATH = 'packages/wiki-core/data/initia
 const RUNTIME_BLOCKER_TAXONOMY_RELATIVE_PATH = 'packages/wiki-core/data/runtime-blocker-codes.v1.json';
 const WORK_RECORDS_RELATIVE_DIR = 'wiki/work-records';
 export const INITIATIVE_STATUS_ACTION_LIMIT = 5;
+export const INITIATIVE_STATUS_CONSISTENCY_LIMIT = 10;
+export const INITIATIVE_STATUS_ACTION_BYTE_LIMIT = 1000;
+export const INITIATIVE_STATUS_CONSISTENCY_BYTE_LIMIT = 600;
 const DEFAULT_TOP_ACTION_LIMIT = INITIATIVE_STATUS_ACTION_LIMIT;
 
 function isPlainObject(value) {
@@ -839,8 +842,17 @@ export function readInitiativeStatusRecord(options = {}) {
   }
 }
 
-function collectOpenUnitEntries(records) {
+function isActionableStatus(status) {
+  return status !== 'done' && status !== 'cancelled' && status !== 'parked';
+}
+
+function collectInitiativeEntries(records) {
   const units = [];
+  const recordCorpus = [];
+  const sliceCorpus = [];
+  const actionableSeen = new Set();
+  const recordSeen = new Set();
+  const sliceSeen = new Set();
   const consistency = [];
   const consistencySeen = new Set();
 
@@ -850,9 +862,18 @@ function collectOpenUnitEntries(records) {
     }
 
     const recordStatus = getStatus(record);
+    if (!recordSeen.has(record.id)) {
+      recordSeen.add(record.id);
+      recordCorpus.push({
+        kind: 'record',
+        address: record.id,
+        entry: record,
+      });
+    }
 
     const parentTerminal = recordStatus === 'done' || recordStatus === 'cancelled';
-    if (recordStatus !== 'done' && recordStatus !== 'cancelled' && recordStatus !== 'parked') {
+    if (isActionableStatus(recordStatus) && !actionableSeen.has(record.id)) {
+      actionableSeen.add(record.id);
       units.push({
         kind: 'record',
         address: record.id,
@@ -882,12 +903,22 @@ function collectOpenUnitEntries(records) {
         }
 
         const sliceStatus = getStatus(slice);
-        if (sliceStatus === 'done' || sliceStatus === 'cancelled' || sliceStatus === 'parked') {
+        const sliceAddress = `${record.id}#${slice.id}`;
+        if (!sliceSeen.has(sliceAddress)) {
+          sliceSeen.add(sliceAddress);
+          sliceCorpus.push({
+            kind: 'slice',
+            address: sliceAddress,
+            entry: slice,
+          });
+        }
+
+        if (!isActionableStatus(sliceStatus)) {
           continue;
         }
 
         if (parentTerminal) {
-          const consistencyKey = `${record.id}#${slice.id}`;
+          const consistencyKey = sliceAddress;
           if (!consistencySeen.has(consistencyKey)) {
             consistencySeen.add(consistencyKey);
             consistency.push({
@@ -903,9 +934,13 @@ function collectOpenUnitEntries(records) {
           continue;
         }
 
+        if (actionableSeen.has(sliceAddress)) {
+          continue;
+        }
+        actionableSeen.add(sliceAddress);
         units.push({
           kind: 'slice',
-          address: `${record.id}#${slice.id}`,
+          address: sliceAddress,
           record_id: record.id,
           slice_id: slice.id,
           entry: slice,
@@ -915,30 +950,49 @@ function collectOpenUnitEntries(records) {
     }
   }
 
-  return { units, consistency };
+  return { units, recordCorpus, sliceCorpus, consistency };
 }
 
-function summarizeCounts(units) {
-  const counts = {
-    total: units.length,
-    todo: 0,
-    active: 0,
-    review: 0,
-    blocked: 0,
-    done: 0,
-    other: 0,
-  };
+function summarizeStatusCounts(units) {
+  const counts = new Map();
 
   for (const unit of units) {
-    const status = getStatus(unit.entry) ?? 'other';
-    if (Object.prototype.hasOwnProperty.call(counts, status)) {
-      counts[status] += 1;
-    } else {
-      counts.other += 1;
-    }
+    const status = getStatus(unit.entry) ?? 'unspecified';
+    counts.set(status, (counts.get(status) ?? 0) + 1);
   }
 
-  return counts;
+  return Object.fromEntries([...counts.entries()].sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function summarizeCounts(units, recordCorpus, sliceCorpus) {
+  return {
+    actionable_unit_total: units.length,
+    actionable_unit_status_counts: summarizeStatusCounts(units),
+    record_corpus_total: recordCorpus.length,
+    record_corpus_status_counts: summarizeStatusCounts(recordCorpus),
+    slice_corpus_total: sliceCorpus.length,
+    slice_corpus_status_counts: summarizeStatusCounts(sliceCorpus),
+  };
+}
+
+function emptyCounts() {
+  return summarizeCounts([], [], []);
+}
+
+function summarizeSelectedUnitCounts(selection) {
+  if (!selection?.entry) {
+    return emptyCounts();
+  }
+
+  const corpusEntry = {
+    kind: selection.kind,
+    address: selection.address,
+    entry: selection.entry,
+  };
+  const actionableUnits = isActionableStatus(getStatus(selection.entry)) ? [corpusEntry] : [];
+  const recordCorpus = selection.kind === 'record' ? [corpusEntry] : [];
+  const sliceCorpus = selection.kind === 'slice' ? [corpusEntry] : [];
+  return summarizeCounts(actionableUnits, recordCorpus, sliceCorpus);
 }
 
 function compareActions(left, right) {
@@ -957,8 +1011,61 @@ function compareActions(left, right) {
   return String(left.target_unit ?? '').localeCompare(String(right.target_unit ?? ''));
 }
 
-function compactTopActions(actions, limit = DEFAULT_TOP_ACTION_LIMIT) {
-  return actions.slice(0, limit);
+function byteLength(value) {
+  return Buffer.byteLength(JSON.stringify(value, null, 2), 'utf8');
+}
+
+function takeRowsWithinByteBudget(rows, byteLimit) {
+  const returned = [];
+  for (const row of rows) {
+    const candidate = [...returned, row];
+    if (byteLength(candidate) > byteLimit) {
+      break;
+    }
+    returned.push(row);
+  }
+  return returned;
+}
+
+function compactActionRow(action) {
+  return {
+    target_unit: action.target_unit ?? null,
+    reason_code: action.reason_code ?? null,
+    suggested_tool: action.suggested_tool ?? null,
+  };
+}
+
+function compactConsistencyRow(entry) {
+  return {
+    kind: entry.kind,
+    address: entry.address,
+  };
+}
+
+function projectTopActions(actions, { limit, verbose }) {
+  const countBound = actions.slice(0, limit);
+  const rows = verbose
+    ? countBound
+    : takeRowsWithinByteBudget(countBound.map(compactActionRow), INITIATIVE_STATUS_ACTION_BYTE_LIMIT);
+  return {
+    rows,
+    total: actions.length,
+    returned: rows.length,
+    truncated: rows.length < actions.length,
+  };
+}
+
+function projectConsistency(entries, verbose) {
+  const countBound = verbose ? entries : entries.slice(0, INITIATIVE_STATUS_CONSISTENCY_LIMIT);
+  const rows = verbose
+    ? countBound
+    : takeRowsWithinByteBudget(countBound.map(compactConsistencyRow), INITIATIVE_STATUS_CONSISTENCY_BYTE_LIMIT);
+  return {
+    rows,
+    total: entries.length,
+    returned: rows.length,
+    truncated: rows.length < entries.length,
+  };
 }
 
 function createActionCandidateSummary(selection, action, record) {
@@ -994,21 +1101,20 @@ export function deriveInitiativeStatus(options = {}) {
   if (unit) {
     const { recordId, sliceId } = splitUnitAddress(unit);
     if (!recordId) {
+      const action = makeRecordValidationAction(taxonomy, { address: unit }, {
+        target_unit: unit,
+        summary: 'The selected unit address is malformed.',
+      });
+      const actionChannel = projectTopActions([action], { limit: topActionLimit, verbose });
       return {
         schema_version: 'initiative-status.v1',
         scope: { initiative, unit },
-        counts: { total: 0, todo: 0, active: 0, review: 0, blocked: 0, done: 0, other: 0 },
-        top_actions: [
-          makeRecordValidationAction(taxonomy, { address: unit }, {
-            target_unit: unit,
-            summary: 'The selected unit address is malformed.',
-          }),
-        ],
-        next_action: makeRecordValidationAction(taxonomy, { address: unit }, {
-          target_unit: unit,
-          summary: 'The selected unit address is malformed.',
-        }),
-        truncated: false,
+        counts: emptyCounts(),
+        top_actions: actionChannel.rows,
+        top_actions_total: actionChannel.total,
+        top_actions_returned: actionChannel.returned,
+        top_actions_truncated: actionChannel.truncated,
+        next_action: verbose ? action : compactActionRow(action),
       };
     }
 
@@ -1025,21 +1131,20 @@ export function deriveInitiativeStatus(options = {}) {
         selectedRecord = loaded.record;
         selection = getSelectionInfo(loaded.record, unit);
       } catch (error) {
+        const action = makeRecordValidationAction(taxonomy, { address: unit }, {
+          target_unit: unit,
+          summary: `Unable to load the selected unit record: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        const actionChannel = projectTopActions([action], { limit: topActionLimit, verbose });
         return {
           schema_version: 'initiative-status.v1',
           scope: { initiative, unit },
-          counts: { total: 0, todo: 0, active: 0, review: 0, blocked: 0, done: 0, other: 0 },
-          top_actions: [
-            makeRecordValidationAction(taxonomy, { address: unit }, {
-              target_unit: unit,
-              summary: `Unable to load the selected unit record: ${error instanceof Error ? error.message : String(error)}`,
-            }),
-          ],
-          next_action: makeRecordValidationAction(taxonomy, { address: unit }, {
-            target_unit: unit,
-            summary: `Unable to load the selected unit record: ${error instanceof Error ? error.message : String(error)}`,
-          }),
-          truncated: false,
+          counts: emptyCounts(),
+          top_actions: actionChannel.rows,
+          top_actions_total: actionChannel.total,
+          top_actions_returned: actionChannel.returned,
+          top_actions_truncated: actionChannel.truncated,
+          next_action: verbose ? action : compactActionRow(action),
         };
       }
     }
@@ -1062,10 +1167,12 @@ export function deriveInitiativeStatus(options = {}) {
     ? [normalizeLoadedRecordEntry({ source_path: null, raw: selectedRecord, record: selectedRecord })].filter(Boolean)
     : providedRecords ?? loadRelevantRecords(repoRoot, initiative);
 
-  const scan = unit ? null : collectOpenUnitEntries(records);
+  const scan = unit ? null : collectInitiativeEntries(records);
   const openUnits = unit ? [selection].filter(Boolean) : scan.units;
-  const consistency = unit ? [] : scan.consistency;
-  const counts = summarizeCounts(openUnits);
+  const fullConsistency = unit ? [] : scan.consistency;
+  const counts = unit
+    ? summarizeSelectedUnitCounts(selection)
+    : summarizeCounts(openUnits, scan.recordCorpus, scan.sliceCorpus);
 
   const actions = [];
   if (unit && selection) {
@@ -1094,8 +1201,10 @@ export function deriveInitiativeStatus(options = {}) {
     }
   }
 
-  const topActions = compactTopActions(actions, topActionLimit);
-  const nextAction = topActions[0] ?? makeNoAction(taxonomy, { target_unit: unit ?? initiative ?? null });
+  const actionChannel = projectTopActions(actions, { limit: topActionLimit, verbose });
+  const consistencyChannel = projectConsistency(fullConsistency, verbose);
+  const fullNextAction = actions[0] ?? makeNoAction(taxonomy, { target_unit: unit ?? initiative ?? null });
+  const nextAction = verbose ? fullNextAction : compactActionRow(fullNextAction);
 
   const result = {
     schema_version: 'initiative-status.v1',
@@ -1104,13 +1213,18 @@ export function deriveInitiativeStatus(options = {}) {
       unit: unit ?? null,
     },
     counts,
-    top_actions: topActions,
+    top_actions: actionChannel.rows,
+    top_actions_total: actionChannel.total,
+    top_actions_returned: actionChannel.returned,
+    top_actions_truncated: actionChannel.truncated,
     next_action: nextAction,
-    truncated: actions.length > topActions.length,
   };
 
   if (!unit) {
-    result.consistency = consistency;
+    result.consistency = consistencyChannel.rows;
+    result.consistency_total = consistencyChannel.total;
+    result.consistency_returned = consistencyChannel.returned;
+    result.consistency_truncated = consistencyChannel.truncated;
   }
 
   if (verbose) {
@@ -1136,6 +1250,9 @@ export const getInitiativeStatus = workspaceInitiativeStatus;
 
 export default {
   INITIATIVE_STATUS_ACTION_LIMIT,
+  INITIATIVE_STATUS_CONSISTENCY_LIMIT,
+  INITIATIVE_STATUS_ACTION_BYTE_LIMIT,
+  INITIATIVE_STATUS_CONSISTENCY_BYTE_LIMIT,
   loadInitiativeStatusTaxonomy,
   loadInitiativeStatusActions,
   loadInitiativeStatusRecords,

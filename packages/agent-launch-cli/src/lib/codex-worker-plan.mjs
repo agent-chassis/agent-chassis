@@ -164,7 +164,9 @@ export async function buildWorkerPlan({
   provisioned_worktree_git_binding = null,
   provisioned_worktree_git_identity = null,
   worker_scope_authority = null,
-  worktree_provisioning = null
+  worktree_provisioning = null,
+
+  terminalStructuredRoleResultMode = undefined
 }) {
   if (role === "worker-fast" || role === "worker_fast") {
     return buildFastDecommissionedRefusalPlan({ role, subject: wk, env });
@@ -391,7 +393,8 @@ export async function buildWorkerPlan({
       launchTimestamp: env.AGENT_LAUNCH_TIMESTAMP || new Date().toISOString(),
       supplementalInstructions: promptArgs,
 
-      remoteWorkerAdmission: remoteAdmissionProvenance
+      remoteWorkerAdmission: remoteAdmissionProvenance,
+      terminalStructuredRoleResultMode
     });
     return {
       mode: "refusal",
@@ -424,7 +427,9 @@ export async function buildWorkerPlan({
 
     remoteWorkerAdmission: remoteAdmissionProvenance,
     launchTimestamp: env.AGENT_LAUNCH_TIMESTAMP || new Date().toISOString(),
-    supplementalInstructions: promptArgs
+    supplementalInstructions: promptArgs,
+
+    terminalStructuredRoleResultMode
   });
   if (!gate.allowed) {
     const refusal = attachWorkerAdmissionRemediation(gate);
@@ -462,6 +467,7 @@ export async function buildWorkerPlan({
     worktree_provisioning,
     serverProvisionedWorktreeGitBinding,
     remoteAdmissionProvenance,
+    terminalStructuredRoleResultMode,
     buildCodexWritableSandboxArgs,
     buildHeadlessPlan,
     ROLE_CONFIG

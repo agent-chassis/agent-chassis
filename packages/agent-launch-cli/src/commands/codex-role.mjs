@@ -294,6 +294,8 @@ export async function buildCodexRolePlan({
       workspaceAlias,
       workspaceDir,
       sourceToolSurface,
+
+      terminalStructuredRoleResultMode,
       provisionedWorktreeGitBinding,
       provisionedWorktreeGitIdentity,
       provisioned_worktree_git_binding,

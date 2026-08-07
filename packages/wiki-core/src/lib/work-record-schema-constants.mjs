@@ -55,6 +55,10 @@ export const WORK_RECORD_REVIEW_PURPOSE_VALUES = Object.freeze([
   "terminal_whole_wk"
 ]);
 
+export const WORK_RECORD_COMPLETION_POLICY_VALUES = Object.freeze([
+  "forge_confirmed_merge"
+]);
+
 export const WORK_RECORD_STATUS_VALUES = Object.freeze([
   "inbox",
   "todo",

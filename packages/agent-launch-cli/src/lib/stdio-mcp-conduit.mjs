@@ -1,21 +1,21 @@
 
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { chmodSync, lstatSync, mkdirSync, mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { resolveWikiMcpHostServerPath } from "./wiki-mcp-host-server.mjs";
+import { resolveWikiMcpHostServerBinding } from "./wiki-mcp-host-server.mjs";
 import { resolveLauncherRoleToolNamesForEnv } from "./launcher-role-tool-profile.mjs";
 import { createStdioMcpConduitWithTrustedDependencies } from "./stdio-mcp-conduit-core.mjs";
 import {
   STDIO_MCP_CLIENT_READINESS_TIMEOUT_MS,
   STDIO_MCP_CONDUIT_ERROR_CODES,
-  STDIO_MCP_RELAY_ARGS,
-  STDIO_MCP_RELAY_COMMAND,
   STDIO_MCP_SERVER_STARTUP_TIMEOUT_MS,
   assertTrustedStdioMcpConduitBinding,
-  failStdioMcpConduit as fail
+  createStdioMcpChannelRelayRegistration,
+  failStdioMcpConduit as fail,
+  projectStdioMcpChannelClientRegistration
 } from "./stdio-mcp-conduit-contract.mjs";
 import {
   bootstrapNodeEngineEnvFromFile,
@@ -24,12 +24,9 @@ import {
 
 export * from "./stdio-mcp-conduit-contract.mjs";
 
-const LAUNCHER_MKFIFO_PATH = "/usr/bin/mkfifo";
 const CONDUIT_DIRECTORY_PREFIX = "agent-launch-wiki-mcp-";
 
 const LAUNCHER_RUNTIME_ROOT = "/run/user";
-
-const LAUNCHER_FIFO_MODE = "0600";
 
 function launcherUid() {
   return typeof process.getuid === "function" ? process.getuid() : null;
@@ -148,18 +145,13 @@ function makeLauncherPrivateDirectory(workspaceDir = null) {
   return directory;
 }
 
-function createLauncherFifoPair({ clientToServer, serverToClient }) {
-  return spawnSync(LAUNCHER_MKFIFO_PATH,
-    ["-m", LAUNCHER_FIFO_MODE, clientToServer, serverToClient],
-    { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
-}
-
 export function resolveTrustedStdioMcpConduitDependencies({ workspaceDir = null } = {}) {
+  const hostServerBinding = resolveWikiMcpHostServerBinding();
   return Object.freeze({
-    serverPath: resolveWikiMcpHostServerPath(),
+
+    serverPath: hostServerBinding.entrypoint,
     execPath: process.execPath,
     spawnServer: spawn,
-    createFifos: createLauncherFifoPair,
     makePrivateDirectory: () => makeLauncherPrivateDirectory(workspaceDir),
     resolveRoleToolNames: resolveLauncherRoleToolNamesForEnv,
     bootstrapNodeEngineEnv: (env, workspaceDir) => bootstrapNodeEngineEnvFromFile({
@@ -181,11 +173,7 @@ export async function createStdioMcpConduit(input = {}) {
 }
 
 export function createStdioMcpRelayRegistration() {
-  return Object.freeze({
-    command: STDIO_MCP_RELAY_COMMAND,
-    args: STDIO_MCP_RELAY_ARGS,
-    env: Object.freeze({})
-  });
+  return createStdioMcpChannelRelayRegistration();
 }
 
 function assertClaudeConduitBinding(binding) {
@@ -212,11 +200,13 @@ export function buildClaudeStdioMcpAllowedToolsArgs(binding, toolNames = [], nat
 
 export function buildClaudeStdioMcpRegistrationArgs(binding, toolNames = [], nativeToolNames = []) {
   assertClaudeConduitBinding(binding);
+
+  const relay = projectStdioMcpChannelClientRegistration(binding);
   const config = JSON.stringify({
     mcpServers: {
       wiki: {
-        command: binding.relay.command,
-        args: [...binding.relay.args],
+        command: relay.command,
+        args: [...relay.args],
         env: {}
       }
     }

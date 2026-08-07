@@ -38,10 +38,19 @@ export const SLICE_INTEGRATION_DIAGNOSTIC_CODES = Object.freeze({
 
   RECORD_CAS_EXHAUSTED: "agent_launch.slice_integration.record_cas_exhausted.v1",
   RECORD_WRITE_FAILED: "agent_launch.slice_integration.record_write_failed.v1",
+  ZERO_DELTA_EVIDENCE_INDETERMINATE:
+    "agent_launch.slice_integration.zero_delta_evidence_indeterminate.v1",
+  ZERO_DELTA_EVIDENCE_AMBIGUOUS:
+    "agent_launch.slice_integration.zero_delta_evidence_ambiguous.v1",
+  ZERO_DELTA_STATUS_WITHOUT_EVIDENCE:
+    "agent_launch.slice_integration.zero_delta_status_without_evidence.v1",
+  ZERO_DELTA_LIFECYCLE_CONTRADICTION:
+    "agent_launch.slice_integration.zero_delta_lifecycle_contradiction.v1",
   GIT_FAILED: "agent_launch.slice_integration.git_failed.v1"
 });
 
 const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+const EXACT_SLICE_SUBJECT_RE = /^WK-\d{4}#SLICE-\d{3}$/u;
 export const SLICE_REF_RE = /^refs\/heads\/slice\/(IN-\d{4})\/(WK-\d{4})\/(SLICE-\d{3})$/;
 export const WK_REF_RE = /^refs\/heads\/wk\/(IN-\d{4})\/(WK-\d{4})$/;
 
@@ -68,6 +77,51 @@ export function assertOid(value, label) {
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.INVALID_ARG, `${label} must be a non-zero git object id`);
   }
   return value;
+}
+
+function parseLiteralCommitBytes(raw, oid) {
+  if (typeof raw !== "string" || raw.includes("\uFFFD") || raw.includes("\0") || raw.includes("\r")) {
+    return null;
+  }
+  const separator = raw.indexOf("\n\n");
+  if (separator < 0) return null;
+  const lines = raw.slice(0, separator).split("\n");
+  if (lines.length === 0 || lines.some((line) => line.length === 0)) return null;
+  const headers = [];
+  let continuedKey = null;
+  for (const line of lines) {
+    if (line.startsWith(" ")) {
+      if (continuedKey === null || continuedKey === "tree" || continuedKey === "parent" ||
+          /[\x00-\x1f\x7f]/u.test(line.slice(1))) {
+        return null;
+      }
+      continue;
+    }
+    const space = line.indexOf(" ");
+    if (space <= 0 || space === line.length - 1) return null;
+    const key = line.slice(0, space);
+    const value = line.slice(space + 1);
+    if (!/^[\x21-\x7e]+$/u.test(key) || value.startsWith(" ") || /[\x00-\x1f\x7f]/u.test(value)) {
+      return null;
+    }
+    headers.push({ key, value });
+    continuedKey = key;
+  }
+  const treeHeaders = headers.filter(({ key }) => key === "tree");
+  const parentHeaders = headers.filter(({ key }) => key === "parent");
+  if (treeHeaders.length !== 1) return null;
+  const tree = treeHeaders[0].value;
+  const parents = parentHeaders.map(({ value }) => value);
+  if (!OID_RE.test(tree) || tree.length !== oid.length ||
+      parents.some((parent) => !OID_RE.test(parent) || parent.length !== oid.length)) {
+    return null;
+  }
+  return Object.freeze({
+    oid,
+    tree,
+    parents: Object.freeze(parents),
+    message: raw.slice(separator + 2)
+  });
 }
 
 export function normalizeRef(value, pattern, label) {
@@ -104,10 +158,266 @@ export function resolveTree(runGit, repo, rev) {
   return assertOid(oid, `${rev} tree`);
 }
 
+function assertEvidenceSubject(subject) {
+  if (typeof subject !== "string" || !EXACT_SLICE_SUBJECT_RE.test(subject)) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.INVALID_ARG,
+      "zero-delta evidence subject must be an exact canonical slice identity"
+    );
+  }
+  return subject;
+}
+
+function assertEvidenceOidSet({ deliverySha, baseSha, wkParentSha }) {
+  assertOid(deliverySha, "zero-delta evidence delivery");
+  assertOid(baseSha, "zero-delta evidence base");
+  assertOid(wkParentSha, "zero-delta evidence WK parent");
+  if (deliverySha.length !== baseSha.length || deliverySha.length !== wkParentSha.length) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.INVALID_ARG,
+      "zero-delta evidence object ids must use one repository object format"
+    );
+  }
+}
+
+export function buildZeroDeltaIntegrationEvidenceMessage({
+  subject,
+  deliverySha,
+  baseSha,
+  wkParentSha
+}) {
+  assertEvidenceSubject(subject);
+  assertEvidenceOidSet({ deliverySha, baseSha, wkParentSha });
+  return `agent-launch zero-delta integration evidence: ${subject}\n\n` +
+    `Wk-Slice: ${subject}\n` +
+    "Wk-Slice-Integration: v1\n" +
+    `Wk-Slice-Delivery: ${deliverySha}\n` +
+    `Wk-Slice-Base: ${baseSha}\n` +
+    `Wk-Slice-Wk-Parent: ${wkParentSha}\n` +
+    "Wk-Slice-Empty: true\n";
+}
+
+function exactReviewedDeliveryIdentity(runGit, mainRepo, subject, deliverySha, baseSha, cache = new Map()) {
+  const delivery = readLiteralCommit(runGit, mainRepo, deliverySha, cache);
+  if (delivery === null) return false;
+  const expectedMessage =
+    `agent-launch worker delivery: ${subject} (base ${baseSha.slice(0, 12)})\n\n` +
+    `${buildWkSliceMarkerTrailer(subject)}\n`;
+  return delivery.parents.length === 1 && delivery.parents[0] === baseSha &&
+    OID_RE.test(delivery.tree ?? "") && delivery.tree.length === deliverySha.length &&
+    delivery.message === expectedMessage;
+}
+
+export function resolveAuthenticatedExactSliceDeliveryBase({
+  runGit,
+  mainRepo,
+  subject,
+  deliverySha
+}) {
+  assertEvidenceSubject(subject);
+  assertOid(deliverySha, "reviewed zero-delta delivery");
+  const cache = new Map();
+  const delivery = readLiteralCommit(runGit, mainRepo, deliverySha, cache);
+  if (delivery === null) return null;
+  if (delivery.parents.length !== 1) return null;
+  const baseSha = delivery.parents[0];
+  if (!OID_RE.test(baseSha) || baseSha.length !== deliverySha.length) return null;
+  return exactReviewedDeliveryIdentity(runGit, mainRepo, subject, deliverySha, baseSha, cache)
+    ? baseSha
+    : null;
+}
+
+const ZERO_DELTA_EVIDENCE_MESSAGE_RE =
+  /^agent-launch zero-delta integration evidence: ([^\n]+)\n\nWk-Slice: ([^\n]+)\nWk-Slice-Integration: ([^\n]+)\nWk-Slice-Delivery: ([^\n]+)\nWk-Slice-Base: ([^\n]+)\nWk-Slice-Wk-Parent: ([^\n]+)\nWk-Slice-Empty: ([^\n]+)\n$/u;
+
+function classifyExactZeroDeltaEvidence({
+  runGit,
+  mainRepo,
+  candidate,
+  subject,
+  deliverySha = null,
+  expectedBaseSha = null,
+  cache = new Map()
+}) {
+  const parsedObject = readLiteralCommit(runGit, mainRepo, candidate, cache);
+  if (parsedObject === null || /[^\x00-\x7f]/u.test(parsedObject.message)) return null;
+  const object = { ...parsedObject, message: Buffer.from(parsedObject.message, "utf8") };
+  const message = parsedObject.message;
+  const fields = message.match(ZERO_DELTA_EVIDENCE_MESSAGE_RE);
+  if (fields === null) return null;
+  const deliveryMismatch = deliverySha !== null && (
+    fields[4] !== deliverySha || fields[4].length !== deliverySha.length
+  );
+  if (fields[1] !== subject || fields[2] !== subject ||
+      fields[3] !== "v1" || fields[7] !== "true" ||
+      deliveryMismatch ||
+      (expectedBaseSha !== null && fields[5] !== expectedBaseSha)) {
+    return null;
+  }
+  const encodedDeliverySha = fields[4];
+  const baseSha = fields[5];
+  const wkParentSha = fields[6];
+  if (!OID_RE.test(encodedDeliverySha) || /^0+$/u.test(encodedDeliverySha) ||
+      !OID_RE.test(baseSha) || /^0+$/u.test(baseSha) ||
+      !OID_RE.test(wkParentSha) || /^0+$/u.test(wkParentSha) ||
+      baseSha.length !== encodedDeliverySha.length || wkParentSha.length !== encodedDeliverySha.length ||
+      candidate.length !== encodedDeliverySha.length || object.tree?.length !== encodedDeliverySha.length) {
+    return null;
+  }
+  if (object.parents.length !== 1 || object.parents[0] !== wkParentSha ||
+      !exactReviewedDeliveryIdentity(
+        runGit, mainRepo, subject, encodedDeliverySha, baseSha, cache
+      )) {
+    return null;
+  }
+  let parentTree;
+  let empty;
+  try {
+    parentTree = readLiteralCommit(runGit, mainRepo, wkParentSha, cache)?.tree ?? null;
+    empty = sliceHasNoRemainingDelta({
+      runGit,
+      mainRepo,
+      baseSha,
+      commit: encodedDeliverySha,
+      wkTip: wkParentSha
+    });
+  } catch {
+    return null;
+  }
+  if (object.tree !== parentTree || !empty) {
+    return null;
+  }
+  const expectedMessage = buildZeroDeltaIntegrationEvidenceMessage({
+    subject,
+    deliverySha: encodedDeliverySha,
+    baseSha,
+    wkParentSha
+  });
+  if (Buffer.compare(object.message, Buffer.from(expectedMessage, "utf8")) !== 0) {
+    return null;
+  }
+  return Object.freeze({
+    evidence_sha: candidate,
+    delivery_sha: encodedDeliverySha,
+    base_sha: baseSha,
+    wk_parent_sha: wkParentSha,
+    tree: object.tree
+  });
+}
+
+export function authenticateZeroDeltaIntegrationEvidenceCandidate({
+  runGit,
+  mainRepo,
+  evidenceSha,
+  subject,
+  deliverySha = null,
+  baseSha = null
+}) {
+  assertOid(evidenceSha, "zero-delta evidence candidate");
+  assertEvidenceSubject(subject);
+  if (deliverySha !== null) assertOid(deliverySha, "zero-delta evidence delivery");
+  if (baseSha !== null) assertOid(baseSha, "zero-delta evidence base");
+  if (deliverySha !== null && baseSha !== null && deliverySha.length !== baseSha.length) return null;
+  try {
+    return classifyExactZeroDeltaEvidence({
+      runGit,
+      mainRepo,
+      candidate: evidenceSha,
+      subject,
+      deliverySha,
+      expectedBaseSha: baseSha
+    });
+  } catch {
+    return null;
+  }
+}
+
+export function authenticateZeroDeltaIntegrationEvidenceCommit({
+  runGit,
+  mainRepo,
+  evidenceSha,
+  subject,
+  deliverySha,
+  baseSha,
+  wkParentSha
+}) {
+  assertEvidenceOidSet({ deliverySha, baseSha, wkParentSha });
+  assertOid(evidenceSha, "zero-delta evidence commit");
+  const match = classifyExactZeroDeltaEvidence({
+    runGit,
+    mainRepo,
+    candidate: evidenceSha,
+    subject: assertEvidenceSubject(subject),
+    deliverySha,
+    expectedBaseSha: baseSha
+  });
+  return match !== null && match.wk_parent_sha === wkParentSha ? match : null;
+}
+
+export function resolveZeroDeltaIntegrationEvidence({
+  runGit,
+  mainRepo,
+  wkTip,
+  subject,
+  deliverySha,
+  baseSha = null
+}) {
+  assertEvidenceSubject(subject);
+  assertOid(wkTip, "zero-delta evidence history tip");
+  assertOid(deliverySha, "zero-delta evidence delivery");
+  if (wkTip.length !== deliverySha.length) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "zero-delta evidence history and delivery use different object formats"
+    );
+  }
+  if (baseSha !== null) {
+    assertOid(baseSha, "zero-delta evidence expected base");
+    if (baseSha.length !== deliverySha.length) {
+      fail(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+        "zero-delta evidence base uses a different object format"
+      );
+    }
+  }
+  const listed = authorityProbe(runGit, mainRepo, ["rev-list", wkTip]);
+  if (listed.outcome !== "ok") {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "zero-delta evidence literal history is indeterminate"
+    );
+  }
+  const candidates = String(listed.stdout).split(/\r?\n/u).filter((value) => value.length > 0);
+  if (candidates.some((value) => !OID_RE.test(value) || value.length !== wkTip.length)) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "zero-delta evidence literal history returned a malformed object id"
+    );
+  }
+  const matches = [];
+  for (const candidate of candidates) {
+    const match = classifyExactZeroDeltaEvidence({
+      runGit,
+      mainRepo,
+      candidate,
+      subject,
+      deliverySha,
+      expectedBaseSha: baseSha
+    });
+    if (match !== null) matches.push(match);
+  }
+  return Object.freeze({
+    count: matches.length,
+    matches: Object.freeze(matches),
+    match: matches.length === 1 ? matches[0] : null
+  });
+}
+
 export function sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wkTip }) {
   const merged = runGit({
     repo: mainRepo,
     args: [
+      "--no-replace-objects",
       "merge-tree", "--write-tree", "--no-messages",
       "--merge-base", baseSha,
       wkTip,
@@ -131,7 +441,14 @@ export function sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wk
     String(merged.stdout ?? "").split(/\r?\n/u)[0].trim(),
     "applied slice tree"
   );
-  return appliedTree === resolveTree(runGit, mainRepo, wkTip);
+  const wkCommit = readLiteralCommit(runGit, mainRepo, wkTip, new Map());
+  if (wkCommit === null) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "the zero-delta WK parent is not a literal commit"
+    );
+  }
+  return appliedTree === wkCommit.tree;
 }
 
 export function assertExactWorktreeBinding(runGit, worktreePath, sliceRef, expectedHead) {
@@ -170,25 +487,174 @@ function isImplementationSlice(slice) {
   return kind === "implementation";
 }
 
-function ereEscape(value) {
-  return String(value).replace(/[.\\[\]()*+?{}|^$]/gu, "\\$&");
+export const SLICE_MARKER_EVIDENCE_STATES = Object.freeze({
+  FOUND: "found",
+  ABSENT: "absent",
+  INDETERMINATE: "indeterminate"
+});
+
+const WK_SLICE_MARKER_KEY_RE = /^[ \t]*wk-slice[ \t]*:/iu;
+const MAX_LITERAL_COMMITS = 100_000;
+
+function markerEvidence(state, { candidates = [], reason = null } = {}) {
+  const authenticated = Object.freeze(candidates.slice().sort());
+  return Object.freeze({
+    state,
+    candidates: authenticated,
+    commit: authenticated.length === 1 ? authenticated[0] : null,
+    reason
+  });
+}
+
+function authorityProbe(runGit, mainRepo, args) {
+  let result;
+  try {
+    result = runGit({ repo: mainRepo, args: ["--no-replace-objects", ...args] });
+  } catch (error) {
+    return { outcome: "faulted", error: error?.message ?? String(error) };
+  }
+  if (result === null || typeof result !== "object") {
+    return { outcome: "faulted", error: "probe returned no result" };
+  }
+  if (result.ok !== true) {
+    return {
+      outcome: "failed",
+      status: typeof result.status === "number" ? result.status : null,
+      signal: result.signal ?? null,
+      error: result.error ?? null,
+      stdout: typeof result.stdout === "string" ? result.stdout : ""
+    };
+  }
+  const stdout = result.stdout ?? "";
+  if (typeof stdout !== "string") {
+    return { outcome: "faulted", error: "probe returned non-string output" };
+  }
+  return { outcome: "ok", stdout };
+}
+
+function parseLiteralCommit(raw, oid) {
+  return parseLiteralCommitBytes(raw, oid);
+}
+
+function readLiteralCommit(runGit, mainRepo, oid, cache) {
+  if (!OID_RE.test(oid) || /^0+$/u.test(oid)) return null;
+  if (cache.has(oid)) return cache.get(oid);
+  const type = authorityProbe(runGit, mainRepo, ["cat-file", "-t", oid]);
+  if (type.outcome !== "ok" || type.stdout !== "commit\n") return null;
+  const body = authorityProbe(runGit, mainRepo, ["cat-file", "commit", oid]);
+  if (body.outcome !== "ok") return null;
+  const commit = parseLiteralCommit(body.stdout, oid);
+  if (commit === null) return null;
+  cache.set(oid, commit);
+  return commit;
+}
+
+function literalReachable(runGit, mainRepo, start, cache) {
+  const visited = new Set();
+  const active = new Set();
+  const stack = [{ oid: start, exiting: false }];
+  while (stack.length > 0) {
+    const entry = stack.pop();
+    if (entry.exiting) {
+      active.delete(entry.oid);
+      continue;
+    }
+    if (visited.has(entry.oid)) continue;
+    if (active.has(entry.oid) || visited.size >= MAX_LITERAL_COMMITS) return null;
+    const commit = readLiteralCommit(runGit, mainRepo, entry.oid, cache);
+    if (commit === null) return null;
+    visited.add(entry.oid);
+    active.add(entry.oid);
+    stack.push({ oid: entry.oid, exiting: true });
+    for (let index = commit.parents.length - 1; index >= 0; index -= 1) {
+      const parent = commit.parents[index];
+      if (active.has(parent)) return null;
+      if (!visited.has(parent)) stack.push({ oid: parent, exiting: false });
+    }
+  }
+  return visited;
+}
+
+function markerLines(message) {
+  return String(message).split("\n").filter((line) => WK_SLICE_MARKER_KEY_RE.test(line));
+}
+
+function claimsIdentity(message, identity) {
+  const expected = identity.toLowerCase();
+  return markerLines(message).some((line) => line.toLowerCase().includes(expected));
+}
+
+function isCanonicalLauncherMarkerMessage(message, wkId, sliceId) {
+  const subject = `${wkId}#${sliceId}`;
+  const trailer = buildWkSliceMarkerTrailer(subject);
+  if (trailer === null || typeof message !== "string" || /[^\x00-\x7f]/u.test(message)) return false;
+  const escapedSubject = subject.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const escapedTrailer = trailer.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return new RegExp(
+    `^agent-launch worker delivery: ${escapedSubject} \\(base [0-9a-f]{12}\\)\\n\\n${escapedTrailer}\\n$`,
+    "u"
+  ).test(message);
+}
+
+function canonicalMarkerMessageFamily(runGit, mainRepo, commit, wkId, sliceId, cache) {
+  if (isCanonicalLauncherMarkerMessage(commit.message, wkId, sliceId)) return "worker_delivery";
+  try {
+    const zeroDelta = classifyExactZeroDeltaEvidence({
+      runGit,
+      mainRepo,
+      candidate: commit.oid,
+      subject: `${wkId}#${sliceId}`,
+      cache
+    });
+    return zeroDelta === null ? null : "zero_delta_evidence";
+  } catch {
+    return null;
+  }
+}
+
+export function resolveSliceMarkerEvidence(runGit, mainRepo, wkTipSha, wkId, sliceId) {
+  const trailer = buildWkSliceMarkerTrailer(`${wkId}#${sliceId}`);
+  if (trailer === null) {
+    return markerEvidence(SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE, { reason: "marker_identity_unmintable" });
+  }
+  if (typeof wkTipSha !== "string" || !OID_RE.test(wkTipSha) || /^0+$/u.test(wkTipSha)) {
+    return markerEvidence(SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE, { reason: "wk_tip_not_exact_oid" });
+  }
+  const cache = new Map();
+  const wkReachable = literalReachable(runGit, mainRepo, wkTipSha, cache);
+  if (wkReachable === null) {
+    return markerEvidence(SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE, { reason: "history_probe_indeterminate" });
+  }
+  const candidates = [];
+  const identity = `${wkId}#${sliceId}`;
+  for (const oid of wkReachable) {
+    const commit = cache.get(oid);
+    if (!claimsIdentity(commit.message, identity)) continue;
+    if (commit.parents.length !== 1 ||
+        readLiteralCommit(runGit, mainRepo, commit.parents[0], cache) === null) {
+      return markerEvidence(SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE, { reason: "marker_parent_indeterminate" });
+    }
+    if (canonicalMarkerMessageFamily(runGit, mainRepo, commit, wkId, sliceId, cache) === null) {
+      return markerEvidence(SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE, { reason: "marker_message_not_canonical" });
+    }
+    candidates.push(oid);
+  }
+  if (candidates.length === 0) {
+    return markerEvidence(SLICE_MARKER_EVIDENCE_STATES.ABSENT, { reason: "marker_absent" });
+  }
+  return markerEvidence(SLICE_MARKER_EVIDENCE_STATES.FOUND, { candidates });
 }
 
 export function resolveSliceMarkerCommit(runGit, mainRepo, wkTipSha, wkId, sliceId) {
-  const trailer = buildWkSliceMarkerTrailer(`${wkId}#${sliceId}`);
-  if (trailer === null) return null;
-  const grep = `--grep=^${ereEscape(trailer)}$`;
-  const mainTip = runGit({ repo: mainRepo, args: ["rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"] });
-  const range = mainTip && mainTip.ok === true && String(mainTip.stdout ?? "").trim().length > 0
-    ? [`${String(mainTip.stdout).trim()}..${wkTipSha}`]
-    : [wkTipSha];
-  const res = runGit({ repo: mainRepo, args: ["rev-list", "--max-count=1", "-E", grep, ...range] });
-  const sha = res && res.ok === true ? String(res.stdout ?? "").trim() : "";
-  return OID_RE.test(sha) ? sha : null;
+  const evidence = resolveSliceMarkerEvidence(runGit, mainRepo, wkTipSha, wkId, sliceId);
+  return evidence.state === SLICE_MARKER_EVIDENCE_STATES.FOUND && evidence.candidates.length === 1
+    ? evidence.candidates[0]
+    : null;
 }
 
 function sliceMarkerPresentInWkTip(runGit, mainRepo, wkTipSha, wkId, sliceId) {
-  return resolveSliceMarkerCommit(runGit, mainRepo, wkTipSha, wkId, sliceId) !== null;
+  const evidence = resolveSliceMarkerEvidence(runGit, mainRepo, wkTipSha, wkId, sliceId);
+  return evidence.state === SLICE_MARKER_EVIDENCE_STATES.FOUND && evidence.candidates.length > 0;
 }
 
 function isSiblingImplementationComplete(entry, runGit, mainRepo, wkTipSha, wkId) {
@@ -197,13 +663,175 @@ function isSiblingImplementationComplete(entry, runGit, mainRepo, wkTipSha, wkId
   return sliceMarkerPresentInWkTip(runGit, mainRepo, wkTipSha, wkId, entry.id);
 }
 
-export function isLastIncompleteImplementationSlice(record, sliceId, runGit, mainRepo, wkTipSha, wkId) {
-  return !record.slices.some((entry) =>
-    entry &&
-    entry.id !== sliceId &&
-    isImplementationSlice(entry) &&
-    !isSiblingImplementationComplete(entry, runGit, mainRepo, wkTipSha, wkId)
-  );
+const INITIATIVE_ID_RE = /^IN-\d{4}$/u;
+const WK_ID_RE = /^WK-\d{4}$/u;
+const FIXED_FORK_REF_FORMAT = "%(refname)%00%(objectname)%00%(objecttype)%00%(symref)";
+
+export function resolveFixedWkForkCommit({ runGit, mainRepo, initiative, wkId }) {
+  if (!INITIATIVE_ID_RE.test(initiative ?? "") || !WK_ID_RE.test(wkId ?? "")) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.INVALID_ARG,
+      "fixed WK fork identity must be a canonical initiative and WK id"
+    );
+  }
+  const ref = `refs/agent-launch/wk-forks/${initiative}/${wkId}`;
+  const observed = authorityProbe(runGit, mainRepo, [
+    "for-each-ref", `--format=${FIXED_FORK_REF_FORMAT}`, "--count=2", "--", ref
+  ]);
+
+  if (observed.outcome !== "ok") {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.GIT_FAILED,
+      "the launcher-owned fixed WK fork ref could not be observed",
+      {
+        fork_ref: ref,
+        status: observed.status ?? null,
+        stderr: observed.error ?? null
+      }
+    );
+  }
+  if (!(observed.stdout === "" || observed.stdout.endsWith("\n"))) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+      "the launcher-owned fixed WK fork ref observation is malformed",
+      { fork_ref: ref }
+    );
+  }
+  if (observed.stdout === "") {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+      "the launcher-owned fixed WK fork ref is missing",
+      { fork_ref: ref }
+    );
+  }
+  const records = observed.stdout.slice(0, -1).split("\n");
+  const fields = records.length === 1 ? records[0].split("\0") : [];
+  if (fields.length !== 4 || fields[0] !== ref || fields[3] !== "" ||
+      fields[2] !== "commit" || !OID_RE.test(fields[1]) || /^0+$/u.test(fields[1])) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+      "the launcher-owned fixed WK fork ref is not one exact direct commit",
+      { fork_ref: ref }
+    );
+  }
+  return Object.freeze({ ref, sha: fields[1] });
+}
+
+function boundedWkLifecycleRegion(runGit, mainRepo, wkTipSha, forkSha, cache) {
+  if (typeof wkTipSha !== "string" || !OID_RE.test(wkTipSha) || /^0+$/u.test(wkTipSha)) return null;
+  if (typeof forkSha !== "string" || !OID_RE.test(forkSha) || /^0+$/u.test(forkSha)) return null;
+  if (wkTipSha.length !== forkSha.length) return null;
+
+  if (wkTipSha === forkSha) return new Set();
+  const visited = new Set();
+  const active = new Set();
+  const stack = [{ oid: wkTipSha, exiting: false }];
+  while (stack.length > 0) {
+    const entry = stack.pop();
+    if (entry.exiting) {
+      active.delete(entry.oid);
+      continue;
+    }
+    if (visited.has(entry.oid)) continue;
+    if (active.has(entry.oid) || visited.size >= MAX_LITERAL_COMMITS) return null;
+    const commit = readLiteralCommit(runGit, mainRepo, entry.oid, cache);
+    if (commit === null) return null;
+
+    if (commit.parents.length === 0) return null;
+    visited.add(entry.oid);
+    active.add(entry.oid);
+    stack.push({ oid: entry.oid, exiting: true });
+    for (let index = commit.parents.length - 1; index >= 0; index -= 1) {
+      const parent = commit.parents[index];
+
+      if (parent === forkSha) continue;
+      if (active.has(parent)) return null;
+      if (!visited.has(parent)) stack.push({ oid: parent, exiting: false });
+    }
+  }
+  return visited;
+}
+
+function boundedSiblingMarkerEvidence({ runGit, mainRepo, region, cache, wkId, sliceIds }) {
+  const targets = [];
+  const evidence = new Map();
+  for (const id of sliceIds) {
+    if (buildWkSliceMarkerTrailer(`${wkId}#${id}`) === null) {
+      evidence.set(id, markerEvidence(SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE, {
+        reason: "marker_identity_unmintable"
+      }));
+      continue;
+    }
+    targets.push({ id, needle: `${wkId}#${id}`.toLowerCase(), candidates: [], reason: null });
+  }
+  for (const oid of region) {
+    const commit = cache.get(oid);
+    const claimed = markerLines(commit.message).map((line) => line.toLowerCase());
+    if (claimed.length === 0) continue;
+    for (const target of targets) {
+      if (target.reason !== null) continue;
+      if (!claimed.some((line) => line.includes(target.needle))) continue;
+      if (commit.parents.length !== 1 ||
+          readLiteralCommit(runGit, mainRepo, commit.parents[0], cache) === null) {
+        target.reason = "marker_parent_indeterminate";
+        continue;
+      }
+      if (canonicalMarkerMessageFamily(runGit, mainRepo, commit, wkId, target.id, cache) === null) {
+        target.reason = "marker_message_not_canonical";
+        continue;
+      }
+      target.candidates.push(oid);
+    }
+  }
+  for (const target of targets) {
+    if (target.reason !== null) {
+      evidence.set(target.id, markerEvidence(SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE, {
+        reason: target.reason
+      }));
+    } else if (target.candidates.length === 0) {
+      evidence.set(target.id, markerEvidence(SLICE_MARKER_EVIDENCE_STATES.ABSENT, {
+        reason: "marker_absent"
+      }));
+    } else {
+      evidence.set(target.id, markerEvidence(SLICE_MARKER_EVIDENCE_STATES.FOUND, {
+        candidates: target.candidates
+      }));
+    }
+  }
+  return evidence;
+}
+
+export function isLastIncompleteImplementationSlice(
+  record, sliceId, runGit, mainRepo, wkTipSha, wkId, options = null
+) {
+  const fixedForkSha = typeof options?.fixedForkSha === "string" ? options.fixedForkSha : null;
+  if (fixedForkSha === null) {
+    return !record.slices.some((entry) =>
+      entry &&
+      entry.id !== sliceId &&
+      isImplementationSlice(entry) &&
+      !isSiblingImplementationComplete(entry, runGit, mainRepo, wkTipSha, wkId)
+    );
+  }
+
+  const proofNeeded = [];
+  for (const entry of record.slices) {
+    if (!entry || entry.id === sliceId || !isImplementationSlice(entry)) continue;
+    if (entry.status === "cancelled") continue;
+    if (entry.status !== "done") return false;
+    proofNeeded.push(entry.id);
+  }
+  if (proofNeeded.length === 0) return true;
+  const cache = new Map();
+  const region = boundedWkLifecycleRegion(runGit, mainRepo, wkTipSha, fixedForkSha, cache);
+  if (region === null) return false;
+  const evidence = boundedSiblingMarkerEvidence({
+    runGit, mainRepo, region, cache, wkId, sliceIds: proofNeeded
+  });
+  return proofNeeded.every((id) => {
+    const found = evidence.get(id);
+    return found.state === SLICE_MARKER_EVIDENCE_STATES.FOUND && found.candidates.length > 0;
+  });
 }
 
 export function buildCompleteWkReviewTarget({ runGit, mainRepo, initiative, wkId, wkRef, wkTip }) {

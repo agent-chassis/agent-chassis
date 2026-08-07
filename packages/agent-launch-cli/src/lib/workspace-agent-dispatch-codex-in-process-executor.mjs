@@ -285,7 +285,11 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
       classifyIsolationBackendAvailability,
       probeCanonicalBwrapAvailability,
 
-      createMcpConduit
+      createMcpConduit,
+
+      terminalReviewSpawnBarrier: typeof input?.terminal_review_spawn_barrier === "function"
+        ? input.terminal_review_spawn_barrier
+        : null
     });
   };
 }

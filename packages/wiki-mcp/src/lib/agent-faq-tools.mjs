@@ -14,10 +14,10 @@ export function registerAgentFaqTools({
     "workspace_agent_faq",
     {
       description:
-        "Read-only agent FAQ: serve the agent-faq.v1 known-issues corpus, where each entry pairs a recurring symptom and cause with the exact structured workspace_* route(s) to resolve it and the responsible actor (agent vs operator). Output is tier-projected: free/local responses show only source-available coordination entries and omit paid/CCE remediation entries, which appear only under a valid paid/CCE key posture. Returns all tier-visible entries by default; pass id to fetch one entry or related_code to filter by a runtime-blocker code. Performs no writes and accepts no caller-supplied filesystem root.",
+        "Read-only bounded agent FAQ with compact-index-first disclosure. An empty call returns discovery-only tier-projected rows (id, title, actor, related_codes, plus a complete symptom only when its JSON string is at most 160 bytes), not full entries; the pretty-printed UTF-8 response is capped at 4096 bytes. Pass an exact id for one bounded detail entry or related_code for bounded matching detail entries. total/returned/omitted and entries_truncated report omitted results; entry_fields_clipped and clipped_entry_count separately report bounded fields, so truncated is false whenever every match was returned. Free/local output omits paid/CCE remediation entries. Performs no writes and accepts no caller-supplied filesystem root.",
       inputSchema: {
-        id: z.string().optional(),
-        related_code: z.string().optional()
+        id: z.string().max(256).optional(),
+        related_code: z.string().max(256).optional()
       }
     },
     async (args) => {

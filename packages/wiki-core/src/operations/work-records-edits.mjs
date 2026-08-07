@@ -7,6 +7,7 @@ import {
   WORK_RECORD_CLOSURE_FIELD_NAMES,
   WORK_RECORD_STATUS_VALUES,
   computeWorkRecordSourceDigest,
+  isForgeConfirmedMergePolicy,
   validateWorkRecord
 } from "../lib/work-record-schema.mjs";
 import { getWorkRecordPath, loadWorkRecordById } from "../lib/work-record-store.mjs";
@@ -139,6 +140,20 @@ function createTaskEditNoopResult({ loaded, selectedUnit, sourceDigest, currentT
     changedFields: [],
     status: currentTask?.status || null,
     task: currentTask,
+    canonicalRecordPath: loaded?.canonical_record_path || null
+  });
+}
+
+function createEditRefusalResult({ loaded, unit, code, message, fieldPath }) {
+  return createWorkRecordEditResult({
+    loaded,
+    selectedUnit: unit,
+    sourceDigest: loaded?.source_digest || null,
+    diagnostics: [{ code, severity: "error", message, path: fieldPath }],
+    valid: false,
+    written: false,
+    noOp: false,
+    changedFields: [],
     canonicalRecordPath: loaded?.canonical_record_path || null
   });
 }
@@ -293,6 +308,21 @@ export async function setWorkRecordStatusByUnit({
       sourceDigest: loaded.source_digest || null,
       currentStatus: target.status,
       sourcePath
+    });
+  }
+
+  if (
+    requestedUnit.unit.kind === "work_item" &&
+    normalizedStatus === "done" &&
+    isForgeConfirmedMergePolicy(loaded.record)
+  ) {
+    return createEditRefusalResult({
+      loaded,
+      unit: requestedUnit.unit,
+      code: "forge_confirmed_completion_required",
+      message:
+        "completion_policy forge_confirmed_merge requires forge-confirmed closeout; ordinary status mutation cannot set done",
+      fieldPath: "status"
     });
   }
 

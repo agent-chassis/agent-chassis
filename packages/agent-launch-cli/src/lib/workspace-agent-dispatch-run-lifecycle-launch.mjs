@@ -18,6 +18,129 @@ import {
 export const MANAGED_RUN_IDENTITY_ENFORCEMENT_UNAVAILABLE =
   "managed_run_identity_enforcement_unavailable";
 
+const MANAGED_CORRECTIVE_CONTINUATION_CODE =
+  "agent_launch.managed_run.corrective_integrated_state_unresolved.v1";
+const MANAGED_CORRECTIVE_REVIEWED_TARGET_MISMATCH_CODE =
+  "agent_launch.managed_run.corrective_reviewed_target_mismatch.v1";
+const MANAGED_CORRECTIVE_RECEIPTS_CONTRADICTORY_CODE =
+  "agent_launch.managed_run.corrective_receipts_contradictory.v1";
+const CANONICAL_INTEGRATED_STATE_IMPOSSIBLE_CODE =
+  "agent_launch.canonical_integrated_lifecycle_state.impossible.v1";
+const CANONICAL_STATUS_VALUES = Object.freeze([
+  "todo", "active", "blocked", "review", "done"
+]);
+const RECOVERY_KIND =
+  "agent_launch.managed_run.corrective_status_reconciliation.v1";
+const GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE =
+  "managed identity check failed";
+
+function isClosedStatus(value) {
+  return typeof value === "string" && CANONICAL_STATUS_VALUES.includes(value);
+}
+
+function isCanonicalId(value, prefix) {
+  return typeof value === "string" && new RegExp(`^${prefix}-\\d+$`, "u").test(value);
+}
+
+function hasExactKeys(object, keys) {
+  const actual = Object.keys(object).sort();
+  return actual.length === keys.length && keys.every((key, index) => actual[index] === key);
+}
+
+function projectObservedCanonicalStatus(source) {
+  const observed = source?.observed_canonical_status;
+  if (observed === null || typeof observed !== "object" || Array.isArray(observed)) return null;
+  if (!hasExactKeys(observed, ["parent_status", "record_id", "slice_id", "slice_status"])) {
+    return null;
+  }
+  if (!isCanonicalId(observed.record_id, "WK") ||
+      !isCanonicalId(observed.slice_id, "SLICE") ||
+      !isClosedStatus(observed.parent_status) ||
+      !isClosedStatus(observed.slice_status)) return null;
+  return Object.freeze({
+    record_id: observed.record_id,
+    slice_id: observed.slice_id,
+    parent_status: observed.parent_status,
+    slice_status: observed.slice_status
+  });
+}
+
+function projectRecovery(source, observed) {
+  const recovery = source?.recovery;
+  if (recovery === null || typeof recovery !== "object" || Array.isArray(recovery)) return null;
+  if (!hasExactKeys(recovery, [
+    "expected", "next_action", "observed", "recovery_kind", "responsible_actor", "slice_unit", "unit"
+  ])) return null;
+  const observedTuple = recovery.observed;
+  const expectedTuple = recovery.expected;
+  if (observedTuple === null || typeof observedTuple !== "object" || Array.isArray(observedTuple) ||
+      expectedTuple === null || typeof expectedTuple !== "object" || Array.isArray(expectedTuple) ||
+      !hasExactKeys(observedTuple, ["parent_status", "slice_status"]) ||
+      !hasExactKeys(expectedTuple, ["parent_status", "slice_status"]) ||
+      recovery.recovery_kind !== RECOVERY_KIND ||
+      recovery.responsible_actor !== "coordinator" ||
+      recovery.next_action !== "reissue_subject_dispatch_after_canonical_status_reconciliation" ||
+      recovery.unit !== observed.record_id ||
+      recovery.slice_unit !== `${observed.record_id}#${observed.slice_id}` ||
+      observedTuple.parent_status !== observed.parent_status ||
+      observedTuple.slice_status !== observed.slice_status ||
+      expectedTuple.parent_status !== "active" ||
+      expectedTuple.slice_status !== "todo") return null;
+  return Object.freeze({
+    recovery_kind: RECOVERY_KIND,
+    observed: Object.freeze({
+      parent_status: observedTuple.parent_status,
+      slice_status: observedTuple.slice_status
+    }),
+    expected: Object.freeze({
+      parent_status: expectedTuple.parent_status,
+      slice_status: expectedTuple.slice_status
+    }),
+    unit: recovery.unit,
+    slice_unit: recovery.slice_unit,
+    responsible_actor: "coordinator",
+    next_action: "reissue_subject_dispatch_after_canonical_status_reconciliation"
+  });
+}
+
+export function projectManagedIdentityCheckFailure(error) {
+  const detail = { message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE };
+  let source;
+  try {
+    source = error?.detail ?? null;
+    if (source === null || typeof source !== "object" || Array.isArray(source) ||
+        (error?.code !== MANAGED_CORRECTIVE_CONTINUATION_CODE &&
+          error?.code !== MANAGED_CORRECTIVE_REVIEWED_TARGET_MISMATCH_CODE &&
+          error?.code !== MANAGED_CORRECTIVE_RECEIPTS_CONTRADICTORY_CODE)) {
+      return Object.freeze(detail);
+    }
+
+    if (error.code === MANAGED_CORRECTIVE_REVIEWED_TARGET_MISMATCH_CODE ||
+        error.code === MANAGED_CORRECTIVE_RECEIPTS_CONTRADICTORY_CODE) {
+      return Object.freeze({ message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE, code: error.code });
+    }
+    if (source.cause_code !== CANONICAL_INTEGRATED_STATE_IMPOSSIBLE_CODE) {
+      return Object.freeze(detail);
+    }
+    const observed = projectObservedCanonicalStatus(source);
+    if (observed === null) return Object.freeze(detail);
+    detail.code = MANAGED_CORRECTIVE_CONTINUATION_CODE;
+    detail.cause_code = CANONICAL_INTEGRATED_STATE_IMPOSSIBLE_CODE;
+    detail.observed_canonical_status = observed;
+    const recovery = projectRecovery(source, observed);
+
+    const actionable = observed.parent_status === "todo" && observed.slice_status === "todo";
+    if (recovery === null &&
+        (Object.hasOwn(source, "recovery") || actionable)) {
+      return Object.freeze({ message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE });
+    }
+    if (recovery !== null) detail.recovery = recovery;
+  } catch {
+    return Object.freeze({ message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE });
+  }
+  return Object.freeze(detail);
+}
+
 export function createLaunchFlow(deps = {}) {
   const {
     executors,
@@ -44,7 +167,9 @@ export function createLaunchFlow(deps = {}) {
     publishPendingManagedRunIdentity = null,
     bindManagedRunOuterIdentity = null,
 
-    releaseManagedRunSubjectReservationForLaunch = null
+    releaseManagedRunSubjectReservationForLaunch = null,
+
+    verifyTerminalReviewAttemptContractAtSpawn = null
   } = deps;
 
   const managedWorkerRequiresIdentityReconciliation = (role) =>
@@ -107,6 +232,8 @@ export function createLaunchFlow(deps = {}) {
 
       trusted_frozen_review_contract = null,
 
+      trusted_terminal_review_attempt_contract = null,
+
       reviewer_dependency_binds = null,
       readiness = null,
       app: requestedApp = null,
@@ -138,6 +265,8 @@ export function createLaunchFlow(deps = {}) {
     const identityEnforcementRefusal = assertManagedWorkerIdentityEnforceable(role, subject);
     if (identityEnforcementRefusal) return identityEnforcementRefusal;
 
+    let authenticatedCorrectiveFindingsContext = null;
+
     if (role === "worker" && typeof checkPriorManagedAttempt === "function") {
       let priorAttempt;
       try {
@@ -146,7 +275,7 @@ export function createLaunchFlow(deps = {}) {
         return dispatchRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
           "managed_run_identity_check_threw",
-          { message: error?.message ?? String(error) }
+          projectManagedIdentityCheckFailure(error)
         );
       }
       if (!priorAttempt || typeof priorAttempt !== "object") {
@@ -195,6 +324,9 @@ export function createLaunchFlow(deps = {}) {
 
       reservationHolder.subject = subject;
       reservationHolder.reservation = priorAttempt.reservation ?? null;
+
+      authenticatedCorrectiveFindingsContext =
+        priorAttempt.trusted_corrective_findings_context ?? null;
     }
 
     let frozenWorkerScopeSnapshot = null;
@@ -305,7 +437,9 @@ export function createLaunchFlow(deps = {}) {
       subject,
       workspace_dir,
       familyExecutorRegistryEntry,
-      proveAssignedSourceReadable
+      proveAssignedSourceReadable,
+
+      scopeExistence: frozenWorkerScopeSnapshot?.scope_existence ?? null
     });
     if (!sourceAccessResult.ok) {
       return dispatchRefusal(
@@ -323,10 +457,11 @@ export function createLaunchFlow(deps = {}) {
     const reviewerLaunchIdentity = typeof deriveReviewerLaunchIdentity === "function"
       ? deriveReviewerLaunchIdentity({ role, subject, workspace_dir })
       : null;
-    const correctiveFindingsContext = role === "worker" &&
+
+    const correctiveFindingsContext = (role === "worker" &&
         typeof resolveCorrectiveFindingsContext === "function"
       ? await resolveCorrectiveFindingsContext({ subject, workspace_dir })
-      : null;
+      : null) ?? authenticatedCorrectiveFindingsContext;
     const executorReadiness = isPlainObject(readiness)
       ? { ...readiness }
       : readiness;
@@ -395,6 +530,29 @@ export function createLaunchFlow(deps = {}) {
       }
     }
 
+    let terminalReviewSpawnBarrier = null;
+    if (trusted_terminal_review_attempt_contract !== null &&
+        trusted_terminal_review_attempt_contract !== undefined) {
+      if (typeof verifyTerminalReviewAttemptContractAtSpawn !== "function") {
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          "terminal_review_attempt_contract_verifier_unavailable",
+          { subject, role }
+        );
+      }
+      terminalReviewSpawnBarrier = () => verifyTerminalReviewAttemptContractAtSpawn(
+        trusted_terminal_review_attempt_contract
+      );
+      const earlyVerdict = terminalReviewSpawnBarrier();
+      if (earlyVerdict?.ok !== true) {
+        return dispatchRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          earlyVerdict?.reason ?? "terminal_review_attempt_contract_recheck_failed",
+          { subject, role, ...(earlyVerdict?.detail ?? {}) }
+        );
+      }
+    }
+
     let executorResult;
     try {
       executorResult = await familyExecutor({
@@ -420,6 +578,8 @@ export function createLaunchFlow(deps = {}) {
           role === "reviewer" && Array.isArray(reviewer_dependency_binds)
             ? reviewer_dependency_binds
             : null,
+
+        terminal_review_spawn_barrier: terminalReviewSpawnBarrier,
       });
     } catch (error) {
       const cleanupRefusal = await discardPendingManagedRunIdentity({

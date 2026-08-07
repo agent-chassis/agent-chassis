@@ -2,8 +2,7 @@
 
 import {
   STRUCTURED_ROLE_RESULT_EVIDENCE_SCHEMA_VERSION,
-  AGENT_ROLE_RESULT_COUNT_FIELDS,
-  AGENT_ROLE_RESULT_REVIEWED_CONTROLS
+  AGENT_ROLE_RESULT_COUNT_FIELDS
 } from "./agent-role-result.mjs";
 
 export const WORKSPACE_AGENT_DISPATCH_BACKEND_SCHEMA_VERSION =
@@ -320,7 +319,7 @@ function normalizeStructuredRoleResultControls(controls) {
   for (const entry of controls) {
     if (!entry || typeof entry !== "object") continue;
     const controlId = entry.control_id;
-    if (!AGENT_ROLE_RESULT_REVIEWED_CONTROLS.includes(controlId)) continue;
+    if (typeof controlId !== "string" || controlId.trim().length === 0) continue;
     if (entry.result !== "pass" && entry.result !== "fail") continue;
     if (seen.has(controlId)) continue;
     seen.add(controlId);

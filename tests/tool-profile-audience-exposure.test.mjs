@@ -77,15 +77,19 @@ test("reviewer and redteam get broad CONTENT reads + submit-for-review, but no p
   }
 });
 
-test("worker gets exactly the closed-input commit primitive", () => {
+test("worker gets the closed-input commit primitive and the launcher-bound declared-test capability", () => {
   const role = "worker";
   assert.equal(shouldExposeTool(role, WORKER_COMMIT_TOOL_NAME), true);
+
+  assert.equal(shouldExposeTool(role, "workspace_worker_run_declared_test"), true);
   assert.equal(shouldExposeTool(role, SUBMIT_FOR_REVIEW), false);
   for (const name of [
     "workspace_search_repo",
     "workspace_read_page",
     "workspace_work_record_validate",
-    "workspace_work_record_set_status"
+    "workspace_work_record_set_status",
+
+    "workspace_run_validation"
   ]) {
     assert.equal(shouldExposeTool(role, name), false, `worker must not see ${name}`);
   }

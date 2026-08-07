@@ -577,7 +577,17 @@ export function classifyWorkerAdmissionDomainPackResponse(
   { digest = null, authorityBinding = null, routeRatified = false } = {},
 ) {
   const problemType = recognizedProblemType(result?.parsedBody);
-  const recovery = summarizeWorkerAdmissionRecovery(result?.parsedBody, recognizedPackResultObject);
+  const recognizedPackResult = recognizedPackResultObject(result?.parsedBody);
+  const recovery = summarizeWorkerAdmissionRecovery(
+    result?.parsedBody,
+    () => recognizedPackResult,
+  );
+  const currentDecisionRecoveryProjectionState =
+    recognizedPackResult && Object.prototype.hasOwnProperty.call(recognizedPackResult, "recovery")
+      ? recovery?.projection_mode === "bounded_current_decision_recovery"
+        ? "valid"
+        : "projection_mismatch"
+      : "absent";
 
   const bindingContractRatified =
     routeRatified === true && digest?.present === true && authorityBinding?.present === true;
@@ -678,6 +688,9 @@ export function classifyWorkerAdmissionDomainPackResponse(
     reason_code: R.PACK_BACKED_RESULT,
     pack_backed: true,
     effect,
+    ...(effect === "needs_review"
+      ? { recovery_projection_state: currentDecisionRecoveryProjectionState }
+      : {}),
 
     node_engine_binding_status: bindingContractRatified
       ? NODE_ENGINE_WORKER_ADMISSION_RATIFIED_BINDING_STATUS

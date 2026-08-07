@@ -4,40 +4,38 @@ import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   closeSync,
-  constants as fsConstants,
-  fstatSync,
-  lstatSync,
-  openSync,
-  readdirSync,
   rmdirSync,
-  statSync,
-  unlinkSync
+  statSync
 } from "node:fs";
 import path from "node:path";
 
 import {
-  STDIO_MCP_CLIENT_TO_SERVER_PATH,
   STDIO_MCP_CONDUIT_ALLOWED_FAMILIES,
   STDIO_MCP_CONDUIT_ALLOWED_ROLES,
-  STDIO_MCP_CONDUIT_BINDING_SCHEMA_VERSION,
   STDIO_MCP_CONDUIT_ERROR_CODES,
-  STDIO_MCP_CONDUIT_INPUT_FD,
-  STDIO_MCP_CONDUIT_OUTPUT_FD,
   STDIO_MCP_READY_FD,
-  STDIO_MCP_RELAY_ARGS,
-  STDIO_MCP_RELAY_COMMAND,
-  STDIO_MCP_SERVER_TO_CLIENT_PATH,
   StdioMcpConduitError,
   failStdioMcpConduit as fail,
   normalizeStdioMcpConduitRole as normalizedRole,
-  registerProcessLocalStdioMcpConduit,
-  registerTrustedStdioMcpConduitBinding
+  registerProcessLocalStdioMcpConduit
 } from "./stdio-mcp-conduit-contract.mjs";
+
+import {
+  createStdioMcpConduitLocalChannel,
+  deriveStdioMcpConduitLocalBacking,
+  projectStdioMcpChannelLocalBacking
+} from "./stdio-mcp-conduit-channel.mjs";
+import {
+  createStdioMcpConnectionAdmissionForResourceScope
+} from "./stdio-mcp-connection-admission.mjs";
 import {
   assertTrustedStdioMcpConduitAuthority
 } from "./stdio-mcp-conduit-authority.mjs";
-
-const LINUX_O_PATH = 0o10000000;
+import {
+  compareToolSurfaces,
+  createChildTerminationLatch,
+  observeConduitLifecycle
+} from "./stdio-mcp-conduit-lifecycle.mjs";
 
 const INPUT_FIELDS = Object.freeze(new Set([
   "family", "role", "assignedUnit", "workspaceDir", "workspaceAlias",
@@ -45,10 +43,68 @@ const INPUT_FIELDS = Object.freeze(new Set([
 ]));
 
 const TRUSTED_DEPENDENCY_FIELDS = Object.freeze(new Set([
-  "serverPath", "spawnServer", "createFifos", "makePrivateDirectory",
+  "serverPath", "spawnServer", "makePrivateDirectory",
   "resolveRoleToolNames", "bootstrapNodeEngineEnv", "execPath",
   "serverStartupTimeoutMs", "clientReadinessTimeoutMs"
 ]));
+
+export async function createDormantStdioMcpLocalChannel({
+  scope, directory, identifier, family, role, lifecycleCapability,
+  createGeneration
+}) {
+  if (!scope || typeof scope.adopt !== "function" ||
+      typeof directory !== "string" || typeof identifier !== "string" ||
+      typeof family !== "string" || typeof role !== "string" ||
+      typeof createGeneration !== "function") {
+    fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
+      "dormant local stdio MCP channel requires launcher-owned construction inputs");
+  }
+  const backing = deriveStdioMcpConduitLocalBacking(directory);
+  const { endpointSource } = projectStdioMcpChannelLocalBacking(backing);
+  const siblingRoot = path.dirname(endpointSource);
+  let ownsSiblingRoot = false;
+  try {
+    statSync(siblingRoot);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+    ownsSiblingRoot = true;
+  }
+  if (ownsSiblingRoot) {
+    scope.adopt("local-sibling-directory", () => {
+      try { rmdirSync(siblingRoot); } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    });
+  }
+  const channel = createStdioMcpConduitLocalChannel({
+    identifier, family, role, backing, lifecycleCapability
+  });
+  const admission = createStdioMcpConnectionAdmissionForResourceScope({
+    backing, createGeneration
+  });
+  scope.adopt("local-admission", () => admission.settle());
+  try {
+    if (admission.open() !== true) {
+      throw new Error("stdio MCP local admission refused to open");
+    }
+    if (!admission.server.listening) {
+      await new Promise((resolve, reject) => {
+        const onListening = () => { cleanup(); resolve(); };
+        const onError = (error) => { cleanup(); reject(error); };
+        const cleanup = () => {
+          admission.server.off("listening", onListening);
+          admission.server.off("error", onError);
+        };
+        admission.server.once("listening", onListening);
+        admission.server.once("error", onError);
+      });
+    }
+  } catch (error) {
+    await admission.settle();
+    throw error;
+  }
+  return Object.freeze({ channel, admission });
+}
 
 function safeClose(fd) {
   if (!Number.isInteger(fd) || fd < 0) return;
@@ -57,10 +113,13 @@ function safeClose(fd) {
   }
 }
 
-function safeUnlink(file) {
-  try { unlinkSync(file); } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-  }
+function lifecycleRelay() {
+  const relay = {};
+  relay.promise = new Promise((resolve, reject) => {
+    relay.resolve = resolve;
+    relay.reject = reject;
+  });
+  return relay;
 }
 
 function describeFailure(error) {
@@ -138,22 +197,6 @@ function assertPrivateDirectory(directory) {
   }
 }
 
-function assertFifo(file, expected = null) {
-  const stats = lstatSync(file);
-  const expectedUid = typeof process.getuid === "function" ? process.getuid() : stats.uid;
-  if (!stats.isFIFO() || stats.uid !== expectedUid || (stats.mode & 0o777) !== 0o600) {
-    fail(STDIO_MCP_CONDUIT_ERROR_CODES.FIFO_INVALID,
-      "stdio MCP conduit object must be a launcher-owned mode 0600 FIFO",
-      { file, uid: stats.uid, mode: stats.mode & 0o777, fifo: stats.isFIFO() });
-  }
-  if (expected && (stats.dev !== expected.dev || stats.ino !== expected.ino)) {
-    fail(STDIO_MCP_CONDUIT_ERROR_CODES.FIFO_IDENTITY_MISMATCH,
-      "stdio MCP conduit FIFO identity changed during launch",
-      { file, expected, actual: { dev: stats.dev, ino: stats.ino } });
-  }
-  return Object.freeze({ dev: stats.dev, ino: stats.ino, uid: stats.uid, mode: stats.mode & 0o777 });
-}
-
 function buildServerEnv(input, role) {
   const env = {
     PATH: process.env.PATH ?? "/usr/bin:/bin",
@@ -183,277 +226,6 @@ function buildServerEnv(input, role) {
     env.WIKI_MCP_COMMIT_RETRY_ID = String(input.commitTuple.retryId);
   }
   return env;
-}
-
-function deferred() {
-  const state = { settled: false };
-  state.promise = new Promise((resolve, reject) => {
-    state.resolve = (value) => { if (!state.settled) { state.settled = true; resolve(value); } };
-    state.reject = (error) => { if (!state.settled) { state.settled = true; reject(error); } };
-  });
-  return state;
-}
-
-function createChildTerminationLatch() {
-  const settled = deferred();
-  let terminal = null;
-  let cleanupInitiated = false;
-  return {
-    get terminal() { return terminal; },
-    get settlement() { return settled.promise; },
-
-    get cleanupInitiated() { return cleanupInitiated; },
-
-    markCleanupInitiated() {
-      if (terminal !== null) return false;
-      cleanupInitiated = true;
-      return true;
-    },
-    finalize(source, code = null, signal = null, spawnError = null) {
-      if (terminal !== null) return false;
-      terminal = Object.freeze({
-        source,
-        code: code ?? null,
-        signal: signal ?? null,
-
-        spawnFailed: source === "error",
-        cleanupInitiated,
-        error: spawnError ?? null
-      });
-      settled.resolve(terminal);
-      return true;
-    }
-  };
-}
-
-function compareToolSurfaces(expected, actual) {
-  if (!Array.isArray(expected)) return null;
-  const actualNames = Array.isArray(actual) ? actual.map((name) => String(name)) : [];
-  const duplicates = [...new Set(
-    actualNames.filter((name, index) => actualNames.indexOf(name) !== index)
-  )].sort();
-  const expectedSorted = [...expected].map((name) => String(name)).sort();
-  const actualSorted = [...actualNames].sort();
-  const missing = expectedSorted.filter((name) => !actualNames.includes(name));
-  const unexpected = actualSorted.filter((name) => !expected.includes(name));
-  if (duplicates.length === 0 && missing.length === 0 && unexpected.length === 0 &&
-      actualSorted.length === expectedSorted.length) {
-    return null;
-  }
-  return {
-    expected: expectedSorted,
-    actual: actualSorted,
-    missing,
-    unexpected,
-    duplicates
-  };
-}
-
-function observeConduitLifecycle({
-  child,
-  serverStartupTimeoutMs,
-  clientReadinessTimeoutMs,
-  expectedToolNames,
-  getStderr = () => "",
-
-  termination = createChildTerminationLatch()
-}) {
-  const serverReady = deferred();
-  const clientReady = deferred();
-
-  const serverExit = deferred();
-  let buffer = "";
-  let initialized = false;
-  let clientReadyResolved = false;
-  let readinessEvent = null;
-  let failure = null;
-  let serverTimer = null;
-  let clientTimer = null;
-
-  const clearServerTimer = () => {
-    if (serverTimer !== null) { clearTimeout(serverTimer); serverTimer = null; }
-  };
-  const clearClientTimer = () => {
-    if (clientTimer !== null) { clearTimeout(clientTimer); clientTimer = null; }
-  };
-  const recordFailure = (error) => {
-    if (failure === null) failure = error;
-    clearServerTimer();
-    clearClientTimer();
-    serverReady.reject(error);
-    clientReady.reject(error);
-  };
-
-  serverTimer = setTimeout(() => recordFailure(new StdioMcpConduitError(
-    STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_STARTUP_TIMEOUT,
-    "host wiki-MCP server did not report readiness within the launcher startup budget",
-    { timeout_ms: serverStartupTimeoutMs }
-  )), serverStartupTimeoutMs);
-
-  const finalizeChild = (source, code, signal, spawnError) => {
-
-    const cleanupOwned = termination.cleanupInitiated;
-    if (!termination.finalize(source, code, signal, spawnError)) return;
-    clearServerTimer();
-    clearClientTimer();
-    if (source === "error") {
-
-      serverExit.resolve(Object.freeze({
-        code: null, signal: null, expected: false, spawnFailed: true
-      }));
-      recordFailure(new StdioMcpConduitError(
-        STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_START_FAILED,
-        "host wiki-MCP server failed to spawn",
-        { message: spawnError?.message ?? String(spawnError), code: spawnError?.code ?? null }
-      ));
-      return;
-    }
-
-    const expected = clientReadyResolved && code === 0 && signal === null;
-    serverExit.resolve(Object.freeze({
-      code, signal, expected, cleanupInitiated: cleanupOwned
-    }));
-    if (expected) return;
-
-    if (cleanupOwned) return;
-    recordFailure(new StdioMcpConduitError(
-      STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_EXIT,
-      clientReadyResolved
-        ? "host wiki-MCP server exited abnormally while the confined client was running"
-        : serverReady.settled
-          ? "host wiki-MCP server exited before the confined client became ready"
-          : "host wiki-MCP server exited before reporting readiness",
-      { code, signal, stderr: getStderr() }
-    ));
-  };
-  child.once?.("error", (error) => finalizeChild("error", null, null, error));
-  child.once?.("exit", (code, signal) => finalizeChild("exit", code, signal, null));
-  child.once?.("close", (code, signal) => finalizeChild("close", code, signal, null));
-
-  const readyStream = child.stdio?.[STDIO_MCP_READY_FD];
-  if (!readyStream) {
-    recordFailure(new StdioMcpConduitError(
-      STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_READINESS_FAILED,
-      "host wiki-MCP server readiness pipe is unavailable"
-    ));
-    return {
-      serverReady: serverReady.promise,
-      clientReady: clientReady.promise,
-      serverExit: serverExit.promise,
-      beginClientReadiness: () => {},
-      currentFailure: () => failure,
-      termination
-    };
-  }
-
-  const handleEvent = (event) => {
-    if (event?.schema_version === "wiki-mcp-launcher-readiness.v1" && event?.ready === true) {
-      const mismatch = compareToolSurfaces(expectedToolNames, event.tools);
-      if (mismatch) {
-        recordFailure(new StdioMcpConduitError(
-          STDIO_MCP_CONDUIT_ERROR_CODES.TOOL_SURFACE_MISMATCH,
-          "host wiki-MCP registered tool surface does not match the launcher-derived role profile",
-          mismatch));
-        return;
-      }
-      readinessEvent = Object.freeze({
-        ...event,
-        tools: Object.freeze([...(event.tools ?? [])].sort())
-      });
-
-      clearServerTimer();
-      serverReady.resolve(readinessEvent);
-      return;
-    }
-    if (event?.schema_version === "wiki-mcp-launcher-client-initialized.v1" &&
-        event?.initialized === true) {
-      if (!serverReady.settled) {
-        recordFailure(new StdioMcpConduitError(
-          STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_FAILED,
-          "confined client initialized before the host wiki-MCP server reported readiness"));
-        return;
-      }
-      initialized = true;
-      return;
-    }
-    if (event?.schema_version === "wiki-mcp-launcher-tools-listed.v1" &&
-        event?.tools_listed === true) {
-      if (!initialized) {
-        recordFailure(new StdioMcpConduitError(
-          STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_FAILED,
-          "confined client requested tools/list before completing MCP initialize"));
-        return;
-      }
-
-      const mismatch = compareToolSurfaces(expectedToolNames, event.tools);
-      if (mismatch) {
-        recordFailure(new StdioMcpConduitError(
-          STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_TOOL_SURFACE_MISMATCH,
-          "tool surface returned to the confined client does not match the launcher-derived role profile",
-          mismatch));
-        return;
-      }
-      clearClientTimer();
-      clientReadyResolved = true;
-      clientReady.resolve(Object.freeze({
-        initialized: true,
-        toolsListed: true,
-        tools: Object.freeze([...(event.tools ?? [])].map(String).sort())
-      }));
-      return;
-    }
-    if (event?.schema_version === "wiki-mcp-launcher-client-restarted.v1" &&
-        event?.restarted === true) {
-
-      recordFailure(new StdioMcpConduitError(
-        STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_RELAY_RESTARTED,
-        "confined client restarted its MCP relay; the per-dispatch conduit cannot be resumed",
-        { restart_count: Number.isInteger(event.restart_count) ? event.restart_count : null }));
-      return;
-    }
-    recordFailure(new StdioMcpConduitError(
-      STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_READINESS_FAILED,
-      "host wiki-MCP server emitted an invalid lifecycle event", { event }));
-  };
-
-  readyStream.setEncoding("utf8");
-  readyStream.on("data", (chunk) => {
-    buffer += chunk;
-    for (;;) {
-      const newline = buffer.indexOf("\n");
-      if (newline < 0) break;
-      const line = buffer.slice(0, newline);
-      buffer = buffer.slice(newline + 1);
-      let event;
-      try {
-        event = JSON.parse(line);
-      } catch (error) {
-        recordFailure(new StdioMcpConduitError(
-          STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_READINESS_FAILED,
-          "host wiki-MCP server emitted malformed readiness",
-          { message: error?.message ?? String(error) }));
-        return;
-      }
-      handleEvent(event);
-      if (failure !== null) return;
-    }
-  });
-
-  return {
-    serverReady: serverReady.promise,
-    clientReady: clientReady.promise,
-    serverExit: serverExit.promise,
-    beginClientReadiness: () => {
-      if (clientReady.settled || clientTimer !== null) return;
-      clientTimer = setTimeout(() => recordFailure(new StdioMcpConduitError(
-        STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_TIMEOUT,
-        "confined client did not complete MCP initialize and tools/list within the launcher budget",
-        { timeout_ms: clientReadinessTimeoutMs, initialized }
-      )), clientReadinessTimeoutMs);
-    },
-    currentFailure: () => failure,
-    termination
-  };
 }
 
 async function reapChild(child, signal = "SIGTERM", timeoutMs = 2_000, termination = null) {
@@ -532,7 +304,7 @@ function validateTrustedDependencies(trusted) {
     fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
       "stdio MCP conduit trusted dependencies contain an unknown field", { extra });
   }
-  for (const name of ["spawnServer", "createFifos", "makePrivateDirectory",
+  for (const name of ["spawnServer", "makePrivateDirectory",
     "resolveRoleToolNames", "bootstrapNodeEngineEnv"]) {
     if (typeof trusted[name] !== "function") {
       fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
@@ -553,10 +325,34 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
   const trusted = validateTrustedDependencies(trustedDependencies);
   const runId = `stdio-mcp-${randomBytes(12).toString("hex")}`;
   const scope = new ConduitResourceScope();
-  let server = null;
   let namespaceReady = false;
   let readinessFailure = null;
   let cleanupFailure = null;
+
+  let lifecycle = null;
+  let generationServer = null;
+  let generationStderr = () => "";
+  let readinessEvent = null;
+  let clientReadinessRequested = false;
+  let clientReadinessDelegated = false;
+  const clientReadyRelay = lifecycleRelay();
+  const failureSettlementRelay = lifecycleRelay();
+  const serverExitRelay = lifecycleRelay();
+
+  clientReadyRelay.promise.catch(() => {});
+
+  const settleUnboundLifecycleProjections = () => {
+    if (lifecycle !== null) return;
+    const unbound = new StdioMcpConduitError(
+      STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_FAILED,
+      "stdio MCP conduit was torn down before a confined client authenticated");
+    readinessFailure ??= unbound;
+    failureSettlementRelay.resolve(unbound);
+    serverExitRelay.resolve(Object.freeze({
+      code: null, signal: null, expected: false, spawnFailed: false
+    }));
+    clientReadyRelay.reject(unbound);
+  };
 
   let cleanupSettlement = null;
   let deregisterProcessLocal = () => {};
@@ -572,6 +368,7 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
           }
           return cleanupFailure;
         } finally {
+          settleUnboundLifecycleProjections();
 
           deregisterProcessLocal();
         }
@@ -584,6 +381,55 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
     const failure = await settleCleanup();
     if (failure !== null) throw failure;
   };
+  const cancel = async (reason = "launcher cancellation") => {
+
+    const failure = await settleCleanup();
+
+    throw new StdioMcpConduitError(
+      STDIO_MCP_CONDUIT_ERROR_CODES.CANCELLED,
+      "stdio MCP conduit lifecycle was cancelled",
+      {
+        reason: String(reason).slice(0, 256),
+        ...(failure === null ? {} : {
+          cleanup_failure: {
+            code: failure.code ?? null,
+            message: failure.message ?? String(failure),
+            detail: failure.detail ?? null
+          }
+        })
+      }
+    );
+  };
+
+  let markClientProcessTerminal = () => {};
+  const applyClientReadiness = () => {
+    if (!clientReadinessRequested || clientReadinessDelegated || lifecycle === null) return;
+    clientReadinessDelegated = true;
+    lifecycle.beginClientReadiness();
+  };
+  const beginClientReadiness = () => {
+    clientReadinessRequested = true;
+    applyClientReadiness();
+  };
+
+  const bindLifecycleGeneration = (generationLifecycle, child, getStderr) => {
+    lifecycle = generationLifecycle;
+    generationServer = child;
+    generationStderr = getStderr;
+    markClientProcessTerminal = generationLifecycle.markClientProcessTerminal;
+    generationLifecycle.serverReady.then(
+      (event) => { readinessEvent = event; }, () => {});
+    generationLifecycle.clientReady.then(
+      (ready) => clientReadyRelay.resolve(ready),
+      (error) => {
+
+        readinessFailure ??= error;
+        clientReadyRelay.reject(error);
+      });
+    generationLifecycle.failureSettlement.then(failureSettlementRelay.resolve, () => {});
+    generationLifecycle.serverExit.then(serverExitRelay.resolve, () => {});
+    applyClientReadiness();
+  };
 
   deregisterProcessLocal = registerProcessLocalStdioMcpConduit(settleCleanup);
 
@@ -595,51 +441,6 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
     chmodSync(directory, 0o700);
     assertPrivateDirectory(directory);
 
-    const clientToServer = path.join(directory, "client-to-server.fifo");
-    const serverToClient = path.join(directory, "server-to-client.fifo");
-
-    scope.adopt("fifo-client-to-server", () => safeUnlink(clientToServer));
-    scope.adopt("fifo-server-to-client", () => safeUnlink(serverToClient));
-    const made = trusted.createFifos({ clientToServer, serverToClient });
-    if (made?.error || made?.status !== 0) {
-      fail(STDIO_MCP_CONDUIT_ERROR_CODES.FIFO_CREATE_FAILED,
-        "launcher could not create the stdio MCP FIFO pair",
-        { code: made?.error?.code ?? made?.status ?? null,
-          stderr: made?.stderr?.slice(0, 512) ?? "" });
-    }
-    if (readdirSync(directory).sort().join("\0") !==
-        ["client-to-server.fifo", "server-to-client.fifo"].sort().join("\0")) {
-      fail(STDIO_MCP_CONDUIT_ERROR_CODES.FIFO_INVALID,
-        "stdio MCP conduit directory must contain exactly the two launcher-created FIFOs");
-    }
-    const identities = Object.freeze({
-      clientToServer: assertFifo(clientToServer),
-      serverToClient: assertFifo(serverToClient)
-    });
-
-    const c2sPathFd = scope.openFd("c2s-o-path",
-      () => openSync(clientToServer, LINUX_O_PATH | fsConstants.O_NOFOLLOW));
-    const s2cPathFd = scope.openFd("s2c-o-path",
-      () => openSync(serverToClient, LINUX_O_PATH | fsConstants.O_NOFOLLOW));
-    const c2sPathStats = fstatSync(c2sPathFd);
-    const s2cPathStats = fstatSync(s2cPathFd);
-    if (!c2sPathStats.isFIFO() || !s2cPathStats.isFIFO() ||
-        c2sPathStats.ino !== identities.clientToServer.ino ||
-        s2cPathStats.ino !== identities.serverToClient.ino) {
-      fail(STDIO_MCP_CONDUIT_ERROR_CODES.FIFO_IDENTITY_MISMATCH,
-        "O_PATH conduit references do not identify the created FIFO pair");
-    }
-
-    const c2sAnchor = scope.openFd("c2s-anchor",
-      () => openSync(clientToServer, fsConstants.O_RDWR | fsConstants.O_NONBLOCK));
-    const s2cAnchor = scope.openFd("s2c-anchor",
-      () => openSync(serverToClient, fsConstants.O_RDWR | fsConstants.O_NONBLOCK));
-
-    const c2sRead = scope.openFd("server-stdin",
-      () => openSync(clientToServer, fsConstants.O_RDONLY));
-    const s2cWrite = scope.openFd("server-stdout",
-      () => openSync(serverToClient, fsConstants.O_WRONLY));
-
     const serverPath = trusted.serverPath;
     if (typeof serverPath !== "string" || !path.isAbsolute(serverPath)) {
       fail(STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_UNAVAILABLE,
@@ -649,112 +450,70 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
     trusted.bootstrapNodeEngineEnv(serverEnv, input.workspaceDir);
     const expectedToolNames = await trusted.resolveRoleToolNames(role, serverEnv);
 
-    const serverTermination = createChildTerminationLatch();
-    server = scope.acquire("host-server",
-      () => trusted.spawnServer(trusted.execPath, [serverPath], {
-        cwd: input.workspaceDir,
-        env: serverEnv,
-        stdio: [c2sRead, s2cWrite, "pipe", "pipe"],
-        detached: false
-      }),
-      (child) => reapChild(child, "SIGTERM", 2_000, serverTermination));
-
-    let serverStderr = "";
-    server.stderr?.setEncoding("utf8");
-    server.stderr?.on("data", (chunk) => {
-      serverStderr = `${serverStderr}${chunk}`.slice(-4096);
-    });
-
-    scope.release("server-stdin");
-    scope.release("server-stdout");
-
-    const lifecycle = observeConduitLifecycle({
-      child: server,
-      serverStartupTimeoutMs: trusted.serverStartupTimeoutMs,
-      clientReadinessTimeoutMs: trusted.clientReadinessTimeoutMs,
-      expectedToolNames,
-      getStderr: () => serverStderr,
-      termination: serverTermination
-    });
-
-    lifecycle.clientReady.catch((error) => { readinessFailure = error; });
-    const readiness = await lifecycle.serverReady;
-
-    const markNamespaceReady = () => {
-      if (namespaceReady || scope.disposed) return;
-      assertFifo(clientToServer, identities.clientToServer);
-      assertFifo(serverToClient, identities.serverToClient);
-      namespaceReady = true;
-
-      scope.release("c2s-o-path");
-      scope.release("s2c-o-path");
-      scope.release("fifo-client-to-server");
-      scope.release("fifo-server-to-client");
-
-      scope.release("c2s-anchor");
-      scope.release("s2c-anchor");
-    };
-
-    const cancel = async (reason = "launcher cancellation") => {
-
-      const failure = await settleCleanup();
-
-      throw new StdioMcpConduitError(
-        STDIO_MCP_CONDUIT_ERROR_CODES.CANCELLED,
-        "stdio MCP conduit lifecycle was cancelled",
-        {
-          reason: String(reason).slice(0, 256),
-          ...(failure === null ? {} : {
-            cleanup_failure: {
-              code: failure.code ?? null,
-              message: failure.message ?? String(failure),
-              detail: failure.detail ?? null
-            }
-          })
-        }
-      );
-    };
-
-    const clientReady = lifecycle.clientReady;
-
-    const binding = Object.freeze({
-      schemaVersion: STDIO_MCP_CONDUIT_BINDING_SCHEMA_VERSION,
-      runId, app: family, family, role, assignedUnit: input.assignedUnit,
-      workspaceDir: path.resolve(input.workspaceDir), directory, fifoCount: 2,
-
+    const lifecycleBindingState = Object.freeze({
+      app: family,
+      assignedUnit: input.assignedUnit,
+      workspaceDir: path.resolve(input.workspaceDir),
+      directory,
       authority,
-      fifoIdentities: identities,
-      pathFds: Object.freeze([c2sPathFd, s2cPathFd]),
-      anchorFds: Object.freeze([c2sAnchor, s2cAnchor]),
-      childFds: Object.freeze([STDIO_MCP_CONDUIT_INPUT_FD, STDIO_MCP_CONDUIT_OUTPUT_FD]),
-      bindTargets: Object.freeze([STDIO_MCP_CLIENT_TO_SERVER_PATH, STDIO_MCP_SERVER_TO_CLIENT_PATH]),
-      relay: Object.freeze({
-        command: STDIO_MCP_RELAY_COMMAND,
-        args: STDIO_MCP_RELAY_ARGS,
-        env: Object.freeze({})
-      }),
-      readiness,
       toolNames: expectedToolNames,
-      clientReady,
-      beginClientReadiness: lifecycle.beginClientReadiness,
-
-      serverExit: lifecycle.serverExit,
-      server,
+      clientReady: clientReadyRelay.promise,
+      failureSettlement: failureSettlementRelay.promise,
+      serverExit: serverExitRelay.promise,
+      beginClientReadiness,
       lifecycleOwner: Object.freeze({ kind: "launcher", run_id: runId }),
-      markNamespaceReady, cleanup, cancel,
-
-      settleCleanup,
-      get serverStderr() { return serverStderr; },
+      markNamespaceReady: () => { namespaceReady = true; },
+      cleanup, cancel, settleCleanup,
+      get server() { return generationServer; },
+      get readiness() { return readinessEvent; },
+      get serverStderr() { return generationStderr(); },
       get namespaceReady() { return namespaceReady; },
       get cleaned() { return scope.disposed; },
-
-      get readinessFailure() { return readinessFailure ?? lifecycle.currentFailure(); },
-
+      get readinessFailure() { return readinessFailure ?? lifecycle?.currentFailure() ?? null; },
+      get failure() { return lifecycle?.currentFailure() ?? null; },
+      get clientReadyCompleted() { return lifecycle?.isClientReady() === true; },
       get cleanupFailure() { return cleanupFailure; },
-
       get retainedReleaseFailures() { return scope.retainedReleaseFailures; }
     });
-    return registerTrustedStdioMcpConduitBinding(binding);
+    const lifecycleCapability = Object.freeze({
+      get bindingState() { return lifecycleBindingState; },
+      markClientProcessTerminal(...args) {
+        return markClientProcessTerminal(...args);
+      }
+    });
+
+    const createGeneration = ({ initialBytes }) => {
+      const generationEnv = { ...serverEnv };
+      const termination = createChildTerminationLatch();
+      const child = trusted.spawnServer(trusted.execPath, [serverPath], {
+        cwd: input.workspaceDir, env: generationEnv,
+        stdio: ["pipe", "pipe", "pipe", "pipe"], detached: false
+      });
+      let stderr = "";
+      child.stderr?.setEncoding("utf8");
+      child.stderr?.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-4096); });
+      const generationLifecycle = observeConduitLifecycle({
+        child, serverStartupTimeoutMs: trusted.serverStartupTimeoutMs,
+        clientReadinessTimeoutMs: trusted.clientReadinessTimeoutMs,
+        expectedToolNames, role, getStderr: () => stderr, termination
+      });
+      if (lifecycle === null) {
+        bindLifecycleGeneration(generationLifecycle, child, () => stderr);
+      } else {
+
+        generationLifecycle.clientReady.catch(() => {});
+      }
+      return {
+        input: child.stdin, output: child.stdout, ready: generationLifecycle.serverReady,
+        close: () => reapChild(child, "SIGTERM", 2_000, termination),
+        lifecycle: generationLifecycle, initialBytes
+      };
+    };
+    const { channel } = await createDormantStdioMcpLocalChannel({
+      scope, directory, identifier: runId, family, role,
+      lifecycleCapability, createGeneration
+    });
+    return channel;
   } catch (error) {
 
     const failure = await settleCleanup();

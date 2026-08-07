@@ -12,6 +12,8 @@ const SCIP_STATUS_NOT_CONFIGURED = "scip_not_configured";
 const SCIP_CALL_GRAPH_UNAVAILABLE = "scip_call_graph_unavailable";
 const SYMBOL_QUERY_POSITION_UNRESOLVED = "symbol_not_resolved_at_position";
 const SYMBOL_QUERY_POSITION_AMBIGUOUS = "ambiguous_symbol_at_position";
+const SYMBOL_QUERY_EXPLICIT_UNRESOLVED = "symbol_not_resolved";
+export const MCP_SYMBOL_QUERY_RESULT_LIMIT = 20;
 const POSITION_INDEX_EDGE_KINDS = new Set(["defines_symbol", "references_symbol"]);
 
 function cloneJson(value) {
@@ -28,6 +30,99 @@ function provenance({ evidenceBasis = "scip", sourceKind = "scip" } = {}) {
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function symbolResultField(queryKind) {
+  if (queryKind === "find_references") return "references";
+  if (queryKind === "definition") return "definitions";
+  if (queryKind === "symbol_callers") return "callers";
+  if (queryKind === "symbol_callees") return "callees";
+  return null;
+}
+
+function compactSymbolResult(queryKind, entry) {
+  if (queryKind === "find_references" || queryKind === "definition") {
+    return {
+      symbol: entry?.symbol ?? null,
+      path: entry?.path ?? null,
+      line: entry?.line ?? null
+    };
+  }
+  return {
+    caller_symbol: entry?.caller_symbol ?? null,
+    callee_symbol: entry?.callee_symbol ?? null,
+    occurrence_count: entry?.occurrence_count ?? null,
+    lines: Array.isArray(entry?.lines) ? [...entry.lines] : []
+  };
+}
+
+function compactSymbolStatusReason(result, resolutionState) {
+  const resolutionReason = result?.symbol_resolution?.status_reason;
+  if (typeof resolutionReason === "string" && resolutionReason.length > 0) {
+    return resolutionReason;
+  }
+  if (resolutionState === "unresolved") {
+    return SYMBOL_QUERY_EXPLICIT_UNRESOLVED;
+  }
+  const scipReason = result?.scip_state?.status_reason;
+  return typeof scipReason === "string" && scipReason.length > 0
+    ? scipReason
+    : result?.status_reason ?? "unknown";
+}
+
+function compactSymbolNextAction(result, queryKind, resolutionState, truncated) {
+  const callGraphQuery = queryKind === "symbol_callers" || queryKind === "symbol_callees";
+  if (
+    result?.scip_state?.scip_available !== true ||
+    result?.scip_state?.graph_available !== true ||
+    (callGraphQuery && result?.scip_state?.call_graph_available === false)
+  ) {
+    return "Build or rebuild the workspace code index with SCIP enabled, then retry this query.";
+  }
+  if (resolutionState === "unresolved") {
+    return "Retry with an exact SCIP symbol or a repo-relative path, 1-based line, and optional character.";
+  }
+  if (truncated) {
+    return "Re-call with verbose:true to retrieve the full uncapped result envelope.";
+  }
+  return "Re-call with verbose:true for provider, coverage, canonical-ref, and derived-evidence detail.";
+}
+
+export function projectSidecarSymbolQueryForMcp(result, { verbose = false } = {}) {
+  if (verbose) {
+    return { ...cloneJson(result), verbose: true };
+  }
+
+  const queryKind = result?.query_kind ?? null;
+  const resultField = symbolResultField(queryKind);
+  const allResults = resultField && Array.isArray(result?.[resultField]) ? result[resultField] : [];
+  const boundedResults = allResults
+    .slice(0, MCP_SYMBOL_QUERY_RESULT_LIMIT)
+    .map((entry) => compactSymbolResult(queryKind, entry));
+  const truncated = allResults.length > boundedResults.length;
+  const resolutionState = result?.symbol_resolution?.state ?? "unresolved";
+  const projection = {
+    query_kind: queryKind,
+    verbose: false,
+    symbol: result?.symbol ?? null,
+    freshness: {
+      state: result?.staleness ?? "unknown"
+    },
+    resolution: {
+      state: resolutionState,
+      status_reason: compactSymbolStatusReason(result, resolutionState)
+    },
+    result_count: {
+      total: allResults.length,
+      returned: boundedResults.length,
+      truncated
+    },
+    next_action: compactSymbolNextAction(result, queryKind, resolutionState, truncated)
+  };
+  if (resultField) {
+    projection[resultField] = boundedResults;
+  }
+  return projection;
 }
 
 function normalizeLine(value) {

@@ -13,7 +13,8 @@ import {
   getSidecarSymbolCallers,
   getSidecarSymbolCallees,
   getSidecarSymbolDefinition,
-  getSidecarSymbolReferences
+  getSidecarSymbolReferences,
+  projectSidecarSymbolQueryForMcp
 } from "@agent-chassis/wiki-core/src/lib/sidecar-symbol-query.mjs";
 import {
   compactGraphImpactSummaryAffectedSurfaces,
@@ -219,10 +220,10 @@ function createCompactCodeIndexStatusResponse(workspaceRepo, result) {
   };
 }
 
-function createWorkspaceCodeIndexSymbolResponse(workspaceRepo, result) {
+function createWorkspaceCodeIndexSymbolResponse(workspaceRepo, result, verbose = false) {
   return {
     workspaceRepo,
-    ...result
+    ...projectSidecarSymbolQueryForMcp(result, { verbose })
   };
 }
 
@@ -614,14 +615,15 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
     "workspace_code_index_find_references",
     {
       description:
-        "Return SCIP-derived repo code index references for a symbol, or for the symbol resolved from a repository-relative path and 1-based line position. The result preserves the derived/non-canonical SCIP envelope, provider descriptors, coverage, freshness/dirty-worktree state, and resolution.state metadata.",
+        "Return SCIP-derived repo code index references for a symbol or repository-relative position. Compact by default with bounded results, freshness, resolution reason, counts, and next action; pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, and evidence.",
       inputSchema: {
         repo: z.string().optional(),
         symbol: z.string().optional(),
         path: z.string().optional(),
         line: z.union([z.number(), z.string()]).optional(),
         character: z.union([z.number(), z.string()]).optional(),
-        cacheDir: z.string().optional()
+        cacheDir: z.string().optional(),
+        verbose: z.boolean().optional()
       }
     },
     async (args) => {
@@ -631,7 +633,7 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
           ...args,
           dir: workspace.dir
         });
-        return jsonContent(createWorkspaceCodeIndexSymbolResponse(workspace.repo, result));
+        return jsonContent(createWorkspaceCodeIndexSymbolResponse(workspace.repo, result, args.verbose));
       } catch (error) {
         return errorContent(error);
       }
@@ -642,14 +644,15 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
     "workspace_code_index_definition",
     {
       description:
-        "Return SCIP-derived repo code index definition target(s) for a symbol, or for the symbol resolved from a repository-relative path and 1-based line position. The result preserves the derived/non-canonical SCIP envelope, provider descriptors, coverage, freshness/dirty-worktree state, and resolution.state metadata.",
+        "Return SCIP-derived repo code index definition targets for a symbol or repository-relative position. Compact by default with bounded results, freshness, resolution reason, counts, and next action; pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, and evidence.",
       inputSchema: {
         repo: z.string().optional(),
         symbol: z.string().optional(),
         path: z.string().optional(),
         line: z.union([z.number(), z.string()]).optional(),
         character: z.union([z.number(), z.string()]).optional(),
-        cacheDir: z.string().optional()
+        cacheDir: z.string().optional(),
+        verbose: z.boolean().optional()
       }
     },
     async (args) => {
@@ -659,7 +662,7 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
           ...args,
           dir: workspace.dir
         });
-        return jsonContent(createWorkspaceCodeIndexSymbolResponse(workspace.repo, result));
+        return jsonContent(createWorkspaceCodeIndexSymbolResponse(workspace.repo, result, args.verbose));
       } catch (error) {
         return errorContent(error);
       }
@@ -670,14 +673,15 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
     "workspace_code_index_callers",
     {
       description:
-        "Return SCIP-derived repo code index callers for a symbol, or for the symbol resolved from a repository-relative path and 1-based line position. The result preserves the derived/non-canonical SCIP envelope, provider descriptors, coverage, freshness/dirty-worktree state, resolution.state metadata, and explicit SCIP call-graph availability/degraded state.",
+        "Return SCIP-derived repo code index callers for a symbol or repository-relative position. Compact by default with bounded results, freshness, resolution reason, counts, and next action; pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, and evidence.",
       inputSchema: {
         repo: z.string().optional(),
         symbol: z.string().optional(),
         path: z.string().optional(),
         line: z.union([z.number(), z.string()]).optional(),
         character: z.union([z.number(), z.string()]).optional(),
-        cacheDir: z.string().optional()
+        cacheDir: z.string().optional(),
+        verbose: z.boolean().optional()
       }
     },
     async (args) => {
@@ -687,7 +691,7 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
           ...args,
           dir: workspace.dir
         });
-        return jsonContent(createWorkspaceCodeIndexSymbolResponse(workspace.repo, result));
+        return jsonContent(createWorkspaceCodeIndexSymbolResponse(workspace.repo, result, args.verbose));
       } catch (error) {
         return errorContent(error);
       }
@@ -698,14 +702,15 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
     "workspace_code_index_callees",
     {
       description:
-        "Return SCIP-derived repo code index callees for a symbol, or for the symbol resolved from a repository-relative path and 1-based line position. The result preserves the derived/non-canonical SCIP envelope, provider descriptors, coverage, freshness/dirty-worktree state, resolution.state metadata, and explicit SCIP call-graph availability/degraded state.",
+        "Return SCIP-derived repo code index callees for a symbol or repository-relative position. Compact by default with bounded results, freshness, resolution reason, counts, and next action; pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, and evidence.",
       inputSchema: {
         repo: z.string().optional(),
         symbol: z.string().optional(),
         path: z.string().optional(),
         line: z.union([z.number(), z.string()]).optional(),
         character: z.union([z.number(), z.string()]).optional(),
-        cacheDir: z.string().optional()
+        cacheDir: z.string().optional(),
+        verbose: z.boolean().optional()
       }
     },
     async (args) => {
@@ -715,7 +720,7 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
           ...args,
           dir: workspace.dir
         });
-        return jsonContent(createWorkspaceCodeIndexSymbolResponse(workspace.repo, result));
+        return jsonContent(createWorkspaceCodeIndexSymbolResponse(workspace.repo, result, args.verbose));
       } catch (error) {
         return errorContent(error);
       }

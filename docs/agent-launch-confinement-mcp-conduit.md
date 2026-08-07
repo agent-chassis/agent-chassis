@@ -32,6 +32,27 @@ The FIFO names are unlinked after the bound endpoints are safely open. Readiness
 requires a real MCP `initialize` followed by `tools/list` matching the exact
 launcher-derived role profile.
 
+The spawned host server's first launcher-only event is
+`wiki-mcp-launcher-readiness.v2`. It carries `ready: true`, the registered tool
+surface, and `lifecycle_protocol_generation` loaded by that server process from
+the conduit contract. The long-lived launcher compares the announcement with
+its own loaded generation while constructing the conduit. Only an equal,
+well-formed generation resolves server readiness; old, missing, malformed,
+unknown, or incompatible generation evidence fails before the confined child
+spawn with `operator_recovery_needed`. Recovery detail is bounded: deploy one
+coherent build and restart the long-lived backend.
+
+The generation is not selected by a caller, prompt, model, environment,
+filesystem identity, parent module cache, or historical run. There is no
+backend-global compatibility fact or poison latch. A legacy launcher that does
+not recognize the v2 registration refuses through its existing server-readiness
+failure during host-server startup, also before confined child spawn.
+
+The launcher consumes lifecycle events through a one-way phase machine:
+registration and generation, client initialize, exact `tools/list`, ready,
+client close, then terminal. Duplicate or impossible evidence fails with the
+first typed cause retained; later failure and cleanup attempts are idempotent.
+
 The private root is selected from launcher-owned facts only: the per-user
 runtime directory when it is valid, otherwise the passwd-derived home cache.
 `HOME`, `TMPDIR`, `XDG_*`, argv, prompt text, and caller input never select it.

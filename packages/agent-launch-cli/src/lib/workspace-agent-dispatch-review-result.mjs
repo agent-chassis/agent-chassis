@@ -1,7 +1,5 @@
 
 
-import { AGENT_ROLE_RESULT_REVIEWED_CONTROLS } from "@agent-chassis/agent-launch-core/src/lib/agent-role-result.mjs";
-
 import { STDIO_MCP_CLEANUP_BLOCKER_REASON } from "./stdio-mcp-conduit-contract.mjs";
 
 export const REVIEW_VERDICT_ELIGIBILITY = Object.freeze({
@@ -55,7 +53,7 @@ function deriveTrustedReviewedControls(structuredRoleResult) {
   for (const entry of controls) {
     if (!entry || typeof entry !== "object") continue;
     const controlId = entry.control_id;
-    if (!AGENT_ROLE_RESULT_REVIEWED_CONTROLS.includes(controlId)) continue;
+    if (typeof controlId !== "string" || controlId.trim().length === 0) continue;
 
     if (entry.result !== "pass") continue;
     seen.add(controlId);
@@ -68,7 +66,7 @@ function hasBlockingReviewedControlResult(structuredRoleResult) {
   if (!Array.isArray(controls)) return false;
   for (const entry of controls) {
     if (!entry || typeof entry !== "object") continue;
-    if (!AGENT_ROLE_RESULT_REVIEWED_CONTROLS.includes(entry.control_id)) continue;
+    if (typeof entry.control_id !== "string" || entry.control_id.trim().length === 0) continue;
     if (entry.result !== "pass") return true;
   }
   return false;

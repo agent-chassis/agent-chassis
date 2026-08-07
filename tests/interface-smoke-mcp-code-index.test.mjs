@@ -5,6 +5,11 @@ import path from "node:path";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
+import {
+  MCP_SYMBOL_QUERY_RESULT_LIMIT,
+  projectSidecarSymbolQueryForMcp
+} from "../packages/wiki-core/src/lib/sidecar-symbol-query.mjs";
+import { registerCodeIndexTools } from "../packages/wiki-mcp/src/lib/code-index-tools.mjs";
 import { createMcpSession as createBoundedMcpSession } from "./fixtures/mcp-stdio-session.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -435,6 +440,117 @@ function createMcpSession({ env = {}, prelude = "" } = {}) {
     baseEnv: {}
   });
 }
+
+function symbolQueryEnvelope(overrides = {}) {
+  return {
+    query_kind: "find_references", dirty_state: "dirty_worktree", staleness: "fresh",
+    dirty_details: { changed_paths: ["packages/app/src/core.mjs"] },
+    status_reason: "source_identity_match",
+    input: { symbol: SCIP_SYMBOL_CORE, path: null, line: null, character: null },
+    symbol: SCIP_SYMBOL_CORE,
+    symbol_resolution: { kind: "explicit_symbol", state: "resolved" },
+    scip_state: { scip_available: true, graph_available: true, status_reason: "scip_extracted" },
+    provider_descriptors: [SCIP_PROVIDER], coverage: { symbol_count: 2 },
+    canonical_refs: [{ kind: "symbol", value: SCIP_SYMBOL_CORE }],
+    derived_evidence: [{ kind: "sidecar_symbol_query" }],
+    references: [], definitions: [], callers: [], callees: [],
+    summary: { state: { dirty_state: "dirty_worktree", staleness: "fresh" } },
+    ...overrides
+  };
+}
+
+test("MCP symbol navigation registers one compact/verbose contract", () => {
+  const registrations = new Map();
+  registerCodeIndexTools({
+    registerTool: (name, definition) => registrations.set(name, definition),
+    workspaceRepos: new Map(), jsonContent: String, errorContent: String
+  });
+
+  for (const name of [
+    "workspace_code_index_find_references",
+    "workspace_code_index_definition",
+    "workspace_code_index_callers",
+    "workspace_code_index_callees"
+  ]) {
+    assert.ok(registrations.get(name)?.inputSchema.verbose, `${name} must expose verbose`);
+    assert.match(registrations.get(name).description, /Compact by default.*verbose:true/);
+  }
+});
+
+test("MCP symbol navigation bounds unavailable and unresolved defaults", () => {
+  const unavailable = projectSidecarSymbolQueryForMcp(
+    symbolQueryEnvelope({
+      symbol_resolution: { kind: "explicit_symbol", state: "unresolved", status_reason: "scip_not_configured" },
+      scip_state: { scip_available: false, graph_available: false, status_reason: "scip_not_configured" }
+    })
+  );
+  assert.equal(Buffer.byteLength(JSON.stringify(unavailable), "utf8") <= 1536, true);
+  assert.deepEqual(unavailable.freshness, { state: "fresh" });
+  assert.deepEqual(unavailable.resolution, { state: "unresolved", status_reason: "scip_not_configured" });
+  assert.deepEqual(unavailable.result_count, { total: 0, returned: 0, truncated: false });
+  assert.match(unavailable.next_action, /build or rebuild/i);
+
+  for (const verboseOnly of [
+    "dirty_state", "dirty_details", "staleness", "input", "scip_state", "provider_descriptors",
+    "coverage", "canonical_refs", "derived_evidence", "summary"
+  ]) {
+    assert.equal(Object.hasOwn(unavailable, verboseOnly), false, `${verboseOnly} must not leak into compact`);
+  }
+
+  const unresolved = projectSidecarSymbolQueryForMcp(
+    symbolQueryEnvelope({
+      symbol: null,
+      symbol_resolution: { kind: "path_position", state: "unresolved", status_reason: "symbol_not_resolved_at_position" }
+    })
+  );
+  assert.equal(unresolved.resolution.status_reason, "symbol_not_resolved_at_position");
+  assert.match(unresolved.next_action, /exact SCIP symbol/);
+});
+
+test("MCP symbol navigation caps successful defaults and preserves verbose full envelopes", () => {
+  const cases = [
+    ["find_references", "references"], ["definition", "definitions"],
+    ["symbol_callers", "callers"], ["symbol_callees", "callees"]
+  ];
+  for (const [queryKind, field] of cases) {
+    const entries = Array.from({ length: MCP_SYMBOL_QUERY_RESULT_LIMIT + 3 }, (_, index) =>
+      field === "references" || field === "definitions"
+        ? {
+            symbol: SCIP_SYMBOL_CORE,
+            path: `packages/app/src/result-${index}.mjs`,
+            line: index + 1,
+            provider_descriptor: SCIP_PROVIDER,
+            coverage: { status: "resolved" },
+            provenance: { canonicality: "derived" }
+          }
+        : {
+            caller_symbol: `${SCIP_SYMBOL_RUN}${index}`,
+            callee_symbol: SCIP_SYMBOL_CORE,
+            occurrence_count: 1,
+            lines: [index + 1],
+            provider_descriptor: SCIP_PROVIDER,
+            coverage: { status: "resolved" },
+            provenance: { canonicality: "derived" }
+          }
+    );
+    const full = symbolQueryEnvelope({ query_kind: queryKind, [field]: entries });
+    const snapshot = structuredClone(full);
+    const compact = projectSidecarSymbolQueryForMcp(full);
+    assert.deepEqual(compact.result_count, {
+      total: entries.length, returned: MCP_SYMBOL_QUERY_RESULT_LIMIT, truncated: true
+    });
+    assert.equal(compact[field].length, MCP_SYMBOL_QUERY_RESULT_LIMIT);
+    assert.equal(Object.hasOwn(compact[field][0], "provider_descriptor"), false);
+    assert.equal(Object.hasOwn(compact[field][0], "coverage"), false);
+    const complete = projectSidecarSymbolQueryForMcp(symbolQueryEnvelope({ query_kind: queryKind, [field]: entries.slice(0, 2) }));
+    assert.deepEqual(complete.result_count, { total: 2, returned: 2, truncated: false });
+
+    const { verbose, ...verboseCore } = projectSidecarSymbolQueryForMcp(full, { verbose: true });
+    assert.equal(verbose, true);
+    assert.deepEqual(verboseCore, full);
+    assert.deepEqual(full, snapshot, "MCP projection must not mutate the full core/CLI envelope");
+  }
+});
 
 test("MCP workspace code index tools use configured repo aliases", { skip: "WK-1377 pending CCE/no-CCE test-structure refactor" }, async () => {
   await withTempDir(async (tempDir) => {

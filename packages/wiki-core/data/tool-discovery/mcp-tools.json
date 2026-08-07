@@ -34,6 +34,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
       ],
@@ -73,6 +74,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
       ],
@@ -112,6 +114,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
       ],
@@ -284,6 +287,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -405,6 +409,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -489,6 +494,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -574,6 +580,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -616,6 +623,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md",
         "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
@@ -658,6 +666,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md"
       ],
@@ -736,6 +745,7 @@
         "paid_cce"
       ],
       "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
         "docs/tool-discovery.md",
         "docs/mcp-integration.md"
       ],

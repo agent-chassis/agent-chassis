@@ -38,8 +38,15 @@ order and repo map.
   role-dispatch reference.
 - [agent-launch-operator-entrypoints.md](agent-launch-operator-entrypoints.md)
   — operator entrypoints, with migration notes for retired wrapper scripts.
+- [agent-launch-local-config.md](agent-launch-local-config.md) — the
+  operator-owned launcher registry, read-only argv defaults, and consuming-repo
+  role-guard adoption.
 - [agent-launch-policy-profiles.md](agent-launch-policy-profiles.md) — optional
   org policy profile and local dispatch-readiness policy-pack override.
+- [agent-launch-write-scope-preparation.md](agent-launch-write-scope-preparation.md)
+  — new-directory write scopes, `bubblewrap` isolation, and prepared write roots.
+- [agent-launch-conduit-diagnostics.md](agent-launch-conduit-diagnostics.md) —
+  the `stdio_mcp_*` conduit failure taxonomy and operator recovery route.
 - [agent-launch-confinement-mcp-conduit.md](agent-launch-confinement-mcp-conduit.md)
   — confined repository visibility, the exact host wiki-MCP FIFO conduit, and
   the unsupported Agy posture.

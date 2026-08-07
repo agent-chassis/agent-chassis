@@ -7,6 +7,8 @@ export const SIDECAR_BUILD_LOCK_SUFFIX = ".build-lock.json";
 export const SIDECAR_BUILD_LOCK_CANDIDATE_SLOT_COUNT = 8;
 export const SIDECAR_BUILD_COALESCE_MAX_ATTEMPTS = 100;
 export const SIDECAR_BUILD_COALESCE_POLL_MS = 50;
+export const SIDECAR_BUILD_LEASE_MAX_MS = 60_000, SIDECAR_BUILD_LEASE_MAX_GENERATIONS = SIDECAR_BUILD_LOCK_CANDIDATE_SLOT_COUNT, SIDECAR_BUILD_LEASE_MAX_FOLLOW_ATTEMPTS = 100;
+export const SIDECAR_BUILD_LEASE_OUTCOMES = { ACQUIRED: "acquired", FOLLOWING: "following", TAKEOVER: "takeover", SUPERSEDED: "superseded", TIMEOUT: "timeout", EXHAUSTED: "exhausted", INVALID_STATE: "invalid_state", PUBLISHED: "published", RENEWED: "renewed", RELEASED: "released" };
 
 const SIDECAR_BUILD_LOCK_TTL_MS = 60_000;
 const FATAL_UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
@@ -445,6 +447,9 @@ export function appendSidecarBuildLockDiagnostics(envelope, diagnostics) {
   return envelope;
 }
 
+async function readLeaseJson(filePath) { try { const raw = await readFile(filePath);
+  return { value: JSON.parse(FATAL_UTF8_DECODER.decode(raw)) }; } catch (error) { return error?.code === "ENOENT" ? null : { invalid: true }; } }
+
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -463,4 +468,179 @@ export async function waitForCoalescedSidecarArtifact({ follow }) {
     await delay(SIDECAR_BUILD_COALESCE_POLL_MS);
   }
   return null;
+}
+
+const LEASE_PROTOCOL = "sidecar-build-lease.v1";
+const LEASE_IDENTITY_FIELDS = ["repository_identity", "head_commit", "schema_identity", "generator_identity", "scip_input_identity"];
+function normalizeLeaseIdentity(identity) {
+  if (!identity || typeof identity !== "object" || Array.isArray(identity)) throw new Error("invalid identity");
+  const normalized = {};
+  for (const field of LEASE_IDENTITY_FIELDS) {
+    if (typeof identity[field] !== "string" || !identity[field]) throw new Error("invalid identity");
+    normalized[field] = identity[field];
+  }
+  return normalized;
+}
+function validIdentityDigest(value) {
+  if (typeof value !== "string" || !value || value.length > 96) return false;
+  for (const character of value) {
+    const lower = character >= "a" && character <= "z", upper = character >= "A" && character <= "Z";
+    if (!lower && !upper && !(character >= "0" && character <= "9") && character !== "-" && character !== "_") return false;
+  }
+  return true;
+}
+export function deriveSidecarBuildLeadershipKey(identity, identityDigest) {
+  normalizeLeaseIdentity(identity);
+  if (!validIdentityDigest(identityDigest)) throw new Error("invalid identity digest");
+  return identityDigest;
+}
+const leasePaths = (lockPath, key, generation) => {
+  const base = `${lockPath}.xproc-${key}.g${generation}`;
+  return { lease: `${base}.lease.json`, terminal: `${base}.terminal.json`, heartbeatBase: `${base}.heartbeat` };
+};
+const heartbeatPath = (paths, sequence) => `${paths.heartbeatBase}-${sequence}.json`;
+function validLeaseRecord(record, key, identity, generation, kind, ownerToken) {
+  return Boolean(record?.protocol === LEASE_PROTOCOL && record.kind === kind && record.leadership_key === key &&
+    record.generation === generation && typeof record.owner_token === "string" && record.owner_token &&
+    (!ownerToken || record.owner_token === ownerToken) && JSON.stringify(record.identity) === JSON.stringify(identity));
+}
+async function readLeaseState(lockPath, key, identity) {
+  let current = null;
+  for (let generation = 1; generation <= SIDECAR_BUILD_LEASE_MAX_GENERATIONS; generation += 1) {
+    const paths = leasePaths(lockPath, key, generation);
+    const lease = await readLeaseJson(paths.lease), terminal = await readLeaseJson(paths.terminal); if (lease?.invalid || terminal?.invalid) return { invalid: true, reason: "malformed_state" };
+    let heartbeat = null, heartbeatCount = 0, heartbeatGap = false;
+    for (let sequence = 1; sequence <= SIDECAR_BUILD_LEASE_MAX_GENERATIONS; sequence += 1) {
+      const entry = await readLeaseJson(heartbeatPath(paths, sequence));
+      if (entry?.invalid) return { invalid: true, reason: "malformed_state" };
+      if (!entry) { heartbeatGap = true; continue; }
+      if (heartbeatGap) return { invalid: true, reason: "partial_state" };
+      heartbeat = entry.value; heartbeatCount = sequence;
+    }
+    if (!lease) {
+      if (heartbeat || terminal) return { invalid: true, reason: "partial_state" };
+      continue;
+    }
+    if (generation !== (current?.generation ?? 0) + 1 || !validLeaseRecord(lease.value, key, identity, generation, "lease") ||
+        !Number.isFinite(lease.value.acquired_at) || !Number.isFinite(lease.value.expires_at) || lease.value.expires_at < lease.value.acquired_at || lease.value.expires_at - lease.value.acquired_at > SIDECAR_BUILD_LEASE_MAX_MS) return { invalid: true, reason: "incompatible_lease" };
+    if (heartbeat && (!validLeaseRecord(heartbeat, key, identity, generation, "heartbeat", lease.value.owner_token) ||
+        !Number.isFinite(heartbeat.renewed_at) || !Number.isFinite(heartbeat.expires_at) || heartbeat.expires_at < heartbeat.renewed_at || heartbeat.expires_at - heartbeat.renewed_at > SIDECAR_BUILD_LEASE_MAX_MS)) return { invalid: true, reason: "incompatible_heartbeat" };
+    const publication = terminal?.value?.kind === "publication" ? terminal.value : null, release = terminal?.value?.kind === "release" ? terminal.value : null;
+    if (terminal && !publication && !release) return { invalid: true, reason: "incompatible_terminal" };
+    if (publication && (!validLeaseRecord(publication, key, identity, generation, "publication", lease.value.owner_token) || typeof publication.publication_identity !== "string" || !publication.publication_identity || typeof publication.publication_digest !== "string" || !publication.publication_digest || !Number.isFinite(publication.published_at))) return { invalid: true, reason: "incompatible_publication" };
+    if (release && (!validLeaseRecord(release, key, identity, generation, "release", lease.value.owner_token) || !Number.isFinite(release.released_at))) return { invalid: true, reason: "incompatible_release" };
+    current = { generation, paths, lease: lease.value, heartbeat, heartbeatCount,
+      publication, release };
+  }
+  return { invalid: false, current };
+}
+async function writeLeaseRecord(lockPath, record) {
+  try {
+    const publication = await publishBuildLockCandidate(lockPath, record);
+    return { created: publication.claimed, reason: publication.claimed ? null : publication.slotsExhausted ? "candidate_exhausted" : "publication_failed" };
+  } catch (error) {
+    return { created: false, reason: error?.code === "EEXIST" ? "preexisting_record" : "publication_failed" };
+  } finally { ACTIVE_BUILD_LOCK_OWNER_TOKENS.delete(record.owner_token); }
+}
+function boundedInteger(value, fallback, minimum, maximum) {
+  if (!Number.isInteger(value)) return fallback;
+  if (value < minimum) return minimum;
+  return value > maximum ? maximum : value;
+}
+const leaseExpired = (current) => Boolean(current.release || (current.heartbeat?.expires_at ?? current.lease.expires_at) <= Date.now());
+const ownsCurrent = (state, lease) => Boolean(!state.invalid && state.current && state.current.generation === lease.generation &&
+  state.current.lease.owner_token === lease.ownerToken && state.current.lease.leadership_key === lease.key);
+const validLeaseHandle = (lease) => Boolean(lease?.lockPath && validIdentityDigest(lease.key) && lease.identity && Number.isInteger(lease.generation) && lease.ownerToken);
+const leaseResult = (outcome, lockPath, identity, key, record) => ({ outcome,
+  lease: { lockPath, identity, key, generation: record.generation, ownerToken: record.owner_token } });
+const auxiliaryRecord = (kind, lease, fields = {}) => ({ protocol: LEASE_PROTOCOL, kind, leadership_key: lease.key,
+  generation: lease.generation, owner_token: lease.ownerToken, identity: lease.identity, ...fields });
+export async function acquireSidecarBuildLease({ lockPath, identity, identityDigest, leaseMs, maxTakeoverAttempts } = {}) {
+  let normalized, key;
+  try { normalized = normalizeLeaseIdentity(identity); key = deriveSidecarBuildLeadershipKey(normalized, identityDigest); }
+  catch { return { outcome: "invalid_state", reason: "invalid_identity" }; }
+  if (typeof lockPath !== "string" || !lockPath) return { outcome: "invalid_state", reason: "invalid_lock_path" };
+  const duration = boundedInteger(leaseMs, 10_000, 250, SIDECAR_BUILD_LEASE_MAX_MS);
+  const attempts = boundedInteger(maxTakeoverAttempts, 8, 1, SIDECAR_BUILD_LEASE_MAX_GENERATIONS);
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const state = await readLeaseState(lockPath, key, normalized);
+    if (state.invalid) return { outcome: "invalid_state", reason: state.reason };
+    if (state.current?.publication || (state.current && !leaseExpired(state.current))) return { outcome: "following",
+      follow: { lockPath, identity: normalized, identityDigest: key, key, generation: state.current.generation } };
+    const generation = (state.current?.generation ?? 0) + 1;
+    if (generation > SIDECAR_BUILD_LEASE_MAX_GENERATIONS) return { outcome: "exhausted", key };
+    const now = Date.now(), record = { protocol: LEASE_PROTOCOL, kind: "lease", leadership_key: key, generation,
+      owner_token: randomUUID(), identity: normalized, acquired_at: now, expires_at: now + duration };
+    const written = await writeLeaseRecord(leasePaths(lockPath, key, generation).lease, record);
+    if (written.reason === "candidate_exhausted") return { outcome: "exhausted", key };
+    if (written.reason === "publication_failed") return { outcome: "invalid_state", reason: written.reason };
+    if (written.created) {
+      const result = leaseResult(generation === 1 ? "acquired" : "takeover", lockPath, normalized, key, record);
+      const after = await readLeaseState(lockPath, key, normalized);
+      return ownsCurrent(after, result.lease) ? result : { outcome: "invalid_state", reason: "leadership_fenced" };
+    }
+  }
+  return { outcome: "exhausted", key };
+}
+export async function renewSidecarBuildLease(lease, { leaseMs } = {}) {
+  if (!validLeaseHandle(lease)) return { outcome: "invalid_state", reason: "invalid_lease" };
+  const before = await readLeaseState(lease.lockPath, lease.key, lease.identity);
+  if (!ownsCurrent(before, lease) || before.current.publication || before.current.release || leaseExpired(before.current)) return { outcome: "invalid_state", reason: "leadership_fenced" };
+  const sequence = before.current.heartbeatCount + 1;
+  if (sequence > SIDECAR_BUILD_LEASE_MAX_GENERATIONS) return { outcome: "exhausted", key: lease.key };
+  const now = Date.now(), record = auxiliaryRecord("heartbeat", lease, { renewed_at: now,
+    expires_at: now + boundedInteger(leaseMs, 10_000, 250, SIDECAR_BUILD_LEASE_MAX_MS) });
+  const written = await writeLeaseRecord(heartbeatPath(before.current.paths, sequence), record);
+  if (written.reason === "candidate_exhausted") return { outcome: "exhausted", key: lease.key };
+  if (written.reason === "publication_failed") return { outcome: "invalid_state", reason: written.reason };
+  const after = await readLeaseState(lease.lockPath, lease.key, lease.identity);
+  return ownsCurrent(after, lease) && after.current.heartbeatCount >= sequence ? { outcome: "renewed", lease } : { outcome: "invalid_state", reason: "leadership_fenced" };
+}
+export async function publishSidecarBuildLease({ lease, publicationIdentity, publicationDigest } = {}) {
+  if (!validLeaseHandle(lease) || typeof publicationIdentity !== "string" || !publicationIdentity || typeof publicationDigest !== "string" || !publicationDigest) return { outcome: "invalid_state", reason: "invalid_publication" };
+  const before = await readLeaseState(lease.lockPath, lease.key, lease.identity);
+  if (!ownsCurrent(before, lease) || before.current.publication || before.current.release || leaseExpired(before.current)) return { outcome: "invalid_state", reason: "leadership_fenced" };
+  const record = auxiliaryRecord("publication", lease, { publication_identity: publicationIdentity, publication_digest: publicationDigest, published_at: Date.now() });
+  const written = await writeLeaseRecord(before.current.paths.terminal, record);
+  if (written.reason === "candidate_exhausted") return { outcome: "exhausted", key: lease.key };
+  if (written.reason === "publication_failed") return { outcome: "invalid_state", reason: written.reason };
+  const after = await readLeaseState(lease.lockPath, lease.key, lease.identity), publication = after.current?.publication;
+  return ownsCurrent(after, lease) && publication?.publication_identity === publicationIdentity && publication.publication_digest === publicationDigest ?
+    { outcome: "published", publication } : { outcome: "invalid_state", reason: "leadership_fenced" };
+}
+export async function followSidecarBuildLease({ lockPath, identity, identityDigest, generation, publicationIdentity,
+  publicationDigest, timeoutMs, pollMs, leaseMs, maxTakeoverAttempts } = {}) {
+  let normalized, key;
+  try { normalized = normalizeLeaseIdentity(identity); key = deriveSidecarBuildLeadershipKey(normalized, identityDigest); }
+  catch { return { outcome: "invalid_state", reason: "invalid_identity" }; }
+  if (typeof lockPath !== "string" || !lockPath || !Number.isInteger(generation) || generation < 1 || generation > SIDECAR_BUILD_LEASE_MAX_GENERATIONS || typeof publicationIdentity !== "string" || !publicationIdentity || typeof publicationDigest !== "string" || !publicationDigest) return { outcome: "invalid_state", reason: "invalid_follow_request" };
+  const poll = boundedInteger(pollMs, 50, 10, 1_000), timeout = boundedInteger(timeoutMs, 5_000, poll, 30_000);
+  let attempts = (timeout + poll - 1) / poll;
+  if (attempts > SIDECAR_BUILD_LEASE_MAX_FOLLOW_ATTEMPTS) attempts = SIDECAR_BUILD_LEASE_MAX_FOLLOW_ATTEMPTS;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const state = await readLeaseState(lockPath, key, normalized);
+    if (state.invalid || !state.current) return { outcome: "invalid_state", reason: state.reason ?? "missing_lease" };
+    if (state.current.generation !== generation) return state.current.generation > generation ? { outcome: "superseded", key, generation, currentGeneration: state.current.generation } : { outcome: "invalid_state", reason: "generation_mismatch" };
+    if (state.current.publication) {
+      const publication = state.current.publication;
+      if (publication.publication_identity !== publicationIdentity || publication.publication_digest !== publicationDigest) return { outcome: "invalid_state", reason: "publication_mismatch" };
+      return { outcome: "following", generation: state.current.generation, publication };
+    }
+    if (leaseExpired(state.current)) { const takeover = await acquireSidecarBuildLease({ lockPath, identity: normalized, identityDigest: key, leaseMs, maxTakeoverAttempts });
+      if (takeover.outcome !== "following") return takeover; if (takeover.follow?.generation !== generation) return { outcome: "superseded", key, generation, currentGeneration: takeover.follow?.generation ?? null }; }
+    if (attempt + 1 < attempts) await delay(poll);
+  }
+  return { outcome: "timeout", key };
+}
+export async function releaseSidecarBuildLease(lease) {
+  if (!validLeaseHandle(lease)) return { outcome: "invalid_state", reason: "invalid_lease" };
+  const before = await readLeaseState(lease.lockPath, lease.key, lease.identity);
+  if (!ownsCurrent(before, lease)) return { outcome: "invalid_state", reason: "leadership_fenced" };
+  if (before.current.release) return { outcome: "released" }; if (before.current.publication) return { outcome: "invalid_state", reason: "terminal_decided" };
+  const record = auxiliaryRecord("release", lease, { released_at: Date.now() });
+  const written = await writeLeaseRecord(before.current.paths.terminal, record);
+  if (written.reason === "candidate_exhausted") return { outcome: "exhausted", key: lease.key };
+  if (written.reason === "publication_failed") return { outcome: "invalid_state", reason: written.reason };
+  const after = await readLeaseState(lease.lockPath, lease.key, lease.identity);
+  return ownsCurrent(after, lease) && after.current.release ? { outcome: "released" } : { outcome: "invalid_state", reason: "leadership_fenced" };
 }

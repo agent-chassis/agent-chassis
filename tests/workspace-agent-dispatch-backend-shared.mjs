@@ -12,6 +12,9 @@ import {
   LAUNCHER_SOURCE_READ_MODE_NATIVE_FILESYSTEM,
   LAUNCHER_NATIVE_READ_CAPABILITY_BWRAP_RO_REPO
 } from "../packages/agent-launch-cli/src/lib/workspace-agent-launch-adapter-contract.mjs";
+import {
+  createManagedStdioMcpCompositionAuthority
+} from "@agent-chassis/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs";
 
 export function assertNoForbiddenTokens(envelope, label) {
   const serialized = JSON.stringify(envelope);
@@ -77,6 +80,11 @@ function wrapFixtureExecutors(options) {
 
 export function createTestDispatchBackend(options = {}) {
   return createWorkspaceAgentDispatchBackend({
+
+    managedStdioMcpCompositionAuthority:
+      Object.prototype.hasOwnProperty.call(options, "managedStdioMcpCompositionAuthority")
+        ? options.managedStdioMcpCompositionAuthority
+        : createManagedStdioMcpCompositionAuthority(),
 
     proveAssignedSourceReadable: async () => ({ ok: true, detail: { fixture: true } }),
     ...options,

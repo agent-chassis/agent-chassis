@@ -25,6 +25,7 @@ import {
   validateSidecarResultEnvelope
 } from "../packages/wiki-core/src/index.mjs";
 import {
+  inspectSidecarGraphStructure,
   SIDECAR_GRAPH_PROVENANCE_EVIDENCE_BASIS_VALUES,
   SIDECAR_GRAPH_PROVENANCE_SOURCE_KIND_VALUES
 } from "../packages/wiki-core/src/lib/sidecar-graph-schema.mjs";
@@ -34,6 +35,7 @@ test("sidecar graph schema version constant is pinned", () => {
 });
 
 test("sidecar graph schema helpers validate optional artifact graph sections", () => {
+  const expectedGeneratorIdentity = `sha256:${"a".repeat(64)}`;
   const graph = {
     graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION,
     graph_nodes: [
@@ -57,23 +59,37 @@ test("sidecar graph schema helpers validate optional artifact graph sections", (
   assert.deepEqual(validateSidecarGraphSection(graph), []);
   assert.deepEqual(validateSidecarGraphState(createSidecarGraphState()), []);
 
-  assert.deepEqual(classifySidecarGraphArtifactSchema({}).graph_state, {
+  assert.deepEqual(inspectSidecarGraphStructure({}), {
+    structurally_valid: true,
+    graph_present: false,
     graph_schema_version: null,
-    graph_available: false,
-    edge_source: "unavailable",
-    dirty_graph_mode: "unavailable",
-    unavailable_paths: [],
-    status_reason: "graph_absent"
+    errors: []
+  });
+  assert.deepEqual(inspectSidecarGraphStructure({ graph }), {
+    structurally_valid: true,
+    graph_present: true,
+    graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION,
+    errors: []
   });
 
-  const present = classifySidecarGraphArtifactSchema({ graph });
+  const unbound = classifySidecarGraphArtifactSchema({ graph });
+  assert.equal(unbound.compatible, false);
+  assert.equal(unbound.graph_state.graph_available, false);
+  assert.match(unbound.errors.join("\n"), /expectedGeneratorIdentity/);
+
+  const present = classifySidecarGraphArtifactSchema({
+    graph: { ...graph, generator_identity: expectedGeneratorIdentity }
+  }, { expectedGeneratorIdentity });
   assert.equal(present.compatible, true);
   assert.equal(present.graph_state.graph_available, true);
   assert.equal(present.graph_state.graph_schema_version, SIDECAR_GRAPH_SCHEMA_VERSION);
 
   const incompatible = classifySidecarGraphArtifactSchema({
-    graph: { graph_schema_version: "repo-code-graph.v0" }
-  });
+    graph: {
+      graph_schema_version: "repo-code-graph.v0",
+      generator_identity: expectedGeneratorIdentity
+    }
+  }, { expectedGeneratorIdentity });
   assert.equal(incompatible.compatible, false);
   assert.equal(incompatible.graph_state.graph_available, false);
   assert.equal(incompatible.graph_state.status_reason, "graph_schema_incompatible");

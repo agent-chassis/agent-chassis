@@ -58,10 +58,14 @@ export {
 
 export {
   TOOL_DISCOVERY_COMPACT_ENTRY_FIELDS,
+  TOOL_DISCOVERY_LIST_ENTRY_FIELDS,
   TOOL_DISCOVERY_LIST_DEFAULT_LIMIT,
+  TOOL_DISCOVERY_LIST_MAX_BYTES,
   filterToolDiscoveryTools,
   getNotesSummary,
   compactToolDiscoveryEntry,
+  compactToolDiscoveryListEntry,
+  createBoundedToolDiscoveryListEnvelope,
   rankToolDiscoveryTools,
   listToolDiscoveryTools,
   describeToolDiscoveryTools,

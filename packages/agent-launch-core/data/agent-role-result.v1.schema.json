@@ -143,30 +143,11 @@
     },
     "reviewed_control_id": {
       "type": "string",
-      "enum": [
-        "write_scope_total_loc",
-        "max_write_file_loc",
-        "write_scope_count",
-        "acceptance_criteria_count",
-        "validation_command_count",
-        "expected_changed_line_budget",
-        "declared_runtime_mode_count",
-        "artifact_kind_count"
-      ]
+      "minLength": 1
     },
     "finding_control_id": {
       "type": ["string", "null"],
-      "enum": [
-        "write_scope_total_loc",
-        "max_write_file_loc",
-        "write_scope_count",
-        "acceptance_criteria_count",
-        "validation_command_count",
-        "expected_changed_line_budget",
-        "declared_runtime_mode_count",
-        "artifact_kind_count",
-        null
-      ]
+      "minLength": 1
     }
   }
 }

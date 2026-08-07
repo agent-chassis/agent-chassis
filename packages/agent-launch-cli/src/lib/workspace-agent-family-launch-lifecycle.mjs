@@ -162,7 +162,12 @@ export async function launchWorkspaceAgentFamilyLaunchLifecycle({
   enforcement = undefined,
   adaptSupervisedResult = null,
   adaptEnvelope = null,
-  postRunVerification = null
+  postRunVerification = null,
+
+  preSpawnBarrier = null,
+  buildPreSpawnBarrierRefusal = null,
+
+  resolveSpawn = null
 } = {}) {
   requireFunction(spawn, "spawn");
   requireFunction(superviseChildLaunch, "superviseChildLaunch");
@@ -180,9 +185,38 @@ export async function launchWorkspaceAgentFamilyLaunchLifecycle({
   if (baselineResult?.earlyReturn) return baselineResult.value;
   const baseline = baselineResult;
 
+  let spawnNow = spawn;
+  if (typeof resolveSpawn === "function") {
+    try {
+      spawnNow = await resolveSpawn();
+    } catch (err) {
+      return buildSpawnThrewRefusal(spawnErrorDetail(err));
+    }
+    if (typeof spawnNow !== "function") {
+      return buildNoChildRefusal(null);
+    }
+  }
+
+  if (typeof preSpawnBarrier === "function") {
+    requireFunction(buildPreSpawnBarrierRefusal, "buildPreSpawnBarrierRefusal");
+
+    if (typeof resolveSpawn !== "function") {
+      return buildPreSpawnBarrierRefusal({
+        ok: false,
+        reason: "terminal_review_spawn_primitive_unresolved",
+        detail: { family: kind ?? null, subject: subject ?? null }
+      });
+    }
+    const verdict = preSpawnBarrier();
+    if (verdict?.ok !== true) {
+      return buildPreSpawnBarrierRefusal(verdict ?? null);
+    }
+  }
+
   let child;
   try {
-    child = await spawn(
+
+    child = await spawnNow(
       command,
       Array.isArray(args) ? [...args] : [],
       buildSpawnOptions({ cwd, env, options })

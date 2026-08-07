@@ -6,12 +6,15 @@ import {
   parseDispatchUnitAddress
 } from "./work-records-shared.mjs";
 import { persistWorkRecordGraphImpactByUnit } from "./work-records-graph-impact.mjs";
-import { collectGraphImpactSubjectPaths } from "../lib/work-record-dispatch-graph.mjs";
-import { isBashWrapperPath } from "../lib/work-record-dispatch-shared.mjs";
-import { getSidecarGraphImpactPaths } from "../lib/sidecar-graph-impact.mjs";
-import { SidecarGraphIndexUnbuildableError } from "../lib/sidecar-graph-impact-artifact.mjs";
+import { getCommittedHeadGraphImpactPaths } from "../lib/sidecar-graph-impact.mjs";
+import {
+  rebuildGraphIndexAtHead,
+  SidecarGraphIndexUnbuildableError
+} from "../lib/sidecar-graph-impact-artifact.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "../lib/sidecar-graph-schema.mjs";
+import { validateImpactPath } from "../lib/sidecar-graph-impact-shared.mjs";
 import { loadWorkRecordById } from "../lib/work-record-store.mjs";
+import { computeReviewedUnitSourceDigest } from "../lib/work-record-review-attestation.mjs";
 
 const SCHEMA_VERSION = "graph-impact-generate.v1";
 
@@ -40,21 +43,33 @@ function createGenerateResult(overrides = {}) {
   };
 }
 
-function normalizeExplicitPaths(paths) {
+function normalizePaths(paths) {
   if (!Array.isArray(paths)) {
     return [];
   }
   const seen = new Set();
   const normalized = [];
   for (const value of paths) {
-    const entry = normalizeNonEmptyString(value);
+    const validation = validateImpactPath(value);
+    const entry = validation.ok ? validation.relative_path : null;
     if (!entry || seen.has(entry)) {
       continue;
     }
     seen.add(entry);
     normalized.push(entry);
   }
-  return normalized;
+  return normalized.sort((left, right) => left.localeCompare(right));
+}
+
+function canonicalSubjectPaths(subject) {
+  return normalizePaths([
+    ...(Array.isArray(subject?.write_scope) ? subject.write_scope : []),
+    ...(Array.isArray(subject?.repo_paths) ? subject.repo_paths : [])
+  ]);
+}
+
+function samePaths(left, right) {
+  return left.length === right.length && left.every((entry, index) => entry === right[index]);
 }
 
 function resolveSubjectForUnit(record, parsedUnit) {
@@ -95,45 +110,99 @@ export async function generateAndPersistWorkRecordGraphImpactByUnit({
   const recordId = parsedUnit.recordId;
   const unit = parsedUnit.unit;
 
-  const explicitPaths = normalizeExplicitPaths(paths);
-  let subjectPaths = explicitPaths;
-  let pathsSource = explicitPaths.length > 0 ? "explicit" : "derived";
+  const pathsProvided = paths !== null && paths !== undefined;
+  const explicitPaths = normalizePaths(paths);
+  let subject = null;
+  const pathsSource = pathsProvided ? "explicit" : "derived";
 
-  if (pathsSource === "derived") {
-
-    const loaded = await loadWorkRecordById({ dir, id: recordId, recordStore });
-    if (!loaded.record) {
-      return createGenerateResult({
-        outcome: "record_not_found",
-        record_id: recordId,
-        unit,
-        paths_source: pathsSource,
-        diagnostics: Array.isArray(loaded.diagnostics) ? loaded.diagnostics : []
-      });
-    }
-    const { subject, missingSlice } = resolveSubjectForUnit(loaded.record, parsedUnit);
-    if (missingSlice) {
-      return createGenerateResult({
-        outcome: "missing_slice",
-        record_id: recordId,
-        unit,
-        paths_source: pathsSource,
-        diagnostics: [
-          {
-            code: "invalid_record",
-            severity: "error",
-            message: `Selected slice ${missingSlice} does not exist on ${recordId}`,
-            path: "unit"
-          }
-        ]
-      });
-    }
-
-    subjectPaths = collectGraphImpactSubjectPaths(subject);
+  const loaded = await loadWorkRecordById({ dir, id: recordId, recordStore });
+  if (!loaded.record) {
+    return createGenerateResult({
+      outcome: "record_not_found",
+      record_id: recordId,
+      unit,
+      paths_source: pathsSource,
+      diagnostics: Array.isArray(loaded.diagnostics) ? loaded.diagnostics : []
+    });
+  }
+  const resolved = resolveSubjectForUnit(loaded.record, parsedUnit);
+  if (resolved.missingSlice) {
+    return createGenerateResult({
+      outcome: "missing_slice",
+      record_id: recordId,
+      unit,
+      paths_source: pathsSource,
+      diagnostics: [
+        {
+          code: "invalid_record",
+          severity: "error",
+          message: `Selected slice ${resolved.missingSlice} does not exist on ${recordId}`,
+          path: "unit"
+        }
+      ]
+    });
+  }
+  subject = resolved.subject;
+  const initialReviewedUnitDigest = computeReviewedUnitSourceDigest(
+    unit.kind === "slice"
+      ? { record: loaded.record, selected_slice_id: unit.slice_id }
+      : loaded.record
+  );
+  if (!initialReviewedUnitDigest) {
+    return createGenerateResult({
+      outcome: "invalid_record",
+      record_id: recordId,
+      unit,
+      paths_source: pathsSource,
+      diagnostics: [{ code: "invalid_record", severity: "error", message: `Could not resolve reviewed-unit digest for ${unit.address}`, path: "unit" }]
+    });
+  }
+  const canonicalPaths = canonicalSubjectPaths(subject);
+  if (pathsProvided && !samePaths(explicitPaths, canonicalPaths)) {
+    return createGenerateResult({
+      outcome: "explicit_paths_mismatch",
+      record_id: recordId,
+      unit,
+      selected_unit: unit,
+      paths_source: pathsSource,
+      subject_paths: canonicalPaths,
+      diagnostics: [
+        {
+          code: "explicit_paths_mismatch",
+          severity: "error",
+          message: "paths must exactly match the selected unit's canonical write_scope/repo_paths projection",
+          path: "paths"
+        }
+      ]
+    });
   }
 
-  const graphBearingPaths = subjectPaths.filter((entry) => !isBashWrapperPath(entry));
-  if (subjectPaths.length === 0 || graphBearingPaths.length === 0) {
+  let queryEnvelope = {
+    ...(await getCommittedHeadGraphImpactPaths({ dir, selectedUnit: unit, subject, cacheDir })),
+    source_record_digest: initialReviewedUnitDigest
+  };
+  if (
+    !queryEnvelope.available &&
+    [
+      "base_artifact_unavailable",
+      "base_artifact_corrupt",
+      "base_artifact_incompatible"
+    ].includes(queryEnvelope.outcome)
+  ) {
+    try {
+      await rebuildGraphIndexAtHead({ targetDir: dir, cacheDir });
+      queryEnvelope = {
+        ...(await getCommittedHeadGraphImpactPaths({ dir, selectedUnit: unit, subject, cacheDir })),
+        source_record_digest: initialReviewedUnitDigest
+      };
+    } catch (error) {
+      if (!(error instanceof SidecarGraphIndexUnbuildableError)) throw error;
+      queryEnvelope = { ...queryEnvelope, outcome: error.code };
+    }
+  }
+  const subjectPaths = queryEnvelope.projection?.subject_paths ?? [];
+  const graphBearingPaths = queryEnvelope.projection?.graph_bearing_paths ?? [];
+  if (queryEnvelope.available && graphBearingPaths.length === 0) {
     return createGenerateResult({
       outcome: "no_graph_bearing_paths",
       record_id: recordId,
@@ -155,35 +224,24 @@ export async function generateAndPersistWorkRecordGraphImpactByUnit({
     });
   }
 
-  let queryEnvelope;
-  try {
-    queryEnvelope = await getSidecarGraphImpactPaths({
-      dir,
-      paths: subjectPaths,
-      cacheDir
+  if (!queryEnvelope.available) {
+    return createGenerateResult({
+      outcome: "graph_head_unbuildable",
+      record_id: recordId,
+      unit,
+      paths_source: pathsSource,
+      subject_paths: subjectPaths,
+      graph_bearing_paths: graphBearingPaths,
+      graph_available: false,
+      diagnostics: [
+        {
+          code: queryEnvelope.outcome,
+          severity: "error",
+          message: "the exact committed-HEAD graph artifact is unavailable or incompatible",
+          path: pathsSource === "explicit" ? "paths" : "write_scope"
+        }
+      ]
     });
-  } catch (error) {
-    if (error instanceof SidecarGraphIndexUnbuildableError) {
-      return createGenerateResult({
-        outcome: "graph_head_unbuildable",
-        record_id: recordId,
-        unit,
-        paths_source: pathsSource,
-        subject_paths: subjectPaths,
-        graph_bearing_paths: graphBearingPaths,
-        graph_available: false,
-        diagnostics: [
-          {
-            code: "graph_head_unbuildable",
-            severity: "error",
-            message:
-              "current-HEAD code graph could not be produced or validated for the unit's subject paths",
-            path: pathsSource === "explicit" ? "paths" : "write_scope"
-          }
-        ]
-      });
-    }
-    throw error;
   }
 
   const graphState = isObject(queryEnvelope.graph_state) ? queryEnvelope.graph_state : {};
@@ -201,6 +259,11 @@ export async function generateAndPersistWorkRecordGraphImpactByUnit({
 
   const written = persistResult.written === true;
   const graphUnavailable = !graphAvailable || graphSchemaVersion !== SIDECAR_GRAPH_SCHEMA_VERSION;
+  const selectedUnitRefused =
+    !written &&
+    (persistResult.diagnostics ?? []).some((entry) =>
+      ["stale_source_digest", "invalid_record", "missing_json_record", "invalid_json"].includes(entry?.code)
+    );
 
   let outcome;
   if (written) {
@@ -219,7 +282,7 @@ export async function generateAndPersistWorkRecordGraphImpactByUnit({
 
   const selectedUnit = persistResult.selected_unit ?? unit;
   const graphImpactEnvelope =
-    graphAvailable && !graphUnavailable
+    graphAvailable && !graphUnavailable && !selectedUnitRefused
       ? {
           ...queryEnvelope,
           record_id: persistResult.record_id ?? recordId,

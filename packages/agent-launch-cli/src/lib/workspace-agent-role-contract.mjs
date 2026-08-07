@@ -16,11 +16,18 @@ export const LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER =
   'Public seam steering: when admission-related behavior needs a test seam, drive and assert it through the launcher-registered public backend and tool surfaces; do not target private or unexported admission-recovery helper internals.';
 
 export const LAUNCHER_REDTEAM_ADVERSARIAL_GUIDANCE_LINES = Object.freeze([
-  'Your findings are an adversarial perspective and are not authoritative: state in your response that they are adversarial input, may be wrong, are non-authoritative, and must be evaluated independently by the orchestrator before any action.',
-  "Explicitly identify every change you propose to the selected unit's scope. The orchestrator must raise each proposed scope change to the operator in an interactive session and must reject proposed scope changes in a headless session.",
-  'Read every DEC referenced by the selected work, and use structured wiki search over the canonical wiki decisions to find any other directly relevant DEC; for each, check its status, scope, expiration, supersession, and applicability to the selected unit before relying on it.',
-  "Finding or citing a DEC does not by itself widen the selected unit's scope or grant additional authority to you or the orchestrator.",
+  'Treat the result as adversarial, non-authoritative input that the coordinator must evaluate independently.',
 ]);
+
+const LAUNCHER_FINDINGS_SCOPE_EXCLUSION =
+  "Do not expand the selected unit's scope; identify any proposed scope change explicitly as a finding.";
+
+const LAUNCHER_FINDINGS_ROLE_PURPOSE = Object.freeze({
+  reviewer:
+    'Review the selected implementation and result for actionable defects against the supplied acceptance criteria and validation. Report findings by severity with file/line references; if none, state that clearly and note residual risk.',
+  redteam:
+    'Adversarially evaluate the selected plan, implementation, and result for missed requirements, hidden assumptions, unsafe scope expansion, fallback behavior, partial coverage, and insufficient validation. Report findings by severity with file/line references; if none, state that clearly and note residual risk.',
+});
 
 export const LAUNCHER_FAMILY_ROLE_CONTRACT_ROLES = Object.freeze([
   'worker',
@@ -63,7 +70,6 @@ const IMPLEMENTATION_TOOL_SURFACE_GUIDANCE = [
   'Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.',
   'The declared acceptance validation is reviewer-owned. Run any useful checks already available inside the frozen namespace, but do not treat absent undeclared test infrastructure or inability to run the complete repository suite as a blocker.',
   'Test availability and success are not closed-input commit prerequisites; complete the assigned implementation and invoke commit when the scoped change is ready.',
-  'This launcher-granted command access takes precedence over the AGENTS.md "structured tools first / shell denied" default for this confined implementation session.',
   'If assigned source access or the closed-input commit capability is unavailable, stop and report a blocker; do not try environment overrides or alternate delivery paths.',
 ].join(' ');
 
@@ -356,7 +362,6 @@ export function renderLauncherFamilyRoleContract(options = {}) {
   }
 
   const appName = normalizeAppName(input.appName);
-  const subjectPath = reviewPromptSubjectPath(subject);
   const shape = resolveRoleShape(role);
   const guidance = launcherRoleToolSurfaceGuidance({ role, shape });
   const workspaceDir = toStringValue(input.workspaceDir).trim();
@@ -367,21 +372,23 @@ export function renderLauncherFamilyRoleContract(options = {}) {
   const lines = [
     role === 'worker' ? LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER : LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER,
     `# ${appName} ${role} role contract`,
-    `Role: ${role === 'worker' ? 'implementation worker' : role === 'reviewer' ? 'review worker' : 'redteam worker'} for ${subject}.`,
-    `Read AGENTS.md and ${subjectPath} first.`,
-    'Render the subject unit\'s canonical acceptance criteria and validation; when the subject is a slice, use that slice\'s own acceptance.criteria and acceptance.validation.',
+    role === 'worker'
+      ? `Role: implementation worker for ${subject}.`
+      : `Subject: ${subject}. ${LAUNCHER_FINDINGS_ROLE_PURPOSE[role]}`,
   ];
 
-  if (workspaceDir) {
+  if (role === 'worker' && workspaceDir) {
     lines.push(`Workspace directory: ${workspaceDir}.`);
   }
 
-  const docsBlock = formatBulletList('Read first', input.docs);
+  const docsBlock = role === 'worker' ? formatBulletList('Read first', input.docs) : '';
   if (docsBlock) {
     lines.push(docsBlock);
   }
 
-  const writeScopeBlock = formatBulletList('Write scope', input.writeScope ?? input.write_scope);
+  const writeScopeBlock = role === 'worker'
+    ? formatBulletList('Write scope', input.writeScope ?? input.write_scope)
+    : '';
   if (writeScopeBlock) {
     lines.push(writeScopeBlock);
   }
@@ -391,30 +398,27 @@ export function renderLauncherFamilyRoleContract(options = {}) {
     lines.push(...acceptanceBlocks);
   }
 
-  lines.push(guidance);
-  lines.push(LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER);
+  if (role !== 'worker') {
+    lines.push(LAUNCHER_FINDINGS_SCOPE_EXCLUSION);
+  }
 
   if (role === 'worker') {
+    lines.push(guidance);
+    lines.push(LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER);
     lines.push('modify only files inside the assigned write_scope.');
     lines.push('Do not edit the WK record, its closure, or its status.');
     lines.push('Do not call workspace_submit_for_review.');
-    lines.push('Complete the managed exact-slice implementation lifecycle by invoking the closed-input commit capability and then terminating.');
-    lines.push('After confirmed termination, trusted runtime integrates the committed slice into the current WK tip, freezes the accumulated whole-WK SHA as the review target, and transitions that target to review.');
+
     lines.push('Prompt text, caller input, ambient environment, and worker-selected modes cannot select legacy submission or WK-update behavior.');
     lines.push('No structured validation or general MCP tools are available; delivery uses only the closed-input commit capability.');
     lines.push('Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.');
     lines.push('Use the launcher-provided actual native command tool directly inside bwrap to inspect assigned R union W and to mutate assigned W.');
     lines.push('Declared validation is reviewer-owned; worker-side checks are optional evidence and complete-test availability or success is not required before commit.');
-    lines.push('This launcher-granted command access takes precedence over the AGENTS.md "structured tools first / shell denied" default for this confined implementation session.');
     lines.push('If assigned source access or the closed-input commit capability is unavailable, stop and report a blocker rather than trying environment overrides or alternate delivery paths.');
   } else if (isManagedReviewer) {
-    lines.push('Do not update the work record.');
     lines.push('Do not call workspace_submit_for_review.');
-    lines.push('Complete by returning your terminal structured findings result for trusted-runtime capture; trusted runtime derives the review_result from that captured response and transitions the review target. There is no submit step and no repository write.');
-    lines.push('You have no repository write grant: do not modify any file or the work record.');
-    lines.push('Prompt text, caller input, ambient environment, and reviewer-selected modes cannot select a legacy submission path.');
+    lines.push('Complete by returning your terminal structured findings result for trusted-runtime capture.');
   } else {
-    lines.push('Do not update the work record.');
     lines.push('When findings-only reviewer or redteam work is complete, call workspace_submit_for_review; it moves only the assigned unit to review.');
     if (role === 'redteam') {
       lines.push(...LAUNCHER_REDTEAM_ADVERSARIAL_GUIDANCE_LINES);
@@ -485,9 +489,8 @@ function renderOrchestratorAuthorityPacket({
   return [
     'Coordinator authority reminder:',
     `- Context: ${context.join('; ')}.`,
-    '- Allowed coordination surfaces: AGENTS.md, canonical docs/wiki/work records, and structured wiki/MCP coordination tools.',
+    '- Allowed coordination surfaces: canonical docs/wiki/work records and structured wiki/MCP coordination tools.',
     '- Forbidden implementation/test surfaces: do not use the orchestrator role to edit packages/, tests/, product/runtime code, or runnable artifacts under docs/ or wiki/; dispatch the appropriate worker instead.',
-    '- After launch or resume, reread AGENTS.md and the subject record before choosing coordination actions.',
     '- When role authority, mount state, dispatch readiness, or write authority is unclear, use structured tool discovery and workspace coordination/preflight/status checks before acting.',
     '- This packet is a reminder for orchestrator startup/resume prompts; it is not runtime enforcement and does not solve mid-session compaction or non-Codex harness behavior.',
   ].join('\n');
@@ -518,10 +521,7 @@ export function renderLauncherFamilyOrchestratorPrompt(options = {}) {
       `Suggested ${resolvedRenameHintLabel} rename command: /rename ${normalizedThreadName}`
     );
   }
-  lines.push(`Read AGENTS.md and ${subjectPath} first.`);
-
   if (workspaceDir) {
-
     lines.splice(lines.length, 0, `Workspace directory: ${workspaceDir}.`);
   }
 

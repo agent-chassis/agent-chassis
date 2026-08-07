@@ -41,17 +41,6 @@ function formatKeyValueList(entries) {
     .join("\n");
 }
 
-const REVIEWED_CONTROL_VOCABULARY = Object.freeze([
-  "write_scope_total_loc",
-  "max_write_file_loc",
-  "write_scope_count",
-  "acceptance_criteria_count",
-  "validation_command_count",
-  "expected_changed_line_budget",
-  "declared_runtime_mode_count",
-  "artifact_kind_count"
-]);
-
 export const TERMINAL_STRUCTURED_ROLE_RESULT_MODES = Object.freeze({
   FENCED: "fenced",
   SCHEMA_CONSTRAINED: "schema_constrained",
@@ -98,7 +87,8 @@ function structuredRoleResultExample({ role, subject }) {
       reported_role: "worker",
       reported_subject: subject,
       reported_outcome: "completed",
-      summary: "Completed the assigned implementation work and any checks available inside the frozen worker namespace.",
+
+      summary: "Invoked the launcher-provided closed-input commit capability, which returned success; this post-commit evidence follows that authenticated delivery.",
       findings: [],
       finding_counts: zeroFindingCounts(),
       reviewed_controls: []
@@ -132,14 +122,24 @@ export function renderTerminalStructuredRoleResultContract({
 }) {
   let terminalMode = normalizeTerminalStructuredRoleResultMode(mode);
 
+  if (
+    terminalMode === TERMINAL_STRUCTURED_ROLE_RESULT_MODES.SCHEMA_CONSTRAINED &&
+    role !== "worker"
+  ) {
+    return [
+      "## Terminal result",
+      "Return exactly one raw JSON object matching the launcher-supplied schema, with no fences or surrounding text.",
+      `Set \`reported_subject\` to exactly \`${subject}\`.`
+    ].join("\n");
+  }
+
   if (terminalMode === TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FREE_PROSE) {
     if (role === "worker") {
       terminalMode = TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FENCED;
     } else {
       return [
         "## Review findings",
-        "Report your findings as prose for the coordinator: for each issue give a short title, its severity (blocking, critical, high, medium, low, or info), and the affected paths; if you found no blocking or medium issues, say so explicitly.",
-        "Do not emit a machine-readable `agent-role-result.v1` object, a fenced `agent-role-result.v1` block, or any other structured result block; the coordinator reads your prose directly."
+        "Report prose findings for the coordinator with a short title, severity, and affected paths; if there are no blocking or medium findings, say so explicitly."
       ].join("\n");
     }
   }
@@ -167,20 +167,24 @@ export function renderTerminalStructuredRoleResultContract({
   }
 
   if (role === "worker") {
+
     lines.push(
+      "Completion protocol, in this order: (1) successfully invoke the launcher-provided closed-input commit capability; (2) emit this post-commit `agent-role-result.v1` evidence; (3) terminate.",
+      "Authenticated closed-input commit is the only implementation delivery. Prose, this JSON, a zero exit status, and terminating are never delivery authority and never substitute for that commit.",
       "Worker structured JSON is implementation evidence only. It preserves `work-report.v1` worker-result semantics and must not become review/redteam attestation evidence.",
-      "Use a worker `reported_outcome`: `completed`, `partial`, `blocked`, or `failed`.",
+      "This result is strictly post-commit diagnostic evidence: emit it only after the commit capability has already returned success. Failing to emit it, or emitting it malformed, loses only that diagnostic evidence and never invalidates an authenticated delivery.",
+      "Use a worker `reported_outcome`: `completed` only when the closed-input commit capability has already returned success, otherwise `partial`, `blocked`, or `failed`.",
+      "If the closed-input commit capability is unavailable or refuses the delivery, report `blocked` or `failed` and never `completed`. A successful commit whose child tree equals its parent tree is still an authenticated delivery and is reported `completed`.",
       "`findings` must be empty, `finding_counts` must be all zero, and `reviewed_controls` must be empty."
     );
   } else {
-    const vocabulary = REVIEWED_CONTROL_VOCABULARY.map((id) => `\`${id}\``).join(", ");
     lines.push(
       "For reviewer and redteam runs the terminal `agent-role-result.v1` JSON is mandatory: it is the only evidence that can produce a trusted `review_result` and review-attestation. A prose-only review or redteam answer — including a bare `SIGNOFF` line or human-readable narrative — does not create trusted `review_result` or review-attestation evidence.",
       "A missing or malformed terminal JSON result blocks all trusted `review_result`/review-attestation evidence even when the prose is human-useful; the launcher then keeps the prose only as local diagnostics.",
       "Reviewer and redteam payloads must include `reported_outcome`, `findings`, `finding_counts`, and `reviewed_controls`.",
       "Clean-review outcomes: `no_findings` requires zero findings (`finding_counts.total == 0` and an empty `findings` array); `passed_no_blocking_or_medium_findings` permits only `low` and `info` findings and requires zero blocking, critical, high, and medium findings. Any blocking, critical, high, or medium finding must be represented in `findings[]`, must use the `changes_requested` outcome, and must not produce a clean `review_result`.",
-      `\`reviewed_controls\` must use the closed \`agent-role-result.v1\` control vocabulary (${vocabulary}) and must list only the controls you actually reviewed for the selected unit, each as a \`{ control_id, result }\` object with \`result\` of \`pass\` or \`fail\`. Generic labels, prose, empty control ids, unknown ids, namespaced ids, and duplicate ids are non-compliant and block clean \`review_result\` derivation.`,
-      "Findings prose, finding titles, and `affected_paths` may stay as local diagnostics for the coordinator, but they are never Node Engine authority facts; only bounded validated facts (closed reviewed-control ids, role class, clean outcome, and bounded counts) project to Node Engine pack input or public review-attestation responses."
+      "`reviewed_controls` must list the controls you actually reviewed for the selected unit — report what you examined, not what you think the set of controls is. Each entry is a `{ control_id, result }` object with `result` of `pass` or `fail`, and `control_id` is the control identifier as the deciding authority names it. Empty control ids and duplicate ids are non-compliant and block clean `review_result` derivation.",
+      "Findings prose, finding titles, and `affected_paths` may stay as local diagnostics for the coordinator, but they are never Node Engine authority facts; only bounded validated facts (reviewed-control ids, role class, clean outcome, and bounded counts) project to Node Engine pack input or public review-attestation responses."
     );
   }
 
@@ -280,10 +284,8 @@ export function buildLaunchPrompt({
     "You read your assigned read_scope, repo_paths, and write_scope through the launcher-granted native repository namespace for this session. Bubblewrap exposes exactly the frozen assigned paths; no child filesystem service or fallback can widen them.",
     "Shell commands may inspect assigned R union W and may generate, format, or mutate only assigned W. The bwrap mounts, not command parsing or an allowlist, enforce the filesystem boundary.",
     "For Codex, apply_patch remains available as one editing option; it is not required and does not replace exec_command. For Claude, Bash is an explicitly granted native tool.",
-    "This launcher-granted command and edit access takes precedence over the AGENTS.md \"structured tools first / shell denied\" default for this confined implementation session.",
     "The declared validation below is reviewer-owned. You may run checks already usable inside the frozen namespace, but complete-test infrastructure is not added to worker R, test availability or success is not a commit prerequisite, and inability to reach undeclared validation dependencies is not a worker blocker.",
     "",
-    `Read AGENTS.md and wiki/work-records/${canonicalSummary.record_id}.json first.`,
     "Use the canonical JSON record and generated agent brief below. Do not rely on hidden coordinator chat context.",
     "",
     "## Canonical Record",
