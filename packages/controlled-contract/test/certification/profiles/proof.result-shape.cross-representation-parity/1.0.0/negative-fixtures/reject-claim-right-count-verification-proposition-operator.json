@@ -1,0 +1,874 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-claim-right-count-verification-proposition-operator",
+  "covers": [
+    {
+      "surface_id": "claim-right-count-verification-proposition-operator",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-logical-source",
+        "type_term": "cc:entity",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/json-protobuf",
+          "path": "src/json-protobuf.mjs",
+          "symbol": "logical-source"
+        }
+      },
+      {
+        "reference_id": "ref-left-result",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/json-protobuf",
+          "path": "src/json-protobuf.mjs",
+          "symbol": "left-result"
+        }
+      },
+      {
+        "reference_id": "ref-right-result",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/json-protobuf",
+          "path": "src/json-protobuf.mjs",
+          "symbol": "right-result"
+        }
+      },
+      {
+        "reference_id": "ref-left-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cross-representation-json-protobuf",
+          "value": "left-population"
+        }
+      },
+      {
+        "reference_id": "ref-member-id-string",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/json-protobuf",
+          "path": "src/json-protobuf.mjs",
+          "symbol": "member-id-string"
+        }
+      },
+      {
+        "reference_id": "ref-member-total-decimal",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/json-protobuf",
+          "path": "src/json-protobuf.mjs",
+          "symbol": "member-total-decimal"
+        }
+      },
+      {
+        "reference_id": "ref-right-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cross-representation-json-protobuf",
+          "value": "right-population"
+        }
+      },
+      {
+        "reference_id": "ref-left-count",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cross-representation-json-protobuf",
+          "value": "left-count"
+        }
+      },
+      {
+        "reference_id": "ref-right-count",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cross-representation-json-protobuf",
+          "value": "right-count"
+        }
+      },
+      {
+        "reference_id": "ref-left-value",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cross-representation-json-protobuf",
+          "value": "left-value"
+        }
+      },
+      {
+        "reference_id": "ref-right-value",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cross-representation-json-protobuf",
+          "value": "right-value"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/json-protobuf",
+          "path": "src/json-protobuf.mjs",
+          "symbol": "verification"
+        }
+      },
+      {
+        "reference_id": "ref-left-population-not-subset-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "json-protobuf:left-population-not-subset-condition"
+        }
+      },
+      {
+        "reference_id": "ref-right-population-not-subset-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "json-protobuf:right-population-not-subset-condition"
+        }
+      },
+      {
+        "reference_id": "ref-left-count-mismatch-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "json-protobuf:left-count-mismatch-condition"
+        }
+      },
+      {
+        "reference_id": "ref-right-count-mismatch-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "json-protobuf:right-count-mismatch-condition"
+        }
+      },
+      {
+        "reference_id": "ref-canonical-value-mismatch-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "json-protobuf:canonical-value-mismatch-condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-complete-left-member-population-count",
+        "subject_reference_id": "ref-left-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-left-member-population-members",
+        "subject_reference_id": "ref-left-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-member-id-string"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-member-total-decimal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-right-member-population-count",
+        "subject_reference_id": "ref-right-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-right-member-population-members",
+        "subject_reference_id": "ref-right-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-member-id-string"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-member-total-decimal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-source-emits-both-results",
+        "subject_reference_id": "ref-logical-source",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-result"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-left-result-exposes-parity-inputs",
+        "subject_reference_id": "ref-left-result",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-count"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-value"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-right-result-exposes-parity-inputs",
+        "subject_reference_id": "ref-right-result",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-count"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-value"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-left-population-within-right",
+        "subject_reference_id": "ref-left-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-right-population-within-left",
+        "subject_reference_id": "ref-right-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-left-count-exact",
+        "subject_reference_id": "ref-left-count",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-right-count-exact",
+        "subject_reference_id": "ref-right-count",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-selected-canonical-values-equal",
+        "subject_reference_id": "ref-left-value",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-value"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-reads-both-representations",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-logical-source"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-result"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-result"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-count"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-count"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-value"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-value"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-left-population-parity-verification",
+        "subject_reference_id": "ref-left-population",
+        "operator": "reference:not_subset_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-left-population-not-subset-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-left-population-parity-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-right-population-parity-verification",
+        "subject_reference_id": "ref-right-population",
+        "operator": "reference:not_subset_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-right-population-not-subset-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-right-population-parity-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-left-count-verification",
+        "subject_reference_id": "ref-left-count",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-left-count-mismatch-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-left-count-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-count"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-right-count-verification",
+        "subject_reference_id": "ref-right-count",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-right-count-mismatch-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-right-count-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-count"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-canonical-value-verification",
+        "subject_reference_id": "ref-left-value",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-canonical-value-mismatch-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-value"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-canonical-value-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-left-value"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-right-value"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-complete-left-member-population-count",
+        "proposition_id": "prop-complete-left-member-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-left-member-population-members",
+        "proposition_id": "prop-complete-left-member-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-right-member-population-count",
+        "proposition_id": "prop-complete-right-member-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-right-member-population-members",
+        "proposition_id": "prop-complete-right-member-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-source-emits-both-results",
+        "proposition_id": "prop-source-emits-both-results",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-left-result-exposes-parity-inputs",
+        "proposition_id": "prop-left-result-exposes-parity-inputs",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-right-result-exposes-parity-inputs",
+        "proposition_id": "prop-right-result-exposes-parity-inputs",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-left-population-within-right",
+        "proposition_id": "prop-left-population-within-right",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-right-population-within-left",
+        "proposition_id": "prop-right-population-within-left",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-left-count-exact",
+        "proposition_id": "prop-left-count-exact",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-right-count-exact",
+        "proposition_id": "prop-right-count-exact",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-selected-canonical-values-equal",
+        "proposition_id": "prop-selected-canonical-values-equal",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-verification-reads-both-representations",
+        "proposition_id": "prop-verification-reads-both-representations",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-left-population-parity-verification",
+        "proposition_id": "prop-left-population-parity-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-left-population-parity-verification"
+      },
+      {
+        "claim_id": "claim-right-population-parity-verification",
+        "proposition_id": "prop-right-population-parity-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-right-population-parity-verification"
+      },
+      {
+        "claim_id": "claim-left-count-verification",
+        "proposition_id": "prop-left-count-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-left-count-verification"
+      },
+      {
+        "claim_id": "claim-right-count-verification",
+        "proposition_id": "prop-right-count-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-right-count-verification"
+      },
+      {
+        "claim_id": "claim-canonical-value-verification",
+        "proposition_id": "prop-canonical-value-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-canonical-value-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-targets-left-population-parity",
+        "role": "verifies",
+        "source_claim_id": "claim-left-population-parity-verification",
+        "target_claim_id": "claim-left-population-within-right"
+      },
+      {
+        "relation_id": "rel-verification-targets-right-population-parity",
+        "role": "verifies",
+        "source_claim_id": "claim-right-population-parity-verification",
+        "target_claim_id": "claim-right-population-within-left"
+      },
+      {
+        "relation_id": "rel-verification-targets-left-count",
+        "role": "verifies",
+        "source_claim_id": "claim-left-count-verification",
+        "target_claim_id": "claim-left-count-exact"
+      },
+      {
+        "relation_id": "rel-verification-targets-right-count",
+        "role": "verifies",
+        "source_claim_id": "claim-right-count-verification",
+        "target_claim_id": "claim-right-count-exact"
+      },
+      {
+        "relation_id": "rel-verification-targets-canonical-value",
+        "role": "verifies",
+        "source_claim_id": "claim-canonical-value-verification",
+        "target_claim_id": "claim-selected-canonical-values-equal"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "logical_source",
+        "reference_ids": [
+          "ref-logical-source"
+        ]
+      },
+      {
+        "role": "left_result",
+        "reference_ids": [
+          "ref-left-result"
+        ]
+      },
+      {
+        "role": "right_result",
+        "reference_ids": [
+          "ref-right-result"
+        ]
+      },
+      {
+        "role": "left_population",
+        "reference_ids": [
+          "ref-left-population"
+        ]
+      },
+      {
+        "role": "left_members",
+        "reference_ids": [
+          "ref-member-id-string",
+          "ref-member-total-decimal"
+        ]
+      },
+      {
+        "role": "right_population",
+        "reference_ids": [
+          "ref-right-population"
+        ]
+      },
+      {
+        "role": "right_members",
+        "reference_ids": [
+          "ref-member-id-string",
+          "ref-member-total-decimal"
+        ]
+      },
+      {
+        "role": "left_count_signal",
+        "reference_ids": [
+          "ref-left-count"
+        ]
+      },
+      {
+        "role": "right_count_signal",
+        "reference_ids": [
+          "ref-right-count"
+        ]
+      },
+      {
+        "role": "left_selected_canonical_value",
+        "reference_ids": [
+          "ref-left-value"
+        ]
+      },
+      {
+        "role": "right_selected_canonical_value",
+        "reference_ids": [
+          "ref-right-value"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "left_population_not_subset_condition",
+        "reference_ids": [
+          "ref-left-population-not-subset-condition"
+        ]
+      },
+      {
+        "role": "right_population_not_subset_condition",
+        "reference_ids": [
+          "ref-right-population-not-subset-condition"
+        ]
+      },
+      {
+        "role": "left_count_mismatch_condition",
+        "reference_ids": [
+          "ref-left-count-mismatch-condition"
+        ]
+      },
+      {
+        "role": "right_count_mismatch_condition",
+        "reference_ids": [
+          "ref-right-count-mismatch-condition"
+        ]
+      },
+      {
+        "role": "canonical_value_mismatch_condition",
+        "reference_ids": [
+          "ref-canonical-value-mismatch-condition"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "member_count",
+        "value": 2
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

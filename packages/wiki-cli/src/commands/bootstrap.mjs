@@ -58,14 +58,9 @@ export async function runBootstrap(argv) {
   console.log(
     `  Required checks: ${ai.requiredChecks.length} | Owned work items: ${ai.ownedWork.length}`
   );
-  if (ai.created) {
-    console.log(`  Owned work: ${ai.ownedWork.join(", ")}`);
-  }
 
-  const ad = result.adoptionDoc;
-  if (ad) {
-    const adState = ad.state === "created" ? "created" : "kept (preserved your edits)";
-    console.log(`Adoption guide: ${adState} ${ad.path}`);
+  if (ai.created && ai.ownedWork.length > 0) {
+    console.log(`  Owned work: ${ai.ownedWork.join(", ")}`);
   }
 
   const ci = result.cacheAndIgnores;
@@ -121,7 +116,7 @@ export async function runBootstrap(argv) {
     "  3. Review and commit the bootstrap-created files, AGENTS.md, and launcher config:"
   );
   console.log("       git status --short");
-  console.log("       git add wiki docs/adoption.md .gitignore AGENTS.md agent-launch.toml");
+  console.log("       git add wiki .gitignore AGENTS.md agent-launch.toml");
   console.log('       git commit -m "bootstrap wiki adoption surfaces"');
   console.log(
     "  4. After the review/commit checkpoint: build the repo-code-index"
@@ -172,13 +167,13 @@ export async function runBootstrap(argv) {
     "wiki/.wiki-mcp.json declaration (regenerated each run, not committed) and"
   );
   console.log(
-    "seeds the committed docs/adoption.md operator guide from a template"
+    "creates no adoption guide: the adoption guide is the single package-owned"
   );
   console.log(
-    "(preserved if you have customized it). The root AGENTS.md is an operator"
+    "docs/adoption.md shipped with @agent-chassis/core. The root AGENTS.md is an"
   );
   console.log(
-    "first-run prerequisite: create or adapt it from"
+    "operator first-run prerequisite: create or adapt it from"
   );
   console.log(
     "wiki/templates/AGENTS.md.boilerplate.md before launcher config,"

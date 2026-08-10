@@ -1,0 +1,252 @@
+{
+  "schema_version": "controlled-acceptance-contract.experimental.v0.1",
+  "vocabulary_version": "cv.experimental.0.33",
+  "profile_id": "acceptance-contract.standard.experimental.v0.1",
+  "references": [
+    {
+      "reference_id": "ref-v034-runtime",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/lib/native-contract-runtime.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-v034-vocabulary",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/vocabulary/cv.experimental.0.34.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-v034-profile-runtime",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/lib/verification-profile-v034.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-idempotency-pack",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/profiles/proof.idempotency.effect-nonduplication/2.0.0/profile.json"
+      }
+    },
+    {
+      "reference_id": "ref-focused-suite",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/experimental/v034-proof-adequacy.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-enforced-algebra",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.v034-remediation",
+        "value": "declared-mechanical-semantics-have-explicit-runtime-support"
+      }
+    },
+    {
+      "reference_id": "ref-discriminating-pack",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.v034-remediation",
+        "value": "sequential-effect-nonduplication-rejects-declared-duplication-and-response-only-proof"
+      }
+    },
+    {
+      "reference_id": "ref-mutation-contract",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.v034-remediation",
+        "value": "proof-pack-ships-positive-negative-and-executable-mutation-controls"
+      }
+    },
+    {
+      "reference_id": "ref-invalid-semantics",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.v034-remediation",
+        "value": "unsupported-semantics-or-surviving-required-mutant"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-runtime-enforces-algebra",
+      "subject_reference_id": "ref-v034-runtime",
+      "operator": "reference:conforms_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-enforced-algebra"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-pack-is-discriminating",
+      "subject_reference_id": "ref-idempotency-pack",
+      "operator": "reference:conforms_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-discriminating-pack"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-pack-has-mutation-contract",
+      "subject_reference_id": "ref-idempotency-pack",
+      "operator": "reference:conforms_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-mutation-contract"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-suite-covers-remediation",
+      "subject_reference_id": "ref-focused-suite",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-v034-vocabulary"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-v034-runtime"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-v034-profile-runtime"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-idempotency-pack"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-remediation-invalid",
+      "subject_reference_id": "ref-idempotency-pack",
+      "operator": "reference:has_state",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-invalid-semantics"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-invalid-semantics"
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-runtime-enforces-algebra",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-runtime-enforces-algebra"
+    },
+    {
+      "claim_id": "claim-pack-is-discriminating",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-pack-is-discriminating"
+    },
+    {
+      "claim_id": "claim-pack-has-mutation-contract",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-pack-has-mutation-contract"
+    },
+    {
+      "claim_id": "claim-suite-covers-remediation",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-suite-covers-remediation",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-remediation-invalid"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-suite-verifies-algebra",
+      "role": "verifies",
+      "source_claim_id": "claim-suite-covers-remediation",
+      "target_claim_id": "claim-runtime-enforces-algebra"
+    },
+    {
+      "relation_id": "rel-suite-verifies-pack",
+      "role": "verifies",
+      "source_claim_id": "claim-suite-covers-remediation",
+      "target_claim_id": "claim-pack-is-discriminating"
+    },
+    {
+      "relation_id": "rel-suite-verifies-mutation-contract",
+      "role": "verifies",
+      "source_claim_id": "claim-suite-covers-remediation",
+      "target_claim_id": "claim-pack-has-mutation-contract"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-remediation-obligations",
+      "collection_kind": "closed_set",
+      "purpose": "profile_proof_population",
+      "member_claim_ids": [
+        "claim-runtime-enforces-algebra",
+        "claim-pack-is-discriminating",
+        "claim-pack-has-mutation-contract"
+      ]
+    }
+  ],
+  "residue": [
+    {
+      "residue_id": "res-reference-population-closure",
+      "text": "A local authored contract cannot establish that its elected effect resource is the complete population of resources mutated by an implementation.",
+      "reason": "unresolved_identity"
+    },
+    {
+      "residue_id": "res-nonsequential-idempotency",
+      "text": "Concurrency safety, partial-commit recovery, cross-principal idempotency-key scope, and reset or mutation history between declared observation points require separate proof obligations and executable evidence; they are outside the sequential pack.",
+      "reason": "review_only"
+    }
+  ],
+  "annotations": []
+}

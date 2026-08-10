@@ -1,0 +1,39 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {"role": "design_unit", "reference_ids": ["ref-design-unit"]},
+    {"role": "requirement_population", "reference_ids": ["ref-requirement-population"]},
+    {"role": "requirements", "reference_ids": ["ref-requirement-a", "ref-requirement-b"]},
+    {"role": "implementation_locus", "reference_ids": ["ref-implementation-locus"]},
+    {"role": "test_locus", "reference_ids": ["ref-test-locus"]},
+    {"role": "warning_signal", "reference_ids": ["ref-warning-signal"]},
+    {"role": "warning_shape_population", "reference_ids": ["ref-warning-shape-population"]},
+    {"role": "warning_fields", "reference_ids": ["ref-warning-code-field", "ref-warning-severity-field", "ref-warning-message-field", "ref-warning-payload-field"]},
+    {"role": "required_warning_shape_population", "reference_ids": ["ref-required-warning-shape-population"]},
+    {"role": "required_warning_fields", "reference_ids": ["ref-warning-code-field", "ref-warning-severity-field", "ref-warning-message-field", "ref-warning-payload-field"]},
+    {"role": "warning_code_field", "reference_ids": ["ref-warning-code-field"]},
+    {"role": "warning_severity_field", "reference_ids": ["ref-warning-severity-field"]},
+    {"role": "warning_message_field", "reference_ids": ["ref-warning-message-field"]},
+    {"role": "warning_payload_field", "reference_ids": ["ref-warning-payload-field"]},
+    {"role": "warning_code_value", "reference_ids": ["ref-warning-code-value"]},
+    {"role": "warning_severity_value", "reference_ids": ["ref-warning-severity-value"]},
+    {"role": "warning_message_template", "reference_ids": ["ref-warning-message-template"]},
+    {"role": "warning_payload_schema", "reference_ids": ["ref-warning-payload-schema"]},
+    {"role": "validation_population", "reference_ids": ["ref-validation-population"]},
+    {"role": "validated_requirements", "reference_ids": ["ref-requirement-a", "ref-requirement-b"]},
+    {"role": "placeholder_population", "reference_ids": ["ref-placeholder-population"]},
+    {"role": "placeholders", "reference_ids": []},
+    {"role": "warning_shape_mismatch_condition", "reference_ids": ["ref-condition-warning-shape-mismatch"]}
+  ],
+  "number_bindings": [
+    {"role": "requirement_count", "value": 2},
+    {"role": "validation_count", "value": 2},
+    {"role": "warning_field_count", "value": 4},
+    {"role": "required_warning_field_count", "value": 4},
+    {"role": "placeholder_count", "value": 0}
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

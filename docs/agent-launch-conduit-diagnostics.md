@@ -33,6 +33,33 @@ tokens only; it contains no prompt, credentials, environment, raw process
 output, prose, or stack trace. If this diagnostic cannot be persisted, the
 launcher fails closed with `stdio_mcp_session_diagnostic_persistence_failed`.
 
+When a conduit failure or a host-server exit arms the launcher's bounded
+terminal drain and that drain actually signals the confined client, the launcher
+retains one immutable initiation record before the first signal leaves. It names
+the launcher's own terminal supervisor as the issuer, the stable initiating fact
+(the failure settlement, or an expected drain, abnormal loss, or failed
+observation of the server exit), and the originating typed conduit code — or
+states explicitly that no cause is available, which is what a teardown before any
+client authenticated reports rather than inventing one. The same supervisor then
+fills exactly two write-once outcome slots, SIGTERM delivery and the optional
+SIGKILL escalation. Cleanup, signal-delivery, escalation, persistence, and
+rendering failures are additive evidence: none of them may replace the first
+cause. The record is associated with the live child handle, never a pid; its
+write side is private to launcher supervision and is deliberately absent from the
+frozen conduit binding, which publishes only the bounded read projection.
+
+That projection is persisted on `stdio_mcp_detail.launcher_termination` before
+terminal publication and rendered on the interactive terminal, so a supervised
+session never ends showing only `exit_signal: SIGTERM` for a signal this launcher
+sent. The rendering states the underlying conduit or readiness failure, the
+launcher-issued SIGTERM, and any launcher-issued SIGKILL escalation as three
+separate facts, in launcher-owned bounded tokens only. A session whose sole
+diagnostic is the launcher's own termination reports the reason
+`stdio_mcp_launcher_terminated_client`; a typed conduit failure always outranks
+it. Both interactive orchestrator families reach this through the one shared
+supervisor: Claude hands it the conduit its own launch created, exactly as Codex
+does, and a persisted conduit diagnostic still forces a failed terminal status.
+
 Recovery for a consumed or failed conduit is to end the affected session, repair
 the named host-server, bubblewrap, cleanup, or persistence prerequisite indicated
 by the typed phase, and restart or resume through the normal launcher entrypoint.

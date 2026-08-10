@@ -1,0 +1,110 @@
+{
+  "schema_version": "controlled-acceptance-contract.experimental.v0.1",
+  "vocabulary_version": "cv.experimental.0.33",
+  "profile_id": "acceptance-contract.standard.experimental.v0.1",
+  "references": [
+    {
+      "reference_id": "ref-channel-owner",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis",
+        "path": "packages/example/channel.mjs",
+        "symbol": "createChannel"
+      }
+    },
+    {
+      "reference_id": "ref-focused-suite",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/example/channel.test.mjs"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-channel-exists",
+      "subject_reference_id": "ref-channel-owner",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-suite-covers-channel",
+      "subject_reference_id": "ref-focused-suite",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-channel-owner"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-channel-missing",
+      "subject_reference_id": "ref-channel-owner",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "counterfactual",
+        "operand_reference_ids": [
+          "ref-channel-owner"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-channel-exists",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-channel-exists"
+    },
+    {
+      "claim_id": "claim-suite-covers-channel",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-suite-covers-channel",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-channel-missing"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-suite-verifies-channel",
+      "role": "verifies",
+      "source_claim_id": "claim-suite-covers-channel",
+      "target_claim_id": "claim-channel-exists"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-proof-obligations",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-channel-exists"
+      ]
+    }
+  ],
+  "residue": [],
+  "annotations": []
+}

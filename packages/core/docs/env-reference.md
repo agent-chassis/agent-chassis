@@ -63,18 +63,20 @@ role is a `[roles.<role>]` sub-table:
 
 ```toml
 [roles.worker]
-model = "gpt-5.5"
+model = "gpt-5.6-luna"
 effort = "medium"   # optional: low | medium | high | xhigh | max
 
 [roles.reviewer]
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
+effort = "high"
 
 [roles.orchestrator]
-model = "opus"
+model = "gpt-5.6-sol"
+effort = "high"
 
 [roles.redteam]
-model = "opus"
-effort = "max"
+model = "gpt-5.6-sol"
+effort = "high"
 ```
 
 `model` is required; `effort` is optional (`low | medium | high | xhigh | max`).
@@ -93,6 +95,11 @@ Precedence for later launch resolution remains: an explicit launch override wins
 over the role default, and missing or unknown declarations refuse pre-spawn in
 the resolver funnel. `.env` remains the repo-local carrier for Chassis Control Engine
 service configuration and secrets only.
+
+These values document the Codex-family template defaults. Installing or updating
+the package does not automatically rewrite an existing operator-owned
+`agent-launch.toml`; users who copied an older template must intentionally
+re-copy the current template or edit their file to adopt the corrected defaults.
 
 For agent MCP dispatch, the normal `workspace_agent_dispatch` input is
 `{ role, subject }`. The backend reads this file on every dispatch, so a later

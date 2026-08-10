@@ -510,6 +510,35 @@ exception messages, Git arguments, stdout, stderr, paths, secrets, stacks, or
 causes public. The runner-identity provenance gate does not alter this forge
 recovery retention behavior.
 
+work record removes the diagnostic suppression on the reviewer side of that same
+lookup. The reviewer backend previously hardcoded `detail.reason` to
+`terminal_candidate_recovery_failed` for every cause while the forge path already
+published the authenticated verdict; it now publishes
+`projectTerminalCandidateRecoveryReason` too, validated against a closed
+vocabulary, so an error the runtime did not mint still reads
+`terminal_candidate_recovery_failed` and one it did mint names itself.
+`detail.recovery_code` and `detail.recovery_detail` are unchanged and remain the
+typed CANDIDATE projection, which is `null` / `unknown_cause` for a control-flow
+verdict because such a verdict is not a candidate defect.
+
+A new `detail.recovery_diagnostic` carries the bounded launcher-owned cause when
+one exists, and `null` otherwise. It has exactly the keys `schema_version`
+(`agent_launch.terminal_candidate_recovery_diagnostic.v1`), `contract_code`,
+`projection_code`, `missing_facts`, and `ambiguous_facts`. `contract_code`
+distinguishes the canonical-current-contract refusal paths that were previously
+one undifferentiated `null` — a symlinked repository root, an unreadable or
+unparseable record, a record whose id or initiative disagrees, an unprojectable
+terminal review unit, and a moved review subject or contract digest.
+`projection_code` says whether the parent lifecycle contract was incomplete or the
+designated unit's own review contract was absent, and the two fact lists carry
+contract-fact NAMES drawn from the frozen `PARENT_LIFECYCLE_CONTRACT_FACTS`
+vocabulary (for example `acceptance.criteria` and `acceptance.validation`). Every
+value is a fixed module constant: no stack, Error, raw stderr, record content,
+repository path, or caller-controlled text can enter, and provenance is the same
+private WeakMap identity check the failure projection uses, so a copied or forged
+diagnostic yields `null`. This is disclosure only — no refusal that refused before
+changes, and none of it selects a path, a retry, a fallback, or any authority.
+
 work record lifecycle-refusal authentication and
 `packages/agent-launch-cli/src/lib/backend-scope-authority.mjs` are outside this
 contract change. The change supplies no retry, fallback, cleanup, publication,

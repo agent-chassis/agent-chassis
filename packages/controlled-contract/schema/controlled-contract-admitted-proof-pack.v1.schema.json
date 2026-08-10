@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-admitted-proof-pack.v1.schema.json",
+  "title": "controlled-contract-admitted-proof-pack.v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "profile_id",
+    "profile_version",
+    "profile_digest",
+    "guarantee",
+    "guarantee_digest",
+    "explicit_exclusions",
+    "certification"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "controlled-contract-admitted-proof-pack.v1"
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^proof\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+    },
+    "profile_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "profile_digest": { "$ref": "#/$defs/sha256" },
+    "guarantee": { "type": "string", "minLength": 1 },
+    "guarantee_digest": { "$ref": "#/$defs/sha256" },
+    "explicit_exclusions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    },
+    "certification": {
+      "type": "object",
+      "required": [
+        "method",
+        "adequacy_declaration_digest",
+        "adequacy_result_digest",
+        "executable_control_count",
+        "negative_fixture_count",
+        "coverage_witness_count"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "const": "executable_adequacy_full_negative_corpus"
+        },
+        "adequacy_declaration_digest": { "$ref": "#/$defs/sha256" },
+        "adequacy_result_digest": { "$ref": "#/$defs/sha256" },
+        "executable_control_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "negative_fixture_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "coverage_witness_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

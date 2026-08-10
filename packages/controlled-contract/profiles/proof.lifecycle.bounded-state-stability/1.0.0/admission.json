@@ -1,0 +1,25 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.lifecycle.bounded-state-stability",
+  "profile_version": "1.0.0",
+  "profile_digest": "6de017604a8ea92ecb3e5cc4fae55e16eb6e2af328c8518878fbdd3e19a714c2",
+  "guarantee": "For one subject, without asserting terminality, with one elected baseline state at a start boundary and a distinct later end boundary, the complete nonempty observation population lies strictly inside the bounded interval; every observation reads that same subject and records the baseline state, and the complete observed-state population equals the complete singleton baseline-state population.",
+  "guarantee_digest": "f83f797c792540d6085598adc202a6f6fb603bc3bc7bd324245e454113d709cd",
+  "explicit_exclusions": [
+    "behavior-before-start-or-after-end",
+    "dishonest-identity-role-population-boundary-state-or-evidence-grounding",
+    "external-actor-noninterference",
+    "forever-after-stability-or-liveness",
+    "observations-or-behavior-outside-the-complete-declared-population",
+    "real-time-truth-or-clock-accuracy",
+    "transient-state-between-declared-observations"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "a66637f10ec303d654255cf704348179b04a0a77d13b7309b816d18d726dedb9",
+    "adequacy_result_digest": "9f01ba4568b0376474435cbc7848a0535e09c7e828e693bfb11cab1250694f1f",
+    "executable_control_count": 36,
+    "negative_fixture_count": 3,
+    "coverage_witness_count": 76
+  }
+}

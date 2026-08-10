@@ -129,6 +129,21 @@ function describeFailure(error) {
   };
 }
 
+export const STDIO_MCP_LAUNCHER_CAUSE_SCHEMA_VERSION =
+  "launcher-stdio-mcp-conduit-cause.v1";
+
+export const STDIO_MCP_LAUNCHER_CAUSE_BOUNDARIES = Object.freeze({
+  CONDUIT_LIFECYCLE: "conduit_lifecycle",
+  PRE_AUTHENTICATION: "pre_authentication",
+  NONE: "none"
+});
+
+function boundedCauseCode(value) {
+  return typeof value === "string" && /^[a-zA-Z0-9_.:#-]+$/u.test(value)
+    ? value.slice(0, 64)
+    : null;
+}
+
 class ConduitResourceScope {
   #entries = [];
   #disposed = false;
@@ -333,6 +348,8 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
   let generationServer = null;
   let generationStderr = () => "";
   let readinessEvent = null;
+
+  let unboundLifecycleFailure = null;
   let clientReadinessRequested = false;
   let clientReadinessDelegated = false;
   const clientReadyRelay = lifecycleRelay();
@@ -346,6 +363,8 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
     const unbound = new StdioMcpConduitError(
       STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_FAILED,
       "stdio MCP conduit was torn down before a confined client authenticated");
+
+    unboundLifecycleFailure = unbound;
     readinessFailure ??= unbound;
     failureSettlementRelay.resolve(unbound);
     serverExitRelay.resolve(Object.freeze({
@@ -469,6 +488,21 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       get serverStderr() { return generationStderr(); },
       get namespaceReady() { return namespaceReady; },
       get cleaned() { return scope.disposed; },
+
+      get launcherCause() {
+        const retained = lifecycle?.currentFailure() ?? readinessFailure ?? null;
+        const originating = retained !== null && retained !== unboundLifecycleFailure;
+        return Object.freeze({
+          schema_version: STDIO_MCP_LAUNCHER_CAUSE_SCHEMA_VERSION,
+          cause_available: originating,
+          cause_code: originating ? boundedCauseCode(retained.code) : null,
+          boundary: originating
+            ? STDIO_MCP_LAUNCHER_CAUSE_BOUNDARIES.CONDUIT_LIFECYCLE
+            : unboundLifecycleFailure !== null
+              ? STDIO_MCP_LAUNCHER_CAUSE_BOUNDARIES.PRE_AUTHENTICATION
+              : STDIO_MCP_LAUNCHER_CAUSE_BOUNDARIES.NONE
+        });
+      },
       get readinessFailure() { return readinessFailure ?? lifecycle?.currentFailure() ?? null; },
       get failure() { return lifecycle?.currentFailure() ?? null; },
       get clientReadyCompleted() { return lifecycle?.isClientReady() === true; },

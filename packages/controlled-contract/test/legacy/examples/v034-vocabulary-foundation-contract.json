@@ -1,0 +1,399 @@
+{
+  "schema_version": "controlled-acceptance-contract.experimental.v0.1",
+  "vocabulary_version": "cv.experimental.0.33",
+  "profile_id": "acceptance-contract.standard.experimental.v0.1",
+  "references": [
+    {
+      "reference_id": "ref-vocabulary-artifact",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/vocabulary/cv.experimental.0.34.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-complete-vocabulary",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.vocabulary",
+        "value": "every-active-term-has-complete-mechanical-semantics"
+      }
+    },
+    {
+      "reference_id": "ref-derived-consumers",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.vocabulary",
+        "value": "all-consumer-enums-and-semantic-indexes-are-derived"
+      }
+    },
+    {
+      "reference_id": "ref-advisory-authoring-view",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.vocabulary",
+        "value": "reduced-authoring-views-are-advisory-and-explicitly-incomplete"
+      }
+    },
+    {
+      "reference_id": "ref-vocabulary-suite",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/experimental/vocabulary-v034.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-carrier-suite",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/experimental/native-contract-carrier-v034.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-profile-evaluator",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/lib/verification-profile-v034.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-idempotency-pack",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/profiles/proof.idempotency.effect-nonduplication/2.0.0/profile.json"
+      }
+    },
+    {
+      "reference_id": "ref-profile-semantics-derived",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.vocabulary",
+        "value": "profile-language-and-complements-derive-from-vocabulary"
+      }
+    },
+    {
+      "reference_id": "ref-profile-foundation-bound",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.vocabulary",
+        "value": "idempotency-pack-binds-vocabulary-signature-and-algebra"
+      }
+    },
+    {
+      "reference_id": "ref-frozen-profile-compatibility",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.vocabulary",
+        "value": "frozen-v033-profiles-retain-their-evaluator"
+      }
+    },
+    {
+      "reference_id": "ref-profile-suite",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/controlled-contract/experimental/verification-profile-v034.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-invalid-vocabulary",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract.vocabulary",
+        "value": "missing-or-private-mechanical-semantics"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-vocabulary-complete",
+      "subject_reference_id": "ref-vocabulary-artifact",
+      "operator": "reference:conforms_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-complete-vocabulary"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-consumers-derived",
+      "subject_reference_id": "ref-vocabulary-artifact",
+      "operator": "reference:conforms_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-derived-consumers"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-authoring-view-advisory",
+      "subject_reference_id": "ref-vocabulary-artifact",
+      "operator": "reference:conforms_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-advisory-authoring-view"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-suite-covers-vocabulary",
+      "subject_reference_id": "ref-vocabulary-suite",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-vocabulary-artifact"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-carrier-suite-covers-vocabulary",
+      "subject_reference_id": "ref-carrier-suite",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-vocabulary-artifact"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-profile-semantics-derived",
+      "subject_reference_id": "ref-profile-evaluator",
+      "operator": "reference:conforms_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-profile-semantics-derived"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-idempotency-pack-bound",
+      "subject_reference_id": "ref-idempotency-pack",
+      "operator": "reference:conforms_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-profile-foundation-bound"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-frozen-profile-compatibility",
+      "subject_reference_id": "ref-profile-evaluator",
+      "operator": "reference:preserves",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-frozen-profile-compatibility"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-profile-suite-covers-evaluator",
+      "subject_reference_id": "ref-profile-suite",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-profile-evaluator"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-idempotency-pack"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-vocabulary-invalid",
+      "subject_reference_id": "ref-vocabulary-artifact",
+      "operator": "reference:has_state",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-invalid-vocabulary"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-invalid-vocabulary"
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-vocabulary-complete",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-vocabulary-complete"
+    },
+    {
+      "claim_id": "claim-consumers-derived",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-consumers-derived"
+    },
+    {
+      "claim_id": "claim-authoring-view-advisory",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-authoring-view-advisory"
+    },
+    {
+      "claim_id": "claim-suite-covers-vocabulary",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-suite-covers-vocabulary",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-vocabulary-invalid"
+    },
+    {
+      "claim_id": "claim-carrier-suite-covers-vocabulary",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-carrier-suite-covers-vocabulary",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-vocabulary-invalid"
+    },
+    {
+      "claim_id": "claim-profile-semantics-derived",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-profile-semantics-derived"
+    },
+    {
+      "claim_id": "claim-idempotency-pack-bound",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-idempotency-pack-bound"
+    },
+    {
+      "claim_id": "claim-frozen-profile-compatibility",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-frozen-profile-compatibility"
+    },
+    {
+      "claim_id": "claim-profile-suite-covers-evaluator",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-profile-suite-covers-evaluator",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-vocabulary-invalid"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-suite-verifies-completeness",
+      "role": "verifies",
+      "source_claim_id": "claim-suite-covers-vocabulary",
+      "target_claim_id": "claim-vocabulary-complete"
+    },
+    {
+      "relation_id": "rel-carrier-suite-verifies-derivation",
+      "role": "verifies",
+      "source_claim_id": "claim-carrier-suite-covers-vocabulary",
+      "target_claim_id": "claim-consumers-derived"
+    },
+    {
+      "relation_id": "rel-suite-verifies-advisory-view",
+      "role": "verifies",
+      "source_claim_id": "claim-suite-covers-vocabulary",
+      "target_claim_id": "claim-authoring-view-advisory"
+    },
+    {
+      "relation_id": "rel-profile-suite-verifies-derived-semantics",
+      "role": "verifies",
+      "source_claim_id": "claim-profile-suite-covers-evaluator",
+      "target_claim_id": "claim-profile-semantics-derived"
+    },
+    {
+      "relation_id": "rel-profile-suite-verifies-pack-binding",
+      "role": "verifies",
+      "source_claim_id": "claim-profile-suite-covers-evaluator",
+      "target_claim_id": "claim-idempotency-pack-bound"
+    },
+    {
+      "relation_id": "rel-profile-suite-verifies-compatibility",
+      "role": "verifies",
+      "source_claim_id": "claim-profile-suite-covers-evaluator",
+      "target_claim_id": "claim-frozen-profile-compatibility"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-vocabulary-foundation",
+      "collection_kind": "closed_set",
+      "purpose": "profile_proof_population",
+      "member_claim_ids": [
+        "claim-vocabulary-complete",
+        "claim-consumers-derived",
+        "claim-authoring-view-advisory",
+        "claim-profile-semantics-derived",
+        "claim-idempotency-pack-bound",
+        "claim-frozen-profile-compatibility"
+      ]
+    }
+  ],
+  "residue": [],
+  "annotations": []
+}

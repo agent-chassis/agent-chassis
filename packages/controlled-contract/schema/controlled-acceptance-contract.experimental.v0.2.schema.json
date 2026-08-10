@@ -1,0 +1,1349 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "controlled-acceptance-contract.experimental.v0.2",
+  "description": "Experimental schema-native acceptance-contract carrier derived from the intrinsic cv.experimental.0.34 proposition vocabulary. Free text remains confined to residue and annotations; the carrier is not an authorization or policy result.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "vocabulary_version",
+    "profile_id",
+    "references",
+    "propositions",
+    "claims",
+    "relations",
+    "collections",
+    "residue",
+    "annotations"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "controlled-acceptance-contract.experimental.v0.2"
+      ]
+    },
+    "vocabulary_version": {
+      "type": "string",
+      "enum": [
+        "cv.experimental.0.34"
+      ]
+    },
+    "profile_id": {
+      "type": "string",
+      "enum": [
+        "acceptance-contract.standard.experimental.v0.2"
+      ]
+    },
+    "references": {
+      "description": "Typed, grounded identities used as proposition subjects, operands, and applicability-context operands. Every operative entity named by a claim must be represented here.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/reference"
+      }
+    },
+    "propositions": {
+      "description": "Controlled subject-operator-operand statements. The operator prefix fixes the legal operand kind; applicability is explicit.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/proposition"
+      }
+    },
+    "claims": {
+      "description": "Modal behavior, evidence, and verification claims over declared propositions. Acceptance behavior belongs in behavior claims; proof obligations belong in verification claims.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/declarative_claim"
+          },
+          {
+            "$ref": "#/$defs/verification_claim"
+          }
+        ]
+      }
+    },
+    "relations": {
+      "description": "Explicit claim-to-claim semantics. verifies attaches proof to behavior; refines creates behavior cohesion; depends_on and precedes create directed behavioral order. No relationship is inferred from shared words or references.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relation"
+      }
+    },
+    "collections": {
+      "description": "Closed claim populations or authored claim orderings. A closed_set declares the complete listed population; an ordered_sequence preserves member order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/collection"
+      }
+    },
+    "residue": {
+      "description": "Operative contract meaning that cannot be represented faithfully with the controlled fields. Preserve it exactly enough for a human to decide whether the vocabulary or source contract must change; never omit it to obtain a clean result.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/residue"
+      }
+    },
+    "annotations": {
+      "description": "Nonoperative provenance, rationale, history, or notes. Annotations do not create worker obligations or satisfy controlled claims.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/annotation"
+      }
+    }
+  },
+  "$defs": {
+    "reference_id": {
+      "type": "string",
+      "pattern": "^ref-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "proposition_id": {
+      "type": "string",
+      "pattern": "^prop-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "claim_id": {
+      "type": "string",
+      "pattern": "^claim-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "relation_id": {
+      "type": "string",
+      "pattern": "^rel-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "collection_id": {
+      "type": "string",
+      "pattern": "^set-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "residue_id": {
+      "type": "string",
+      "pattern": "^res-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "annotation_id": {
+      "type": "string",
+      "pattern": "^ann-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "reference_operand": {
+      "type": "object",
+      "required": [
+        "kind",
+        "reference_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "reference"
+          ]
+        },
+        "reference_id": {
+          "$ref": "#/$defs/reference_id"
+        }
+      }
+    },
+    "boolean_operand": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "boolean"
+          ]
+        },
+        "value": {
+          "type": "boolean"
+        }
+      }
+    },
+    "number_operand": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "number"
+          ]
+        },
+        "value": {
+          "type": "number"
+        }
+      }
+    },
+    "range_operand": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "range"
+          ]
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "minimum"
+          ],
+          "properties": {
+            "minimum": {
+              "type": "number"
+            }
+          }
+        },
+        {
+          "required": [
+            "maximum"
+          ],
+          "properties": {
+            "maximum": {
+              "type": "number"
+            }
+          }
+        }
+      ]
+    },
+    "reference": {
+      "description": "A stable typed identity. Use a repository path or code symbol when applicable, a durable domain ID, a runtime parameter, or a controlled profile term; do not invent an identity absent from the contract.",
+      "type": "object",
+      "required": [
+        "reference_id",
+        "type_term",
+        "identity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reference_id": {
+          "$ref": "#/$defs/reference_id"
+        },
+        "type_term": {
+          "type": "string",
+          "enum": [
+            "cc:actor",
+            "cc:artifact",
+            "cc:authority",
+            "cc:capability",
+            "cc:command",
+            "cc:configuration",
+            "cc:conflict",
+            "cc:criterion",
+            "cc:entity",
+            "cc:escalation",
+            "cc:event",
+            "cc:evidence",
+            "cc:invariant",
+            "cc:lifecycle_entity",
+            "cc:operation",
+            "cc:population",
+            "cc:process",
+            "cc:requirement",
+            "cc:resource",
+            "cc:runtime_component",
+            "cc:scope",
+            "cc:state",
+            "cc:test"
+          ]
+        },
+        "identity": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "repository",
+                "path"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "repository_path"
+                  ]
+                },
+                "repository": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "repository",
+                "path",
+                "symbol"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "code_symbol"
+                  ]
+                },
+                "repository": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "symbol": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "scip_symbol": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "domain",
+                "value"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "durable_id"
+                  ]
+                },
+                "domain": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "name"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "runtime_parameter"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "term"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "profile_term"
+                  ]
+                },
+                "term": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "applicability_context": {
+      "description": "A vocabulary-derived condition or temporal context. Context references are conjunctive, unordered, duplicate-insensitive, and matched as an exact normalized set.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "unconditional"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 0,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "if"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "unless"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "when"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "while"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "where"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "before"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "after"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "during"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "until"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "operand_reference_ids"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "frozen_base"
+              ]
+            },
+            "operand_reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_id"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "proposition": {
+      "description": "One controlled statement with a grounded subject, readable controlled operator, explicit applicability, and one or more operands of the operator's required kind.",
+      "type": "object",
+      "required": [
+        "proposition_id",
+        "subject_reference_id",
+        "operator",
+        "applicability_context",
+        "operands"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "proposition_id": {
+          "$ref": "#/$defs/proposition_id"
+        },
+        "subject_reference_id": {
+          "$ref": "#/$defs/reference_id"
+        },
+        "operator": {
+          "type": "string",
+          "enum": [
+            "boolean:authoritative",
+            "boolean:deterministic",
+            "boolean:exists",
+            "boolean:fails_when",
+            "boolean:immutable",
+            "number:emits",
+            "number:equals",
+            "number:has_cardinality",
+            "number:has_value",
+            "number:matches",
+            "number:not_equals",
+            "number:returns",
+            "range:has_cardinality",
+            "range:has_range",
+            "reference:accepts",
+            "reference:adds",
+            "reference:allows",
+            "reference:approves",
+            "reference:authoritative_for",
+            "reference:authorizes",
+            "reference:behaviorally_equivalent",
+            "reference:blocks",
+            "reference:calls",
+            "reference:classifies_as",
+            "reference:complete_against",
+            "reference:completes",
+            "reference:conflicts_with",
+            "reference:conforms_to",
+            "reference:contained_in",
+            "reference:contains",
+            "reference:covers",
+            "reference:creates",
+            "reference:deletes",
+            "reference:depends_on",
+            "reference:emits",
+            "reference:equals",
+            "reference:escalates_to",
+            "reference:exports",
+            "reference:follows",
+            "reference:forwards_to",
+            "reference:generates",
+            "reference:has_identity",
+            "reference:has_property",
+            "reference:has_state",
+            "reference:has_status",
+            "reference:has_type",
+            "reference:has_value",
+            "reference:imports",
+            "reference:includes",
+            "reference:invalidates",
+            "reference:isolated_from",
+            "reference:matches",
+            "reference:member_of",
+            "reference:modifies",
+            "reference:mutates",
+            "reference:not_equals",
+            "reference:not_member_of",
+            "reference:not_subset_of",
+            "reference:omits",
+            "reference:ordered_as",
+            "reference:performs",
+            "reference:precedes",
+            "reference:preserves",
+            "reference:reads",
+            "reference:records",
+            "reference:rejects",
+            "reference:replaces",
+            "reference:requests_authorization",
+            "reference:resolves_to",
+            "reference:retains",
+            "reference:returns",
+            "reference:routes_to",
+            "reference:same_container_as",
+            "reference:semantically_equivalent",
+            "reference:starts",
+            "reference:subset_of",
+            "reference:supports",
+            "reference:targets",
+            "reference:traces_to",
+            "reference:unchanged_from_frozen_base",
+            "reference:uses",
+            "reference:visible_in_scope",
+            "reference:within_scope",
+            "reference:writable_in_scope",
+            "reference:writes"
+          ]
+        },
+        "applicability_context": {
+          "$ref": "#/$defs/applicability_context"
+        },
+        "operands": {
+          "type": "array",
+          "minItems": 1
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "boolean:authoritative",
+                "boolean:deterministic",
+                "boolean:exists",
+                "boolean:fails_when",
+                "boolean:immutable"
+              ]
+            },
+            "applicability_context": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "after",
+                    "before",
+                    "during",
+                    "frozen_base",
+                    "if",
+                    "unconditional",
+                    "unless",
+                    "until",
+                    "when",
+                    "where",
+                    "while"
+                  ]
+                }
+              }
+            },
+            "operands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "$ref": "#/$defs/boolean_operand"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "number:emits",
+                "number:equals",
+                "number:has_value",
+                "number:matches",
+                "number:not_equals",
+                "number:returns"
+              ]
+            },
+            "applicability_context": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "after",
+                    "before",
+                    "during",
+                    "frozen_base",
+                    "if",
+                    "unconditional",
+                    "unless",
+                    "until",
+                    "when",
+                    "where",
+                    "while"
+                  ]
+                }
+              }
+            },
+            "operands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "$ref": "#/$defs/number_operand"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "number:has_cardinality"
+              ]
+            },
+            "applicability_context": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "after",
+                    "before",
+                    "during",
+                    "frozen_base",
+                    "if",
+                    "unconditional",
+                    "unless",
+                    "until",
+                    "when",
+                    "where",
+                    "while"
+                  ]
+                }
+              }
+            },
+            "operands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/number_operand"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "range:has_cardinality",
+                "range:has_range"
+              ]
+            },
+            "applicability_context": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "after",
+                    "before",
+                    "during",
+                    "frozen_base",
+                    "if",
+                    "unconditional",
+                    "unless",
+                    "until",
+                    "when",
+                    "where",
+                    "while"
+                  ]
+                }
+              }
+            },
+            "operands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "$ref": "#/$defs/range_operand"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "reference:equals",
+                "reference:has_state",
+                "reference:has_status",
+                "reference:member_of",
+                "reference:not_equals",
+                "reference:not_member_of",
+                "reference:not_subset_of",
+                "reference:resolves_to",
+                "reference:subset_of"
+              ]
+            },
+            "applicability_context": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "after",
+                    "before",
+                    "during",
+                    "frozen_base",
+                    "if",
+                    "unconditional",
+                    "unless",
+                    "until",
+                    "when",
+                    "where",
+                    "while"
+                  ]
+                }
+              }
+            },
+            "operands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_operand"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "reference:accepts",
+                "reference:adds",
+                "reference:allows",
+                "reference:approves",
+                "reference:authoritative_for",
+                "reference:authorizes",
+                "reference:behaviorally_equivalent",
+                "reference:blocks",
+                "reference:calls",
+                "reference:classifies_as",
+                "reference:complete_against",
+                "reference:completes",
+                "reference:conflicts_with",
+                "reference:conforms_to",
+                "reference:contained_in",
+                "reference:contains",
+                "reference:covers",
+                "reference:creates",
+                "reference:deletes",
+                "reference:depends_on",
+                "reference:emits",
+                "reference:escalates_to",
+                "reference:exports",
+                "reference:follows",
+                "reference:forwards_to",
+                "reference:generates",
+                "reference:has_identity",
+                "reference:has_property",
+                "reference:has_type",
+                "reference:has_value",
+                "reference:imports",
+                "reference:includes",
+                "reference:invalidates",
+                "reference:isolated_from",
+                "reference:matches",
+                "reference:modifies",
+                "reference:mutates",
+                "reference:omits",
+                "reference:ordered_as",
+                "reference:performs",
+                "reference:precedes",
+                "reference:preserves",
+                "reference:reads",
+                "reference:records",
+                "reference:rejects",
+                "reference:replaces",
+                "reference:requests_authorization",
+                "reference:retains",
+                "reference:returns",
+                "reference:routes_to",
+                "reference:same_container_as",
+                "reference:semantically_equivalent",
+                "reference:starts",
+                "reference:supports",
+                "reference:targets",
+                "reference:traces_to",
+                "reference:uses",
+                "reference:visible_in_scope",
+                "reference:within_scope",
+                "reference:writable_in_scope",
+                "reference:writes"
+              ]
+            },
+            "applicability_context": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "after",
+                    "before",
+                    "during",
+                    "frozen_base",
+                    "if",
+                    "unconditional",
+                    "unless",
+                    "until",
+                    "when",
+                    "where",
+                    "while"
+                  ]
+                }
+              }
+            },
+            "operands": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_operand"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "reference:unchanged_from_frozen_base"
+              ]
+            },
+            "applicability_context": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "frozen_base"
+                  ]
+                }
+              }
+            },
+            "operands": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/reference_operand"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "declarative_claim": {
+      "description": "A modal behavior requirement or evidence assertion. Behavior is what the system must or must not do; evidence records a required or observed artifact/fact without turning it into behavior.",
+      "type": "object",
+      "required": [
+        "claim_id",
+        "kind",
+        "modality",
+        "proposition_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "$ref": "#/$defs/claim_id"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "behavior",
+            "evidence"
+          ]
+        },
+        "modality": {
+          "type": "string",
+          "enum": [
+            "MUST",
+            "MUST_NOT",
+            "SHOULD",
+            "SHOULD_NOT",
+            "MAY"
+          ]
+        },
+        "proposition_id": {
+          "$ref": "#/$defs/proposition_id"
+        }
+      }
+    },
+    "verification_claim": {
+      "description": "A modal proof obligation. It names both the proposition the verification performs and a separately declared controlled proposition describing the behavior-specific condition that must make the verification fail.",
+      "type": "object",
+      "required": [
+        "claim_id",
+        "kind",
+        "modality",
+        "proposition_id",
+        "verification_method",
+        "falsifying_proposition_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "$ref": "#/$defs/claim_id"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "verification"
+          ]
+        },
+        "modality": {
+          "type": "string",
+          "enum": [
+            "MUST",
+            "MUST_NOT",
+            "SHOULD",
+            "SHOULD_NOT",
+            "MAY"
+          ]
+        },
+        "proposition_id": {
+          "$ref": "#/$defs/proposition_id"
+        },
+        "verification_method": {
+          "type": "string",
+          "enum": [
+            "inspection",
+            "analysis",
+            "demonstration",
+            "test_execution",
+            "audit",
+            "proof"
+          ]
+        },
+        "falsifying_proposition_id": {
+          "$ref": "#/$defs/proposition_id"
+        }
+      }
+    },
+    "relation": {
+      "description": "A directed relationship between two declared claims. For verifies, source is the verification claim and target is the behavior claim. For depends_on, source depends on target. For precedes, source precedes target.",
+      "type": "object",
+      "required": [
+        "relation_id",
+        "role",
+        "source_claim_id",
+        "target_claim_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "relation_id": {
+          "$ref": "#/$defs/relation_id"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "satisfies",
+            "verifies",
+            "derives_from",
+            "refines",
+            "traces",
+            "replaces",
+            "depends_on",
+            "precedes"
+          ]
+        },
+        "source_claim_id": {
+          "$ref": "#/$defs/claim_id"
+        },
+        "target_claim_id": {
+          "$ref": "#/$defs/claim_id"
+        }
+      }
+    },
+    "collection": {
+      "description": "An explicitly complete or ordered group of declared claim IDs. Collection membership measures authored population/order and does not by itself imply implementation cohesion.",
+      "type": "object",
+      "required": [
+        "collection_id",
+        "collection_kind",
+        "member_claim_ids"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "collection_id": {
+          "$ref": "#/$defs/collection_id"
+        },
+        "collection_kind": {
+          "type": "string",
+          "enum": [
+            "closed_set",
+            "ordered_sequence"
+          ]
+        },
+        "purpose": {
+          "description": "An optional controlled role distinguishing collections that assert different populations or orderings over overlapping claims.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "member_claim_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/claim_id"
+          }
+        }
+      }
+    },
+    "residue": {
+      "description": "An operative meaning fragment that the controlled carrier cannot faithfully encode. The reason classifies the gap; candidate_concept may name a generalized vocabulary opportunity without creating vocabulary.",
+      "type": "object",
+      "required": [
+        "residue_id",
+        "reason",
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "residue_id": {
+          "$ref": "#/$defs/residue_id"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "unsupported_concept",
+            "unresolved_identity",
+            "unresolved_value",
+            "unresolved_context",
+            "ambiguous_semantics",
+            "review_only",
+            "other_operational_gap"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "candidate_concept": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "annotation": {
+      "description": "Nonoperative context preserved separately from worker obligations.",
+      "type": "object",
+      "required": [
+        "annotation_id",
+        "kind",
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "annotation_id": {
+          "$ref": "#/$defs/annotation_id"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "provenance",
+            "rationale",
+            "historical",
+            "note"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

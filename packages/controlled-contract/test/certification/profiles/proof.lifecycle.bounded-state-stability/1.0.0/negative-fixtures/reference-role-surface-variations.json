@@ -1,0 +1,3480 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reference-role-surface-variations",
+  "covers": [
+    {
+      "surface_id": "role-baseline-state-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-baseline-state-population-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-baseline-state-population-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-baseline-state-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-baseline-states-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-baseline-states-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-end-boundary-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-end-boundary-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-observation-population-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-observation-population-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-observations-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-observations-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-observed-state-population-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-observed-state-population-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-observed-states-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-observed-states-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-start-boundary-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-start-boundary-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-state-regression-condition-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-subject-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-subject-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-verification-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-subject",
+        "type_term": "cc:capability",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-state-stability:cancellation-survivor-window",
+          "value": "subject"
+        }
+      },
+      {
+        "reference_id": "ref-baseline-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-state-stability:cancellation-survivor-window",
+          "value": "baseline-state"
+        }
+      },
+      {
+        "reference_id": "ref-start-boundary",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-state-stability:cancellation-survivor-window",
+          "value": "start-boundary"
+        }
+      },
+      {
+        "reference_id": "ref-end-boundary",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-state-stability:cancellation-survivor-window",
+          "value": "end-boundary"
+        }
+      },
+      {
+        "reference_id": "ref-observation-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-state-stability:cancellation-survivor-window",
+          "value": "observation-population"
+        }
+      },
+      {
+        "reference_id": "ref-observation-1",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-state-stability:cancellation-survivor-window",
+          "value": "observation-1"
+        }
+      },
+      {
+        "reference_id": "ref-observation-2",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-state-stability:cancellation-survivor-window",
+          "value": "observation-2"
+        }
+      },
+      {
+        "reference_id": "ref-baseline-state-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-state-stability:cancellation-survivor-window",
+          "value": "baseline-state-population"
+        }
+      },
+      {
+        "reference_id": "ref-observed-state-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-state-stability:cancellation-survivor-window",
+          "value": "observed-state-population"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-cancellation-survivor-window",
+          "path": "tests/bounded-state-stability.test.mjs",
+          "symbol": "boundedStateStability"
+        }
+      },
+      {
+        "reference_id": "ref-state-regression-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "bounded-state-stability:state-regression-condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-population-observation-population-cardinality",
+        "subject_reference_id": "ref-observation-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-observation-population-contains",
+        "subject_reference_id": "ref-observation-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-baseline-state-population-cardinality",
+        "subject_reference_id": "ref-baseline-state-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-baseline-state-population-contains",
+        "subject_reference_id": "ref-baseline-state-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-observed-state-population-cardinality",
+        "subject_reference_id": "ref-observed-state-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-observed-state-population-contains",
+        "subject_reference_id": "ref-observed-state-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-start-precedes-end",
+        "subject_reference_id": "ref-start-boundary",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-end-boundary"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-subject-has-baseline-state-at-start",
+        "subject_reference_id": "ref-subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-start-boundary"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-baseline-state-is-complete-member",
+        "subject_reference_id": "ref-baseline-state",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-start-before-each-observation-1",
+        "subject_reference_id": "ref-start-boundary",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-1"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-start-before-each-observation-2",
+        "subject_reference_id": "ref-start-boundary",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-before-end-1",
+        "subject_reference_id": "ref-observation-1",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-end-boundary"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-before-end-2",
+        "subject_reference_id": "ref-observation-2",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-end-boundary"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-reads-subject-1",
+        "subject_reference_id": "ref-observation-1",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-reads-subject-2",
+        "subject_reference_id": "ref-observation-2",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-records-baseline-state-1",
+        "subject_reference_id": "ref-observation-1",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-records-baseline-state-2",
+        "subject_reference_id": "ref-observation-2",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observed-states-equal-baseline-state",
+        "subject_reference_id": "ref-observed-state-population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-reads-bounded-state-proof",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-subject"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-start-boundary"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-end-boundary"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-2"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-state-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-bounded-state-stability-verification",
+        "subject_reference_id": "ref-observed-state-population",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-state-regression-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-bounded-state-stability-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-state-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-baseline-state-population"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-population-observation-population-cardinality",
+        "proposition_id": "prop-population-observation-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-observation-population-contains",
+        "proposition_id": "prop-population-observation-population-contains",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-baseline-state-population-cardinality",
+        "proposition_id": "prop-population-baseline-state-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-baseline-state-population-contains",
+        "proposition_id": "prop-population-baseline-state-population-contains",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-observed-state-population-cardinality",
+        "proposition_id": "prop-population-observed-state-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-observed-state-population-contains",
+        "proposition_id": "prop-population-observed-state-population-contains",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-start-precedes-end",
+        "proposition_id": "prop-start-precedes-end",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-subject-has-baseline-state-at-start",
+        "proposition_id": "prop-subject-has-baseline-state-at-start",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-baseline-state-is-complete-member",
+        "proposition_id": "prop-baseline-state-is-complete-member",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-start-before-each-observation-1",
+        "proposition_id": "prop-start-before-each-observation-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-start-before-each-observation-2",
+        "proposition_id": "prop-start-before-each-observation-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-before-end-1",
+        "proposition_id": "prop-each-observation-before-end-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-before-end-2",
+        "proposition_id": "prop-each-observation-before-end-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-reads-subject-1",
+        "proposition_id": "prop-each-observation-reads-subject-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-reads-subject-2",
+        "proposition_id": "prop-each-observation-reads-subject-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-records-baseline-state-1",
+        "proposition_id": "prop-each-observation-records-baseline-state-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-records-baseline-state-2",
+        "proposition_id": "prop-each-observation-records-baseline-state-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-observed-states-equal-baseline-state",
+        "proposition_id": "prop-observed-states-equal-baseline-state",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-verification-reads-bounded-state-proof",
+        "proposition_id": "prop-verification-reads-bounded-state-proof",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-bounded-state-stability-verification",
+        "proposition_id": "prop-bounded-state-stability-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-bounded-state-stability-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-targets-bounded-state-stability",
+        "role": "verifies",
+        "source_claim_id": "claim-bounded-state-stability-verification",
+        "target_claim_id": "claim-observed-states-equal-baseline-state"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "subject",
+        "reference_ids": [
+          "ref-subject"
+        ]
+      },
+      {
+        "role": "baseline_state",
+        "reference_ids": [
+          "ref-baseline-state"
+        ]
+      },
+      {
+        "role": "start_boundary",
+        "reference_ids": [
+          "ref-start-boundary"
+        ]
+      },
+      {
+        "role": "end_boundary",
+        "reference_ids": [
+          "ref-end-boundary"
+        ]
+      },
+      {
+        "role": "observation_population",
+        "reference_ids": [
+          "ref-observation-population"
+        ]
+      },
+      {
+        "role": "observations",
+        "reference_ids": [
+          "ref-observation-1",
+          "ref-observation-2"
+        ]
+      },
+      {
+        "role": "baseline_state_population",
+        "reference_ids": [
+          "ref-baseline-state-population"
+        ]
+      },
+      {
+        "role": "baseline_states",
+        "reference_ids": [
+          "ref-baseline-state"
+        ]
+      },
+      {
+        "role": "observed_state_population",
+        "reference_ids": [
+          "ref-observed-state-population"
+        ]
+      },
+      {
+        "role": "observed_states",
+        "reference_ids": [
+          "ref-baseline-state"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "state_regression_condition",
+        "reference_ids": [
+          "ref-state-regression-condition"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "observation_count",
+        "value": 2
+      },
+      {
+        "role": "baseline_state_count",
+        "value": 1
+      },
+      {
+        "role": "observed_state_count",
+        "value": 1
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  },
+  "variations": [
+    {
+      "variant_id": "role-baseline-state-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-baseline-state-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-baseline-state-population-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-baseline-state-population-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-baseline-state-population-types",
+      "covers": [
+        {
+          "surface_id": "role-baseline-state-population-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:scope",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-baseline-state-types",
+      "covers": [
+        {
+          "surface_id": "role-baseline-state-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-baseline-states-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-baseline-states-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-baseline-states-types",
+      "covers": [
+        {
+          "surface_id": "role-baseline-states-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-end-boundary-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-end-boundary-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-end-boundary-types",
+      "covers": [
+        {
+          "surface_id": "role-end-boundary-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-observation-population-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-observation-population-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-observation-population-types",
+      "covers": [
+        {
+          "surface_id": "role-observation-population-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:scope",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-observations-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-observations-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-observations-types",
+      "covers": [
+        {
+          "surface_id": "role-observations-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-observed-state-population-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-observed-state-population-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-observed-state-population-types",
+      "covers": [
+        {
+          "surface_id": "role-observed-state-population-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:scope",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-observed-states-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-observed-states-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-observed-states-types",
+      "covers": [
+        {
+          "surface_id": "role-observed-states-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-start-boundary-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-start-boundary-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-start-boundary-types",
+      "covers": [
+        {
+          "surface_id": "role-start-boundary-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-state-regression-condition-types",
+      "covers": [
+        {
+          "surface_id": "role-state-regression-condition-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-subject-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-subject-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-subject-types",
+      "covers": [
+        {
+          "surface_id": "role-subject-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-verification-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-verification-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:verification"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-verification-types",
+      "covers": [
+        {
+          "surface_id": "role-verification-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject",
+              "type_term": "cc:capability",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "subject"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state",
+              "type_term": "cc:state",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state"
+              }
+            },
+            {
+              "reference_id": "ref-start-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "start-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-end-boundary",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "end-boundary"
+              }
+            },
+            {
+              "reference_id": "ref-observation-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-population"
+              }
+            },
+            {
+              "reference_id": "ref-observation-1",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-1"
+              }
+            },
+            {
+              "reference_id": "ref-observation-2",
+              "type_term": "cc:evidence",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observation-2"
+              }
+            },
+            {
+              "reference_id": "ref-baseline-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "baseline-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-observed-state-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-state-stability:cancellation-survivor-window",
+                "value": "observed-state-population"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-cancellation-survivor-window",
+                "path": "tests/bounded-state-stability.test.mjs",
+                "symbol": "boundedStateStability"
+              }
+            },
+            {
+              "reference_id": "ref-state-regression-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-state-stability:state-regression-condition"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    }
+  ]
+}

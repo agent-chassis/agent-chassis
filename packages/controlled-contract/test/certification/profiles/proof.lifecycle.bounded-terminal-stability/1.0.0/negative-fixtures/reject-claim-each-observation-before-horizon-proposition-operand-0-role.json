@@ -1,0 +1,837 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-claim-each-observation-before-horizon-proposition-operand-0-role",
+  "covers": [
+    {
+      "surface_id": "claim-each-observation-before-horizon-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-lifecycle-entity",
+        "type_term": "cc:lifecycle_entity",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/workflow-completion",
+          "path": "src/workflow-completion.mjs",
+          "symbol": "lifecycle-entity"
+        }
+      },
+      {
+        "reference_id": "ref-terminal-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "terminal-event"
+        }
+      },
+      {
+        "reference_id": "ref-terminal-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "terminal-state"
+        }
+      },
+      {
+        "reference_id": "ref-bounded-horizon",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "bounded-horizon"
+        }
+      },
+      {
+        "reference_id": "ref-observation-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "observation-population"
+        }
+      },
+      {
+        "reference_id": "ref-observation-1",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "observation-1"
+        }
+      },
+      {
+        "reference_id": "ref-observation-2",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "observation-2"
+        }
+      },
+      {
+        "reference_id": "ref-terminal-state-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "terminal-state-population"
+        }
+      },
+      {
+        "reference_id": "ref-observed-state-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "observed-state-population"
+        }
+      },
+      {
+        "reference_id": "ref-reactivation-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "reactivation-population"
+        }
+      },
+      {
+        "reference_id": "ref-reactivation-count-signal",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-terminal-stability-workflow-completion",
+          "value": "reactivation-count-signal"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/workflow-completion",
+          "path": "src/workflow-completion.mjs",
+          "symbol": "verification"
+        }
+      },
+      {
+        "reference_id": "ref-state-regression-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "workflow-completion:state-regression-condition"
+        }
+      },
+      {
+        "reference_id": "ref-reactivation-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "workflow-completion:reactivation-condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-complete-observation-population-count",
+        "subject_reference_id": "ref-observation-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-bounded-horizon"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-observation-population-members",
+        "subject_reference_id": "ref-observation-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-bounded-horizon"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-terminal-state-population-count",
+        "subject_reference_id": "ref-terminal-state-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-terminal-state-population-members",
+        "subject_reference_id": "ref-terminal-state-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-observed-state-population-count",
+        "subject_reference_id": "ref-observed-state-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-observed-state-population-members",
+        "subject_reference_id": "ref-observed-state-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-reactivation-population-count",
+        "subject_reference_id": "ref-reactivation-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-bounded-horizon"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-terminal-event-completes-entity",
+        "subject_reference_id": "ref-terminal-event",
+        "operator": "reference:completes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-lifecycle-entity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-terminal-event-has-state",
+        "subject_reference_id": "ref-terminal-event",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-terminal-state-in-terminal-population",
+        "subject_reference_id": "ref-terminal-state",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-state-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-terminal-before-each-observation-1",
+        "subject_reference_id": "ref-terminal-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-1"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-terminal-before-each-observation-2",
+        "subject_reference_id": "ref-terminal-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-before-horizon-1",
+        "subject_reference_id": "ref-observation-1",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-lifecycle-entity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-before-horizon-2",
+        "subject_reference_id": "ref-observation-2",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-lifecycle-entity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-reads-entity-1",
+        "subject_reference_id": "ref-observation-1",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-lifecycle-entity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-reads-entity-2",
+        "subject_reference_id": "ref-observation-2",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-lifecycle-entity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-records-terminal-state-1",
+        "subject_reference_id": "ref-observation-1",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-records-terminal-state-2",
+        "subject_reference_id": "ref-observation-2",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observed-states-equal-terminal-state",
+        "subject_reference_id": "ref-observed-state-population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-state-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-reactivation-count-zero",
+        "subject_reference_id": "ref-reactivation-count-signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-reads-bounded-window",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-lifecycle-entity"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-event"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-bounded-horizon"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-state-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-reactivation-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-bounded-state-stability",
+        "subject_reference_id": "ref-observed-state-population",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-state-regression-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-terminal-state-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-bounded-state-stability",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-zero-reactivation",
+        "subject_reference_id": "ref-reactivation-count-signal",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-reactivation-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-zero-reactivation",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-reactivation-population"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-complete-observation-population-count",
+        "proposition_id": "prop-complete-observation-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-observation-population-members",
+        "proposition_id": "prop-complete-observation-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-terminal-state-population-count",
+        "proposition_id": "prop-complete-terminal-state-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-terminal-state-population-members",
+        "proposition_id": "prop-complete-terminal-state-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-observed-state-population-count",
+        "proposition_id": "prop-complete-observed-state-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-observed-state-population-members",
+        "proposition_id": "prop-complete-observed-state-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-reactivation-population-count",
+        "proposition_id": "prop-complete-reactivation-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-terminal-event-completes-entity",
+        "proposition_id": "prop-terminal-event-completes-entity",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-terminal-event-has-state",
+        "proposition_id": "prop-terminal-event-has-state",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-terminal-state-in-terminal-population",
+        "proposition_id": "prop-terminal-state-in-terminal-population",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-terminal-before-each-observation-1",
+        "proposition_id": "prop-terminal-before-each-observation-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-terminal-before-each-observation-2",
+        "proposition_id": "prop-terminal-before-each-observation-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-before-horizon-1",
+        "proposition_id": "prop-each-observation-before-horizon-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-before-horizon-2",
+        "proposition_id": "prop-each-observation-before-horizon-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-reads-entity-1",
+        "proposition_id": "prop-each-observation-reads-entity-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-reads-entity-2",
+        "proposition_id": "prop-each-observation-reads-entity-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-records-terminal-state-1",
+        "proposition_id": "prop-each-observation-records-terminal-state-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-records-terminal-state-2",
+        "proposition_id": "prop-each-observation-records-terminal-state-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-observed-states-equal-terminal-state",
+        "proposition_id": "prop-observed-states-equal-terminal-state",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-reactivation-count-zero",
+        "proposition_id": "prop-reactivation-count-zero",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-verification-reads-bounded-window",
+        "proposition_id": "prop-verification-reads-bounded-window",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-verify-bounded-state-stability",
+        "proposition_id": "prop-verify-bounded-state-stability",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-verify-bounded-state-stability"
+      },
+      {
+        "claim_id": "claim-verify-zero-reactivation",
+        "proposition_id": "prop-verify-zero-reactivation",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-verify-zero-reactivation"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-target-state-stability",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-bounded-state-stability",
+        "target_claim_id": "claim-observed-states-equal-terminal-state"
+      },
+      {
+        "relation_id": "rel-verification-target-zero-reactivation",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-zero-reactivation",
+        "target_claim_id": "claim-reactivation-count-zero"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "lifecycle_entity",
+        "reference_ids": [
+          "ref-lifecycle-entity"
+        ]
+      },
+      {
+        "role": "terminal_event",
+        "reference_ids": [
+          "ref-terminal-event"
+        ]
+      },
+      {
+        "role": "terminal_state",
+        "reference_ids": [
+          "ref-terminal-state"
+        ]
+      },
+      {
+        "role": "bounded_horizon",
+        "reference_ids": [
+          "ref-bounded-horizon"
+        ]
+      },
+      {
+        "role": "observation_population",
+        "reference_ids": [
+          "ref-observation-population"
+        ]
+      },
+      {
+        "role": "observations",
+        "reference_ids": [
+          "ref-observation-1",
+          "ref-observation-2"
+        ]
+      },
+      {
+        "role": "terminal_state_population",
+        "reference_ids": [
+          "ref-terminal-state-population"
+        ]
+      },
+      {
+        "role": "terminal_states",
+        "reference_ids": [
+          "ref-terminal-state"
+        ]
+      },
+      {
+        "role": "observed_state_population",
+        "reference_ids": [
+          "ref-observed-state-population"
+        ]
+      },
+      {
+        "role": "observed_states",
+        "reference_ids": [
+          "ref-terminal-state"
+        ]
+      },
+      {
+        "role": "reactivation_population",
+        "reference_ids": [
+          "ref-reactivation-population"
+        ]
+      },
+      {
+        "role": "reactivation_events",
+        "reference_ids": []
+      },
+      {
+        "role": "reactivation_count_signal",
+        "reference_ids": [
+          "ref-reactivation-count-signal"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "state_regression_condition",
+        "reference_ids": [
+          "ref-state-regression-condition"
+        ]
+      },
+      {
+        "role": "reactivation_condition",
+        "reference_ids": [
+          "ref-reactivation-condition"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "observation_count",
+        "value": 2
+      },
+      {
+        "role": "state_count",
+        "value": 1
+      },
+      {
+        "role": "reactivation_count",
+        "value": 0
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

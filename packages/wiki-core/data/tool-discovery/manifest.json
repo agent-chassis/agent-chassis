@@ -10,6 +10,11 @@
       "summary": "MCP discovery, router, read, search, wiki hygiene, docs-policy, contract-manifest, and worker-delivery (commit, submit-for-review) tools."
     },
     {
+      "file": "controlled-contract-tools.json",
+      "tool_count": 14,
+      "summary": "Structured controlled-contract carrier, authoring, proof-plan, assessment, and artifact tools."
+    },
+    {
       "file": "mcp-work-record-tools.json",
       "tool_count": 11,
       "summary": "MCP work-record assignment, evidence, and review-result recording tools."
@@ -75,7 +80,7 @@
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 101,
+  "expected_tool_count": 115,
   "uniqueness": {
     "key": "tool_name",
     "scope": "assembled_corpus",

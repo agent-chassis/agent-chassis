@@ -1,0 +1,25 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    { "role": "operation", "reference_ids": ["REPLACE"] },
+    { "role": "first_invocation", "reference_ids": ["REPLACE"] },
+    { "role": "second_invocation", "reference_ids": ["REPLACE"] },
+    { "role": "first_input", "reference_ids": ["REPLACE"] },
+    { "role": "second_input", "reference_ids": ["REPLACE"] },
+    { "role": "effect_subject", "reference_ids": ["REPLACE"] },
+    { "role": "state_after_first", "reference_ids": ["REPLACE"] },
+    { "role": "state_before_second", "reference_ids": ["REPLACE"] },
+    { "role": "state_after_second", "reference_ids": ["REPLACE"] },
+    { "role": "observation_after_first", "reference_ids": ["REPLACE"] },
+    { "role": "observation_before_second", "reference_ids": ["REPLACE"] },
+    { "role": "observation_after_second", "reference_ids": ["REPLACE"] },
+    { "role": "verification", "reference_ids": ["REPLACE"] },
+    { "role": "intervening_reset_condition", "reference_ids": ["REPLACE"] },
+    { "role": "duplicate_effect_condition", "reference_ids": ["REPLACE"] }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

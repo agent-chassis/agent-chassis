@@ -1,0 +1,314 @@
+{
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-observable-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-observable-population"
+        }
+      },
+      {
+        "reference_id": "ref-observable-1",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-observable-1"
+        }
+      },
+      {
+        "reference_id": "ref-observable-2",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-observable-2"
+        }
+      },
+      {
+        "reference_id": "ref-observable-3",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-observable-3"
+        }
+      },
+      {
+        "reference_id": "ref-frozen-baseline",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-frozen-baseline"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-observable-population-count",
+        "subject_reference_id": "ref-observable-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 3
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observable-population-members",
+        "subject_reference_id": "ref-observable-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observable-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observable-2"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observable-3"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observable-1-preserved",
+        "subject_reference_id": "ref-observable-1",
+        "operator": "reference:unchanged_from_frozen_base",
+        "applicability_context": {
+          "mode": "frozen_base",
+          "operand_reference_ids": [
+            "ref-frozen-baseline"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-frozen-baseline"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observable-2-preserved",
+        "subject_reference_id": "ref-observable-2",
+        "operator": "reference:unchanged_from_frozen_base",
+        "applicability_context": {
+          "mode": "frozen_base",
+          "operand_reference_ids": [
+            "ref-frozen-baseline"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-frozen-baseline"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observable-3-preserved",
+        "subject_reference_id": "ref-observable-3",
+        "operator": "reference:unchanged_from_frozen_base",
+        "applicability_context": {
+          "mode": "frozen_base",
+          "operand_reference_ids": [
+            "ref-frozen-baseline"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-frozen-baseline"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-observable-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observable-population-count"
+      },
+      {
+        "claim_id": "claim-observable-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observable-population-members"
+      },
+      {
+        "claim_id": "claim-observable-1-preserved",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observable-1-preserved"
+      },
+      {
+        "claim_id": "claim-observable-2-preserved",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observable-2-preserved"
+      },
+      {
+        "claim_id": "claim-observable-3-preserved",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observable-3-preserved"
+      }
+    ],
+    "relations": [],
+    "collections": [],
+    "residue": [],
+    "annotations": []
+  },
+  "profile": {
+    "schema_version": "controlled-contract-verification-profile.experimental.v0.2",
+    "profile_id": "prototype.p8.general-behavioral-preservation",
+    "profile_version": "0.0.1",
+    "contract_schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "vocabulary_signature_digest": "5c5e34017a7e0defc5222b9e3fc7fcaec8ca12d70541e609ca29e49c279c5a7d",
+    "vocabulary_algebra_digest": "1f5b1b04df5ae806c68592e352cb2285cdaf10a7d7bb898818a2805d290a9b4f",
+    "vocabulary_definitions_digest": "203e07960ad043b5dc932b65adeb5378eadd9dd91babca03120f1b6fc0d96033",
+    "vocabulary_complete_digest": "65195755c4124bfc55fe88ba0e817478f0036cc10bff15a9a64884cfd1241341",
+    "evaluation_stages": [
+      "post_delivery"
+    ],
+    "reference_roles": [
+      {
+        "role": "observable_population",
+        "allowed_type_terms": [
+          "cc:population"
+        ],
+        "cardinality": "exactly_one"
+      },
+      {
+        "role": "observables",
+        "allowed_type_terms": [
+          "cc:resource"
+        ],
+        "cardinality": "one_or_more"
+      },
+      {
+        "role": "frozen_baseline",
+        "allowed_type_terms": [
+          "cc:artifact"
+        ],
+        "cardinality": "exactly_one"
+      }
+    ],
+    "number_roles": [],
+    "distinct_reference_role_sets": [],
+    "reference_binding_patterns": [
+      {
+        "pattern_id": "complete-observable-population",
+        "required_by_stage": "post_delivery",
+        "comparison": "complete_population",
+        "roles": [
+          "observable_population",
+          "observables"
+        ],
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        }
+      }
+    ],
+    "reference_role_count_bindings": [],
+    "claim_patterns": [
+      {
+        "pattern_id": "each-observable-preserved",
+        "required_by_stage": "post_delivery",
+        "claim_kind": "evidence",
+        "allowed_modalities": [
+          "MUST"
+        ],
+        "for_each": {
+          "population_role": "observables",
+          "member_role": "observable"
+        },
+        "proposition_template": {
+          "subject_role": "observable",
+          "operator": "reference:unchanged_from_frozen_base",
+          "applicability_context": {
+            "mode": "frozen_base",
+            "operand_roles": [
+              "frozen_baseline"
+            ]
+          },
+          "operands": [
+            {
+              "kind": "reference",
+              "role": "frozen_baseline"
+            }
+          ]
+        }
+      }
+    ],
+    "relation_patterns": [],
+    "collection_patterns": [],
+    "resolver_fact_patterns": [],
+    "evidence_patterns": [],
+    "falsifier_condition_bindings": [
+      {
+        "relation_pattern_id": "unused-falsifier-binding",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        }
+      }
+    ],
+    "satisfaction_expression": {
+      "all_of": [
+        {
+          "pattern": "complete-observable-population"
+        },
+        {
+          "pattern": "each-observable-preserved"
+        }
+      ]
+    }
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "post_delivery",
+    "reference_bindings": [
+      {
+        "role": "observable_population",
+        "reference_ids": [
+          "ref-observable-population"
+        ]
+      },
+      {
+        "role": "observables",
+        "reference_ids": [
+          "ref-observable-1",
+          "ref-observable-2",
+          "ref-observable-3"
+        ]
+      },
+      {
+        "role": "frozen_baseline",
+        "reference_ids": [
+          "ref-frozen-baseline"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

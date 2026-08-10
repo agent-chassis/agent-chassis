@@ -2,6 +2,7 @@
 
 import {
   BACKEND_REFUSAL_CODES,
+  normalizeDispatchModelHint,
 
   validateLauncherFamilyRole
 } from "./workspace-agent-dispatch-backend.mjs";
@@ -149,10 +150,29 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
       });
     }
 
+    const launcherSelectedModel = normalizeDispatchModelHint(input?.model);
+    if (managedWorkerAuthorityRequired && launcherSelectedModel === null) {
+      return makeRefusal(
+        BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+        "worker_model_unset",
+        {
+          role: "worker",
+          env_key: "WORKER_MODEL",
+          message: "worker_model_unset: no launcher-selected managed-worker model was provided"
+        }
+      );
+    }
+    const existingResolvedProfileModel = normalizeDispatchModelHint(resolvedProfile?.model);
+    const modelGateResolvedProfile = launcherSelectedModel !== null && existingResolvedProfileModel === null
+      ? Object.freeze({
+          ...(resolvedProfile ?? {}),
+          model: launcherSelectedModel
+        })
+      : resolvedProfile;
     const inProcessModelGate = await evaluateDispatchRoleModelGate({
       role,
       isWorker: role === "worker",
-      resolvedProfile,
+      resolvedProfile: modelGateResolvedProfile,
       modelHint: input?.model,
       cwd: workspaceDir ?? defaultCwd
     });

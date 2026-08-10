@@ -86,39 +86,6 @@ export async function ensureAgentsBoilerplateTemplate(targetDir) {
   };
 }
 
-export const ADOPTION_DOC_TEMPLATE_FILENAME = "adoption.md.template.md";
-export const ADOPTION_DOC_RELATIVE_PATH = "docs/adoption.md";
-
-const ADOPTION_DOC_REPO_PLACEHOLDER = "{{REPO}}";
-
-export async function ensureAdoptionDoc(targetDir, { repo } = {}) {
-  const template = await readFile(
-    path.join(_SEED_TEMPLATES_DIR, ADOPTION_DOC_TEMPLATE_FILENAME),
-    "utf8"
-  );
-  const absolutePath = path.join(targetDir, ADOPTION_DOC_RELATIVE_PATH);
-  await ensureDirectory(path.dirname(absolutePath));
-
-  if (await pathExists(absolutePath)) {
-    return {
-      relativePath: ADOPTION_DOC_RELATIVE_PATH,
-      absolutePath,
-      state: "kept"
-    };
-  }
-
-  const content = template.replaceAll(
-    ADOPTION_DOC_REPO_PLACEHOLDER,
-    String(repo || "this repo")
-  );
-  await writeFile(absolutePath, content, "utf8");
-  return {
-    relativePath: ADOPTION_DOC_RELATIVE_PATH,
-    absolutePath,
-    state: "created"
-  };
-}
-
 export async function renderTemplate({ type, title, id, date }) {
   const manifest = await loadManifest();
   const normalizedType = normalizeType(type, manifest);
@@ -340,10 +307,14 @@ function normalizeSeedAcceptance(acceptance) {
 
 function materializeSeedWorkRecordSlice(slice) {
 
+  const dispatchIntent = slice.dispatch_intent;
   return {
     id: slice.id,
     title: slice.title,
     work_kind: slice.work_kind,
+    ...(typeof slice.review_purpose === "string"
+      ? { review_purpose: slice.review_purpose }
+      : {}),
     status: slice.status,
     priority: slice.priority,
     owner: slice.owner,
@@ -352,10 +323,16 @@ function materializeSeedWorkRecordSlice(slice) {
     repo_paths: cloneStringArray(slice.repo_paths),
     write_scope: cloneStringArray(slice.write_scope),
     dispatch_intent: {
-      intended_agent_role: "worker",
-      target_unit: "slice",
-      requires_graph_impact: false,
-      requires_escalation: false
+      intended_agent_role: dispatchIntent?.intended_agent_role ?? "worker",
+      target_unit: dispatchIntent?.target_unit ?? "slice",
+      requires_graph_impact:
+        typeof dispatchIntent?.requires_graph_impact === "boolean"
+          ? dispatchIntent.requires_graph_impact
+          : false,
+      requires_escalation:
+        typeof dispatchIntent?.requires_escalation === "boolean"
+          ? dispatchIntent.requires_escalation
+          : false
     },
     acceptance: normalizeSeedAcceptance(slice.acceptance)
   };

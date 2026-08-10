@@ -1,14 +1,15 @@
 {
   "name": "agent-chassis",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "private": true,
   "workspaces": [
-    "packages/core",
+    "packages/controlled-contract",
     "packages/wiki-core",
     "packages/agent-launch-core",
     "packages/wiki-cli",
     "packages/agent-launch-cli",
-    "packages/wiki-mcp"
+    "packages/wiki-mcp",
+    "packages/core"
   ],
   "scripts": {
     "wiki": "node packages/wiki-cli/src/index.mjs",
@@ -27,5 +28,14 @@
     "@vscode/tree-sitter-wasm": "0.3.1",
     "protobufjs": "^7.6.4",
     "web-tree-sitter": "0.26.9"
+  },
+  "devDependencies": {
+    "@agent-chassis/agent-launch-cli": "^0.6.0",
+    "@agent-chassis/agent-launch-core": "^0.6.0",
+    "@agent-chassis/controlled-contract": "^0.1.0",
+    "@agent-chassis/core": "^0.6.0",
+    "@agent-chassis/wiki-cli": "^0.6.0",
+    "@agent-chassis/wiki-core": "^0.6.0",
+    "@agent-chassis/wiki-mcp": "^0.6.0"
   }
 }

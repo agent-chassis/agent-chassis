@@ -152,11 +152,8 @@ root. In one command it:
    `wiki/conventions.md`, `wiki/index.md`, `wiki/catalog.md`, and the owned
    `IN-0001` adoption initiative), syncs the record templates plus the
    `wiki/templates/AGENTS.md.boilerplate.md` install helper for the operator's
-   first-run `AGENTS.md` setup,
-   seeds `docs/adoption.md` (the operator adoption guide) from a package template
-   when missing — preserving a customized copy on rerun — and resyncs
-   `wiki/.wiki-contract.json` while preserving local `vocab.topics.local` and
-   `inference.paths` entries.
+   first-run `AGENTS.md` setup, and resyncs `wiki/.wiki-contract.json` while
+   preserving local `vocab.topics.local` and `inference.paths` entries.
 2. Generates the repo-local `wiki/.wiki-mcp.json` workspace declaration (schema
    `wiki-mcp-workspace.v1`) recording the repo alias and resolved root. This is a
    generated, gitignored local artifact — bootstrap regenerates it (root
@@ -188,6 +185,10 @@ Bootstrap does **not**:
 - create `AGENTS.md` (repo-local operating authority; adapt the bootstrap-seeded
   `wiki/templates/AGENTS.md.boilerplate.md` helper template and commit it
   yourself),
+- create an adoption guide of any kind — the adoption guide is the single
+  package-owned, repo-neutral [docs/adoption.md](adoption.md) shipped with
+  `@agent-chassis/core`, and repository-specific adoption state lives in the
+  canonical `IN-0001` and `WK-0001` records,
 - write global MCP client config (bootstrap does generate the gitignored
   repo-local `wiki/.wiki-mcp.json` declaration — alias plus resolved root — but
   it does not edit `~/.codex/config.toml` or any global MCP client settings; see
@@ -200,9 +201,10 @@ Bootstrap does **not**:
   against the target repo.
 
 After seeding, the target repo owns running every adoption check itself from its
-own context. The seeded `IN-0001` enumerates that adoption backlog. See
-[docs/adoption.md](adoption.md) for the full seeded checklist and required next
-steps.
+own context. The seeded `IN-0001` and `WK-0001` records enumerate that adoption
+backlog and are the authority on it. See the package-owned
+[docs/adoption.md](adoption.md) for the repo-neutral install and first-run
+procedure.
 
 ## MCP Configuration
 

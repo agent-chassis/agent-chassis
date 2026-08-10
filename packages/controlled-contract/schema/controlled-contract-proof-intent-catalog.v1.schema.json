@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-proof-intent-catalog.v1.schema.json",
+  "title": "controlled-contract-proof-intent-catalog.v1",
+  "type": "object",
+  "required": ["schema_version", "intents"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "controlled-contract-proof-intent-catalog.v1" },
+    "intents": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/intent" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "pack": {
+      "type": "object",
+      "required": ["profile_id", "profile_version"],
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": { "$ref": "#/$defs/identifier" },
+        "profile_version": { "$ref": "#/$defs/semver" }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "required": [
+        "contract_schema_versions",
+        "vocabulary_versions",
+        "admission_schema_versions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "contract_schema_versions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "vocabulary_versions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "admission_schema_versions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "controlled-contract-admitted-proof-pack.v1",
+              "controlled-contract-admitted-proof-pack.v2"
+            ]
+          }
+        }
+      }
+    },
+    "distinction": {
+      "type": "object",
+      "required": ["from_intent_id", "explanation"],
+      "additionalProperties": false,
+      "properties": {
+        "from_intent_id": { "$ref": "#/$defs/identifier" },
+        "explanation": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "intent": {
+      "type": "object",
+      "required": [
+        "intent_id",
+        "definition",
+        "discovery_terms",
+        "capable_packs",
+        "compatibility",
+        "required_evaluation_inputs",
+        "exact_binding_required",
+        "distinctions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "intent_id": { "$ref": "#/$defs/identifier" },
+        "definition": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "discovery_terms": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 96 }
+        },
+        "capable_packs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pack" }
+        },
+        "compatibility": { "$ref": "#/$defs/compatibility" },
+        "required_evaluation_inputs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "controlled_contract",
+              "evaluation_input",
+              "exact_capture_root",
+              "exact_binding_sources"
+            ]
+          }
+        },
+        "exact_binding_required": { "type": "boolean" },
+        "distinctions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/distinction" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,965 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "907b7802d28b7798efc2b2826ac2886ad46983a714ad577434e0a9655b9229a1",
+  "witnesses": [
+    {
+      "surface_id": "claim-execution-emits-observed-population-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-execution-emits-observed-population-modalities",
+      "weakened_profile_digest": "8f633edd8bb64991bf9f44c5981b3b791b910115c7289afe8ba93d040864002b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-execution-emits-observed-population-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-execution-emits-observed-population-proposition-operand-0-role",
+      "weakened_profile_digest": "c3bf74c6f208ee9c91e0495b71af319ec733455af8c150c68921074ebb3539d6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "execution"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-execution-emits-observed-population-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-execution-emits-observed-population-proposition-operator",
+      "weakened_profile_digest": "bf2f5f4631762e6bffa586083f730b38bd29da702b712c48750961c118b2607e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:creates"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-execution-emits-observed-population-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-execution-emits-observed-population-proposition-subject",
+      "weakened_profile_digest": "3857dcd2c36385c6677644e907c5aff6cdae743581eed77775e104996718b919",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "observed_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-observed-mutations-within-authorized-scope-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-observed-mutations-within-authorized-scope-modalities",
+      "weakened_profile_digest": "c6c243dc6996519e53c5bdbd73aba2ceedd1b7eaa4088fc199a88e425cbc60d6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "claim-patterns",
+      "weakened_profile_digest": "ed689993b02cb712ed0bc9aff76791c4da7cc5e9c1bbaf63be84c06edd0ff9ad",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "observed-mutations-within-authorized-scope",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observed_population",
+                "operator": "reference:subset_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "authorized_scope"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-execution-and-populations",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "execution"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observed_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authorized_scope"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "write-confinement-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authorized_scope"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "observed_population",
+                "operator": "reference:not_subset_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "unauthorized_mutation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "authorized_scope"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-observed-mutation-population"
+              },
+              {
+                "pattern": "complete-authorized-write-scope"
+              },
+              {
+                "pattern": "observed-mutations-within-authorized-scope"
+              },
+              {
+                "pattern": "verification-reads-execution-and-populations"
+              },
+              {
+                "pattern": "write-confinement-verification"
+              },
+              {
+                "pattern": "verification-targets-write-confinement"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-execution-and-populations-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-execution-and-populations-modalities",
+      "weakened_profile_digest": "9495e6595203ccbd33bda5579dfdb56b4ae6534de6a877a5439f4ad461b5dc15",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-execution-and-populations-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-execution-and-populations-proposition-operand-0-role",
+      "weakened_profile_digest": "64e8fb007920d073a59a26348763eee40b982f634e20c8605eb9fb13339a432f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "observed_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-execution-and-populations-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-execution-and-populations-proposition-operand-1-role",
+      "weakened_profile_digest": "d5a235109f69372200fcc07344b22644811f426222aa151c996645ec91f3ca24",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/1/role",
+          "value": "execution"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-execution-and-populations-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-execution-and-populations-proposition-operand-2-role",
+      "weakened_profile_digest": "08987efe08e653e16f8c48e15bdc820f9a41adebaa24ed1b6ff32d3fff2d9ff4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/2/role",
+          "value": "execution"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-execution-and-populations-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-execution-and-populations-proposition-operator",
+      "weakened_profile_digest": "463d6d9e833920ff5f163de415dc35eaca79552d9bd2ec5efe44505e291fb253",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:covers"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-execution-and-populations-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-execution-and-populations-proposition-subject",
+      "weakened_profile_digest": "25163b309ad3d0321bf01dcb8e56d632cb1f790690109a6ce69e9df420539e59",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "execution"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-confinement-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-write-confinement-verification-modalities",
+      "weakened_profile_digest": "8565803cc9a954cc58bdc5dc6f2b131dcc0be0545f5bac668317f5b2a981769e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-confinement-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-write-confinement-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "17f0327447223fe14823b8361110ab059b3b6aab3602fd41ce08976a6696b281",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/0/role",
+          "value": "execution"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-confinement-verification-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-write-confinement-verification-proposition-operand-1-role",
+      "weakened_profile_digest": "2b8c42cb99e1fefd58096b19e0229935f9b0d3606afeadd528d42b5f0e6e8384",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/1/role",
+          "value": "execution"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-confinement-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-write-confinement-verification-proposition-operator",
+      "weakened_profile_digest": "42154fd15425f5df0ff0c5f6dc3b42cb154c73dc923790c7c6b905ca07994ef6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-confinement-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-write-confinement-verification-proposition-subject",
+      "weakened_profile_digest": "b2c67689bb5bf45169198bb6ee98264be48ae7cd650903ea4118c824dcbe21ac",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/subject_role",
+          "value": "execution"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-confinement-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-write-confinement-verification-verification-methods",
+      "weakened_profile_digest": "92deff742f230790f52f426f74cdf1ac463522ccce9475d4110cd3a20f4058b4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "distinct-reference-role-sets",
+      "weakened_profile_digest": "db1f3478d48f279fded33f65540ff2d8457d296a5af857cb37eeda635b94fa03",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "falsifier-condition-bindings",
+      "weakened_profile_digest": "ea3c1d16c6828f00acfc6421d5c7cd1488f440a318f04174e1b22cf323fb1735",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/falsifying_proposition_template/applicability_context",
+          "value": {
+            "mode": "unconditional",
+            "operand_roles": []
+          }
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context",
+          "value": {
+            "mode": "unconditional",
+            "operand_roles": []
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "reference-binding-patterns",
+      "weakened_profile_digest": "f9a3a4a98948475c1f5a8310be3a69f8352a7c484b392db3dc30b85f2956d965",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-observed-mutation-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "observed_population",
+                "authorized_targets"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-authorized-write-scope",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "authorized_scope",
+                "authorized_targets"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "relation-patterns",
+      "weakened_profile_digest": "c6f8c4ae337d2cd66c721c41257c99a7a3567480c17780833ffc935977782247",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:resource",
+            "cc:process"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "execution-emits-observed-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "execution",
+                "operator": "reference:member_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-execution-and-populations",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "execution"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observed_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authorized_scope"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "write-confinement-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authorized_scope"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "execution",
+                "operator": "reference:not_member_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "unauthorized_mutation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_population"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-write-confinement",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "write-confinement-verification",
+              "target_claim_pattern_id": "execution-emits-observed-population"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-observed-mutation-population"
+              },
+              {
+                "pattern": "complete-authorized-write-scope"
+              },
+              {
+                "pattern": "execution-emits-observed-population"
+              },
+              {
+                "pattern": "verification-reads-execution-and-populations"
+              },
+              {
+                "pattern": "write-confinement-verification"
+              },
+              {
+                "pattern": "verification-targets-write-confinement"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authorized-scope-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-authorized-scope-identity-kinds",
+      "weakened_profile_digest": "7dd574faa801be49c649f3be265d70b8787aebfb289ae8158205d4f1a6f30c04",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authorized-scope-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-authorized-scope-types",
+      "weakened_profile_digest": "249d7aca63a801272ec1f11f7d3a830a862b9da155cf05b44d39e2f92bd20df1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:scope",
+            "cc:population"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authorized-targets-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-authorized-targets-identity-kinds",
+      "weakened_profile_digest": "ad3d75c4ec394a3d280cf9d07f719e6c841f805aa8de3bd1659d197ca90d0ab6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authorized-targets-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-authorized-targets-types",
+      "weakened_profile_digest": "18b1595f7e572a4a7870b76589eb51251e2685d13df24fdc587f43ca3d284073",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:resource",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:resource",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-execution-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-execution-identity-kinds",
+      "weakened_profile_digest": "425d2ac379fc027ee1e8747117c76f82f021a87811ef28379a2a51cd7cbd21aa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-execution-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-execution-types",
+      "weakened_profile_digest": "007d37ccca9245699ddbbea6e9ff389eda45b5bbda18c993e54e5e8088b790e5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observed-mutations-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-observed-mutations-identity-kinds",
+      "weakened_profile_digest": "ad3d75c4ec394a3d280cf9d07f719e6c841f805aa8de3bd1659d197ca90d0ab6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observed-mutations-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-observed-mutations-types",
+      "weakened_profile_digest": "18b1595f7e572a4a7870b76589eb51251e2685d13df24fdc587f43ca3d284073",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:resource",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:resource",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observed-population-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-observed-population-identity-kinds",
+      "weakened_profile_digest": "233449e00059824c6e73f4bfc2298df9856f578c0b768f890b3dbd57566defd8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observed-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-observed-population-types",
+      "weakened_profile_digest": "bd37ad584ae079f2147a095b6122f805c7c8feb8a026639c3d79d86650e04bc3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-unauthorized-mutation-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-unauthorized-mutation-condition-types",
+      "weakened_profile_digest": "0776663961781499e8ea5764842a74c2d4bb2509e74c88afa44cb3b716262661",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-verification-identity-kinds",
+      "weakened_profile_digest": "9172b060402a31f1f8cebdfdbd02440f3d0ed44aef81db98c12c0db5e566c113",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-verification-types",
+      "weakened_profile_digest": "cea5fe4623e698d6c3120f27abf15fc0541247473bce64fb7f7df9905267b7d5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "satisfaction-expression",
+      "weakened_profile_digest": "28d286843984cffe26d1500381e0c937b96aba0b7e3163f5fcad2039df62639c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "complete-observed-mutation-population"
+              },
+              {
+                "pattern": "complete-authorized-write-scope"
+              },
+              {
+                "pattern": "execution-emits-observed-population"
+              },
+              {
+                "pattern": "observed-mutations-within-authorized-scope"
+              },
+              {
+                "pattern": "verification-reads-execution-and-populations"
+              },
+              {
+                "pattern": "write-confinement-verification"
+              },
+              {
+                "pattern": "verification-targets-write-confinement"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

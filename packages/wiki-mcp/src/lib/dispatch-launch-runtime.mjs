@@ -82,13 +82,18 @@ import {
 
 export { consumeDispatchCodexTestSeamEvidence };
 export {
+  CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES,
   createTerminalCandidateCoordinator,
   projectAuthenticatedTerminalCandidateFailure,
+  projectTerminalCandidateRecoveryDiagnostic,
   projectTerminalCandidateRecoveryReason,
   projectTerminalWkCandidateFailure,
   TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
+  TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION,
+  TERMINAL_CANDIDATE_RECOVERY_REASONS,
   TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE,
-  TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE
+  TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE,
+  TERMINAL_REVIEW_UNIT_PROJECTION_CODES
 } from "./dispatch-terminal-candidate-runtime.mjs";
 
 const SESSION_IDENTITY_SCHEMA_VERSION = "workspace-agent-dispatch-session-identity.v1";

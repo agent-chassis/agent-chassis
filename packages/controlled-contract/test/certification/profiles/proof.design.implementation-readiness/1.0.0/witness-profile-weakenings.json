@@ -1,0 +1,3825 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "9701f1873a4c9820943bc1a9a512541df80df7ab2cca3637960c52b37bf6c646",
+  "witnesses": [
+    {
+      "surface_id": "claim-design-names-grounded-loci-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-design-names-grounded-loci-modalities",
+      "variant_id": "reject-claim-design-names-grounded-loci-modalities",
+      "weakened_profile_digest": "bb658a3ac1d5223e96be3487860bdab38ab8ecb14c54e24bfba34b4e21f499b2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-design-names-grounded-loci-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-design-names-grounded-loci-proposition-operand-0-role",
+      "variant_id": "reject-claim-design-names-grounded-loci-proposition-operand-0-role",
+      "weakened_profile_digest": "fb2bf3d6898559a5937c3dc33e25a148fa2fc44923d81148e0b695e55680b9f6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-design-names-grounded-loci-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-design-names-grounded-loci-proposition-operand-1-role",
+      "variant_id": "reject-claim-design-names-grounded-loci-proposition-operand-1-role",
+      "weakened_profile_digest": "fef70d497311434c96849e7dd8e3aa9bfab943acd422653adbd976a4fa221b55",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/1/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-design-names-grounded-loci-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-design-names-grounded-loci-proposition-operator",
+      "variant_id": "reject-claim-design-names-grounded-loci-proposition-operator",
+      "weakened_profile_digest": "5b5ba7b8326fda8313a95619ea78a72c214d708502bd1a44b5ffb6db1b524b89",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-design-names-grounded-loci-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-design-names-grounded-loci-proposition-subject",
+      "variant_id": "reject-claim-design-names-grounded-loci-proposition-subject",
+      "weakened_profile_digest": "bf71cb15b0592816ae47d9927d92e60a0de98f2cf28f9a1598ca5746d91f7e4b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "requirement_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-implementation-locus-targets-requirements-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-implementation-locus-targets-requirements-modalities",
+      "variant_id": "reject-claim-implementation-locus-targets-requirements-modalities",
+      "weakened_profile_digest": "dadba31d82239bc614bf5b12e100b718119ee0840f193ca02c3d86ad77ad8ff2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-implementation-locus-targets-requirements-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-implementation-locus-targets-requirements-proposition-operand-0-role",
+      "variant_id": "reject-claim-implementation-locus-targets-requirements-proposition-operand-0-role",
+      "weakened_profile_digest": "c6a977434142ce39231dc350b4f7d213b54175921ab3eb94bc3f5fb1b7262966",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-implementation-locus-targets-requirements-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-implementation-locus-targets-requirements-proposition-operator",
+      "variant_id": "reject-claim-implementation-locus-targets-requirements-proposition-operator",
+      "weakened_profile_digest": "abfa19bb7cb4e353f1397db0670cafc58b94ad7071a37401ca78cc97120409ff",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-implementation-locus-targets-requirements-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-implementation-locus-targets-requirements-proposition-subject",
+      "variant_id": "reject-claim-implementation-locus-targets-requirements-proposition-subject",
+      "weakened_profile_digest": "33fedc48867e34355a6782c12348c0b82363541247d735184acfca46acd9fd42",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "reject-claim-patterns",
+      "variant_id": "reject-claim-patterns",
+      "weakened_profile_digest": "75e093c5a0cad2bfd40610c3c958e89389b2ad840e2de0d42397d5cb952467f0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "implementation-locus-targets-requirements",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "implementation_locus",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "requirement_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "test-locus-targets-implementation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "implementation_locus"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-signal-contains-shape",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_signal",
+                "operator": "reference:contains",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_shape_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-signal-carries-exact-values",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_signal",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_code_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_severity_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_message_template"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_schema"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-code-value-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_code_field",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_code_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-severity-value-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_severity_field",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_severity_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-message-template-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_message_field",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_message_template"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-payload-schema-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_payload_field",
+                "operator": "reference:conforms_to",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_schema"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-shape-includes-required-fields",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_shape_population",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_code_field"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_severity_field"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_message_field"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_field"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-shape-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_shape_population",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "required_warning_shape_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "validation-covers-all-requirements",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "validation_population",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "requirement_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "test-locus-covers-validation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "validation_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "placeholder-population-empty",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "placeholder_population",
+                "operator": "number:has_cardinality",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "placeholder_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-shape-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_signal"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "warning_shape_population",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "warning_shape_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "required_warning_shape_population"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-requirement-population"
+            },
+            {
+              "pattern": "complete-warning-shape"
+            },
+            {
+              "pattern": "complete-required-warning-shape"
+            },
+            {
+              "pattern": "complete-validation-population"
+            },
+            {
+              "pattern": "complete-placeholder-population"
+            },
+            {
+              "pattern": "implementation-locus-targets-requirements"
+            },
+            {
+              "pattern": "test-locus-targets-implementation"
+            },
+            {
+              "pattern": "warning-signal-contains-shape"
+            },
+            {
+              "pattern": "warning-signal-carries-exact-values"
+            },
+            {
+              "pattern": "warning-code-value-exact"
+            },
+            {
+              "pattern": "warning-severity-value-exact"
+            },
+            {
+              "pattern": "warning-message-template-exact"
+            },
+            {
+              "pattern": "warning-payload-schema-exact"
+            },
+            {
+              "pattern": "warning-shape-includes-required-fields"
+            },
+            {
+              "pattern": "warning-shape-exact"
+            },
+            {
+              "pattern": "validation-covers-all-requirements"
+            },
+            {
+              "pattern": "test-locus-covers-validation"
+            },
+            {
+              "pattern": "placeholder-population-empty"
+            },
+            {
+              "pattern": "warning-shape-verification"
+            },
+            {
+              "pattern": "verification-targets-warning-shape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-placeholder-population-empty-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-placeholder-population-empty-modalities",
+      "variant_id": "reject-claim-placeholder-population-empty-modalities",
+      "weakened_profile_digest": "f92009ecc81119694609f9e81cc081bcce07fbdfdc205fb0b0a0ce13047d2423",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-requirement-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "requirement_population",
+                "requirements"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "warning_shape_population",
+                "warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-required-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "required_warning_shape_population",
+                "required_warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-validation-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "validation_population",
+                "validated_requirements"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-requirement-population"
+            },
+            {
+              "pattern": "complete-warning-shape"
+            },
+            {
+              "pattern": "complete-required-warning-shape"
+            },
+            {
+              "pattern": "complete-validation-population"
+            },
+            {
+              "pattern": "design-names-grounded-loci"
+            },
+            {
+              "pattern": "implementation-locus-targets-requirements"
+            },
+            {
+              "pattern": "test-locus-targets-implementation"
+            },
+            {
+              "pattern": "warning-signal-contains-shape"
+            },
+            {
+              "pattern": "warning-signal-carries-exact-values"
+            },
+            {
+              "pattern": "warning-code-value-exact"
+            },
+            {
+              "pattern": "warning-severity-value-exact"
+            },
+            {
+              "pattern": "warning-message-template-exact"
+            },
+            {
+              "pattern": "warning-payload-schema-exact"
+            },
+            {
+              "pattern": "warning-shape-includes-required-fields"
+            },
+            {
+              "pattern": "warning-shape-exact"
+            },
+            {
+              "pattern": "validation-covers-all-requirements"
+            },
+            {
+              "pattern": "test-locus-covers-validation"
+            },
+            {
+              "pattern": "placeholder-population-empty"
+            },
+            {
+              "pattern": "warning-shape-verification"
+            },
+            {
+              "pattern": "verification-targets-warning-shape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-placeholder-population-empty-proposition-operand-0-value-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-placeholder-population-empty-proposition-operand-0-value-role",
+      "variant_id": "reject-claim-placeholder-population-empty-proposition-operand-0-value-role",
+      "weakened_profile_digest": "574ad107f6abf4ebbaf2f60b60242ad9f8a2eb2b7abc2a6952c8076ccf5929bc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operands/0/value_role",
+          "value": "requirement_count"
+        },
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-requirement-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "requirement_population",
+                "requirements"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "warning_shape_population",
+                "warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-required-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "required_warning_shape_population",
+                "required_warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-validation-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "validation_population",
+                "validated_requirements"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-requirement-population"
+            },
+            {
+              "pattern": "complete-warning-shape"
+            },
+            {
+              "pattern": "complete-required-warning-shape"
+            },
+            {
+              "pattern": "complete-validation-population"
+            },
+            {
+              "pattern": "design-names-grounded-loci"
+            },
+            {
+              "pattern": "implementation-locus-targets-requirements"
+            },
+            {
+              "pattern": "test-locus-targets-implementation"
+            },
+            {
+              "pattern": "warning-signal-contains-shape"
+            },
+            {
+              "pattern": "warning-signal-carries-exact-values"
+            },
+            {
+              "pattern": "warning-code-value-exact"
+            },
+            {
+              "pattern": "warning-severity-value-exact"
+            },
+            {
+              "pattern": "warning-message-template-exact"
+            },
+            {
+              "pattern": "warning-payload-schema-exact"
+            },
+            {
+              "pattern": "warning-shape-includes-required-fields"
+            },
+            {
+              "pattern": "warning-shape-exact"
+            },
+            {
+              "pattern": "validation-covers-all-requirements"
+            },
+            {
+              "pattern": "test-locus-covers-validation"
+            },
+            {
+              "pattern": "placeholder-population-empty"
+            },
+            {
+              "pattern": "warning-shape-verification"
+            },
+            {
+              "pattern": "verification-targets-warning-shape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-placeholder-population-empty-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-placeholder-population-empty-proposition-operator",
+      "variant_id": "reject-claim-placeholder-population-empty-proposition-operator",
+      "weakened_profile_digest": "ae311d8f57dbfdeae5b19d63577e8f38921927b8f3ec7dc124e4a6df59307c3b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operator",
+          "value": "number:emits"
+        },
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-requirement-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "requirement_population",
+                "requirements"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "warning_shape_population",
+                "warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-required-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "required_warning_shape_population",
+                "required_warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-validation-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "validation_population",
+                "validated_requirements"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-requirement-population"
+            },
+            {
+              "pattern": "complete-warning-shape"
+            },
+            {
+              "pattern": "complete-required-warning-shape"
+            },
+            {
+              "pattern": "complete-validation-population"
+            },
+            {
+              "pattern": "design-names-grounded-loci"
+            },
+            {
+              "pattern": "implementation-locus-targets-requirements"
+            },
+            {
+              "pattern": "test-locus-targets-implementation"
+            },
+            {
+              "pattern": "warning-signal-contains-shape"
+            },
+            {
+              "pattern": "warning-signal-carries-exact-values"
+            },
+            {
+              "pattern": "warning-code-value-exact"
+            },
+            {
+              "pattern": "warning-severity-value-exact"
+            },
+            {
+              "pattern": "warning-message-template-exact"
+            },
+            {
+              "pattern": "warning-payload-schema-exact"
+            },
+            {
+              "pattern": "warning-shape-includes-required-fields"
+            },
+            {
+              "pattern": "warning-shape-exact"
+            },
+            {
+              "pattern": "validation-covers-all-requirements"
+            },
+            {
+              "pattern": "test-locus-covers-validation"
+            },
+            {
+              "pattern": "placeholder-population-empty"
+            },
+            {
+              "pattern": "warning-shape-verification"
+            },
+            {
+              "pattern": "verification-targets-warning-shape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-placeholder-population-empty-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-placeholder-population-empty-proposition-subject",
+      "variant_id": "reject-claim-placeholder-population-empty-proposition-subject",
+      "weakened_profile_digest": "82a44683b7702d93d7b729b7123f3922e6cb7fa8a52e67cdc5b1e903052060e1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/subject_role",
+          "value": "design_unit"
+        },
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-requirement-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "requirement_population",
+                "requirements"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "warning_shape_population",
+                "warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-required-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "required_warning_shape_population",
+                "required_warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-validation-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "validation_population",
+                "validated_requirements"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-requirement-population"
+            },
+            {
+              "pattern": "complete-warning-shape"
+            },
+            {
+              "pattern": "complete-required-warning-shape"
+            },
+            {
+              "pattern": "complete-validation-population"
+            },
+            {
+              "pattern": "design-names-grounded-loci"
+            },
+            {
+              "pattern": "implementation-locus-targets-requirements"
+            },
+            {
+              "pattern": "test-locus-targets-implementation"
+            },
+            {
+              "pattern": "warning-signal-contains-shape"
+            },
+            {
+              "pattern": "warning-signal-carries-exact-values"
+            },
+            {
+              "pattern": "warning-code-value-exact"
+            },
+            {
+              "pattern": "warning-severity-value-exact"
+            },
+            {
+              "pattern": "warning-message-template-exact"
+            },
+            {
+              "pattern": "warning-payload-schema-exact"
+            },
+            {
+              "pattern": "warning-shape-includes-required-fields"
+            },
+            {
+              "pattern": "warning-shape-exact"
+            },
+            {
+              "pattern": "validation-covers-all-requirements"
+            },
+            {
+              "pattern": "test-locus-covers-validation"
+            },
+            {
+              "pattern": "placeholder-population-empty"
+            },
+            {
+              "pattern": "warning-shape-verification"
+            },
+            {
+              "pattern": "verification-targets-warning-shape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-test-locus-covers-validation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-test-locus-covers-validation-modalities",
+      "variant_id": "reject-claim-test-locus-covers-validation-modalities",
+      "weakened_profile_digest": "e967d40234e880179410004dcf44aafc18ac6c5195fd48f336e9b5dbb476d3e8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-test-locus-covers-validation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-test-locus-covers-validation-proposition-operand-0-role",
+      "variant_id": "reject-claim-test-locus-covers-validation-proposition-operand-0-role",
+      "weakened_profile_digest": "a39594491d6d36e8baea522b40ccb298f69b551c73c8918a1b3c409098b79be3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-test-locus-covers-validation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-test-locus-covers-validation-proposition-operator",
+      "variant_id": "reject-claim-test-locus-covers-validation-proposition-operator",
+      "weakened_profile_digest": "e8896a69994ee4cde711ef8f41079fd7c5c740b6e94614f2ac705106ae64ef9a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-test-locus-covers-validation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-test-locus-covers-validation-proposition-subject",
+      "variant_id": "reject-claim-test-locus-covers-validation-proposition-subject",
+      "weakened_profile_digest": "8f1648e55bf13b745e56233ae329f3c3f9319f5e5b360555d3ea826b49b23c40",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-test-locus-targets-implementation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-test-locus-targets-implementation-modalities",
+      "variant_id": "reject-claim-test-locus-targets-implementation-modalities",
+      "weakened_profile_digest": "8aaba5f8b5f64c88a1672ac86daa361081279c35b245b1ab861f6aff11989657",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-test-locus-targets-implementation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-test-locus-targets-implementation-proposition-operand-0-role",
+      "variant_id": "reject-claim-test-locus-targets-implementation-proposition-operand-0-role",
+      "weakened_profile_digest": "6cd7f7666c828bdb41b5511c243c0232fe8ef5c97ede189f8660cf83267c554f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-test-locus-targets-implementation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-test-locus-targets-implementation-proposition-operator",
+      "variant_id": "reject-claim-test-locus-targets-implementation-proposition-operator",
+      "weakened_profile_digest": "38bc03f9f4bfcfe246265a86dd683bff2d76f206bf68736beabb532eaecefcfe",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-test-locus-targets-implementation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-test-locus-targets-implementation-proposition-subject",
+      "variant_id": "reject-claim-test-locus-targets-implementation-proposition-subject",
+      "weakened_profile_digest": "fdbc901f871a11669c41772ffc75276bcf73ed4ecfc1f6c72f516deb53a58760",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-validation-covers-all-requirements-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-validation-covers-all-requirements-modalities",
+      "variant_id": "reject-claim-validation-covers-all-requirements-modalities",
+      "weakened_profile_digest": "866270bc7dcce9010be70c75fba28e13bc5a758914bf067abf58c27ab6b97273",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-validation-covers-all-requirements-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-validation-covers-all-requirements-proposition-operand-0-role",
+      "variant_id": "reject-claim-validation-covers-all-requirements-proposition-operand-0-role",
+      "weakened_profile_digest": "930664cbcab7d724dcf6e614aab5cd0db2b442bd7f09ddbf8ec03c0d8af1882c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-validation-covers-all-requirements-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-validation-covers-all-requirements-proposition-operator",
+      "variant_id": "reject-claim-validation-covers-all-requirements-proposition-operator",
+      "weakened_profile_digest": "5bd43f4f184d1d5cd1fe3caa7095a575291bc1dfe4b0eb20b0730bf1f873f435",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-validation-covers-all-requirements-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-validation-covers-all-requirements-proposition-subject",
+      "variant_id": "reject-claim-validation-covers-all-requirements-proposition-subject",
+      "weakened_profile_digest": "854bf2814775247f20d71de0b84544f655bb48a3b507519370834598f3f0ea98",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-code-value-exact-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-warning-code-value-exact-modalities",
+      "variant_id": "reject-claim-warning-code-value-exact-modalities",
+      "weakened_profile_digest": "d0c4169d984d30a725e8a6da1e8ca8a61ed9821865e63f3f162b84eae0637372",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-code-value-exact-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-code-value-exact-proposition-operand-0-role",
+      "variant_id": "reject-claim-warning-code-value-exact-proposition-operand-0-role",
+      "weakened_profile_digest": "18d3f0d16fd03f32ecbeaba97e9187ecaa20a4981049766e1d0cc8a0793bda95",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-code-value-exact-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-code-value-exact-proposition-operator",
+      "variant_id": "reject-claim-warning-code-value-exact-proposition-operator",
+      "weakened_profile_digest": "a4d4600cc9122b1d9c23e937b79f57b646d857efcde008ec09057ab2186da7e1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-code-value-exact-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-code-value-exact-proposition-subject",
+      "variant_id": "reject-claim-warning-code-value-exact-proposition-subject",
+      "weakened_profile_digest": "e0628b9d8d65c7796203d34f9cdb93b3e1627fafc2346d798407a75456616fc3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-message-template-exact-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-warning-message-template-exact-modalities",
+      "variant_id": "reject-claim-warning-message-template-exact-modalities",
+      "weakened_profile_digest": "677cb38bd257e87df3b6b0ada03f69e3556ea7f06bf124a396bc9f24a584703b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-message-template-exact-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-message-template-exact-proposition-operand-0-role",
+      "variant_id": "reject-claim-warning-message-template-exact-proposition-operand-0-role",
+      "weakened_profile_digest": "56566b336832df8b5acd6339d90d6119e149c47c47e71ba72b5ebcc1147fba87",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-message-template-exact-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-message-template-exact-proposition-operator",
+      "variant_id": "reject-claim-warning-message-template-exact-proposition-operator",
+      "weakened_profile_digest": "8c44c225c59af5d767656b1a34d9cc234f7a7db61110a1187e1e78a73fdfe884",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-message-template-exact-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-message-template-exact-proposition-subject",
+      "variant_id": "reject-claim-warning-message-template-exact-proposition-subject",
+      "weakened_profile_digest": "df67bc27cf0c3f0e95af20168d025672a0aa9772a5209890200796be79c48de5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-payload-schema-exact-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-warning-payload-schema-exact-modalities",
+      "variant_id": "reject-claim-warning-payload-schema-exact-modalities",
+      "weakened_profile_digest": "004860d0402fa16665fffcdc70f6253c86a59c883c7d109e32d3c70421fb2b73",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-payload-schema-exact-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-payload-schema-exact-proposition-operand-0-role",
+      "variant_id": "reject-claim-warning-payload-schema-exact-proposition-operand-0-role",
+      "weakened_profile_digest": "b079efbf65c0cde1b835caf0229ace87743968f82abd6e802c91c1b9c1a22170",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-payload-schema-exact-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-payload-schema-exact-proposition-operator",
+      "variant_id": "reject-claim-warning-payload-schema-exact-proposition-operator",
+      "weakened_profile_digest": "898613e3229d9197507f46edda7d6582e8db2e2546e20f168bf6af958741482e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-payload-schema-exact-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-payload-schema-exact-proposition-subject",
+      "variant_id": "reject-claim-warning-payload-schema-exact-proposition-subject",
+      "weakened_profile_digest": "ad1f0254a68329da300f66cc6c65ebf4b9285252c9b5d53868ad2bc076e9511a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-severity-value-exact-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-warning-severity-value-exact-modalities",
+      "variant_id": "reject-claim-warning-severity-value-exact-modalities",
+      "weakened_profile_digest": "97d0e5c08748bd4656f6b13085c74c6d0381e301226e72e42683f92b41b6eb5e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-severity-value-exact-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-severity-value-exact-proposition-operand-0-role",
+      "variant_id": "reject-claim-warning-severity-value-exact-proposition-operand-0-role",
+      "weakened_profile_digest": "2de79a1d23581d0e92c95a9fd93b4c02ca1a6caa09d393005f34ce43c8aa1861",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-severity-value-exact-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-severity-value-exact-proposition-operator",
+      "variant_id": "reject-claim-warning-severity-value-exact-proposition-operator",
+      "weakened_profile_digest": "1f3da44c0b0133f7f7ddecb65c85f109419f258f4db29b6a8e0d312c22d80816",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-severity-value-exact-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-severity-value-exact-proposition-subject",
+      "variant_id": "reject-claim-warning-severity-value-exact-proposition-subject",
+      "weakened_profile_digest": "18af8444d15a86a1b92b32b4d8c306ad2bb99525e80cb27e23ed8222c9d77137",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-exact-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-warning-shape-exact-modalities",
+      "variant_id": "reject-claim-warning-shape-exact-modalities",
+      "weakened_profile_digest": "d2073a1d0bd08a23ce7f481c4630567f394631765ed11810694fb8dd271e7ed9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-includes-required-fields-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-warning-shape-includes-required-fields-modalities",
+      "variant_id": "reject-claim-warning-shape-includes-required-fields-modalities",
+      "weakened_profile_digest": "5f99dddffa924a005f69e5fb1c27e7c85702fcbae81ddd0095d73ebd518740c4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-includes-required-fields-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-shape-includes-required-fields-proposition-operand-0-role",
+      "variant_id": "reject-claim-warning-shape-includes-required-fields-proposition-operand-0-role",
+      "weakened_profile_digest": "30ecae7951d12025ecbde3488b2d95160c1bd5982b94440ad5e3714f0de5a04f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-includes-required-fields-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-shape-includes-required-fields-proposition-operand-1-role",
+      "variant_id": "reject-claim-warning-shape-includes-required-fields-proposition-operand-1-role",
+      "weakened_profile_digest": "c3dbddbfdacba2cd0960959322bfc6958c576205fc78b961498423c0d920e352",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/1/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-includes-required-fields-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-shape-includes-required-fields-proposition-operand-2-role",
+      "variant_id": "reject-claim-warning-shape-includes-required-fields-proposition-operand-2-role",
+      "weakened_profile_digest": "5a102615e99dcec236dec00790c1813f224f160f061887cd996958a015f84641",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/2/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-includes-required-fields-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-shape-includes-required-fields-proposition-operand-3-role",
+      "variant_id": "reject-claim-warning-shape-includes-required-fields-proposition-operand-3-role",
+      "weakened_profile_digest": "e53466b2c3695d1c2f00dce743cf0a5de5e890d9878075ff17f71fa4c4702281",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/3/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-includes-required-fields-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-shape-includes-required-fields-proposition-operator",
+      "variant_id": "reject-claim-warning-shape-includes-required-fields-proposition-operator",
+      "weakened_profile_digest": "d621e3f43a85191398f011475a01817426feebf4542f64892273ae57f572f1d3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-includes-required-fields-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-shape-includes-required-fields-proposition-subject",
+      "variant_id": "reject-claim-warning-shape-includes-required-fields-proposition-subject",
+      "weakened_profile_digest": "afc840467b487f90d8f497ce5de545c4decaab77db301d1b57fcf5bbcd089e55",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-warning-shape-verification-modalities",
+      "variant_id": "reject-claim-warning-shape-verification-modalities",
+      "weakened_profile_digest": "7cab13ef670f235e2c4b225f5725b85ee7216e82a07f9ac3f5151fe1fe49f735",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-shape-verification-proposition-operand-0-role",
+      "variant_id": "reject-claim-warning-shape-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "a55cfea4fe2666ddc7e59d438569da5c023b3c657124997f8fda4d427f61dc03",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-shape-verification-proposition-operator",
+      "variant_id": "reject-claim-warning-shape-verification-proposition-operator",
+      "weakened_profile_digest": "6ebf5d7a942819445bcfa84d3306189b2f2ca439b94a48d22c04066a1523bc0b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-shape-verification-proposition-subject",
+      "variant_id": "reject-claim-warning-shape-verification-proposition-subject",
+      "weakened_profile_digest": "b6d4fb89425a71463a7256e28d3cddd1d25728e693647bae157e1820372de267",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-shape-verification-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-warning-shape-verification-verification-methods",
+      "variant_id": "reject-claim-warning-shape-verification-verification-methods",
+      "weakened_profile_digest": "6898465ad7bc3ccd9c4f8383eb9f51a19cb7be0f261a05eb0ccccf99161f03fa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-carries-exact-values-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-warning-signal-carries-exact-values-modalities",
+      "variant_id": "reject-claim-warning-signal-carries-exact-values-modalities",
+      "weakened_profile_digest": "6db265a625da63e4d121afda51b69f17250036703e1e3bd9861bbd70f3d226b3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-carries-exact-values-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-signal-carries-exact-values-proposition-operand-0-role",
+      "variant_id": "reject-claim-warning-signal-carries-exact-values-proposition-operand-0-role",
+      "weakened_profile_digest": "d885061f489ff783df5a3b2cf0affb9616fe63d42218f846c3b1e73d5c579db3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-carries-exact-values-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-signal-carries-exact-values-proposition-operand-1-role",
+      "variant_id": "reject-claim-warning-signal-carries-exact-values-proposition-operand-1-role",
+      "weakened_profile_digest": "6883cd722ab191ffb3a86081f77630fb8419cd31cc73d54c4eb97255a6c04028",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/1/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-carries-exact-values-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-signal-carries-exact-values-proposition-operand-2-role",
+      "variant_id": "reject-claim-warning-signal-carries-exact-values-proposition-operand-2-role",
+      "weakened_profile_digest": "0bddc120ee6aeb75819d812507093e7d50cbe2ed3ed43159a4945a59b98ae80f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/2/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-carries-exact-values-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-signal-carries-exact-values-proposition-operand-3-role",
+      "variant_id": "reject-claim-warning-signal-carries-exact-values-proposition-operand-3-role",
+      "weakened_profile_digest": "c2e806320b49d007488a28977dad49596c9a407ca85006360434caceb78a6394",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/3/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-carries-exact-values-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-signal-carries-exact-values-proposition-operator",
+      "variant_id": "reject-claim-warning-signal-carries-exact-values-proposition-operator",
+      "weakened_profile_digest": "c2b8b4a8c8c53e359726fab3f82c871f10a5b0bafb1dcc7029f721be690e0a7e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-carries-exact-values-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-signal-carries-exact-values-proposition-subject",
+      "variant_id": "reject-claim-warning-signal-carries-exact-values-proposition-subject",
+      "weakened_profile_digest": "fb52c68ff48a29151aad833ae4e46a6c5222532de312320d520d863c6f7d112f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-contains-shape-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-warning-signal-contains-shape-modalities",
+      "variant_id": "reject-claim-warning-signal-contains-shape-modalities",
+      "weakened_profile_digest": "8d0ae7608562deb83e4ad848da4d9abb4a509e273c43ee367ee20b7a705f6638",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-contains-shape-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-signal-contains-shape-proposition-operand-0-role",
+      "variant_id": "reject-claim-warning-signal-contains-shape-proposition-operand-0-role",
+      "weakened_profile_digest": "36a471a966dd6eaa75f8e312832d51051103f1da12096181d27be2626160bfd7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/0/role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-contains-shape-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-signal-contains-shape-proposition-operator",
+      "variant_id": "reject-claim-warning-signal-contains-shape-proposition-operator",
+      "weakened_profile_digest": "6b7ff2a17aaea1b95a271db982fdcac5d96111ccb3159e5b46c9cb0ee9c714b8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-warning-signal-contains-shape-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-warning-signal-contains-shape-proposition-subject",
+      "variant_id": "reject-claim-warning-signal-contains-shape-proposition-subject",
+      "weakened_profile_digest": "ca2bd8e2e257aabdc2e20ebd56fd215587e3189e705c9e333b9e0226c8795ea6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/subject_role",
+          "value": "design_unit"
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-distinct-reference-role-sets",
+      "variant_id": "reject-distinct-reference-role-sets",
+      "weakened_profile_digest": "45d3e83e1bbdcc295c3578b392131beaedcb24f4bfb42c4f14cb168ee7c6c740",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-falsifier-condition-bindings",
+      "variant_id": "reject-falsifier-condition-bindings",
+      "weakened_profile_digest": "30eabf2d1f388c4e8d15bd1df8fff3208d44e3648d616fbe80c3b6d03414dad1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/falsifying_proposition_template/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/falsifying_proposition_template/applicability_context/operand_roles",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context/operand_roles",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "number-roles",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "reject-number-roles",
+      "variant_id": "reject-number-roles",
+      "weakened_profile_digest": "32852487d8050ff3c442d2931b878351c85d14a79c98968d9e7dcfba52e7e2dd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/number_roles/2/maximum",
+          "value": 5
+        },
+        {
+          "op": "replace",
+          "path": "/number_roles/3/maximum",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-reference-binding-patterns",
+      "variant_id": "reject-reference-binding-patterns",
+      "weakened_profile_digest": "0f3ed7ce07687a48dc3e711e114c889affb0e2ba1e3affc0c3b6bcdf0b51c9d8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "design-names-grounded-loci",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "design_unit",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "implementation_locus"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "test_locus"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "implementation-locus-targets-requirements",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "implementation_locus",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "requirement_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "test-locus-targets-implementation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "implementation_locus"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-signal-contains-shape",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_signal",
+                "operator": "reference:contains",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_shape_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-signal-carries-exact-values",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_signal",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_code_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_severity_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_message_template"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_schema"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-code-value-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_code_field",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_code_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-severity-value-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_severity_field",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_severity_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-message-template-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_message_field",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_message_template"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-payload-schema-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_payload_field",
+                "operator": "reference:conforms_to",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_schema"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-shape-includes-required-fields",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_shape_population",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_code_field"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_severity_field"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_message_field"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_field"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-shape-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_shape_population",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "required_warning_shape_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "test-locus-covers-validation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "validation_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "placeholder-population-empty",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "placeholder_population",
+                "operator": "number:has_cardinality",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "placeholder_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-shape-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_signal"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "warning_shape_population",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "warning_shape_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "required_warning_shape_population"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "warning_shape_population",
+                "warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-required-warning-shape",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "required_warning_shape_population",
+                "required_warning_fields"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-validation-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "validation_population",
+                "validated_requirements"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-placeholder-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "placeholder_population",
+                "placeholders"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-warning-shape"
+            },
+            {
+              "pattern": "complete-required-warning-shape"
+            },
+            {
+              "pattern": "complete-validation-population"
+            },
+            {
+              "pattern": "complete-placeholder-population"
+            },
+            {
+              "pattern": "design-names-grounded-loci"
+            },
+            {
+              "pattern": "implementation-locus-targets-requirements"
+            },
+            {
+              "pattern": "test-locus-targets-implementation"
+            },
+            {
+              "pattern": "warning-signal-contains-shape"
+            },
+            {
+              "pattern": "warning-signal-carries-exact-values"
+            },
+            {
+              "pattern": "warning-code-value-exact"
+            },
+            {
+              "pattern": "warning-severity-value-exact"
+            },
+            {
+              "pattern": "warning-message-template-exact"
+            },
+            {
+              "pattern": "warning-payload-schema-exact"
+            },
+            {
+              "pattern": "warning-shape-includes-required-fields"
+            },
+            {
+              "pattern": "warning-shape-exact"
+            },
+            {
+              "pattern": "test-locus-covers-validation"
+            },
+            {
+              "pattern": "placeholder-population-empty"
+            },
+            {
+              "pattern": "warning-shape-verification"
+            },
+            {
+              "pattern": "verification-targets-warning-shape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-reference-role-count-bindings",
+      "variant_id": "reject-reference-role-count-bindings",
+      "weakened_profile_digest": "26b77ba1ed41243bddec1eabcf1cc07c05e0a40c6a6daa41fb175c0f36d20792",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": [
+            {
+              "reference_role": "validated_requirements",
+              "number_role": "validation_count"
+            },
+            {
+              "reference_role": "warning_fields",
+              "number_role": "warning_field_count"
+            },
+            {
+              "reference_role": "required_warning_fields",
+              "number_role": "required_warning_field_count"
+            },
+            {
+              "reference_role": "placeholders",
+              "number_role": "placeholder_count"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "reject-relation-patterns",
+      "variant_id": "reject-relation-patterns",
+      "weakened_profile_digest": "ce65ee13e635da8191140ee1b89b6e202dd00bec88056fae52da3f2b02dce68e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "design-names-grounded-loci",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "design_unit",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "implementation_locus"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "test_locus"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "implementation-locus-targets-requirements",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "implementation_locus",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "requirement_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "test-locus-targets-implementation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "implementation_locus"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-signal-contains-shape",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_signal",
+                "operator": "reference:contains",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_shape_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-signal-carries-exact-values",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_signal",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_code_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_severity_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_message_template"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_schema"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-code-value-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_code_field",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_code_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-severity-value-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_severity_field",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_severity_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-message-template-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_message_field",
+                "operator": "reference:has_value",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_message_template"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-payload-schema-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_payload_field",
+                "operator": "reference:conforms_to",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_schema"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-shape-includes-required-fields",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_shape_population",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_code_field"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_severity_field"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_message_field"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_field"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-shape-exact",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "warning_shape_population",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "required_warning_shape_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "validation-covers-all-requirements",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "validation_population",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "requirement_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "test-locus-covers-validation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "validation_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "placeholder-population-empty",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "placeholder_population",
+                "operator": "number:has_cardinality",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "placeholder_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "warning-shape-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_signal"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "alternate-warning-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "test_locus",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "warning_payload_field"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "warning_shape_population",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "warning_shape_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "required_warning_shape_population"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns/0/source_claim_pattern_id",
+          "value": "alternate-warning-verification"
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-requirement-population"
+            },
+            {
+              "pattern": "complete-warning-shape"
+            },
+            {
+              "pattern": "complete-required-warning-shape"
+            },
+            {
+              "pattern": "complete-validation-population"
+            },
+            {
+              "pattern": "complete-placeholder-population"
+            },
+            {
+              "pattern": "design-names-grounded-loci"
+            },
+            {
+              "pattern": "implementation-locus-targets-requirements"
+            },
+            {
+              "pattern": "test-locus-targets-implementation"
+            },
+            {
+              "pattern": "warning-signal-contains-shape"
+            },
+            {
+              "pattern": "warning-signal-carries-exact-values"
+            },
+            {
+              "pattern": "warning-code-value-exact"
+            },
+            {
+              "pattern": "warning-severity-value-exact"
+            },
+            {
+              "pattern": "warning-message-template-exact"
+            },
+            {
+              "pattern": "warning-payload-schema-exact"
+            },
+            {
+              "pattern": "warning-shape-includes-required-fields"
+            },
+            {
+              "pattern": "warning-shape-exact"
+            },
+            {
+              "pattern": "validation-covers-all-requirements"
+            },
+            {
+              "pattern": "test-locus-covers-validation"
+            },
+            {
+              "pattern": "placeholder-population-empty"
+            },
+            {
+              "pattern": "warning-shape-verification"
+            },
+            {
+              "pattern": "verification-targets-warning-shape"
+            },
+            {
+              "pattern": "alternate-warning-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-design-unit-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-design-unit-types",
+      "variant_id": "reject-role-design-unit-types",
+      "weakened_profile_digest": "12c20fded6e26c1ab148d93f7e2be2404faa2bbd21a9528f6d0e22bf88afe8a3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-implementation-locus-identity-kinds",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-role-implementation-locus-identity-kinds",
+      "variant_id": "reject-role-implementation-locus-identity-kinds",
+      "weakened_profile_digest": "c694b6f5cef0c06e5671bf39ea7a0c0b774808b98397b33a94fa9c62f353600b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_identity_kinds",
+          "value": [
+            "repository_path",
+            "code_symbol",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-implementation-locus-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-implementation-locus-types",
+      "variant_id": "reject-role-implementation-locus-types",
+      "weakened_profile_digest": "a1c924bbfd81cc1612c2cc70071066c7ec32b66f490d061f84eaed15940f7c55",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:runtime_component",
+            "cc:operation",
+            "cc:resource",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-placeholder-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-placeholder-population-types",
+      "variant_id": "reject-role-placeholder-population-types",
+      "weakened_profile_digest": "6a8ad3e6364689c98596196b3b0d4bee1ede63c8c76fb8f22c4d34dfdc6f129f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/20/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-placeholders-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-placeholders-types",
+      "variant_id": "reject-role-placeholders-types",
+      "weakened_profile_digest": "d23ee41985a64070bf6a043d46516de83ef71a5d1bd4bef481d866601d7e01ba",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/number_roles/4/maximum",
+          "value": 1
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/21/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:requirement",
+            "cc:resource",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-required-warning-fields-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-required-warning-fields-types",
+      "variant_id": "reject-role-required-warning-fields-types",
+      "weakened_profile_digest": "1d90a5c104975a9d9ecdf8c085f9c438a74bb31866d634ea96989094aae863f5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-required-warning-shape-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-required-warning-shape-population-types",
+      "variant_id": "reject-role-required-warning-shape-population-types",
+      "weakened_profile_digest": "cbc77ff04121ad14d074fd97a98086f346e2b2e382f3be185c3d34081f0d0402",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-requirement-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-requirement-population-types",
+      "variant_id": "reject-role-requirement-population-types",
+      "weakened_profile_digest": "d99abf56c06991a8b8260bfd6e0a14e07b5cba15ccbb9a809828027087daa7bc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-requirements-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-requirements-types",
+      "variant_id": "reject-role-requirements-types",
+      "weakened_profile_digest": "3c2922147a3104387ddd955b525e20ac94863042b691584ed40881ddd062c905",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:requirement",
+            "cc:criterion",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/19/allowed_type_terms",
+          "value": [
+            "cc:requirement",
+            "cc:criterion",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-test-locus-identity-kinds",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-role-test-locus-identity-kinds",
+      "variant_id": "reject-role-test-locus-identity-kinds",
+      "weakened_profile_digest": "9fafae08252ea643bf34305239f0fcd4e3c590efa324db5a1f309dc2933cabf2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_identity_kinds",
+          "value": [
+            "repository_path",
+            "code_symbol",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-test-locus-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-test-locus-types",
+      "variant_id": "reject-role-test-locus-types",
+      "weakened_profile_digest": "08e47b442e48d4145a5c412f3539af5e32c04e735db038b4b3ffc3b6378aed9d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:test",
+            "cc:process",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-validated-requirements-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-validated-requirements-types",
+      "variant_id": "reject-role-validated-requirements-types",
+      "weakened_profile_digest": "3c2922147a3104387ddd955b525e20ac94863042b691584ed40881ddd062c905",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:requirement",
+            "cc:criterion",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/19/allowed_type_terms",
+          "value": [
+            "cc:requirement",
+            "cc:criterion",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-validation-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-validation-population-types",
+      "variant_id": "reject-role-validation-population-types",
+      "weakened_profile_digest": "cb6f4bd94400c78c7c1c152273d3b84e7ee0bf5903725095f0122ded93c10888",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/18/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-code-field-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-code-field-types",
+      "variant_id": "reject-role-warning-code-field-types",
+      "weakened_profile_digest": "1d90a5c104975a9d9ecdf8c085f9c438a74bb31866d634ea96989094aae863f5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-code-value-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-code-value-types",
+      "variant_id": "reject-role-warning-code-value-types",
+      "weakened_profile_digest": "3d875ffe0114290f4034817967e4e30287c0ecb57a1ad6d2cd4e5fe73929da12",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:criterion",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-fields-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-fields-types",
+      "variant_id": "reject-role-warning-fields-types",
+      "weakened_profile_digest": "1d90a5c104975a9d9ecdf8c085f9c438a74bb31866d634ea96989094aae863f5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-message-field-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-message-field-types",
+      "variant_id": "reject-role-warning-message-field-types",
+      "weakened_profile_digest": "1d90a5c104975a9d9ecdf8c085f9c438a74bb31866d634ea96989094aae863f5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-message-template-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-message-template-types",
+      "variant_id": "reject-role-warning-message-template-types",
+      "weakened_profile_digest": "052dc0a5c116a35719f40af957c8566a66bd43f3b20e9adefc0a420a40070875",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/16/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:criterion",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-payload-field-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-payload-field-types",
+      "variant_id": "reject-role-warning-payload-field-types",
+      "weakened_profile_digest": "1d90a5c104975a9d9ecdf8c085f9c438a74bb31866d634ea96989094aae863f5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-payload-schema-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-payload-schema-types",
+      "variant_id": "reject-role-warning-payload-schema-types",
+      "weakened_profile_digest": "afb2acf08a57842e36126be71a197a9896754882c9df69abce5e60d19e4237cb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/17/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-severity-field-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-severity-field-types",
+      "variant_id": "reject-role-warning-severity-field-types",
+      "weakened_profile_digest": "1d90a5c104975a9d9ecdf8c085f9c438a74bb31866d634ea96989094aae863f5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-severity-value-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-severity-value-types",
+      "variant_id": "reject-role-warning-severity-value-types",
+      "weakened_profile_digest": "6685324b7fe90efd3a82017427e543ae2bcc34bd388d49f3e711af05f69ac706",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/15/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:criterion",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-shape-mismatch-condition-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "reject-role-warning-shape-mismatch-condition-cardinality",
+      "variant_id": "reject-role-warning-shape-mismatch-condition-cardinality",
+      "weakened_profile_digest": "e6f9cbcfc2cdf6e5a5072581a1c2766a2f63901f23d32855b13ae33b0efaca1d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/22/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-shape-mismatch-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-shape-mismatch-condition-types",
+      "variant_id": "reject-role-warning-shape-mismatch-condition-types",
+      "weakened_profile_digest": "2efe9ab4b87699a7502f4e1be789cb62b8c5e8a6f55f9947745486e0052c5c6a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/22/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-shape-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-shape-population-types",
+      "variant_id": "reject-role-warning-shape-population-types",
+      "weakened_profile_digest": "ece04fa70e3d903a05d548db2e2ed19bfe6750824892a08cc8fed49dd4e15495",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-warning-signal-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-warning-signal-types",
+      "variant_id": "reject-role-warning-signal-types",
+      "weakened_profile_digest": "f73d3a15c7cac455da291757f0db78afe5d20a6c0b64d6d09a342e6561ff687d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:evidence",
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "reject-satisfaction-expression",
+      "variant_id": "reject-satisfaction-expression",
+      "weakened_profile_digest": "525a2937284cfd0b5f2770939187ecf29408b5efd5f328267d838b3eb00e337b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "complete-requirement-population"
+              },
+              {
+                "all_of": [
+                  {
+                    "pattern": "complete-warning-shape"
+                  },
+                  {
+                    "pattern": "complete-required-warning-shape"
+                  },
+                  {
+                    "pattern": "complete-validation-population"
+                  },
+                  {
+                    "pattern": "complete-placeholder-population"
+                  },
+                  {
+                    "pattern": "design-names-grounded-loci"
+                  },
+                  {
+                    "pattern": "implementation-locus-targets-requirements"
+                  },
+                  {
+                    "pattern": "test-locus-targets-implementation"
+                  },
+                  {
+                    "pattern": "warning-signal-contains-shape"
+                  },
+                  {
+                    "pattern": "warning-signal-carries-exact-values"
+                  },
+                  {
+                    "pattern": "warning-code-value-exact"
+                  },
+                  {
+                    "pattern": "warning-severity-value-exact"
+                  },
+                  {
+                    "pattern": "warning-message-template-exact"
+                  },
+                  {
+                    "pattern": "warning-payload-schema-exact"
+                  },
+                  {
+                    "pattern": "warning-shape-includes-required-fields"
+                  },
+                  {
+                    "pattern": "warning-shape-exact"
+                  },
+                  {
+                    "pattern": "validation-covers-all-requirements"
+                  },
+                  {
+                    "pattern": "test-locus-covers-validation"
+                  },
+                  {
+                    "pattern": "placeholder-population-empty"
+                  },
+                  {
+                    "pattern": "warning-shape-verification"
+                  },
+                  {
+                    "pattern": "verification-targets-warning-shape"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

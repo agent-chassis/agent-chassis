@@ -1,0 +1,458 @@
+{
+  "schema_version": "controlled-contract-proof-intent-catalog.v1",
+  "intents": [
+    {
+      "intent_id": "controlled-proof-intent.atomic-failure-boundary",
+      "definition": "Establish that a declared compound operation settles after an injected between-effect failure only in the declared fully committed or fully uncommitted state, never the declared partial state.",
+      "discovery_terms": [
+        "atomic failure",
+        "between-effect failure",
+        "all-or-nothing settlement",
+        "partial state exclusion",
+        "commit rollback boundary"
+      ],
+      "capable_packs": [{ "profile_id": "proof.atomicity.failure-boundary", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [{ "from_intent_id": "controlled-proof-intent.failure-settlement-and-cleanup", "explanation": "This intent excludes partial state for a compound operation after an injected between-effect failure; failure settlement and cleanup establishes terminal failure and cleanup completion without an all-or-nothing state guarantee." }]
+    },
+    {
+      "intent_id": "controlled-proof-intent.failed-attempt-nonconsumption",
+      "definition": "Establish that a refused failed attempt does not consume or alter the declared legitimate authority and that a later valid attempt can still succeed with it.",
+      "discovery_terms": [
+        "failed authorization attempt",
+        "authority nonconsumption",
+        "credential remains usable",
+        "later valid attempt succeeds",
+        "refusal preserves authority"
+      ],
+      "capable_packs": [{ "profile_id": "proof.authorization.failed-attempt-nonconsumption", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [{ "from_intent_id": "controlled-proof-intent.refusal-before-effects", "explanation": "This intent preserves reusable authority across a failed attempt; refusal-before-effects instead constrains protected effects before refusal." }]
+    },
+    {
+      "intent_id": "controlled-proof-intent.refusal-before-effects",
+      "definition": "Establish that one unauthorized attempt is refused before it writes or mutates any member of the complete declared protected-effect population.",
+      "discovery_terms": [
+        "unauthorized refusal",
+        "refusal before effects",
+        "no protected effect before refusal",
+        "denied attempt nonmutation",
+        "authorization failure"
+      ],
+      "capable_packs": [{ "profile_id": "proof.authorization.refusal-before-effects", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [
+        { "from_intent_id": "controlled-proof-intent.failed-attempt-nonconsumption", "explanation": "This intent constrains protected effects before refusal; failed-attempt nonconsumption instead preserves reusable authority and its later usability." },
+        { "from_intent_id": "controlled-proof-intent.bounded-interval-nonmutation", "explanation": "This intent fixes an unauthorized attempt ending in refusal and excludes protected effects before that refusal; bounded-interval nonmutation fixes one actor and explicit interval endpoints without requiring refusal." }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.revocation-propagation",
+      "definition": "Establish that every member of a complete declared consumer population applies one revoked authority state before every complete declared post-revocation attempt population and refuses those attempts without protected effects.",
+      "discovery_terms": [
+        "revocation propagation",
+        "revoked authority consumers",
+        "post-revocation refusal",
+        "consumer invalidation",
+        "revoked credential"
+      ],
+      "capable_packs": [{ "profile_id": "proof.authorization.revocation-propagation", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.cancellation-isolation",
+      "definition": "Establish that cancelling one declared generation reaches its cancelled state without changing the selected resource or authority of another generation, whose distinct attempt later succeeds.",
+      "discovery_terms": [
+        "cancellation isolation",
+        "cancel one generation",
+        "independent generation succeeds",
+        "cross-generation noninterference",
+        "cancelled attempt isolation"
+      ],
+      "capable_packs": [{ "profile_id": "proof.cancellation.isolation", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.behavioral-preservation",
+      "definition": "Establish equal complete typed-observable populations, counts, and one explicitly paired canonical value across baseline and candidate behavior reports whose exact captured bytes are equal.",
+      "discovery_terms": [
+        "behavioral preservation",
+        "baseline candidate behavior",
+        "regression equivalence",
+        "complete behavior reports",
+        "unchanged observable behavior"
+      ],
+      "capable_packs": [{ "profile_id": "proof.compatibility.behavioral-preservation", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v2"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input", "exact_capture_root", "exact_binding_sources"],
+      "exact_binding_required": true,
+      "distinctions": [
+        { "from_intent_id": "controlled-proof-intent.integration-prefix-safety", "explanation": "This intent compares complete baseline and candidate behavior reports; integration-prefix safety quantifies over integration prefixes, execution paths, and required branches." },
+        { "from_intent_id": "controlled-proof-intent.cross-representation-parity", "explanation": "This intent compares baseline and candidate behavior reports and exact captured bytes; cross-representation parity compares two complete representations of one logical source without a baseline-to-candidate preservation claim." }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.lossless-projection",
+      "definition": "Establish that a compact result plus its complete disclosed omission population reconstructs the complete source population and that the documented complete result equals that source population.",
+      "discovery_terms": [
+        "lossless projection",
+        "compact complete reconstruction",
+        "disclosed omissions",
+        "source population recoverability",
+        "compact result completeness"
+      ],
+      "capable_packs": [{ "profile_id": "proof.completeness.lossless-projection", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [
+        { "from_intent_id": "controlled-proof-intent.result-shape-conformance", "explanation": "This intent establishes complete-source recoverability across compact and complete modes; shape conformance establishes membership in one declared result schema." },
+        { "from_intent_id": "controlled-proof-intent.cross-representation-parity", "explanation": "This intent reconstructs one complete source from a compact result and disclosed omissions; parity compares two complete representations of one logical source." }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.single-winner-effect",
+      "definition": "Establish that exactly two overlapping attempts elect one accepted winner producing the sole declared effect and one rejected loser producing none while both observe the same durable resource state.",
+      "discovery_terms": [
+        "single winner",
+        "overlapping attempts",
+        "exactly one accepted",
+        "concurrent loser no effect",
+        "sole durable effect"
+      ],
+      "capable_packs": [{ "profile_id": "proof.concurrency.single-winner-effect", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.implementation-readiness",
+      "definition": "Establish that one authored design unit binds implementation and test loci, a complete nonempty requirement population, an exact warning shape, matching validation coverage, and zero placeholders.",
+      "discovery_terms": [
+        "implementation readiness",
+        "design contract completeness",
+        "implementation and test loci",
+        "zero placeholders",
+        "validation coverage"
+      ],
+      "capable_packs": [{ "profile_id": "proof.design.implementation-readiness", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.dormancy-nonactivation",
+      "definition": "Establish that a directly constructible component is inactive by default, has no activation events, and is unreachable from every declared production entrypoint in exact captured artifacts.",
+      "discovery_terms": [
+        "dormancy",
+        "inactive by default",
+        "nonactivation",
+        "production entrypoint unreachable",
+        "no activation events"
+      ],
+      "capable_packs": [{ "profile_id": "proof.dormancy.nonactivation", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v2"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input", "exact_capture_root", "exact_binding_sources"],
+      "exact_binding_required": true,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.cleanup-noninterference",
+      "definition": "Establish that cleanup after one failed attempt settles without changing the declared independent protected resource or interfering with a distinct successful attempt.",
+      "discovery_terms": [
+        "cleanup noninterference",
+        "failed attempt cleanup",
+        "independent resource unchanged",
+        "distinct attempt succeeds",
+        "cleanup isolation"
+      ],
+      "capable_packs": [{ "profile_id": "proof.failure.cleanup-noninterference", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.retry-convergence",
+      "definition": "Establish that a declared retry sequence following a failed attempt converges to one declared successful terminal state under its bounded retry policy.",
+      "discovery_terms": [
+        "retry convergence",
+        "bounded retry policy",
+        "eventual successful terminal state",
+        "failure then retry success",
+        "retry sequence completion"
+      ],
+      "capable_packs": [{ "profile_id": "proof.failure.retry-convergence", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [{ "from_intent_id": "controlled-proof-intent.idempotent-effect-nonduplication", "explanation": "This intent establishes eventual convergence of a bounded retry sequence; idempotency establishes nonduplication of the elected durable effect across repeated attempts." }]
+    },
+    {
+      "intent_id": "controlled-proof-intent.failure-settlement-and-cleanup",
+      "definition": "Establish that a declared failed attempt reaches its declared terminal settlement and completes its declared cleanup obligations.",
+      "discovery_terms": [
+        "failure settlement and cleanup",
+        "failed attempt terminal settlement",
+        "cleanup obligations complete",
+        "failure lifecycle completion",
+        "settled failure cleanup"
+      ],
+      "capable_packs": [{ "profile_id": "proof.failure.settlement-and-cleanup", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [{ "from_intent_id": "controlled-proof-intent.atomic-failure-boundary", "explanation": "This intent establishes terminal failure and cleanup completion; atomic failure boundary instead excludes a declared partial state for a compound operation after an injected between-effect failure." }]
+    },
+    {
+      "intent_id": "controlled-proof-intent.idempotent-effect-nonduplication",
+      "definition": "Establish that repeated attempts for one idempotency identity produce one elected durable effect without duplication.",
+      "discovery_terms": [
+        "idempotent effect nonduplication",
+        "idempotency identity",
+        "repeated attempts one effect",
+        "duplicate effect prevention",
+        "deduplicated durable effect"
+      ],
+      "capable_packs": [{ "profile_id": "proof.idempotency.effect-nonduplication", "profile_version": "2.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [
+        { "from_intent_id": "controlled-proof-intent.retry-convergence", "explanation": "This intent establishes effect nonduplication across repeated attempts; retry convergence establishes eventual arrival at a successful terminal state." },
+        { "from_intent_id": "controlled-proof-intent.single-use-replay-refusal", "explanation": "This intent permits repeated attempts under one idempotency identity while electing one durable effect; single-use replay refusal requires a successful first use followed by explicit refusal of a later replay." }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.integration-prefix-safety",
+      "definition": "Establish the declared required behavior for every mechanically materialized integration prefix, execution path, and required branch from exact captured integration inputs.",
+      "discovery_terms": [
+        "integration prefix safety",
+        "all integration prefixes",
+        "all execution paths",
+        "all required branches",
+        "prefix census"
+      ],
+      "capable_packs": [{ "profile_id": "proof.integration.prefix-safety", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v2"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input", "exact_capture_root", "exact_binding_sources"],
+      "exact_binding_required": true,
+      "distinctions": [{ "from_intent_id": "controlled-proof-intent.behavioral-preservation", "explanation": "This intent quantifies over integration prefixes, execution paths, and required branches; behavioral preservation compares complete baseline and candidate reports." }]
+    },
+    {
+      "intent_id": "controlled-proof-intent.bounded-state-stability",
+      "definition": "Establish that a selected state remains equal across the endpoints of one declared bounded interval.",
+      "discovery_terms": [
+        "bounded state stability",
+        "state equal at interval endpoints",
+        "endpoint equality",
+        "selected state unchanged",
+        "bounded state comparison"
+      ],
+      "capable_packs": [{ "profile_id": "proof.lifecycle.bounded-state-stability", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.bounded-terminal-stability",
+      "definition": "Establish that a selected terminal state remains terminal and unchanged throughout one declared bounded post-terminal interval.",
+      "discovery_terms": [
+        "bounded terminal stability",
+        "post-terminal interval",
+        "terminal remains terminal",
+        "terminal state unchanged",
+        "stable terminal state"
+      ],
+      "capable_packs": [{ "profile_id": "proof.lifecycle.bounded-terminal-stability", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.visibility-after-durable-settlement",
+      "definition": "Establish that a declared observation after durable settlement sees the declared settled state.",
+      "discovery_terms": [
+        "visibility after durable settlement",
+        "post-settlement observation",
+        "read after durable write",
+        "settled state visible",
+        "durability visibility ordering"
+      ],
+      "capable_packs": [{ "profile_id": "proof.ordering.visibility-after-durable-settlement", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.exact-ownership-isolation",
+      "definition": "Establish exact isolation of the selected ownership identity and its protected resources from a distinct owner or execution.",
+      "discovery_terms": [
+        "exact ownership isolation",
+        "distinct owner isolation",
+        "protected resources ownership",
+        "cross-execution isolation",
+        "owner identity separation"
+      ],
+      "capable_packs": [{ "profile_id": "proof.ownership.exact-isolation", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.fenced-handoff",
+      "definition": "Establish that ownership handoff is fenced so the prior owner cannot perform the declared protected action after the successor acquires ownership.",
+      "discovery_terms": [
+        "fenced handoff",
+        "ownership transfer fence",
+        "prior owner blocked",
+        "successor acquires ownership",
+        "stale owner refusal"
+      ],
+      "capable_packs": [{ "profile_id": "proof.ownership.fenced-handoff", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.readiness-before-success",
+      "definition": "Establish that the declared readiness condition is reached before the declared success event or result.",
+      "discovery_terms": [
+        "readiness before success",
+        "ready prior to success",
+        "initialization ordering",
+        "success requires readiness",
+        "readiness event ordering"
+      ],
+      "capable_packs": [{ "profile_id": "proof.readiness.before-success", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.result-shape-conformance",
+      "definition": "Establish that one complete observed result population contains every required typed member, only allowed members, no forbidden members, and an allowed shape with the exact emitted count.",
+      "discovery_terms": [
+        "result shape conformance",
+        "required result members",
+        "allowed and forbidden members",
+        "exact emitted count",
+        "single result schema"
+      ],
+      "capable_packs": [{ "profile_id": "proof.result-shape.conformance", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [{ "from_intent_id": "controlled-proof-intent.lossless-projection", "explanation": "This intent checks one result against its declared allowed shape; lossless projection checks complete-source recoverability across compact and complete modes." }]
+    },
+    {
+      "intent_id": "controlled-proof-intent.cross-representation-parity",
+      "definition": "Establish equal complete typed-member populations, counts, and one explicitly paired canonical value across two complete representations of one logical source.",
+      "discovery_terms": [
+        "cross representation parity",
+        "two complete representations",
+        "equal typed members",
+        "paired canonical value",
+        "representation equivalence"
+      ],
+      "capable_packs": [{ "profile_id": "proof.result-shape.cross-representation-parity", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [
+        { "from_intent_id": "controlled-proof-intent.lossless-projection", "explanation": "This intent compares two complete representations; lossless projection reconstructs a complete source from a compact result and disclosed omissions." },
+        { "from_intent_id": "controlled-proof-intent.behavioral-preservation", "explanation": "This intent compares two complete representations of one logical source; behavioral preservation compares baseline and candidate behavior reports and binds their exact captured bytes." }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.write-confinement",
+      "definition": "Establish that every member of the complete caller-declared observed mutation population belongs to the complete caller-declared authorized target population.",
+      "discovery_terms": [
+        "write confinement",
+        "authorized target population",
+        "observed mutations subset",
+        "no out-of-scope writes",
+        "mutation scope"
+      ],
+      "capable_packs": [{ "profile_id": "proof.scope.write-confinement", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.single-use-replay-refusal",
+      "definition": "Establish that a first authorized single-use attempt succeeds once and that a later replay is refused without another elected effect or resource-state change.",
+      "discovery_terms": [
+        "single use replay refusal",
+        "replay prevention",
+        "first use succeeds once",
+        "later replay refused",
+        "consumed token replay"
+      ],
+      "capable_packs": [{ "profile_id": "proof.single-use.replay-refusal", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [{ "from_intent_id": "controlled-proof-intent.idempotent-effect-nonduplication", "explanation": "This intent requires a successful first single use and explicit refusal of a later replay without another effect; idempotent nonduplication permits repeated attempts while electing one durable effect." }]
+    },
+    {
+      "intent_id": "controlled-proof-intent.bounded-interval-nonmutation",
+      "definition": "Establish that one declared actor neither writes nor mutates any member of a complete exact protected-resource population during one declared bounded interval.",
+      "discovery_terms": [
+        "bounded interval nonmutation",
+        "actor interval nonmutation",
+        "protected resources unchanged",
+        "no writes during interval",
+        "explicit start and end events"
+      ],
+      "capable_packs": [{ "profile_id": "proof.state.bounded-interval-nonmutation", "profile_version": "1.0.0" }],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [{ "from_intent_id": "controlled-proof-intent.refusal-before-effects", "explanation": "This intent fixes one actor and explicit interval endpoints and excludes mutation throughout that interval; refusal-before-effects fixes an unauthorized attempt ending in refusal and excludes protected effects before refusal." }]
+    },
+    {
+      "intent_id": "controlled-proof-intent.protected-effect-nonmutation",
+      "definition": "Establish nonmutation of a complete declared protected-effect population within an explicit bounded interval, using either an unauthorized-attempt-before-refusal proof shape or an actor-and-interval nonmutation proof shape.",
+      "discovery_terms": [
+        "protected effect nonmutation",
+        "unauthorized or actor interval",
+        "ambiguous nonmutation proof shape",
+        "complete protected effect population",
+        "refusal or bounded interval"
+      ],
+      "capable_packs": [
+        { "profile_id": "proof.authorization.refusal-before-effects", "profile_version": "1.0.0" },
+        { "profile_id": "proof.state.bounded-interval-nonmutation", "profile_version": "1.0.0" }
+      ],
+      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
+      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "exact_binding_required": false,
+      "distinctions": [
+        { "from_intent_id": "controlled-proof-intent.refusal-before-effects", "explanation": "This broader intent leaves the interval proof shape unresolved; refusal-before-effects fixes it to an unauthorized attempt ending in refusal." },
+        { "from_intent_id": "controlled-proof-intent.bounded-interval-nonmutation", "explanation": "This broader intent leaves the interval proof shape unresolved; bounded-interval nonmutation fixes it to one actor and explicit start/end events." }
+      ]
+    }
+  ]
+}

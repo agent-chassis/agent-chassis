@@ -1,0 +1,719 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-assessment.v1.schema.json",
+  "title": "controlled-contract-assessment.v1",
+  "description": "A deterministic, non-authoritative planning projection of authored controlled-contract structure, repository anchoring, and admitted proof-profile discrimination. It cannot discover omitted obligations; repository grounding does not establish identity existence or honesty; delivered runtime behavior is outside its scope; and clean structure alone does not establish implementation readiness.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "assessment_identity",
+    "structure",
+    "profile_discrimination",
+    "assessment_scope",
+    "residue_status",
+    "authority",
+    "overall_code",
+    "verification_scope",
+    "categorical_limits",
+    "profile_guarantee",
+    "matched_profile_covered_claims",
+    "structurally_verified_claim_edges",
+    "mandatory_claim_categories",
+    "repository_grounding",
+    "proof_exclusions",
+    "diagnostics",
+    "residue",
+    "review_signals",
+    "review_actions",
+    "required_next_evidence",
+    "digests",
+    "lossless_report"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "controlled-contract-assessment.v1"
+    },
+    "assessment_identity": { "$ref": "#/$defs/sha256" },
+    "structure": {
+      "type": "string",
+      "enum": ["proven", "not_proven", "invalid"]
+    },
+    "profile_discrimination": {
+      "type": "string",
+      "enum": ["proven", "not_proven", "not_assessed"]
+    },
+    "exact_binding": {
+      "type": "string",
+      "enum": ["proven", "not_proven", "not_applicable"]
+    },
+    "assessment_scope": { "const": "planning" },
+    "residue_status": {
+      "type": "string",
+      "enum": [
+        "none",
+        "review_required",
+        "resolution_required",
+        "review_and_resolution_required"
+      ]
+    },
+    "authority": { "const": "non_authoritative" },
+    "overall_code": {
+      "type": "string",
+      "pattern": "^structure_(?:proven|not_proven|invalid)__profile_(?:proven|not_proven|not_assessed)(?:__exact_binding_(?:proven|not_proven))?__residue_(?:none|review_required|resolution_required|review_and_resolution_required)$"
+    },
+    "verification_scope": {
+      "type": "object",
+      "required": [
+        "graph_edge_coverage",
+        "proof_plan_discrimination"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "graph_edge_coverage": {
+          "type": "string",
+          "enum": ["assessed", "not_assessed"]
+        },
+        "proof_plan_discrimination": {
+          "type": "string",
+          "enum": ["assessed_by_admitted_profile", "not_assessed"]
+        },
+        "exact_binding_capture": {
+          "type": "string",
+          "enum": ["assessed_by_deterministic_capture", "not_applicable"]
+        }
+      }
+    },
+    "categorical_limits": {
+      "type": "object",
+      "required": [
+        "omitted_obligations",
+        "repository_grounding",
+        "runtime_behavior",
+        "implementation_readiness"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "omitted_obligations": {
+          "const": "The checker cannot discover an obligation omitted from the authored contract."
+        },
+        "repository_grounding": {
+          "const": "Repository grounding means only that the authored proposition references a repository_path or code_symbol identity. It does not establish that the identity exists or is honest, or that the claim is true."
+        },
+        "runtime_behavior": {
+          "const": "Delivered runtime behavior is outside this planning assessment."
+        },
+        "implementation_readiness": {
+          "const": "A clean structural assessment is not, by itself, proof that a WK is implementation-ready."
+        }
+      }
+    },
+    "profile_guarantee": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": [
+            "profile_id",
+            "profile_version",
+            "guarantee",
+            "scope_statement"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "profile_id": { "type": "string", "minLength": 1 },
+            "profile_version": { "type": "string", "minLength": 1 },
+            "guarantee": { "type": "string", "minLength": 1 },
+            "scope_statement": {
+              "const": "Proven means only that the authored controlled graph satisfied this admitted, adequacy-verified profile. It does not establish runtime truth."
+            }
+          }
+        }
+      ]
+    },
+    "matched_profile_covered_claims": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/profile_covered_claim" }
+    },
+    "structurally_verified_claim_edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/verified_edge" }
+    },
+    "mandatory_claim_categories": {
+      "type": "object",
+      "required": [
+        "matched_profile_covered",
+        "structurally_verified_outside_profile",
+        "outside_selected_profile"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "matched_profile_covered": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mandatory_claim" }
+        },
+        "structurally_verified_outside_profile": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mandatory_claim" }
+        },
+        "outside_selected_profile": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mandatory_claim" }
+        }
+      }
+    },
+    "repository_grounding": { "$ref": "#/$defs/repository_grounding" },
+    "proof_exclusions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["exclusion_id", "adequacy_control_outcome"],
+        "additionalProperties": false,
+        "properties": {
+          "exclusion_id": { "type": "string", "minLength": 1 },
+          "adequacy_control_outcome": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "detail"],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "structural_schema",
+              "structural_validation",
+              "structural_decomposition",
+              "admitted_profile_evaluation",
+              "assessment_binding"
+            ]
+          },
+          "detail": { "type": "object" }
+        }
+      }
+    },
+    "residue": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/residue" }
+    },
+    "review_signals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/review_signal" }
+    },
+    "review_actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" }
+    },
+    "required_next_evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" }
+    },
+    "digests": { "$ref": "#/$defs/digests" },
+    "lossless_report": {
+      "type": "object",
+      "required": ["content_reference", "files"],
+      "additionalProperties": false,
+      "properties": {
+        "content_reference": {
+          "type": "string",
+          "pattern": "^controlled-contract-assessment://sha256/[a-f0-9]{64}/manifest\\.json$"
+        },
+        "files": {
+          "oneOf": [
+            {
+              "type": "array",
+              "prefixItems": [
+                { "const": "assessment.json" },
+                { "const": "assessment.md" },
+                { "const": "structural.full.json" },
+                { "const": "admitted-proof.full.json" },
+                { "const": "proof-pack-admission.full.json" },
+                { "const": "manifest.json" }
+              ],
+              "items": false,
+              "minItems": 6,
+              "maxItems": 6
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                { "const": "assessment.json" },
+                { "const": "assessment.md" },
+                { "const": "structural.full.json" },
+                { "const": "admitted-proof.full.json" },
+                { "const": "proof-pack-admission.full.json" },
+                { "const": "exact-binding.full.json" },
+                { "const": "manifest.json" }
+              ],
+              "items": false,
+              "minItems": 7,
+              "maxItems": 7
+            }
+          ]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "exact_binding": { "const": "not_proven" } },
+        "required": ["exact_binding"]
+      },
+      "then": {
+        "properties": { "profile_discrimination": { "const": "not_proven" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "exact_binding": { "const": "proven" } },
+        "required": ["exact_binding"]
+      },
+      "then": {
+        "properties": {
+          "verification_scope": {
+            "type": "object",
+            "properties": {
+              "exact_binding_capture": {
+                "const": "assessed_by_deterministic_capture"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "profile_discrimination": { "const": "proven" } },
+        "required": ["profile_discrimination"]
+      },
+      "then": {
+        "properties": {
+          "structure": { "const": "proven" },
+          "profile_guarantee": { "type": "object" },
+          "verification_scope": {
+            "type": "object",
+            "properties": {
+              "proof_plan_discrimination": {
+                "const": "assessed_by_admitted_profile"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "profile_discrimination": { "const": "not_assessed" }
+        },
+        "required": ["profile_discrimination"]
+      },
+      "then": {
+        "properties": {
+          "profile_guarantee": { "type": "null" },
+          "verification_scope": {
+            "type": "object",
+            "properties": {
+              "proof_plan_discrimination": { "const": "not_assessed" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "residue_status": { "const": "none" } },
+        "required": ["residue_status"]
+      },
+      "then": {
+        "properties": { "residue": { "type": "array", "maxItems": 0 } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "residue_status": { "const": "review_required" } },
+        "required": ["residue_status"]
+      },
+      "then": {
+        "properties": {
+          "residue": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/residue" },
+                {
+                  "type": "object",
+                  "properties": { "reason": { "const": "review_only" } }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "residue_status": { "const": "resolution_required" } },
+        "required": ["residue_status"]
+      },
+      "then": {
+        "properties": {
+          "residue": {
+            "type": "array",
+            "minItems": 1,
+            "not": {
+              "contains": {
+                "type": "object",
+                "properties": { "reason": { "const": "review_only" } },
+                "required": ["reason"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "residue_status": { "const": "review_and_resolution_required" }
+        },
+        "required": ["residue_status"]
+      },
+      "then": {
+        "properties": {
+          "residue": {
+            "type": "array",
+            "contains": {
+              "type": "object",
+              "properties": { "reason": { "const": "review_only" } },
+              "required": ["reason"]
+            },
+            "allOf": [
+              {
+                "type": "array",
+                "contains": {
+                  "type": "object",
+                  "properties": { "reason": { "not": { "const": "review_only" } } },
+                  "required": ["reason"]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "profile_covered_claim": {
+      "type": "object",
+      "required": ["claim_id", "pattern_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": { "type": "string", "minLength": 1 },
+        "pattern_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "verified_edge": {
+      "type": "object",
+      "required": [
+        "relation_id",
+        "source_verification_claim_id",
+        "target_claim_id",
+        "scope_statement"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "relation_id": { "type": "string", "minLength": 1 },
+        "source_verification_claim_id": { "type": "string", "minLength": 1 },
+        "target_claim_id": { "type": "string", "minLength": 1 },
+        "scope_statement": {
+          "const": "This is an authored structural verifies edge; it is not runtime evidence."
+        }
+      }
+    },
+    "mandatory_claim": {
+      "type": "object",
+      "required": [
+        "claim_id",
+        "kind",
+        "modality",
+        "proposition_id",
+        "profile_pattern_ids",
+        "structural_verification_edge_ids"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["behavior", "evidence", "verification"]
+        },
+        "modality": { "type": "string", "enum": ["MUST", "MUST_NOT"] },
+        "proposition_id": { "type": "string", "minLength": 1 },
+        "profile_pattern_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "structural_verification_edge_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "repository_grounding": {
+      "type": "object",
+      "required": [
+        "status",
+        "scope_statement",
+        "grounded_mandatory_behavior_claim_ids",
+        "ungrounded_mandatory_behavior_claim_ids",
+        "grounded_count",
+        "total_mandatory_behavior_count",
+        "claims"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string", "enum": ["all", "some", "none"] },
+        "scope_statement": {
+          "const": "Repository grounding means only that the authored proposition references a repository_path or code_symbol identity. It does not establish that the identity exists or is honest, or that the claim is true."
+        },
+        "grounded_mandatory_behavior_claim_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "ungrounded_mandatory_behavior_claim_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "grounded_count": { "type": "integer", "minimum": 0 },
+        "total_mandatory_behavior_count": { "type": "integer", "minimum": 0 },
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["claim_id", "proposition_id", "repository_reference_ids"],
+            "additionalProperties": false,
+            "properties": {
+              "claim_id": { "type": "string", "minLength": 1 },
+              "proposition_id": { "type": "string", "minLength": 1 },
+              "repository_reference_ids": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "review_signal": {
+      "type": "object",
+      "required": [
+        "code",
+        "collection_id",
+        "member_claim_ids",
+        "shared_verification_claim_ids",
+        "shared_falsifying_proposition_ids",
+        "scope_statement"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "const": "shared_falsifier_scope_review" },
+        "collection_id": { "type": "string", "minLength": 1 },
+        "member_claim_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "shared_verification_claim_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "shared_falsifying_proposition_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "scope_statement": {
+          "const": "Members without an exclusive falsifier are a review signal only. Shared verification may legitimately cover related behaviors; profile-specific adequacy remains the responsibility of an admitted proof pack."
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "code",
+        "remediation_code",
+        "description",
+        "subject_ids",
+        "claim_ids",
+        "population_reference_ids",
+        "collection_ids",
+        "applicability_contexts",
+        "required_bindings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "remediation_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "description": { "type": "string", "minLength": 1 },
+        "subject_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "claim_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "population_reference_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "collection_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "applicability_contexts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["mode", "operand_reference_ids"],
+            "properties": {
+              "mode": { "type": "string", "minLength": 1 },
+              "operand_reference_ids": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
+        "required_bindings": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "accepted_membership_operators": {
+          "type": "array",
+          "const": ["reference:contains", "reference:member_of"]
+        },
+        "declared_member_reference_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "membership_claim_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "declared_cardinality": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 0 }
+          ]
+        },
+        "declared_cardinality_values": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 }
+        },
+        "observed_member_count": {
+          "type": "integer", "minimum": 0
+        }
+      }
+    },
+    "residue": {
+      "type": "object",
+      "required": ["residue_id", "reason", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "residue_id": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 },
+        "candidate_concept": { "type": "string", "minLength": 1 }
+      }
+    },
+    "source_digests": {
+      "type": "object",
+      "required": [
+        "contract",
+        "evaluation_input",
+        "profile",
+        "admission",
+        "guarantee",
+        "adequacy_declaration",
+        "adequacy_result",
+        "structural_schema",
+        "assessment_schema",
+        "assessment_format"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "contract": { "$ref": "#/$defs/sha256" },
+        "evaluation_input": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "profile": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "admission": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "guarantee": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "adequacy_declaration": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "adequacy_result": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "exact_binding_sources": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "exact_binding_declaration": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "exact_binding_certification": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "structural_schema": { "$ref": "#/$defs/sha256" },
+        "assessment_schema": { "$ref": "#/$defs/sha256" },
+        "assessment_format": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "digests": {
+      "type": "object",
+      "required": ["algorithm", "source", "results"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": { "const": "sha256-canonical-json-v1" },
+        "source": { "$ref": "#/$defs/source_digests" },
+        "results": {
+          "type": "object",
+          "required": ["structural", "admitted_profile", "proof_pack_admission"],
+          "additionalProperties": false,
+          "properties": {
+            "structural": { "$ref": "#/$defs/sha256" },
+            "admitted_profile": {
+              "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+            },
+            "proof_pack_admission": {
+              "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+            },
+            "exact_binding": {
+              "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+            }
+          }
+        }
+      }
+    }
+  }
+}

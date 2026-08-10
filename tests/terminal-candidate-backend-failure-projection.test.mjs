@@ -201,12 +201,13 @@ function publicProjection(result) {
   return result.refusal.refusal.detail.recovery_detail;
 }
 
-function assertPreSpawnRefusal(result, expected) {
+function assertPreSpawnRefusal(result, expected,
+  expectedReason = "terminal_candidate_recovery_failed") {
   assert.equal(result.ok, false);
   assert.equal(result.refusal.accepted, false);
   assert.equal(result.refusal.refusal.code, "validation_failure");
   assert.equal(result.refusal.refusal.reason, "managed_lifecycle_required");
-  assert.equal(result.refusal.refusal.detail.reason, "terminal_candidate_recovery_failed");
+  assert.equal(result.refusal.refusal.detail.reason, expectedReason);
   assert.equal(result.refusal.refusal.detail.recovery_code, expected.code);
   assert.equal(result.refusal.refusal.detail.message, expected.message);
   assert.deepEqual(publicProjection(result), expected);
@@ -261,7 +262,9 @@ test("WK-1783 exact production runner authenticates a real Git failure for the b
       { git_operation: "for-each-ref", git_status: 128 }
     );
     assert.deepEqual(projectAuthenticatedTerminalCandidateFailure(error), expected);
-    assertPreSpawnRefusal(await refuseThrown(error), expected);
+
+    assertPreSpawnRefusal(await refuseThrown(error), expected,
+      "terminal_candidate_recovery_construction_failed");
     const serialized = JSON.stringify(await refuseThrown(error));
     for (const forbidden of [mainRepo, marker, "fatal:", "stderr", "stdout", "cause", "stack"]) {
       assert.equal(serialized.includes(forbidden), false);

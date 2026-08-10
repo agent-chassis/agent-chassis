@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import test from "node:test";
@@ -25,7 +25,10 @@ test("WK-0784 materialized wiki/work-records/WK-0001.json matches the standalone
       repo: "agent-chassis/app-demo",
       date: written.created
     });
-    const keepExisting = (docs) => docs.filter((doc) => existsSync(path.join(tempDir, doc)));
+
+    const keepExisting = (docs) => docs.filter(
+      (doc) => doc !== "wiki/work-records/WK-0001.json" && existsSync(path.join(tempDir, doc))
+    );
     expected.read_scope = keepExisting(expected.read_scope);
     for (const slice of expected.slices) {
       slice.read_scope = keepExisting(slice.read_scope);
@@ -76,8 +79,8 @@ test("WK-0784 fresh bootstrap seeds the AGENTS boilerplate helper template and d
 
     assert.deepEqual(
       repoLocalAgents.read_scope,
-      ["wiki/templates/AGENTS.md.boilerplate.md", "docs/adoption.md"],
-      "materialized SLICE-001 read_scope must keep the seeded AGENTS helper and docs/adoption.md"
+      ["wiki/templates/AGENTS.md.boilerplate.md"],
+      "materialized SLICE-001 read_scope must keep only the seeded AGENTS helper"
     );
 
     const rerun = await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/app-demo" });
@@ -89,57 +92,58 @@ test("WK-0784 fresh bootstrap seeds the AGENTS boilerplate helper template and d
   });
 });
 
-test("WK-0795 fresh bootstrap seeds docs/adoption.md from the package template with the repo substituted", async () => {
+test("WK-1994 fresh bootstrap creates no docs/adoption.md and reports no adoption-guide field", async () => {
   await withTempDir(async (tempDir) => {
     const result = await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/app-demo" });
 
-    assert.ok(result.adoptionDoc, "bootstrapRepo must report adoptionDoc");
-    assert.equal(result.adoptionDoc.path, "docs/adoption.md");
-    assert.equal(result.adoptionDoc.state, "created");
-
-    const docPath = path.join(tempDir, "docs", "adoption.md");
-    assert.ok(existsSync(docPath), "bootstrap must seed docs/adoption.md");
-    const doc = readFileSync(docPath, "utf8");
-
-    assert.ok(doc.includes("agent-chassis/app-demo"), "seeded doc must substitute {{REPO}} with the repo id");
-    assert.ok(!doc.includes("{{REPO}}"), "seeded doc must not leave {{REPO}} unresolved");
-
-    assert.match(doc, /npx -p @agent-chassis\/wiki-cli wiki /, "seeded doc must show the canonical command form");
-
     assert.ok(
-      doc.includes("wiki/work-records/WK-*.json"),
-      "seeded doc must name wiki/work-records/WK-*.json as canonical work-record authority"
-    );
-    assert.doesNotMatch(
-      doc,
-      /`wiki\/issues\/WK-\*\.md` is (the )?canonical/i,
-      "seeded doc must NOT claim wiki/issues/WK-*.md is canonical work authority"
+      !existsSync(path.join(tempDir, "docs", "adoption.md")),
+      "bootstrap must not create a consumer-local docs/adoption.md"
     );
 
-    assert.match(doc, /<!--\s*wiki:\s*id=WK-0001/, "seeded doc must carry the WK-0001 backlink for reciprocity");
-
-    assert.ok(doc.includes("wiki/.wiki-mcp.json"), "seeded doc must describe wiki/.wiki-mcp.json local metadata");
+    const guideFields = Object.keys(result).filter((key) =>
+      /adoption[-_]?(doc|guide)/i.test(key)
+    );
+    assert.deepEqual(
+      guideFields,
+      [],
+      "the bootstrap result must carry no adoption-guide field"
+    );
   });
 });
 
-test("WK-0795 bootstrap rerun preserves a customized docs/adoption.md (create-if-missing)", async () => {
+test("WK-1994 the wiki-core adoption-guide template is not shipped", () => {
+  const packageTemplatesDir = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../packages/wiki-core/templates"
+  );
+
+  const adoptionGuideTemplates = readdirSync(packageTemplatesDir).filter((name) =>
+    /^adoption\b/i.test(name)
+  );
+  assert.deepEqual(
+    adoptionGuideTemplates,
+    [],
+    `no shipped wiki-core template may render a consumer adoption guide; found ${adoptionGuideTemplates.join(", ")}`
+  );
+});
+
+test("WK-1994 bootstrap rerun neither inspects nor deletes a consumer-authored docs/adoption.md", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/app-demo" });
 
-    const docPath = path.join(tempDir, "docs", "adoption.md");
-    const customized = "# Custom adoption guide\n\nRepo-specific operating notes.\n";
-    await writeFile(docPath, customized, "utf8");
+    const docsDir = path.join(tempDir, "docs");
+    await mkdir(docsDir, { recursive: true });
+    const docPath = path.join(docsDir, "adoption.md");
+    const authored = "# Our own adoption notes\n\nRepo-specific operating notes.\n";
+    await writeFile(docPath, authored, "utf8");
 
-    const rerun = await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/app-demo" });
-    assert.equal(
-      rerun.adoptionDoc.state,
-      "kept",
-      "rerun must report the customized docs/adoption.md as kept"
-    );
+    await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/app-demo" });
+
     assert.equal(
       readFileSync(docPath, "utf8"),
-      customized,
-      "bootstrap rerun must not overwrite a customized docs/adoption.md"
+      authored,
+      "bootstrap rerun must leave a consumer-authored docs/adoption.md byte-identical"
     );
   });
 });

@@ -1,0 +1,166 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "ref-operation"
+      ]
+    },
+    {
+      "role": "owned_resource",
+      "reference_ids": [
+        "ref-owned-resource"
+      ]
+    },
+    {
+      "role": "legitimate_owner",
+      "reference_ids": [
+        "ref-legitimate-owner"
+      ]
+    },
+    {
+      "role": "foreign_subject",
+      "reference_ids": [
+        "ref-foreign-subject"
+      ]
+    },
+    {
+      "role": "legitimate_authority",
+      "reference_ids": [
+        "ref-legitimate-authority"
+      ]
+    },
+    {
+      "role": "foreign_attempt",
+      "reference_ids": [
+        "ref-foreign-attempt"
+      ]
+    },
+    {
+      "role": "protected_interval",
+      "reference_ids": [
+        "ref-protected-interval"
+      ]
+    },
+    {
+      "role": "refusal",
+      "reference_ids": [
+        "ref-refusal"
+      ]
+    },
+    {
+      "role": "authority_state_before",
+      "reference_ids": [
+        "ref-authority-state-before"
+      ]
+    },
+    {
+      "role": "authority_state_after_refusal",
+      "reference_ids": [
+        "ref-authority-state-after-refusal"
+      ]
+    },
+    {
+      "role": "authority_observation_before",
+      "reference_ids": [
+        "ref-authority-observation-before"
+      ]
+    },
+    {
+      "role": "authority_observation_after",
+      "reference_ids": [
+        "ref-authority-observation-after"
+      ]
+    },
+    {
+      "role": "later_valid_attempt",
+      "reference_ids": [
+        "ref-later-valid-attempt"
+      ]
+    },
+    {
+      "role": "later_valid_result",
+      "reference_ids": [
+        "ref-later-valid-result"
+      ]
+    },
+    {
+      "role": "later_result_state",
+      "reference_ids": [
+        "ref-later-result-state"
+      ]
+    },
+    {
+      "role": "expected_success_state",
+      "reference_ids": [
+        "ref-expected-success-state"
+      ]
+    },
+    {
+      "role": "result_observation",
+      "reference_ids": [
+        "ref-result-observation"
+      ]
+    },
+    {
+      "role": "success_criterion",
+      "reference_ids": [
+        "ref-success-criterion"
+      ]
+    },
+    {
+      "role": "write_verification",
+      "reference_ids": [
+        "ref-write-verification"
+      ]
+    },
+    {
+      "role": "mutation_verification",
+      "reference_ids": [
+        "ref-mutation-verification"
+      ]
+    },
+    {
+      "role": "nonconsumption_verification",
+      "reference_ids": [
+        "ref-nonconsumption-verification"
+      ]
+    },
+    {
+      "role": "later_success_verification",
+      "reference_ids": [
+        "ref-later-success-verification"
+      ]
+    },
+    {
+      "role": "foreign_write_condition",
+      "reference_ids": [
+        "ref-foreign-write-condition"
+      ]
+    },
+    {
+      "role": "foreign_mutation_condition",
+      "reference_ids": [
+        "ref-foreign-mutation-condition"
+      ]
+    },
+    {
+      "role": "authority_consumption_condition",
+      "reference_ids": [
+        "ref-authority-consumption-condition"
+      ]
+    },
+    {
+      "role": "later_failure_condition",
+      "reference_ids": [
+        "ref-later-failure-condition"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

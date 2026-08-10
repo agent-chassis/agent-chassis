@@ -25,15 +25,36 @@ function gatherText(obj) {
 const RETIRED_ADOPTION_REVIEW_UNIT =
   /adoption-verify review|adoption readiness review|findings-only adoption|Tracker for the IN-0001 adoption readiness/i;
 
-test("WK-1747 WK-0001 seeds only the canonical AGENTS.md implementation slice", () => {
+function assertCandidatePortableTerminalReview(record, label) {
+  const terminal = record.slices.find((slice) => slice.id === "SLICE-002");
+  const text = gatherText(terminal.acceptance);
+  assert.doesNotMatch(text, /\bnpx\b|\bnpm run\b|wiki\s+(?:lint|adoption verify)|agent-chassis setup/i);
+  assert.doesNotMatch(text, /verify adoption readiness/i);
+  assert.match(text, /review only candidate-portable facts/i);
+  assert.match(text, /exact candidate diff.*root `AGENTS\.md` content.*canonical seeded contracts visible in the candidate/is);
+  assert.match(text, /placeholder removal.*repository adaptation.*canonical-layer claims are factual/is);
+  assert.match(text, /do not rerun coordinator-only lint, adoption verification, graph-impact, dispatch-readiness, or launcher\/setup checks/i);
+  assert.match(text, /absent gitignored, cached, generated, or empty setup surfaces/i);
+  for (const surface of [
+    ".agent-launch/",
+    "wiki/.wiki-mcp.json",
+    ".cache/wiki-search/",
+    "docs/",
+    "empty wiki directories"
+  ]) {
+    assert.ok(text.includes(surface), `${label} must exclude missing ${surface} from findings`);
+  }
+}
+
+test("WK-2014 WK-0001 seeds the AGENTS.md implementation and terminal review slices", () => {
   const tracker = getWk0001Tracker();
   const slices = tracker.slices ?? [];
   const byId = Object.fromEntries(slices.map((slice) => [slice.id, slice]));
 
   assert.deepEqual(
     slices.map((slice) => slice.id),
-    ["SLICE-001"],
-    "WK-0001 must seed only the canonical SLICE-001 AGENTS.md implementation slice"
+    ["SLICE-001", "SLICE-002"],
+    "WK-0001 must seed SLICE-001 implementation followed by SLICE-002 terminal review"
   );
   for (const slice of slices) {
     assert.match(
@@ -59,12 +80,24 @@ test("WK-1747 WK-0001 seeds only the canonical AGENTS.md implementation slice", 
   assert.match(agentsAcceptance, /\[repo-name\]|bracketed placeholder/i, "SLICE-001 acceptance must forbid leftover placeholders");
   assert.match(agentsAcceptance, /not a blind copy|not.*copied verbatim/i, "SLICE-001 acceptance must forbid a blind copy");
   assert.match(agentsAcceptance, /unsupported.*(tool|canonical)/i, "SLICE-001 acceptance must require removing unsupported tool/canonical-layer claims");
+  assert.match(agentsAcceptance, /accurate positive inventory of adopted repository surfaces/i);
+  assert.match(agentsAcceptance, /bootstrap-established canonical wiki\/work-record coordination and structured wiki MCP capability/i);
+  assert.match(agentsAcceptance, /does not claim a populated `docs\/` tree.*not guaranteed by the seed/i);
 
   assert.match(
     agentsAcceptance,
-    /mandatory findings-only review/i,
+    /mandatory (?:slice-level )?findings-only review/i,
     "SLICE-001 acceptance must retain explicit mandatory findings-only review"
   );
+
+  const terminalReview = byId["SLICE-002"];
+  assert.equal(terminalReview.work_kind, "review");
+  assert.equal(terminalReview.review_purpose, "terminal_whole_wk");
+  assert.deepEqual(terminalReview.write_scope, []);
+  assert.deepEqual(terminalReview.depends_on, ["WK-0001#SLICE-001"]);
+  assert.equal(terminalReview.dispatch_intent.intended_agent_role, "reviewer");
+  assert.ok(!terminalReview.read_scope.includes("agent-launch.toml"));
+  assertCandidatePortableTerminalReview(tracker, "static WK-0001 seed");
   assert.match(
     gatherText(tracker.acceptance),
     /mandatory findings-only review/i,
@@ -78,6 +111,10 @@ test("WK-1747 WK-0001 seeds only the canonical AGENTS.md implementation slice", 
     ["AGENTS.md"],
     "WK-0001 write_scope must cover the seeded AGENTS.md implementation slice"
   );
+  for (const command of tracker.acceptance.validation) {
+    assert.match(command, /^Coordinator-only; run from the configured repository root;/);
+    assert.match(command, /not a terminal-review command or findings criterion:/);
+  }
 });
 
 test("WK-1402 WK-0001 seed teaches the advisory AGENTS.md worker-dispatch flow", () => {
@@ -156,15 +193,25 @@ test("WK-1747 WK-0001 materializes as a canonical valid tracker", () => {
     [],
     "materialized WK-0001 must pass canonical work-record validation"
   );
-  assert.deepEqual(materialized.slices.map((slice) => slice.id), ["SLICE-001"]);
+  assert.deepEqual(materialized.slices.map((slice) => slice.id), ["SLICE-001", "SLICE-002"]);
   assert.equal(materialized.slices[0].work_kind, "implementation");
   assert.deepEqual(materialized.slices[0].write_scope, ["AGENTS.md"]);
   assert.equal(materialized.slices[0].dispatch_intent.intended_agent_role, "worker");
+  assert.equal(materialized.slices[1].work_kind, "review");
+  assert.equal(materialized.slices[1].review_purpose, "terminal_whole_wk");
+  assert.deepEqual(materialized.slices[1].write_scope, []);
+  assert.equal(materialized.slices[1].dispatch_intent.intended_agent_role, "reviewer");
+  assertCandidatePortableTerminalReview(materialized, "materialized WK-0001");
 
   assert.match(
     gatherText(materialized.slices[0].acceptance),
-    /mandatory findings-only review/i,
+    /mandatory (?:slice-level )?findings-only review/i,
     "the materialized SLICE-001 must retain explicit mandatory findings-only review"
+  );
+  assert.match(
+    gatherText(materialized.slices[0].acceptance),
+    /accurate positive inventory.*bootstrap-established canonical wiki\/work-record coordination and structured wiki MCP capability/is,
+    "the materialized SLICE-001 must preserve positively known adopted wiki/MCP surfaces"
   );
   assert.doesNotMatch(
     gatherText(materialized),

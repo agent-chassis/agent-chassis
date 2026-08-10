@@ -1,0 +1,325 @@
+{
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-observed-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-observed-population"
+        }
+      },
+      {
+        "reference_id": "ref-a",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-a"
+        }
+      },
+      {
+        "reference_id": "ref-authorized-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-authorized-population"
+        }
+      },
+      {
+        "reference_id": "ref-b",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-b"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-observed-population-count",
+        "subject_reference_id": "ref-observed-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observed-population-members",
+        "subject_reference_id": "ref-observed-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-a"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authorized-population-count",
+        "subject_reference_id": "ref-authorized-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authorized-population-members",
+        "subject_reference_id": "ref-authorized-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-a"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-b"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observed-within-authorized",
+        "subject_reference_id": "ref-observed-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authorized-population"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-observed-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observed-population-count"
+      },
+      {
+        "claim_id": "claim-observed-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observed-population-members"
+      },
+      {
+        "claim_id": "claim-authorized-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authorized-population-count"
+      },
+      {
+        "claim_id": "claim-authorized-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authorized-population-members"
+      },
+      {
+        "claim_id": "claim-observed-within-authorized",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observed-within-authorized"
+      }
+    ],
+    "relations": [],
+    "collections": [],
+    "residue": [],
+    "annotations": []
+  },
+  "profile": {
+    "schema_version": "controlled-contract-verification-profile.experimental.v0.2",
+    "profile_id": "prototype.p13.write-scope-confinement",
+    "profile_version": "0.0.1",
+    "contract_schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "vocabulary_signature_digest": "5c5e34017a7e0defc5222b9e3fc7fcaec8ca12d70541e609ca29e49c279c5a7d",
+    "vocabulary_algebra_digest": "1f5b1b04df5ae806c68592e352cb2285cdaf10a7d7bb898818a2805d290a9b4f",
+    "vocabulary_definitions_digest": "203e07960ad043b5dc932b65adeb5378eadd9dd91babca03120f1b6fc0d96033",
+    "vocabulary_complete_digest": "65195755c4124bfc55fe88ba0e817478f0036cc10bff15a9a64884cfd1241341",
+    "evaluation_stages": [
+      "post_delivery"
+    ],
+    "reference_roles": [
+      {
+        "role": "observed_population",
+        "allowed_type_terms": [
+          "cc:population"
+        ],
+        "cardinality": "exactly_one"
+      },
+      {
+        "role": "observed_members",
+        "allowed_type_terms": [
+          "cc:resource"
+        ],
+        "cardinality": "zero_or_more"
+      },
+      {
+        "role": "authorized_population",
+        "allowed_type_terms": [
+          "cc:scope"
+        ],
+        "cardinality": "exactly_one"
+      },
+      {
+        "role": "authorized_members",
+        "allowed_type_terms": [
+          "cc:resource"
+        ],
+        "cardinality": "zero_or_more"
+      }
+    ],
+    "number_roles": [],
+    "distinct_reference_role_sets": [
+      {
+        "roles": [
+          "observed_population",
+          "authorized_population"
+        ]
+      }
+    ],
+    "reference_binding_patterns": [
+      {
+        "pattern_id": "complete-observed-population",
+        "required_by_stage": "post_delivery",
+        "comparison": "complete_population",
+        "roles": [
+          "observed_population",
+          "observed_members"
+        ],
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        }
+      },
+      {
+        "pattern_id": "complete-authorized-population",
+        "required_by_stage": "post_delivery",
+        "comparison": "complete_population",
+        "roles": [
+          "authorized_population",
+          "authorized_members"
+        ],
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        }
+      }
+    ],
+    "reference_role_count_bindings": [],
+    "claim_patterns": [
+      {
+        "pattern_id": "observed-subset-authorized",
+        "required_by_stage": "post_delivery",
+        "claim_kind": "evidence",
+        "allowed_modalities": [
+          "MUST"
+        ],
+        "proposition_template": {
+          "subject_role": "observed_population",
+          "operator": "reference:subset_of",
+          "applicability_context": {
+            "mode": "unconditional",
+            "operand_roles": []
+          },
+          "operands": [
+            {
+              "kind": "reference",
+              "role": "authorized_population"
+            }
+          ]
+        }
+      }
+    ],
+    "relation_patterns": [],
+    "collection_patterns": [],
+    "resolver_fact_patterns": [],
+    "evidence_patterns": [],
+    "falsifier_condition_bindings": [
+      {
+        "relation_pattern_id": "unused-falsifier-binding",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        }
+      }
+    ],
+    "satisfaction_expression": {
+      "all_of": [
+        {
+          "pattern": "complete-observed-population"
+        },
+        {
+          "pattern": "complete-authorized-population"
+        },
+        {
+          "pattern": "observed-subset-authorized"
+        }
+      ]
+    }
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "post_delivery",
+    "reference_bindings": [
+      {
+        "role": "observed_population",
+        "reference_ids": [
+          "ref-observed-population"
+        ]
+      },
+      {
+        "role": "observed_members",
+        "reference_ids": [
+          "ref-a"
+        ]
+      },
+      {
+        "role": "authorized_population",
+        "reference_ids": [
+          "ref-authorized-population"
+        ]
+      },
+      {
+        "role": "authorized_members",
+        "reference_ids": [
+          "ref-a",
+          "ref-b"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

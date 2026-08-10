@@ -1,5 +1,7 @@
 
 
+import path from "node:path";
+
 import { summarizeDispatchReadinessDependencies } from "@agent-chassis/agent-launch-core/src/lib/work-record-gate.mjs";
 import { validateWorkRecordDispatchById } from "@agent-chassis/wiki-core";
 import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
@@ -32,6 +34,7 @@ import {
   buildCodexSandboxArgsForRole,
   findRepoRoot
 } from "./codex-role-adapter-isolation.mjs";
+import { isDirectory } from "./codex-role-io.mjs";
 import { buildHeadlessPlan } from "./codex-role-adapter-headless-plan.mjs";
 
 export async function buildReadOnlyPlan({
@@ -57,7 +60,13 @@ export async function buildReadOnlyPlan({
   if (!classified.ok) {
     throw new Error(classified.error);
   }
-  const repo = await findRepoRoot(cwd);
+  const hasLauncherBoundWorkspace = typeof workspaceDir === "string" && workspaceDir.length > 0;
+  const repo = hasLauncherBoundWorkspace
+    ? workspaceDir
+    : await findRepoRoot(cwd);
+  if (hasLauncherBoundWorkspace && !(await isDirectory(path.join(repo, "wiki")))) {
+    throw new Error(`expected repo with wiki/ at: ${repo}`);
+  }
 
   const metadataRepo = typeof canonicalRepo === "string" && canonicalRepo.length > 0
     ? canonicalRepo

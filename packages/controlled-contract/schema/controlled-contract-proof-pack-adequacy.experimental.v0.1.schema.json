@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "controlled-contract-proof-pack-adequacy.experimental.v0.1",
+  "description": "Experimental release contract binding a proof pack to executable positive, negative, and limitation controls. It is not CCE authority or delivered evidence.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "profile_id",
+    "profile_version",
+    "profile_digest",
+    "guarantee",
+    "guarantee_digest",
+    "required_positive_cases",
+    "required_mutant_kills",
+    "required_profile_rejections",
+    "explicit_exclusions",
+    "executable_module",
+    "executable_module_digest",
+    "executable_dependency_digests"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "controlled-contract-proof-pack-adequacy.experimental.v0.1"
+      ]
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9.-]+$"
+    },
+    "profile_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "profile_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "guarantee": {
+      "type": "string",
+      "minLength": 1
+    },
+    "guarantee_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "required_positive_cases": {
+      "$ref": "#/$defs/control_ids"
+    },
+    "required_mutant_kills": {
+      "$ref": "#/$defs/control_ids"
+    },
+    "required_profile_rejections": {
+      "$ref": "#/$defs/control_ids"
+    },
+    "explicit_exclusions": {
+      "$ref": "#/$defs/control_ids"
+    },
+    "executable_module": {
+      "type": "string",
+      "pattern": "^packages/controlled-contract/.+\\.mjs$"
+    },
+    "executable_module_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "executable_dependency_digests": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^packages/controlled-contract/.+\\.(?:mjs|json)$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "negative_contract_fixtures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "fixture_id",
+          "path",
+          "sha256"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "fixture_id": {
+            "$ref": "#/$defs/control_id"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^packages/controlled-contract/.+\\.json$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "coverage_witness_index": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^packages/controlled-contract/.+\\.json$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "guarantee_critical_profile_surfaces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "surface_id",
+          "profile_json_pointer",
+          "surface_digest",
+          "coverage"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "surface_id": {
+            "$ref": "#/$defs/control_id"
+          },
+          "profile_json_pointer": {
+            "type": "string",
+            "pattern": "^/(?:[^~/]|~[01])+(?:/(?:[^~/]|~[01])+)*$"
+          },
+          "surface_digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "coverage": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "weakening_class",
+                "negative_fixture_ids"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "weakening_class": {
+                  "type": "string",
+                  "enum": [
+                    "deletion",
+                    "modality_broadening",
+                    "type_broadening",
+                    "cardinality_broadening",
+                    "relation_weakening",
+                    "collection_weakening",
+                    "satisfaction_branch_broadening",
+                    "binding_constraint_weakening",
+                    "verification_method_broadening",
+                    "proposition_weakening",
+                    "falsifier_weakening",
+                    "policy_weakening",
+                    "population_membership_weakening",
+                    "stage_weakening"
+                  ]
+                },
+                "negative_fixture_ids": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "$ref": "#/$defs/control_id"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "noncritical_profile_surfaces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "surface_id",
+          "profile_json_pointer",
+          "surface_digest",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "surface_id": {
+            "$ref": "#/$defs/control_id"
+          },
+          "profile_json_pointer": {
+            "type": "string",
+            "pattern": "^/(?:[^~/]|~[01])+(?:/(?:[^~/]|~[01])+)*$"
+          },
+          "surface_digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "artifact_binding_not_guarantee_semantics",
+              "empty_optional_mechanism",
+              "schema_singleton_constant",
+              "extension_only_stage_set",
+              "redundant_with_contract_validity_invariant",
+              "redundant_with_distinct_role_set",
+              "independent_alternatives_schema_or_semantics_invalid",
+              "independent_alternatives_strictly_strengthening",
+              "no_valid_weaker_profile_value",
+              "redundant_with_covered_semantic_surface"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "dependentRequired": {
+    "negative_contract_fixtures": [
+      "coverage_witness_index",
+      "guarantee_critical_profile_surfaces",
+      "noncritical_profile_surfaces"
+    ],
+    "coverage_witness_index": [
+      "negative_contract_fixtures",
+      "guarantee_critical_profile_surfaces",
+      "noncritical_profile_surfaces"
+    ],
+    "guarantee_critical_profile_surfaces": [
+      "negative_contract_fixtures",
+      "coverage_witness_index",
+      "noncritical_profile_surfaces"
+    ],
+    "noncritical_profile_surfaces": [
+      "negative_contract_fixtures",
+      "coverage_witness_index",
+      "guarantee_critical_profile_surfaces"
+    ]
+  },
+  "$defs": {
+    "control_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "control_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    }
+  }
+}

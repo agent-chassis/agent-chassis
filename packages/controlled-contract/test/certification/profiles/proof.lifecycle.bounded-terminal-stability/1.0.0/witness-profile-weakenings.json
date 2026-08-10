@@ -1,0 +1,2720 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "eea2c1c7b5839e5aa4b1115a8ffe4d68d3c3589e4ed065feeed22c371bc7b7fa",
+  "witnesses": [
+    {
+      "surface_id": "claim-each-observation-before-horizon-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-observation-before-horizon-modalities",
+      "variant_id": "reject-claim-each-observation-before-horizon-modalities",
+      "weakened_profile_digest": "1012952ddf381a9b08e6033a5e1a1129bc386f8e7714bdd11125c2334289cc9a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-observation-before-horizon-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-observation-before-horizon-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-observation-before-horizon-proposition-operand-0-role",
+      "weakened_profile_digest": "85db596e3b2def0edd35d34f7df1f04c10806b7f169196cdb2ebba7aaeb94d89",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/0/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-observation-before-horizon-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-observation-before-horizon-proposition-operator",
+      "variant_id": "reject-claim-each-observation-before-horizon-proposition-operator",
+      "weakened_profile_digest": "ddbe568ca98b3321fe016dd3d8b5dda201af2daaac8266f9fc1593478eac3992",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-observation-reads-entity-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-observation-reads-entity-modalities",
+      "variant_id": "reject-claim-each-observation-reads-entity-modalities",
+      "weakened_profile_digest": "e4de984606b9865de3333060d6d72ce0cba8095a681d3215619a35bbd9862600",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-observation-reads-entity-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-observation-reads-entity-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-observation-reads-entity-proposition-operand-0-role",
+      "weakened_profile_digest": "63cd07294ba41b5c51b47383cdf4477197fc0a3cc345e338f31fbef9b7c4c6c0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "terminal_event"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-observation-reads-entity-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-observation-reads-entity-proposition-operator",
+      "variant_id": "reject-claim-each-observation-reads-entity-proposition-operator",
+      "weakened_profile_digest": "1dd760b558a7205449a1efbd124f252f1c3e4e9a0e2aa3ab7bca13bc02f26739",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-observation-records-terminal-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-observation-records-terminal-state-modalities",
+      "variant_id": "reject-claim-each-observation-records-terminal-state-modalities",
+      "weakened_profile_digest": "9983be478c1129424a19e49a199da22514b36768404ac17621493b23fe187af7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-observation-records-terminal-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-observation-records-terminal-state-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-observation-records-terminal-state-proposition-operand-0-role",
+      "weakened_profile_digest": "6c314a4a5a28d8e8af137d83c90cbc4b1c26aad5a652e780f9d1aad9dcb7b27e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operands/0/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-observation-records-terminal-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-observation-records-terminal-state-proposition-operator",
+      "variant_id": "reject-claim-each-observation-records-terminal-state-proposition-operator",
+      "weakened_profile_digest": "7623f0e4d4900b22db9bfdc06b86c15bc80a7a8ea1712c618c2338e0673dac16",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-observed-states-equal-terminal-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-observed-states-equal-terminal-state-modalities",
+      "variant_id": "reject-claim-observed-states-equal-terminal-state-modalities",
+      "weakened_profile_digest": "0b73294ddd005dfc26672152237eb24f9921e09b56390c6a23719782e2816e73",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "reject-claim-patterns",
+      "variant_id": "reject-claim-patterns",
+      "weakened_profile_digest": "a742d0936178b64bfc67cbfe660431b5741c6563b934d783019935086bd6c44d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "terminal-event-has-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-state-in-terminal-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_state",
+                "operator": "reference:member_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-before-each-observation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-observation-before-horizon",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "observation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "bounded_horizon"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-observation-reads-entity",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "observation",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-observation-records-terminal-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "observed-states-equal-terminal-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observed_state_population",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "reactivation-count-zero",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "reactivation_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "reactivation_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-bounded-window",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "terminal_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "bounded_horizon"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observation_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observed_state_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "reactivation_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-bounded-state-stability",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "observed_state_population",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "state_regression_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-zero-reactivation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "reactivation_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "reactivation_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "reactivation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "reactivation_count"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-observation-population"
+            },
+            {
+              "pattern": "complete-terminal-state-population"
+            },
+            {
+              "pattern": "complete-observed-state-population"
+            },
+            {
+              "pattern": "complete-reactivation-population"
+            },
+            {
+              "pattern": "terminal-event-has-state"
+            },
+            {
+              "pattern": "terminal-state-in-terminal-population"
+            },
+            {
+              "pattern": "terminal-before-each-observation"
+            },
+            {
+              "pattern": "each-observation-before-horizon"
+            },
+            {
+              "pattern": "each-observation-reads-entity"
+            },
+            {
+              "pattern": "each-observation-records-terminal-state"
+            },
+            {
+              "pattern": "observed-states-equal-terminal-state"
+            },
+            {
+              "pattern": "reactivation-count-zero"
+            },
+            {
+              "pattern": "verification-reads-bounded-window"
+            },
+            {
+              "pattern": "verify-bounded-state-stability"
+            },
+            {
+              "pattern": "verify-zero-reactivation"
+            },
+            {
+              "pattern": "verification-target-state-stability"
+            },
+            {
+              "pattern": "verification-target-zero-reactivation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-reactivation-count-zero-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-reactivation-count-zero-modalities",
+      "variant_id": "reject-claim-reactivation-count-zero-modalities",
+      "weakened_profile_digest": "009745ec934dd30dfa26f08d4989d237016a70b9555d3a289177839f8d730c0e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-before-each-observation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-terminal-before-each-observation-modalities",
+      "variant_id": "reject-claim-terminal-before-each-observation-modalities",
+      "weakened_profile_digest": "5ccff14d6dfe6d9da293275f2ee5b194eeb9c7196772a6637f6bb7ccec52d946",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-before-each-observation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-before-each-observation-proposition-operator",
+      "variant_id": "reject-claim-terminal-before-each-observation-proposition-operator",
+      "weakened_profile_digest": "9cc32a16d93c164a495a95cce712e5c5cc948fb8cf0f78a96be9cadcf305507e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-before-each-observation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-before-each-observation-proposition-subject",
+      "variant_id": "reject-claim-terminal-before-each-observation-proposition-subject",
+      "weakened_profile_digest": "e244991c32bd9da99db92a303bba9316bbe3b0f0c946594ba02aa5472e0d27d7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/subject_role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-event-completes-entity-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-terminal-event-completes-entity-modalities",
+      "variant_id": "reject-claim-terminal-event-completes-entity-modalities",
+      "weakened_profile_digest": "cb13dd545448d418b2da84cb31cbe449651a493913eaa6b525728b583eb22081",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-event-completes-entity-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-event-completes-entity-proposition-operand-0-role",
+      "variant_id": "reject-claim-terminal-event-completes-entity-proposition-operand-0-role",
+      "weakened_profile_digest": "af0f89845a09ef471d322fa911376acdc0c4dcb14a1d1531e5826ff7d46e0772",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "terminal_event"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-event-completes-entity-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-event-completes-entity-proposition-operator",
+      "variant_id": "reject-claim-terminal-event-completes-entity-proposition-operator",
+      "weakened_profile_digest": "84d8a72df82ecb2614dde8ce7a9ab6939e281f8118362871b51971b2bba97af4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-event-completes-entity-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-event-completes-entity-proposition-subject",
+      "variant_id": "reject-claim-terminal-event-completes-entity-proposition-subject",
+      "weakened_profile_digest": "5cb833bb317d76383b4e1699e64700d304697e1757a08eab9cdef5769d6d3b62",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-event-has-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-terminal-event-has-state-modalities",
+      "variant_id": "reject-claim-terminal-event-has-state-modalities",
+      "weakened_profile_digest": "db81099cc55f9bc451100c5747e9c88ec43a092c2fa07501eb7acf9a21fe1993",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-event-has-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-event-has-state-proposition-operand-0-role",
+      "variant_id": "reject-claim-terminal-event-has-state-proposition-operand-0-role",
+      "weakened_profile_digest": "d57cdb74150a71dcf61b82f6aeb3f074701eb353721d21543837e8d2a3e419f2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-event-has-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-event-has-state-proposition-operator",
+      "variant_id": "reject-claim-terminal-event-has-state-proposition-operator",
+      "weakened_profile_digest": "6df309575ab65221cc4fa9e02d69b8d8d420090e6984f03d538ccfbdb4d3c513",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-event-has-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-event-has-state-proposition-subject",
+      "variant_id": "reject-claim-terminal-event-has-state-proposition-subject",
+      "weakened_profile_digest": "77450bd8635b13bfec9c5dea1413f26b2ecbcb8303756908714f434f8cfe3ea8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/subject_role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-state-in-terminal-population-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-terminal-state-in-terminal-population-modalities",
+      "variant_id": "reject-claim-terminal-state-in-terminal-population-modalities",
+      "weakened_profile_digest": "da8be9f3788e2933052d5a30a832c20bcc5287ead799c1e4e095c458b665960d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-state-in-terminal-population-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-state-in-terminal-population-proposition-operand-0-role",
+      "variant_id": "reject-claim-terminal-state-in-terminal-population-proposition-operand-0-role",
+      "weakened_profile_digest": "550ad2222e708cd8a399d9c43a67ff8c4e0397b2af6d5be6493b9731b57fca6b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-state-in-terminal-population-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-state-in-terminal-population-proposition-operator",
+      "variant_id": "reject-claim-terminal-state-in-terminal-population-proposition-operator",
+      "weakened_profile_digest": "0757a97c33c1225a105b3f413e2bc76e38576c491557c04e36f83208f800df90",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-terminal-state-in-terminal-population-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-terminal-state-in-terminal-population-proposition-subject",
+      "variant_id": "reject-claim-terminal-state-in-terminal-population-proposition-subject",
+      "weakened_profile_digest": "14c9d4d70f7f59c5dc03be6388012fbcc387bcb63461dc6f9ec95f15af026936",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "state_regression_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-modalities",
+      "variant_id": "reject-claim-verification-reads-bounded-window-modalities",
+      "weakened_profile_digest": "ce558a9c9a413370353380799b8061bdd3d7162c875a4b3646806b936b8c92b8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-proposition-operand-0-role",
+      "variant_id": "reject-claim-verification-reads-bounded-window-proposition-operand-0-role",
+      "weakened_profile_digest": "8f4e99b69b70c186816523d8e67774e5f45fec50e587bc83920543dba3e337a7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/0/role",
+          "value": "terminal_event"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-proposition-operand-1-role",
+      "variant_id": "reject-claim-verification-reads-bounded-window-proposition-operand-1-role",
+      "weakened_profile_digest": "dee703a0e5f3c88cb133caac43b68f13fbd98b828f2958aa54500108a973ef66",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/1/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-proposition-operand-2-role",
+      "variant_id": "reject-claim-verification-reads-bounded-window-proposition-operand-2-role",
+      "weakened_profile_digest": "71f658547a59de32049cc4c52a58905d941ebae4faa8a451894d6ea5d7ed4747",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/2/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-proposition-operand-3-role",
+      "variant_id": "reject-claim-verification-reads-bounded-window-proposition-operand-3-role",
+      "weakened_profile_digest": "7ea764a8c6af31dbc2d065cac478428202f5067f774e25879195d713770963eb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/3/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-proposition-operand-4-role",
+      "variant_id": "reject-claim-verification-reads-bounded-window-proposition-operand-4-role",
+      "weakened_profile_digest": "e71a119c8132f9c76e3fe01e0518c76df91b0969993142727e358561fef8590c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/4/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-proposition-operand-5-role",
+      "variant_id": "reject-claim-verification-reads-bounded-window-proposition-operand-5-role",
+      "weakened_profile_digest": "429b6342fb2f1c0fd30028003d5a7310eb3ef1296d3a22b8def432c7c3d8adac",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/5/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-proposition-operand-6-role",
+      "variant_id": "reject-claim-verification-reads-bounded-window-proposition-operand-6-role",
+      "weakened_profile_digest": "2744f03f8e26cbe282de77bd1ffa201b416d4e63eb289ecbb8061eee5357921f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/6/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-proposition-operator",
+      "variant_id": "reject-claim-verification-reads-bounded-window-proposition-operator",
+      "weakened_profile_digest": "da06e78e13f05816c97f059e954ef138b5d96a31c73f8d333d145bfdb1bb2d14",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-bounded-window-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-bounded-window-proposition-subject",
+      "variant_id": "reject-claim-verification-reads-bounded-window-proposition-subject",
+      "weakened_profile_digest": "cc52347eea7e9d6d09d56d6d1d00c3f3b0d4b0145d3800513e91686e820a2c54",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/subject_role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-bounded-state-stability-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-verify-bounded-state-stability-modalities",
+      "variant_id": "reject-claim-verify-bounded-state-stability-modalities",
+      "weakened_profile_digest": "33c62c2b05937d2a3dcaf0a3b46ebe94a73793d0474927bef95af1b833c21deb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-bounded-state-stability-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-bounded-state-stability-proposition-operand-0-role",
+      "variant_id": "reject-claim-verify-bounded-state-stability-proposition-operand-0-role",
+      "weakened_profile_digest": "a0849415137cca05ef40c289665972682e4b841c4f5444e6f3ff3f96847a4658",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operands/0/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-bounded-state-stability-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-bounded-state-stability-proposition-operator",
+      "variant_id": "reject-claim-verify-bounded-state-stability-proposition-operator",
+      "weakened_profile_digest": "bb024858d1810b6aea29b2e0d7282a51f5a0492ca536be0c653817c58048a58b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-bounded-state-stability-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-bounded-state-stability-proposition-subject",
+      "variant_id": "reject-claim-verify-bounded-state-stability-proposition-subject",
+      "weakened_profile_digest": "2629443f432dc9cc5e17c317c2f507fec7c8e939a5484fb0e5586b221cfb9529",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/subject_role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-bounded-state-stability-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-verify-bounded-state-stability-verification-methods",
+      "variant_id": "reject-claim-verify-bounded-state-stability-verification-methods",
+      "weakened_profile_digest": "c3c2d4a8975b1f5f6183b68b5b4ce824bda0ec53b86520f49bf28502e8e860af",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-zero-reactivation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-verify-zero-reactivation-modalities",
+      "variant_id": "reject-claim-verify-zero-reactivation-modalities",
+      "weakened_profile_digest": "b3c4f38f47cdc4a997e467d0a72ef7576f8255eeb7ff381fd024edc7588947f1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-zero-reactivation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-zero-reactivation-proposition-operand-0-role",
+      "variant_id": "reject-claim-verify-zero-reactivation-proposition-operand-0-role",
+      "weakened_profile_digest": "cfb355bd3e881e9d274fdfa9533fdddd52d19308df8526b1ccaa04646873bf3a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/0/role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-zero-reactivation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-zero-reactivation-proposition-operator",
+      "variant_id": "reject-claim-verify-zero-reactivation-proposition-operator",
+      "weakened_profile_digest": "73981ff0e217ab8532a49809207f520f973cda147d018cc007125233467f082b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-zero-reactivation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-zero-reactivation-proposition-subject",
+      "variant_id": "reject-claim-verify-zero-reactivation-proposition-subject",
+      "weakened_profile_digest": "1b11473e5ed3383f5c2475e094aa4c0e6130fae9f87bd4a9ab86303902d0a035",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/subject_role",
+          "value": "lifecycle_entity"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-zero-reactivation-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-verify-zero-reactivation-verification-methods",
+      "variant_id": "reject-claim-verify-zero-reactivation-verification-methods",
+      "weakened_profile_digest": "944afa9f94fe4dd495dd7ef35c8dcd4ed1ba81c0878af508a9bd47aa2acf9400",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-distinct-reference-role-sets",
+      "variant_id": "reject-distinct-reference-role-sets",
+      "weakened_profile_digest": "ea52a2b7a97539a10dfb7c574253ef57a6585318e10eb9b22269a42bd8975a3b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": [
+            {
+              "roles": [
+                "terminal_event",
+                "bounded_horizon"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-falsifier-condition-bindings",
+      "variant_id": "reject-falsifier-condition-bindings",
+      "weakened_profile_digest": "bc6ebcbe2f7649a7ed9687a46485544b956ed540b5f472a38fe8a6afccad6bd0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/falsifying_proposition_template/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/falsifying_proposition_template/applicability_context/operand_roles",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context/operand_roles",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "number-roles",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "reject-number-roles",
+      "variant_id": "reject-number-roles",
+      "weakened_profile_digest": "e7c1ae9377c48a7a0c9acd3559a20fc988f3bea54afab5c3d3c575f475548d15",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/number_roles/1/maximum",
+          "value": 2
+        },
+        {
+          "op": "replace",
+          "path": "/number_roles/2/maximum",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-reference-binding-patterns",
+      "variant_id": "reject-reference-binding-patterns",
+      "weakened_profile_digest": "415fb1146af6b0e5622f9c423ca08445e65b213b27a72ab04af939c62b345880",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "terminal-event-completes-entity",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:completes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-event-has-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-state-in-terminal-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_state",
+                "operator": "reference:member_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "observed-states-equal-terminal-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observed_state_population",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "reactivation-count-zero",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "reactivation_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "reactivation_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-bounded-window",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "terminal_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "bounded_horizon"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observation_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observed_state_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "reactivation_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-bounded-state-stability",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "observed_state_population",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "state_regression_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-zero-reactivation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "reactivation_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "reactivation_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "reactivation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "reactivation_count"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-terminal-state-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "terminal_state_population",
+                "terminal_states"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-observed-state-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "observed_state_population",
+                "observed_states"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-reactivation-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "reactivation_population",
+                "reactivation_events"
+              ],
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "bounded_horizon"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-terminal-state-population"
+            },
+            {
+              "pattern": "complete-observed-state-population"
+            },
+            {
+              "pattern": "complete-reactivation-population"
+            },
+            {
+              "pattern": "terminal-event-completes-entity"
+            },
+            {
+              "pattern": "terminal-event-has-state"
+            },
+            {
+              "pattern": "terminal-state-in-terminal-population"
+            },
+            {
+              "pattern": "observed-states-equal-terminal-state"
+            },
+            {
+              "pattern": "reactivation-count-zero"
+            },
+            {
+              "pattern": "verification-reads-bounded-window"
+            },
+            {
+              "pattern": "verify-bounded-state-stability"
+            },
+            {
+              "pattern": "verify-zero-reactivation"
+            },
+            {
+              "pattern": "verification-target-state-stability"
+            },
+            {
+              "pattern": "verification-target-zero-reactivation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-reference-role-count-bindings",
+      "variant_id": "reject-reference-role-count-bindings",
+      "weakened_profile_digest": "5130ea1c5a061694dd322c1506582812b9ad88484159ae65ab42079b4e239e00",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "terminal-event-completes-entity",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:completes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-event-has-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-state-in-terminal-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_state",
+                "operator": "reference:member_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-before-each-observation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-observation-before-horizon",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "observation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "bounded_horizon"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-observation-reads-entity",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "observation",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-observation-records-terminal-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "reactivation-count-zero",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "reactivation_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "reactivation_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-bounded-window",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "terminal_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "bounded_horizon"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observation_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observed_state_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "reactivation_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-zero-reactivation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "reactivation_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "reactivation_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "reactivation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "reactivation_count"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-target-zero-reactivation",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "reactivation_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": [
+            {
+              "reference_role": "observations",
+              "number_role": "observation_count"
+            },
+            {
+              "reference_role": "terminal_states",
+              "number_role": "state_count"
+            },
+            {
+              "reference_role": "reactivation_events",
+              "number_role": "reactivation_count"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-target-zero-reactivation",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-zero-reactivation",
+              "target_claim_pattern_id": "reactivation-count-zero"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-observation-population"
+            },
+            {
+              "pattern": "complete-terminal-state-population"
+            },
+            {
+              "pattern": "complete-observed-state-population"
+            },
+            {
+              "pattern": "complete-reactivation-population"
+            },
+            {
+              "pattern": "terminal-event-completes-entity"
+            },
+            {
+              "pattern": "terminal-event-has-state"
+            },
+            {
+              "pattern": "terminal-state-in-terminal-population"
+            },
+            {
+              "pattern": "terminal-before-each-observation"
+            },
+            {
+              "pattern": "each-observation-before-horizon"
+            },
+            {
+              "pattern": "each-observation-reads-entity"
+            },
+            {
+              "pattern": "each-observation-records-terminal-state"
+            },
+            {
+              "pattern": "reactivation-count-zero"
+            },
+            {
+              "pattern": "verification-reads-bounded-window"
+            },
+            {
+              "pattern": "verify-zero-reactivation"
+            },
+            {
+              "pattern": "verification-target-zero-reactivation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "reject-relation-patterns",
+      "variant_id": "reject-relation-patterns",
+      "weakened_profile_digest": "8cffa3db6958cb588c2ccd43d7e295fee29b59b5c87ee301c334da2f9eeb3824",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "terminal-event-completes-entity",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:completes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-event-has-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-state-in-terminal-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "terminal_state",
+                "operator": "reference:member_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "terminal-before-each-observation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "terminal_event",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-observation-before-horizon",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "observation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "bounded_horizon"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-observation-reads-entity",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "observation",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-observation-records-terminal-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "observations",
+                "member_role": "observation"
+              },
+              "proposition_template": {
+                "subject_role": "observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "reactivation-count-zero",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "reactivation_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "reactivation_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-bounded-window",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "lifecycle_entity"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "terminal_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "terminal_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "bounded_horizon"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observation_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observed_state_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "reactivation_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-zero-reactivation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "reactivation_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "reactivation_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "reactivation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "reactivation_count"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-target-zero-reactivation",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "reactivation_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-target-zero-reactivation",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-zero-reactivation",
+              "target_claim_pattern_id": "reactivation-count-zero"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-observation-population"
+            },
+            {
+              "pattern": "complete-terminal-state-population"
+            },
+            {
+              "pattern": "complete-observed-state-population"
+            },
+            {
+              "pattern": "complete-reactivation-population"
+            },
+            {
+              "pattern": "terminal-event-completes-entity"
+            },
+            {
+              "pattern": "terminal-event-has-state"
+            },
+            {
+              "pattern": "terminal-state-in-terminal-population"
+            },
+            {
+              "pattern": "terminal-before-each-observation"
+            },
+            {
+              "pattern": "each-observation-before-horizon"
+            },
+            {
+              "pattern": "each-observation-reads-entity"
+            },
+            {
+              "pattern": "each-observation-records-terminal-state"
+            },
+            {
+              "pattern": "reactivation-count-zero"
+            },
+            {
+              "pattern": "verification-reads-bounded-window"
+            },
+            {
+              "pattern": "verify-zero-reactivation"
+            },
+            {
+              "pattern": "verification-target-zero-reactivation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-bounded-horizon-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-bounded-horizon-types",
+      "variant_id": "reject-role-bounded-horizon-types",
+      "weakened_profile_digest": "af974256c70b8fe0da3acc8048be6a817b49a50d62beb167328366c3a7afcdc3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-lifecycle-entity-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "reject-role-lifecycle-entity-cardinality",
+      "variant_id": "reject-role-lifecycle-entity-cardinality",
+      "weakened_profile_digest": "0d56ded0eb7e0efe11d5cfe9b0973948a796d4f95b6203059a457fa09a944307",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-lifecycle-entity-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-lifecycle-entity-types",
+      "variant_id": "reject-role-lifecycle-entity-types",
+      "weakened_profile_digest": "7c53ea5d1b249a8135554e5bb0a4f2861ba15ebf33e82ca29b97e8bcaffc70fb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:lifecycle_entity",
+            "cc:resource",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observation-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-observation-population-types",
+      "variant_id": "reject-role-observation-population-types",
+      "weakened_profile_digest": "8900bdbfa86f92f800ed66abad72ee7bb30b99d451b643099acc2b51cb957b4e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observations-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-observations-types",
+      "variant_id": "reject-role-observations-types",
+      "weakened_profile_digest": "3a0d3655090822794c75b254f326280f52baef136220e44e9f0effeefc868443",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observed-state-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-observed-state-population-types",
+      "variant_id": "reject-role-observed-state-population-types",
+      "weakened_profile_digest": "241439103ce50d8eaf38b7f2e1863ae62b515399f1e3267222cef5e499074692",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observed-states-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-observed-states-types",
+      "variant_id": "reject-role-observed-states-types",
+      "weakened_profile_digest": "0cd45cea6d98e4a4613c5c54ac262c579fcdcae4467466d0a8161b381e670efd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-reactivation-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-reactivation-condition-types",
+      "variant_id": "reject-role-reactivation-condition-types",
+      "weakened_profile_digest": "5eb130ee9eda8ce2368f0bb47b645319ea72640ef32cc49eb9dd74135fb9b47c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/15/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-reactivation-count-signal-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-reactivation-count-signal-types",
+      "variant_id": "reject-role-reactivation-count-signal-types",
+      "weakened_profile_digest": "350031af5cbb632e04060c1ae35303cc0cf0300bd743a741d42bbe4103dcc9fa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-reactivation-events-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-reactivation-events-types",
+      "variant_id": "reject-role-reactivation-events-types",
+      "weakened_profile_digest": "aceb80f3fb291b79645a5e2546494d84c9362c6314ab14a9751e482e9a431730",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/number_roles/2/maximum",
+          "value": 1
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-reactivation-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-reactivation-population-types",
+      "variant_id": "reject-role-reactivation-population-types",
+      "weakened_profile_digest": "8b7a526f552d8ba3920aa7dd3f31e5e26bb3be7d7fcf5758e7ca79ab772faa73",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-state-regression-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-state-regression-condition-types",
+      "variant_id": "reject-role-state-regression-condition-types",
+      "weakened_profile_digest": "18b1bc1d7935c81f0b8f661bfd09b9164c9e8b6312db5412c1de562faf6d4031",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-terminal-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-terminal-event-types",
+      "variant_id": "reject-role-terminal-event-types",
+      "weakened_profile_digest": "4128e63d3770f21d114c46c474ca478863ba9429f645776b1a41a0416e9c7555",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-terminal-state-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-terminal-state-population-types",
+      "variant_id": "reject-role-terminal-state-population-types",
+      "weakened_profile_digest": "f08059f2fa8ed7693ed14f96c0666a364acd36eeb2db55668eb1b1f6c531f577",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-terminal-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-terminal-state-types",
+      "variant_id": "reject-role-terminal-state-types",
+      "weakened_profile_digest": "0cd45cea6d98e4a4613c5c54ac262c579fcdcae4467466d0a8161b381e670efd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-terminal-states-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-terminal-states-types",
+      "variant_id": "reject-role-terminal-states-types",
+      "weakened_profile_digest": "0cd45cea6d98e4a4613c5c54ac262c579fcdcae4467466d0a8161b381e670efd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-verification-types",
+      "variant_id": "reject-role-verification-types",
+      "weakened_profile_digest": "09b4880ad3466b5e0bbd3cbe18e1ad5b8dbe996a898f66123aca9a668ada7bed",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "reject-satisfaction-expression",
+      "variant_id": "reject-satisfaction-expression",
+      "weakened_profile_digest": "ffc513c19ea71d2e05541621893018acb0634b7069fc08be6ac73a87a31c4d55",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "complete-observation-population"
+              },
+              {
+                "all_of": [
+                  {
+                    "pattern": "complete-terminal-state-population"
+                  },
+                  {
+                    "pattern": "complete-observed-state-population"
+                  },
+                  {
+                    "pattern": "complete-reactivation-population"
+                  },
+                  {
+                    "pattern": "terminal-event-completes-entity"
+                  },
+                  {
+                    "pattern": "terminal-event-has-state"
+                  },
+                  {
+                    "pattern": "terminal-state-in-terminal-population"
+                  },
+                  {
+                    "pattern": "terminal-before-each-observation"
+                  },
+                  {
+                    "pattern": "each-observation-before-horizon"
+                  },
+                  {
+                    "pattern": "each-observation-reads-entity"
+                  },
+                  {
+                    "pattern": "each-observation-records-terminal-state"
+                  },
+                  {
+                    "pattern": "observed-states-equal-terminal-state"
+                  },
+                  {
+                    "pattern": "reactivation-count-zero"
+                  },
+                  {
+                    "pattern": "verification-reads-bounded-window"
+                  },
+                  {
+                    "pattern": "verify-bounded-state-stability"
+                  },
+                  {
+                    "pattern": "verify-zero-reactivation"
+                  },
+                  {
+                    "pattern": "verification-target-state-stability"
+                  },
+                  {
+                    "pattern": "verification-target-zero-reactivation"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -6,6 +6,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 
 import {
+  createDiagnosticSink,
+  createStdioShutdownController,
   errorContent,
   getResponseSpillConfig,
   guardToolHandler,
@@ -23,6 +25,8 @@ test("exports the shared response helpers", () => {
   assert.equal(typeof installProcessErrorGuards, "function");
   assert.equal(typeof errorContent, "function");
   assert.equal(typeof redactAbsolutePaths, "function");
+  assert.equal(typeof createDiagnosticSink, "function");
+  assert.equal(typeof createStdioShutdownController, "function");
 });
 
 test("redacts a POSIX absolute path with spaces and preserves following prose", () => {
@@ -190,4 +194,218 @@ test("installProcessErrorGuards reports process-level errors through the structu
 
   const again = installProcessErrorGuards({ processLike, log: () => {} });
   assert.equal(again.installed, false);
+});
+
+function lifecycleSeams({ ppid = 42, closeServer = null } = {}) {
+  const processLike = new EventEmitter();
+  const stdin = new EventEmitter();
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  let intervalCallback;
+  let timeoutCallback;
+  let clearedIntervals = 0;
+  let clearedTimeouts = 0;
+  let timeoutSchedules = 0;
+  let intervalHandle;
+  const exits = [];
+  let currentPpid = ppid;
+  const controller = createStdioShutdownController({
+    processLike,
+    stdin,
+    stdout,
+    stderr,
+    readPpid: () => currentPpid,
+    setIntervalFn: (callback, delay) => {
+      assert.equal(delay, 250);
+      intervalCallback = callback;
+      intervalHandle = { unref() { this.unrefed = true; } };
+      return intervalHandle;
+    },
+    clearIntervalFn: () => { clearedIntervals += 1; },
+    setTimeoutFn: (callback, delay) => {
+      assert.equal(delay, 2000);
+      timeoutSchedules += 1;
+      timeoutCallback = callback;
+      return { callback };
+    },
+    clearTimeoutFn: () => { clearedTimeouts += 1; },
+    terminate: (code) => exits.push(code),
+    disableDiagnostics: () => stderr.disabled = true
+  });
+  if (closeServer) controller.setServerCloseHook(closeServer);
+  return {
+    controller,
+    stdin,
+    stdout,
+    stderr,
+    exits,
+    setPpid(value) { currentPpid = value; intervalCallback?.(); },
+    fireTimeout() { timeoutCallback?.(); },
+    get clearedIntervals() { return clearedIntervals; },
+    get clearedTimeouts() { return clearedTimeouts; },
+    get timeoutSchedules() { return timeoutSchedules; },
+    get intervalUnrefed() { return intervalHandle?.unrefed === true; }
+  };
+}
+
+test("diagnostic sink drops nested and post-failure emissions without throwing", () => {
+  const stderr = new EventEmitter();
+  const writes = [];
+  let sink;
+  sink = createDiagnosticSink({
+    stderr,
+    write: (_stream, text) => {
+      writes.push(text);
+      sink.emit({ nested: true });
+    },
+    serialize: (value) => JSON.stringify(value)
+  });
+  assert.equal(sink.emit({ ok: true }), true);
+  assert.equal(writes.length, 1);
+  assert.equal(sink.state, "active");
+  const failing = createDiagnosticSink({ stderr: new EventEmitter(), write: () => { throw new Error("EPIPE"); } });
+  assert.equal(failing.emit({}), false);
+  assert.equal(failing.state, "disabled");
+  assert.equal(failing.emit({}), false);
+  assert.doesNotThrow(() => failing.stderr);
+});
+
+test("a synchronous stderr failure during emit leaves the sink terminally disabled", () => {
+  const stderr = new EventEmitter();
+  let sink;
+  sink = createDiagnosticSink({
+    stderr,
+
+    write: () => { stderr.emit("error", new Error("EPIPE")); }
+  });
+  sink.emit({ ok: true });
+  assert.equal(sink.state, "disabled");
+  assert.equal(sink.disabled, true);
+  assert.equal(sink.emit({ again: true }), false);
+
+  const onClose = new EventEmitter();
+  const closing = createDiagnosticSink({
+    stderr: onClose,
+    write: () => { onClose.emit("close"); }
+  });
+  closing.emit({ ok: true });
+  assert.equal(closing.disabled, true);
+
+  closing.disable();
+  assert.equal(closing.state, "disabled");
+  assert.equal(closing.emit({}), false);
+});
+
+test("diagnostic sink contains serialization and logger failures", () => {
+  const serializationFailure = createDiagnosticSink({
+    stderr: new EventEmitter(),
+    serialize: () => { throw new Error("serialization failed"); },
+    write: () => { throw new Error("write must not run"); }
+  });
+  assert.equal(serializationFailure.emit({}), false);
+  assert.equal(serializationFailure.disabled, true);
+
+  const loggerFailure = createDiagnosticSink({
+    stderr: new EventEmitter(),
+    write: () => {},
+    log: () => { throw new Error("logger failed"); }
+  });
+  assert.equal(loggerFailure.emit({}), false);
+  assert.equal(loggerFailure.disabled, true);
+});
+
+test("stderr error or close disables diagnostics only", () => {
+  const stderr = new EventEmitter();
+  const sink = createDiagnosticSink({ stderr, write: () => {} });
+  stderr.emit("error", new Error("EPIPE"));
+  assert.equal(sink.disabled, true);
+  const seams = lifecycleSeams();
+  seams.stderr.emit("close");
+  assert.equal(seams.controller.phase, "running");
+  assert.equal(seams.exits.length, 0);
+});
+
+test("stable and changed parent identities are classified and interval is unrefed", async () => {
+  const seams = lifecycleSeams();
+  assert.equal(seams.controller.phase, "running");
+  assert.equal(seams.intervalUnrefed, true);
+  seams.setPpid(42);
+  assert.equal(seams.exits.length, 0);
+  seams.setPpid(43);
+  await seams.controller.cleanup();
+  assert.equal(seams.controller.phase, "terminated");
+  assert.deepEqual(seams.exits, [1]);
+  assert.equal(seams.clearedIntervals, 1);
+});
+
+test("initial PPID values 0 and 1 are fatal without starting a probe interval", async () => {
+  for (const ppid of [0, 1]) {
+    const seams = lifecycleSeams({ ppid });
+    await seams.controller.cleanup();
+    assert.deepEqual(seams.exits, [1]);
+    assert.equal(seams.controller.phase, "terminated");
+    assert.equal(seams.clearedIntervals, 0);
+  }
+});
+
+test("shutdown captures pre-assignment cleanup and ignores a hook assigned afterward", async () => {
+  let closes = 0;
+  const seams = lifecycleSeams({ ppid: 1 });
+  seams.controller.setServerCloseHook(() => { closes += 1; });
+  await seams.controller.cleanup();
+  assert.deepEqual(seams.exits, [1]);
+  assert.equal(seams.controller.phase, "terminated");
+  assert.equal(closes, 0);
+});
+
+test("stdin error requests fatal shutdown and explicit orderly exit is preserved", async () => {
+  const errorSeams = lifecycleSeams();
+  errorSeams.stdin.emit("error", new Error("EPIPE"));
+  await errorSeams.controller.cleanup();
+  assert.deepEqual(errorSeams.exits, [1]);
+
+  const orderlySeams = lifecycleSeams({ closeServer: async () => {} });
+  orderlySeams.controller.requestShutdown(0);
+  await orderlySeams.controller.cleanup();
+  assert.deepEqual(orderlySeams.exits, [0]);
+});
+
+test("stdin EOF is orderly, but fatal events upgrade the in-flight cleanup", async () => {
+  let closes = 0;
+  const seams = lifecycleSeams({ closeServer: async () => { closes += 1; } });
+  seams.stdin.emit("end");
+  seams.stdout.emit("error", new Error("EPIPE"));
+  await seams.controller.cleanup();
+  assert.equal(closes, 1);
+  assert.deepEqual(seams.exits, [1]);
+  assert.equal(seams.timeoutSchedules, 1);
+  seams.stdin.emit("close");
+  assert.deepEqual(seams.exits, [1]);
+});
+
+test("stdin close without EOF and stdout close are fatal; cleanup rejection is bounded", async () => {
+  const seams = lifecycleSeams({ closeServer: () => Promise.reject(new Error("close failed")) });
+  seams.stdin.emit("close");
+  await assert.rejects(seams.controller.cleanup(), /close failed/);
+  assert.deepEqual(seams.exits, [1]);
+  const hanging = lifecycleSeams({ closeServer: () => new Promise(() => {}) });
+  hanging.stdout.emit("close");
+  hanging.fireTimeout();
+  assert.deepEqual(hanging.exits, [1]);
+  assert.equal(hanging.controller.phase, "terminated");
+});
+
+test("shutdown storms invoke the late-bound server close hook exactly once", async () => {
+  let closes = 0;
+  const seams = lifecycleSeams({ closeServer: async () => { closes += 1; } });
+
+  seams.stdin.emit("end");
+  seams.stdin.emit("close");
+  seams.stdout.emit("error", new Error("peer vanished"));
+  seams.stdout.emit("close");
+  seams.setPpid(43);
+
+  await seams.controller.cleanup();
+  assert.equal(closes, 1);
+  assert.deepEqual(seams.exits, [1]);
 });

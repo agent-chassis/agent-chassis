@@ -1,0 +1,24 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.authorization.refusal-before-effects",
+  "profile_version": "1.0.0",
+  "profile_digest": "de10177afcb69a95f181bba4e48d320f6b34e0931c213ca044d70a882b5031ce",
+  "guarantee": "Given one declared operation attempt, one declared refusal event, one declared authority, one declared unauthorized subject, one declared reusable operation, and one complete caller-supplied protected-effect list bound to an exact declared cardinality, this pack establishes only in the declared controlled graph that: the attempt performs the operation and uses the subject; the authority does not authorize that subject for the operation; the refusal rejects that exact attempt; the attempt precedes a protected-interval witness which precedes the refusal; before that refusal the same attempt neither writes nor mutates any listed protected effect; and the verification reads the exact attempt, refusal, operation, and every listed protected effect, with a positive same-attempt, same-population, same-refusal pre-refusal write or mutation as the corresponding falsifier.",
+  "guarantee_digest": "f55adcfd21e759ad9f647d8d63aaefd8d0fc0d112d9b288ca7489077c5c508b8",
+  "explicit_exclusions": [
+    "cce-consequences",
+    "completeness-beyond-declared-protected-effect-population",
+    "evidence-authority",
+    "pack-applicability",
+    "production-path-discovery",
+    "truthful-grounding"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "683bd30b3fb7279b49897b2039cc972213d2bd7923e5ad1a1e6adc1fdfff709c",
+    "adequacy_result_digest": "64cd9a304dbddd69d134aa721df5dfc219f97fde6688a898c7581333b34a85af",
+    "executable_control_count": 59,
+    "negative_fixture_count": 35,
+    "coverage_witness_count": 79
+  }
+}

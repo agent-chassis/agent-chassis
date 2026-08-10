@@ -1,0 +1,1598 @@
+{
+  "schema_version": "controlled-contract-verification-profile.experimental.v0.2",
+  "profile_id": "proof.ownership.exact-isolation",
+  "profile_version": "1.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.experimental.v0.2",
+  "vocabulary_version": "cv.experimental.0.34",
+  "vocabulary_signature_digest": "5743cbac037367c70252986863fb05df65f7ae825e3af880934370cbd3a99347",
+  "vocabulary_algebra_digest": "1f5b1b04df5ae806c68592e352cb2285cdaf10a7d7bb898818a2805d290a9b4f",
+  "vocabulary_definitions_digest": "203e07960ad043b5dc932b65adeb5378eadd9dd91babca03120f1b6fc0d96033",
+  "vocabulary_complete_digest": "ee81c2b6e030d96b36c5a7b96dc920ff3fb2968d5242961030452d444f27a966",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "reference_roles": [
+    {
+      "role": "operation",
+      "allowed_type_terms": [
+        "cc:operation",
+        "cc:capability",
+        "cc:command"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "owned_resource",
+      "allowed_type_terms": [
+        "cc:resource",
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "legitimate_owner",
+      "allowed_type_terms": [
+        "cc:actor",
+        "cc:entity"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "foreign_subject",
+      "allowed_type_terms": [
+        "cc:actor",
+        "cc:entity"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "legitimate_authority",
+      "allowed_type_terms": [
+        "cc:authority",
+        "cc:capability",
+        "cc:configuration"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "foreign_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "protected_interval",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "refusal",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authority_state_before",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authority_state_after_refusal",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authority_observation_before",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authority_observation_after",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "later_valid_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "later_valid_result",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "later_result_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "expected_success_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "result_observation",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "success_criterion",
+      "allowed_type_terms": [
+        "cc:criterion",
+        "cc:invariant"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "write_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "mutation_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "nonconsumption_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "later_success_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "foreign_write_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "foreign_mutation_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authority_consumption_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "later_failure_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "legitimate_owner",
+        "foreign_subject"
+      ]
+    },
+    {
+      "roles": [
+        "foreign_attempt",
+        "protected_interval",
+        "refusal",
+        "later_valid_attempt",
+        "later_valid_result"
+      ]
+    },
+    {
+      "roles": [
+        "authority_state_before",
+        "authority_state_after_refusal",
+        "later_result_state",
+        "expected_success_state"
+      ]
+    },
+    {
+      "roles": [
+        "authority_observation_before",
+        "authority_observation_after",
+        "result_observation"
+      ]
+    },
+    {
+      "roles": [
+        "write_verification",
+        "mutation_verification",
+        "nonconsumption_verification",
+        "later_success_verification"
+      ]
+    },
+    {
+      "roles": [
+        "foreign_write_condition",
+        "foreign_mutation_condition",
+        "authority_consumption_condition",
+        "later_failure_condition"
+      ]
+    },
+    {
+      "roles": [
+        "operation",
+        "owned_resource",
+        "legitimate_authority"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [],
+  "reference_role_count_bindings": [],
+  "claim_patterns": [
+    {
+      "pattern_id": "resource-owned-by-legitimate-owner",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "owned_resource",
+        "operator": "reference:has_property",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "legitimate_owner"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "authority-authorizes-legitimate-owner",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "legitimate_authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "operation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "legitimate_owner"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "authority-does-not-authorize-foreign-subject",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "legitimate_authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "operation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "foreign_subject"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "foreign-attempt-performs-operation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "foreign_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "foreign-attempt-targets-owned-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "foreign_attempt",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "owned_resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "foreign-attempt-uses-foreign-subject",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "foreign_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "foreign_subject"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "foreign-attempt-precedes-protected-interval",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "foreign_attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_interval"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "protected-interval-precedes-refusal",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "protected_interval",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "refusal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "refusal-rejects-foreign-attempt",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "refusal",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "protected_interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "foreign_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "authority-state-before-foreign-attempt",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "legitimate_authority",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "foreign_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority_state_before"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "authority-observation-before-records-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "authority_observation_before",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "foreign_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority_state_before"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "no-foreign-write-before-refusal",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "foreign_attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "owned_resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "write-verification-reads-boundary",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "write_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "foreign_attempt"
+          },
+          {
+            "kind": "reference",
+            "role": "refusal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "write-isolation-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "write_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "owned_resource"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "foreign_attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "foreign_write_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "owned_resource"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    },
+    {
+      "pattern_id": "no-foreign-mutation-before-refusal",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "foreign_attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "owned_resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "mutation-verification-reads-boundary",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "mutation_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "foreign_attempt"
+          },
+          {
+            "kind": "reference",
+            "role": "refusal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "mutation-isolation-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "mutation_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "owned_resource"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "foreign_attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "foreign_mutation_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "owned_resource"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    },
+    {
+      "pattern_id": "authority-state-after-refusal",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "legitimate_authority",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority_state_after_refusal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "authority-observation-after-records-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "authority_observation_after",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority_state_after_refusal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "legitimate-authority-unconsumed",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "authority_state_after_refusal",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority_state_before"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "nonconsumption-verification-reads-states",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "nonconsumption_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority_observation_before"
+          },
+          {
+            "kind": "reference",
+            "role": "authority_observation_after"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "nonconsumption-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "nonconsumption_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "legitimate_authority"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "authority_state_after_refusal",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "authority_consumption_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority_state_before"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    },
+    {
+      "pattern_id": "refusal-precedes-later-valid-attempt",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "refusal",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "later_valid_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-attempt-performs-operation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_valid_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-attempt-uses-authority",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_valid_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "legitimate_authority"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-attempt-uses-legitimate-owner",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_valid_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "legitimate_owner"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-attempt-targets-same-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_valid_attempt",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "owned_resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-attempt-precedes-result",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_valid_attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "later_valid_result"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-result-accepts-attempt",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_valid_result",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "later_valid_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "later_valid_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-result-has-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_valid_result",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "later_valid_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "later_result_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "expected-state-conforms-to-success",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "expected_success_state",
+        "operator": "reference:conforms_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "success_criterion"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "result-observation-records-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "result_observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "later_valid_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "later_result_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-valid-attempt-succeeds",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_result_state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "later_valid_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "expected_success_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-success-verification-reads-result",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_success_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "later_valid_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result_observation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "later-success-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "later_success_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "later_valid_result"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "later_result_state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "later_failure_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "expected_success_state"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "write-verifies-isolation",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "write-isolation-verification",
+      "target_claim_pattern_id": "no-foreign-write-before-refusal"
+    },
+    {
+      "pattern_id": "mutation-verifies-isolation",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "mutation-isolation-verification",
+      "target_claim_pattern_id": "no-foreign-mutation-before-refusal"
+    },
+    {
+      "pattern_id": "nonconsumption-verifies-authority",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "nonconsumption-verification",
+      "target_claim_pattern_id": "legitimate-authority-unconsumed"
+    },
+    {
+      "pattern_id": "later-success-verifies-result",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "later-success-verification",
+      "target_claim_pattern_id": "later-valid-attempt-succeeds"
+    }
+  ],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "write-verifies-isolation",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "foreign_write_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "mutation-verifies-isolation",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "foreign_mutation_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "nonconsumption-verifies-authority",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "authority_consumption_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "later-success-verifies-result",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "later_failure_condition"
+        ]
+      }
+    }
+  ],
+  "collection_patterns": [
+    {
+      "pattern_id": "proof-sequence",
+      "required_by_stage": "pre_dispatch",
+      "collection_kind": "ordered_sequence",
+      "match_mode": "subsequence",
+      "candidate_quantifier": "all_covering",
+      "collection_purpose": "proof_exact_ownership_isolation_sequence",
+      "member_claim_pattern_ids": [
+        "authority-state-before-foreign-attempt",
+        "foreign-attempt-performs-operation",
+        "foreign-attempt-precedes-protected-interval",
+        "no-foreign-write-before-refusal",
+        "no-foreign-mutation-before-refusal",
+        "protected-interval-precedes-refusal",
+        "refusal-rejects-foreign-attempt",
+        "authority-state-after-refusal",
+        "legitimate-authority-unconsumed",
+        "refusal-precedes-later-valid-attempt",
+        "later-attempt-performs-operation",
+        "later-attempt-precedes-result",
+        "later-result-accepts-attempt",
+        "later-valid-attempt-succeeds"
+      ]
+    },
+    {
+      "pattern_id": "proof-population",
+      "required_by_stage": "pre_dispatch",
+      "collection_kind": "closed_set",
+      "match_mode": "exact",
+      "candidate_quantifier": "all_covering",
+      "collection_purpose": "proof_exact_ownership_isolation_population",
+      "member_claim_pattern_ids": [
+        "resource-owned-by-legitimate-owner",
+        "authority-authorizes-legitimate-owner",
+        "authority-does-not-authorize-foreign-subject",
+        "foreign-attempt-performs-operation",
+        "foreign-attempt-targets-owned-resource",
+        "foreign-attempt-uses-foreign-subject",
+        "foreign-attempt-precedes-protected-interval",
+        "protected-interval-precedes-refusal",
+        "refusal-rejects-foreign-attempt",
+        "authority-state-before-foreign-attempt",
+        "authority-observation-before-records-state",
+        "no-foreign-write-before-refusal",
+        "write-verification-reads-boundary",
+        "write-isolation-verification",
+        "no-foreign-mutation-before-refusal",
+        "mutation-verification-reads-boundary",
+        "mutation-isolation-verification",
+        "authority-state-after-refusal",
+        "authority-observation-after-records-state",
+        "legitimate-authority-unconsumed",
+        "nonconsumption-verification-reads-states",
+        "nonconsumption-verification",
+        "refusal-precedes-later-valid-attempt",
+        "later-attempt-performs-operation",
+        "later-attempt-uses-authority",
+        "later-attempt-uses-legitimate-owner",
+        "later-attempt-targets-same-resource",
+        "later-attempt-precedes-result",
+        "later-result-accepts-attempt",
+        "later-result-has-state",
+        "expected-state-conforms-to-success",
+        "result-observation-records-state",
+        "later-valid-attempt-succeeds",
+        "later-success-verification-reads-result",
+        "later-success-verification"
+      ]
+    }
+  ],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "resource-owned-by-legitimate-owner"
+      },
+      {
+        "pattern": "authority-authorizes-legitimate-owner"
+      },
+      {
+        "pattern": "authority-does-not-authorize-foreign-subject"
+      },
+      {
+        "pattern": "foreign-attempt-performs-operation"
+      },
+      {
+        "pattern": "foreign-attempt-targets-owned-resource"
+      },
+      {
+        "pattern": "foreign-attempt-uses-foreign-subject"
+      },
+      {
+        "pattern": "foreign-attempt-precedes-protected-interval"
+      },
+      {
+        "pattern": "protected-interval-precedes-refusal"
+      },
+      {
+        "pattern": "refusal-rejects-foreign-attempt"
+      },
+      {
+        "pattern": "authority-state-before-foreign-attempt"
+      },
+      {
+        "pattern": "authority-observation-before-records-state"
+      },
+      {
+        "pattern": "no-foreign-write-before-refusal"
+      },
+      {
+        "pattern": "write-verification-reads-boundary"
+      },
+      {
+        "pattern": "write-isolation-verification"
+      },
+      {
+        "pattern": "no-foreign-mutation-before-refusal"
+      },
+      {
+        "pattern": "mutation-verification-reads-boundary"
+      },
+      {
+        "pattern": "mutation-isolation-verification"
+      },
+      {
+        "pattern": "authority-state-after-refusal"
+      },
+      {
+        "pattern": "authority-observation-after-records-state"
+      },
+      {
+        "pattern": "legitimate-authority-unconsumed"
+      },
+      {
+        "pattern": "nonconsumption-verification-reads-states"
+      },
+      {
+        "pattern": "nonconsumption-verification"
+      },
+      {
+        "pattern": "refusal-precedes-later-valid-attempt"
+      },
+      {
+        "pattern": "later-attempt-performs-operation"
+      },
+      {
+        "pattern": "later-attempt-uses-authority"
+      },
+      {
+        "pattern": "later-attempt-uses-legitimate-owner"
+      },
+      {
+        "pattern": "later-attempt-targets-same-resource"
+      },
+      {
+        "pattern": "later-attempt-precedes-result"
+      },
+      {
+        "pattern": "later-result-accepts-attempt"
+      },
+      {
+        "pattern": "later-result-has-state"
+      },
+      {
+        "pattern": "expected-state-conforms-to-success"
+      },
+      {
+        "pattern": "result-observation-records-state"
+      },
+      {
+        "pattern": "later-valid-attempt-succeeds"
+      },
+      {
+        "pattern": "later-success-verification-reads-result"
+      },
+      {
+        "pattern": "later-success-verification"
+      },
+      {
+        "pattern": "write-verifies-isolation"
+      },
+      {
+        "pattern": "mutation-verifies-isolation"
+      },
+      {
+        "pattern": "nonconsumption-verifies-authority"
+      },
+      {
+        "pattern": "later-success-verifies-result"
+      },
+      {
+        "pattern": "proof-sequence"
+      },
+      {
+        "pattern": "proof-population"
+      }
+    ]
+  }
+}

@@ -11,9 +11,19 @@ agent-chassis command or MCP function should handle a job. It exists so
 agents can choose a tool from structured data instead of guessing from wrapper
 filenames, package metadata, executable bits, or historical WK pages.
 
-The assembled corpus is exactly 101 tool entries. The manifest fragment counts
-are (17 + 11 + 5 + 2 + 1 + 6 + 7 + 9 + 7 + 18 + 7 + 10 + 1 + 0 = 101); the
+The assembled corpus is exactly 115 tool entries. The manifest fragment counts
+are (17 + 14 + 11 + 5 + 2 + 1 + 6 + 7 + 9 + 7 + 18 + 7 + 10 + 1 + 0 = 115); the
 checked-in manifest remains the source of truth for both values.
+
+The fourteen entries in `controlled-contract-tools.json` describe the supported
+repository-local controlled-contract routes. Discovery records their exact role
+audience, side effects, authority, non-authoritative boundaries, and durable
+operation docs; package manifests, private package files, and historical CLI
+examples are not support evidence for this surface.
+The dedicated task IDs `controlled-contract-authoring`,
+`controlled-contract-proof-selection`, `controlled-contract-proof-plan`, and
+`controlled-contract-assessment` keep these routes separate from generic
+work-record and decision editors.
 
 ## Canonical document map
 

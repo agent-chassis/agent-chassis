@@ -1,0 +1,25 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.ownership.fenced-handoff",
+  "profile_version": "1.0.0",
+  "profile_digest": "5278a8e5d0bbf634de452415b14e56affb3fdd0f5390113516ca7b379ff2c3d7",
+  "guarantee": "For one declared resource and fence, complete declared predecessor attempt and effect populations precede the fence under one predecessor authority and epoch; successor activation and complete declared successor attempt and effect populations follow the fence under one distinct successor authority and epoch; every complete declared post-fence predecessor attempt is refused and writes or mutates no declared protected resource; the complete post-fence predecessor protected-effect and dual-active observation populations are empty; and distinct observations ordered around the fence record the corresponding predecessor and successor authority, epoch, and resource.",
+  "guarantee_digest": "68c788f79b75254bb8600eb8805fb8bf6589052825cc26b243f482261641f975",
+  "explicit_exclusions": [
+    "delivered-evidence-authenticity-or-plan-implementation",
+    "dishonest-authority-epoch-resource-fence-attempt-effect-and-observation-grounding",
+    "distributed-clock-agreement-or-a-total-order-beyond-the-declared-graph",
+    "liveness-eventual-takeover-or-bounded-handoff-duration",
+    "repeated-nested-or-unbounded-ownership-histories",
+    "runtime-events-actors-resources-and-effects-outside-declared-populations",
+    "wall-clock-or-real-time-truth"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "d120164dd3d90b144258dcefe494589fb117b7ca4a3b615fcc174ac2956303b1",
+    "adequacy_result_digest": "e1b8e87c1c3b5bd0003a722808e9f5a5a4d422063c976a2a5f66875130e4d291",
+    "executable_control_count": 26,
+    "negative_fixture_count": 218,
+    "coverage_witness_count": 218
+  }
+}

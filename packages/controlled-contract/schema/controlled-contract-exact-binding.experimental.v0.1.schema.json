@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "controlled-contract-exact-binding.experimental.v0.1",
+  "title": "Exact artifact and snapshot binding extension for v0.34 profiles",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "role": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "binding_kind": {
+      "enum": [
+        "artifact_bytes",
+        "complete_reachability_snapshot",
+        "observed_execution_mutation_snapshot"
+      ]
+    },
+    "projection": {
+      "enum": [
+        "artifact_subject",
+        "snapshot_subject",
+        "snapshot_population"
+      ]
+    },
+    "profile_role_coverage": {
+      "type": "object",
+      "required": ["role", "coverage", "projection"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "$ref": "#/$defs/role" },
+        "coverage": { "const": "exact" },
+        "projection": { "$ref": "#/$defs/projection" }
+      }
+    },
+    "binding_role_coverage": {
+      "type": "object",
+      "required": ["role", "projection", "reference_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "$ref": "#/$defs/role" },
+        "projection": { "$ref": "#/$defs/projection" },
+        "reference_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        }
+      },
+      "allOf": [{
+        "if": {
+          "properties": {
+            "projection": { "const": "snapshot_population" }
+          },
+          "required": ["projection"]
+        },
+        "else": {
+          "properties": {
+            "reference_ids": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1
+            }
+          }
+        }
+      }]
+    },
+    "profile_extension": {
+      "type": "object",
+      "required": ["exact_binding_requirements"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "controlled-contract-verification-profile.experimental.v0.2"
+        },
+        "exact_binding_requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["requirement_id", "binding_kind", "role_coverage"],
+            "additionalProperties": false,
+            "properties": {
+              "requirement_id": { "$ref": "#/$defs/id" },
+              "binding_kind": { "$ref": "#/$defs/binding_kind" },
+              "expected_content_sha256": { "$ref": "#/$defs/sha256" },
+              "role_coverage": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/profile_role_coverage" }
+              }
+            }
+          }
+        },
+        "distinct_capture_requirement_sets": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/id" }
+          }
+        }
+      }
+    },
+    "evaluation_input_extension": {
+      "type": "object",
+      "required": ["reference_bindings"],
+      "additionalProperties": false,
+      "properties": {
+        "reference_bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["role", "reference_ids"],
+            "additionalProperties": false,
+            "properties": {
+              "role": { "$ref": "#/$defs/role" },
+              "reference_ids": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^ref-[a-z0-9]+(?:-[a-z0-9]+)*$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "required": [
+        "binding_id",
+        "requirement_id",
+        "capture_id",
+        "binding_kind",
+        "media_type",
+        "content_sha256",
+        "byte_length",
+        "role_coverage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": { "$ref": "#/$defs/id" },
+        "requirement_id": { "$ref": "#/$defs/id" },
+        "capture_id": { "$ref": "#/$defs/id" },
+        "binding_kind": { "$ref": "#/$defs/binding_kind" },
+        "media_type": { "type": "string", "minLength": 1 },
+        "content_sha256": { "$ref": "#/$defs/sha256" },
+        "byte_length": { "type": "integer", "minimum": 0 },
+        "role_coverage": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/binding_role_coverage" }
+        }
+      }
+    },
+    "binding_set": {
+      "type": "object",
+      "required": ["binding_set_version", "context", "bindings"],
+      "additionalProperties": false,
+      "properties": {
+        "binding_set_version": {
+          "const": "controlled-contract-exact-binding-set.experimental.v0.1"
+        },
+        "context": {
+          "type": "object",
+          "required": [
+            "contract_sha256",
+            "profile_sha256",
+            "evaluation_input_sha256"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "contract_sha256": { "$ref": "#/$defs/sha256" },
+            "profile_sha256": { "$ref": "#/$defs/sha256" },
+            "evaluation_input_sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "bindings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/binding" }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": ["kind", "authoritative"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "free_tier_local" },
+        "authoritative": { "const": false }
+      }
+    },
+    "input_context": {
+      "type": "object",
+      "required": [
+        "contract_sha256",
+        "profile_sha256",
+        "evaluation_input_sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "contract_sha256": { "$ref": "#/$defs/sha256" },
+        "profile_sha256": { "$ref": "#/$defs/sha256" },
+        "evaluation_input_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "binding_result": {
+      "type": "object",
+      "required": [
+        "result_version",
+        "authority",
+        "admission",
+        "satisfaction",
+        "binding_set_sha256",
+        "bindings",
+        "diagnostics"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "result_version": {
+          "const": "controlled-contract-exact-binding-result.experimental.v0.1"
+        },
+        "authority": { "$ref": "#/$defs/authority" },
+        "admission": {
+          "type": "object",
+          "required": ["kind", "capture_verified"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "unadmitted_direct" },
+            "capture_verified": { "const": false }
+          }
+        },
+        "satisfaction": {
+          "enum": ["satisfied", "unsatisfied", "indeterminate", "invalid"]
+        },
+        "binding_set_sha256": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "bindings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/binding" }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "runner_envelope": {
+      "type": "object",
+      "required": [
+        "result_version",
+        "authority",
+        "admission",
+        "satisfaction",
+        "inputs",
+        "binding_set_sha256",
+        "bindings",
+        "captured_byte_checks",
+        "evaluation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "result_version": {
+          "const": "controlled-contract-exact-binding-runner-result.experimental.v0.1"
+        },
+        "authority": { "$ref": "#/$defs/authority" },
+        "admission": {
+          "type": "object",
+          "required": [
+            "kind",
+            "capture_verified",
+            "filesystem_paths_authoritative",
+            "caller_reported_digests_authoritative"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "local_exact_byte_capture" },
+            "capture_verified": { "const": true },
+            "filesystem_paths_authoritative": { "const": false },
+            "caller_reported_digests_authoritative": { "const": false }
+          }
+        },
+        "satisfaction": {
+          "enum": ["satisfied", "unsatisfied", "indeterminate", "invalid"]
+        },
+        "inputs": { "$ref": "#/$defs/input_context" },
+        "binding_set_sha256": { "$ref": "#/$defs/sha256" },
+        "bindings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/binding" }
+        },
+        "captured_byte_checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "check_id", "requirement_ids", "mode", "result", "passed"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "check_id": { "$ref": "#/$defs/id" },
+              "requirement_ids": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "$ref": "#/$defs/id" }
+              },
+              "mode": {
+                "enum": ["required", "informational"]
+              },
+              "result": true,
+              "expected_result": true,
+              "passed": {
+                "oneOf": [
+                  { "type": "boolean" },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "allOf": [{
+              "if": {
+                "properties": { "mode": { "const": "required" } },
+                "required": ["mode"]
+              },
+              "then": {
+                "required": ["expected_result"],
+                "properties": {
+                  "expected_result": true,
+                  "passed": { "type": "boolean" }
+                }
+              },
+              "else": {
+                "properties": {
+                  "expected_result": false,
+                  "passed": { "type": "null" }
+                }
+              }
+            }]
+          }
+        },
+        "evaluation": { "$ref": "#/$defs/binding_result" }
+      }
+    }
+  },
+  "$ref": "#/$defs/binding_set"
+}

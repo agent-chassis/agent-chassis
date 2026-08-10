@@ -1,0 +1,306 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-proof-pack-authoring.v1.schema.json",
+  "title": "controlled-contract-proof-pack-authoring.v1",
+  "type": "object",
+  "required": [
+    "schema_version", "digest_algorithm", "profile_id", "profile_version", "requested_intents",
+    "intent_definitions", "intent_distinctions", "guarantee",
+    "explicit_exclusions", "compatibility", "evaluation_input_skeleton",
+    "role_constraints", "proof_obligations", "counts", "source_digests",
+    "authority", "projection_digest"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "controlled-contract-proof-pack-authoring.v1"
+    },
+    "digest_algorithm": { "const": "sha256-canonical-json-v1" },
+    "profile_id": { "type": "string", "minLength": 1 },
+    "profile_version": { "type": "string", "minLength": 1 },
+    "requested_intents": { "$ref": "#/$defs/string_set" },
+    "intent_definitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/intent_definition" }
+    },
+    "intent_distinctions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/intent_distinction" }
+    },
+    "guarantee": { "type": "string", "minLength": 1 },
+    "explicit_exclusions": { "$ref": "#/$defs/string_set" },
+    "compatibility": { "$ref": "#/$defs/compatibility" },
+    "evaluation_input_skeleton": { "$ref": "#/$defs/evaluation_input_skeleton" },
+    "role_constraints": { "$ref": "#/$defs/role_constraints" },
+    "proof_obligations": { "$ref": "#/$defs/proof_obligations" },
+    "counts": { "$ref": "#/$defs/counts" },
+    "source_digests": { "$ref": "#/$defs/source_digests" },
+    "authority": { "const": "non_authoritative" },
+    "projection_digest": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "string_set": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "intent_definition": {
+      "type": "object",
+      "required": ["intent_id", "definition"],
+      "additionalProperties": false,
+      "properties": {
+        "intent_id": { "type": "string", "minLength": 1 },
+        "definition": { "type": "string", "minLength": 1 }
+      }
+    },
+    "intent_distinction": {
+      "type": "object",
+      "required": ["intent_id", "from_intent_id", "explanation"],
+      "additionalProperties": false,
+      "properties": {
+        "intent_id": { "type": "string", "minLength": 1 },
+        "from_intent_id": { "type": "string", "minLength": 1 },
+        "explanation": { "type": "string", "minLength": 1 }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "required": [
+        "contract_schema_version", "vocabulary_version",
+        "admission_schema_version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "contract_schema_version": { "type": "string", "minLength": 1 },
+        "vocabulary_version": { "type": "string", "minLength": 1 },
+        "admission_schema_version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "reference_binding": {
+      "type": "object",
+      "required": [
+        "role", "cardinality", "allowed_type_terms", "allowed_identity_kinds",
+        "value_source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "cardinality": {
+          "enum": ["exactly_one", "one_or_more", "zero_or_more"]
+        },
+        "allowed_type_terms": { "$ref": "#/$defs/string_set" },
+        "allowed_identity_kinds": { "$ref": "#/$defs/string_set" },
+        "value_source": { "const": "caller_supplied_contract_reference_ids" }
+      }
+    },
+    "number_binding": {
+      "type": "object",
+      "required": [
+        "role", "cardinality", "number_type", "value_source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "cardinality": { "const": "exactly_one" },
+        "number_type": { "const": "integer" },
+        "minimum": { "type": "integer" },
+        "maximum": { "type": "integer" },
+        "value_source": { "const": "caller_supplied_number" }
+      }
+    },
+    "evaluation_input_skeleton": {
+      "type": "object",
+      "required": [
+        "input_version", "allowed_evaluation_stages", "reference_bindings",
+        "number_bindings", "claim_pattern_bindings", "resolver_facts",
+        "delivered_evidence", "exact_binding"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "input_version": {
+          "const": "controlled-contract-verification-profile-input.experimental.v0.2"
+        },
+        "allowed_evaluation_stages": { "$ref": "#/$defs/string_set" },
+        "reference_bindings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reference_binding" }
+        },
+        "number_bindings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/number_binding" }
+        },
+        "claim_pattern_bindings": {
+          "const": "optional_only_to_resolve_an_ambiguous_pattern_match"
+        },
+        "resolver_facts": {
+          "enum": [
+            "not_required", "supply_every_required_resolver_fact_pattern"
+          ]
+        },
+        "delivered_evidence": {
+          "enum": [
+            "not_required", "supply_every_required_delivered_evidence_pattern"
+          ]
+        },
+        "exact_binding": {
+          "enum": ["not_applicable", "required_by_proof_plan"]
+        }
+      }
+    },
+    "role_constraints": {
+      "type": "object",
+      "required": [
+        "distinct_reference_role_sets", "reference_binding_patterns",
+        "reference_role_count_bindings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "distinct_reference_role_sets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["roles"],
+            "additionalProperties": false,
+            "properties": { "roles": { "$ref": "#/$defs/string_set" } }
+          }
+        },
+        "reference_binding_patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pattern_object" }
+        },
+        "reference_role_count_bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["reference_role", "number_role"],
+            "additionalProperties": false,
+            "properties": {
+              "reference_role": { "type": "string", "minLength": 1 },
+              "number_role": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "for_each": {
+      "type": "object",
+      "required": ["population_role", "member_role"],
+      "additionalProperties": false,
+      "properties": {
+        "population_role": { "type": "string", "minLength": 1 },
+        "member_role": { "type": "string", "minLength": 1 }
+      }
+    },
+    "claim_pattern": {
+      "type": "object",
+      "required": [
+        "pattern_id", "required_by_stage", "claim_kind",
+        "allowed_modalities", "proposition"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pattern_id": { "type": "string", "minLength": 1 },
+        "required_by_stage": { "type": "string", "minLength": 1 },
+        "claim_kind": { "enum": ["behavior", "evidence", "verification"] },
+        "allowed_modalities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["MUST", "MUST_NOT"] }
+        },
+        "proposition": { "type": "string", "minLength": 1 },
+        "for_each": { "$ref": "#/$defs/for_each" },
+        "verification_methods": { "$ref": "#/$defs/string_set" },
+        "falsifying_proposition": { "type": "string", "minLength": 1 }
+      }
+    },
+    "pattern_object": {
+      "type": "object",
+      "required": ["pattern_id"],
+      "properties": {
+        "pattern_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "proof_obligations": {
+      "type": "object",
+      "required": [
+        "claim_patterns", "relation_patterns", "collection_patterns",
+        "resolver_fact_patterns", "evidence_patterns",
+        "falsifier_condition_bindings", "verification_falsifier_policy",
+        "satisfaction_expression"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claim_patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/claim_pattern" }
+        },
+        "relation_patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pattern_object" }
+        },
+        "collection_patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pattern_object" }
+        },
+        "resolver_fact_patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pattern_object" }
+        },
+        "evidence_patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pattern_object" }
+        },
+        "falsifier_condition_bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["relation_pattern_id", "applicability_context"],
+            "additionalProperties": true,
+            "properties": {
+              "relation_pattern_id": { "type": "string", "minLength": 1 },
+              "applicability_context": { "type": "object", "minProperties": 1 }
+            }
+          }
+        },
+        "verification_falsifier_policy": {
+          "const": "controlled_complement_per_target"
+        },
+        "satisfaction_expression": { "type": "object", "minProperties": 1 }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "reference_roles", "number_roles", "reference_binding_patterns",
+        "claim_patterns", "relation_patterns", "collection_patterns",
+        "resolver_fact_patterns", "evidence_patterns"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reference_roles": { "type": "integer", "minimum": 0 },
+        "number_roles": { "type": "integer", "minimum": 0 },
+        "reference_binding_patterns": { "type": "integer", "minimum": 0 },
+        "claim_patterns": { "type": "integer", "minimum": 0 },
+        "relation_patterns": { "type": "integer", "minimum": 0 },
+        "collection_patterns": { "type": "integer", "minimum": 0 },
+        "resolver_fact_patterns": { "type": "integer", "minimum": 0 },
+        "evidence_patterns": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "source_digests": {
+      "type": "object",
+      "required": ["profile", "admission", "guarantee", "intent_artifact"],
+      "additionalProperties": false,
+      "properties": {
+        "profile": { "$ref": "#/$defs/sha256" },
+        "admission": { "$ref": "#/$defs/sha256" },
+        "guarantee": { "$ref": "#/$defs/sha256" },
+        "intent_artifact": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

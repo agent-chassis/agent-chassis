@@ -137,6 +137,8 @@ function observeConduitLifecycle({
   let clientReadyResolved = false;
 
   let clientProcessTerminal = false;
+
+  let clientTransportEof = false;
   let readinessEvent = null;
   let failure = null;
   let serverTimer = null;
@@ -193,7 +195,7 @@ function observeConduitLifecycle({
     }
 
     const expected = clientReadyResolved && code === 0 && signal === null &&
-      (role !== "orchestrator" || clientProcessTerminal);
+      (role !== "orchestrator" || clientProcessTerminal || clientTransportEof);
     serverExit.resolve(Object.freeze({
       code, signal, expected, cleanupInitiated: cleanupOwned
     }));
@@ -213,6 +215,12 @@ function observeConduitLifecycle({
       { code, signal, stderr: getStderr() }
     ));
   };
+
+  const markClientTransportEof = () => {
+    if (clientTransportEof) return false;
+    clientTransportEof = true;
+    return true;
+  };
   child.once?.("error", (error) => finalizeChild("error", null, null, error));
   child.once?.("exit", (code, signal) => finalizeChild("exit", code, signal, null));
   child.once?.("close", (code, signal) => finalizeChild("close", code, signal, null));
@@ -230,6 +238,9 @@ function observeConduitLifecycle({
       serverExit: serverExit.promise,
       beginClientReadiness: () => {},
       markClientProcessTerminal: () => { clientProcessTerminal = true; },
+      markClientTransportEof,
+      isClientTransportEof: () => clientTransportEof,
+      isClientProcessTerminal: () => clientProcessTerminal,
       currentFailure: () => failure,
       isClientReady: () => clientReadyResolved,
       termination
@@ -464,6 +475,9 @@ function observeConduitLifecycle({
       )), clientReadinessTimeoutMs);
     },
     markClientProcessTerminal: () => { clientProcessTerminal = true; },
+    markClientTransportEof,
+    isClientTransportEof: () => clientTransportEof,
+    isClientProcessTerminal: () => clientProcessTerminal,
     currentFailure: () => failure,
     isClientReady: () => clientReadyResolved,
     currentPhase: () => phase,

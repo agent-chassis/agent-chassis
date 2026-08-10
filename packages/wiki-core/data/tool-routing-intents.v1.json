@@ -78,6 +78,7 @@
       "preserve durable identifiers such as IN-*, WK-*, WK-*#SLICE-*, DEC-*, SRC-*, and docs paths as prerequisite state"
     ],
     "deterministic_overlap_order": [
+      "controlled_contract_authoring", "controlled_contract_proof_selection", "controlled_contract_proof_plan", "controlled_contract_assessment",
       "dispatch_role_call",
       "dispatch_readiness",
       "run_monitoring",
@@ -90,6 +91,7 @@
       "docs_lookup"
     ],
     "overlap_rules": [
+      { "when": "task asks to author or edit a controlled-contract carrier", "choose": "controlled_contract_authoring", "instead_of": ["work_record_mutation", "selected_work_record_context"], "reason": "controlled-contract carriers use their bounded package-backed authoring routes, not generic work-record setters" }, { "when": "task asks for controlled-contract proof selection", "choose": "controlled_contract_proof_selection", "instead_of": ["selected_work_record_context"], "reason": "controlled-contract proof selection uses package-backed proof routes" }, { "when": "task asks for a controlled proof plan", "choose": "controlled_contract_proof_plan", "instead_of": ["selected_work_record_context"], "reason": "controlled proof plans use their bounded carrier route" }, { "when": "task asks for controlled-contract assessment", "choose": "controlled_contract_assessment", "instead_of": ["selected_work_record_context"], "reason": "controlled-contract assessment uses its package-backed assessment route" },
       {
         "when": "task asks to launch, start, assign, run, or dispatch a worker, reviewer, or redteam role",
         "choose": "dispatch_role_call",
@@ -175,7 +177,11 @@
       "workspace_work_record_upsert_slice",
       "workspace_work_record_delete_slice",
       "workspace_work_record_shape_review_unit"
-    ]
+    ],
+    "controlled_contract_authoring": ["workspace_controlled_contract_authoring_describe", "workspace_controlled_contract_carrier_query", "workspace_controlled_contract_carrier_create", "workspace_controlled_contract_carrier_patch"],
+    "controlled_contract_proof_selection": ["workspace_controlled_proof_intents_discover", "workspace_controlled_proof_packs_select", "workspace_controlled_proof_pack_describe", "workspace_controlled_proof_pack_bindings_inspect"],
+    "controlled_contract_proof_plan": ["workspace_controlled_contract_carrier_query", "workspace_controlled_proof_plan_build"],
+    "controlled_contract_assessment": ["workspace_controlled_contract_carrier_query", "workspace_controlled_contract_assess", "workspace_controlled_contract_artifact_read"]
   },
   "required_initial_intents": [
     "initiative_status",
@@ -190,6 +196,10 @@
     "work_record_mutation"
   ],
   "intents": [
+    { "intent": "controlled_contract_authoring", "tie_break_rank": 10, "use_when": ["The user asks to author, inspect, or revise a controlled-contract carrier."], "match_phrases": ["author controlled contract", "edit controlled contract", "controlled acceptance contract", "controlled contract schema", "controlled contract carrier"], "recommended_first_tool": { "name": "workspace_controlled_contract_authoring_describe", "argument_template": { "carrier_kind": "contract" }, "omit_null_arguments": true }, "forbidden_first_tools": [{ "tool": "workspace_controlled_contract_carrier_read", "reason": "Complete-carrier recovery is operator-only and is not the bounded authoring start.", "use_instead": "workspace_controlled_contract_authoring_describe" }], "allowed_next_call_families": ["controlled_contract_authoring", "controlled_contract_proof_selection"], "prerequisite_state": [{ "name": "carrier_kind", "required": false, "accepted_sources": ["user task"], "if_missing": "start with contract" }], "replacement_guidance": [{ "replace": "complete carrier read", "with": "workspace_controlled_contract_authoring_describe", "when": "starting bounded controlled-contract authoring" }] },
+    { "intent": "controlled_contract_proof_selection", "tie_break_rank": 11, "use_when": ["The user asks to discover proof intents, select proof packs, or inspect pack bindings."], "match_phrases": ["controlled proof intent", "select controlled proof pack", "describe controlled proof pack", "inspect controlled proof bindings", "controlled contract proof pack bindings"], "recommended_first_tool": { "name": "workspace_controlled_proof_intents_discover", "argument_template": {}, "omit_null_arguments": true }, "forbidden_first_tools": [{ "tool": "workspace_controlled_contract_carrier_read", "reason": "Complete carrier content does not discover package-owned proof intents.", "use_instead": "workspace_controlled_proof_intents_discover" }], "allowed_next_call_families": ["controlled_contract_proof_selection", "controlled_contract_authoring"], "prerequisite_state": [{ "name": "proof_intent", "required": false, "accepted_sources": ["user task", "intent discovery"], "if_missing": "discover intents" }], "replacement_guidance": [{ "replace": "profile corpus read", "with": "workspace_controlled_proof_intents_discover", "when": "selecting package-owned proof support" }] },
+    { "intent": "controlled_contract_proof_plan", "tie_break_rank": 12, "use_when": ["The user asks to recover proof-plan metadata or rebuild a controlled proof plan."], "match_phrases": ["rebuild controlled proof plan", "controlled contract proof plan", "recover proof plan digest", "controlled proof plan metadata"], "recommended_first_tool": { "name": "workspace_controlled_contract_carrier_query", "argument_template": { "wk_id": "$unit_if_known", "carrier_kind": "proof_plan" }, "omit_null_arguments": true }, "forbidden_first_tools": [{ "tool": "workspace_controlled_contract_carrier_read", "reason": "Proof-plan metadata has a bounded success-path query.", "use_instead": "workspace_controlled_contract_carrier_query" }], "allowed_next_call_families": ["controlled_contract_proof_plan", "controlled_contract_assessment"], "prerequisite_state": [{ "name": "unit", "required": true, "accepted_sources": ["user-provided WK-*"], "if_missing": "ask for the WK id" }], "replacement_guidance": [{ "replace": "stale-CAS probe", "with": "workspace_controlled_contract_carrier_query", "when": "recovering the current proof-plan digest" }] },
+    { "intent": "controlled_contract_assessment", "tie_break_rank": 13, "use_when": ["The user asks to assess a controlled contract or recover its assessment artifact."], "match_phrases": ["assess controlled contract", "assess the controlled contract", "controlled contract assessment", "recover controlled assessment"], "recommended_first_tool": { "name": "workspace_controlled_contract_assess", "argument_template": { "wk_id": "$unit_if_known" }, "omit_null_arguments": true }, "forbidden_first_tools": [{ "tool": "workspace_search_repo", "reason": "Repository search does not produce or recover package assessment results.", "use_instead": "workspace_controlled_contract_assess" }], "allowed_next_call_families": ["controlled_contract_assessment", "controlled_contract_proof_plan"], "prerequisite_state": [{ "name": "unit", "required": true, "accepted_sources": ["user-provided WK-*"], "if_missing": "ask for the WK id" }], "replacement_guidance": [{ "replace": "repository search", "with": "workspace_controlled_contract_assess", "when": "running or recovering a controlled-contract assessment" }] },
     {
       "intent": "initiative_status",
       "tie_break_rank": 80,

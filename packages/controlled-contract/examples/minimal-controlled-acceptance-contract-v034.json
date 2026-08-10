@@ -1,0 +1,97 @@
+{
+  "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+  "vocabulary_version": "cv.experimental.0.34",
+  "profile_id": "acceptance-contract.standard.experimental.v0.2",
+  "references": [
+    {
+      "reference_id": "ref-component",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "profile_term",
+        "term": "example-component"
+      }
+    },
+    {
+      "reference_id": "ref-suite",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "profile_term",
+        "term": "example-suite"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-component-exists",
+      "subject_reference_id": "ref-component",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-suite-covers-component",
+      "subject_reference_id": "ref-suite",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-component"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-component-absent",
+      "subject_reference_id": "ref-component",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-component-exists",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-component-exists"
+    },
+    {
+      "claim_id": "claim-suite-covers-component",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-suite-covers-component",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-component-absent"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-suite-verifies-component",
+      "role": "verifies",
+      "source_claim_id": "claim-suite-covers-component",
+      "target_claim_id": "claim-component-exists"
+    }
+  ],
+  "collections": [],
+  "residue": [],
+  "annotations": []
+}

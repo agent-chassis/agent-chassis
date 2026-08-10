@@ -1,0 +1,27 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.completeness.lossless-projection",
+  "profile_version": "1.0.0",
+  "profile_digest": "14a13d53f4582e2b063a1a23e5b17458d2ae9561f553c6129630b4f52cf77204",
+  "guarantee": "When one declared structured tool exposes one compact mode and one distinct documented complete mode, the declared compact result omits at least one declared heavy member; every declared omission is absent from the compact population, present in the complete-result population, represented in an omission population whose computed union with the compact population equals the complete source population, and represented in a disclosed population equal to the omission population; the complete-result population equals the source population; the compact result names the complete mode and carries the disclosure, complete total, and omission total; both totals equal the corresponding exact bound population cardinalities; and the selected omission reason is a member of a closed declared reason catalog.",
+  "guarantee_digest": "e999fd999699e6b4f0ce98b59622c11ee30a74f0f6ce150c18a7bb0a9c887a80",
+  "explicit_exclusions": [
+    "authored-population-truthfulness",
+    "code-routing-and-call-graph",
+    "cross-storage-envelope-parity",
+    "delivered-test-implementation",
+    "identity-provenance-truthfulness",
+    "member-byte-value-equality",
+    "modes-outside-bound-pair",
+    "pagination-range-and-cursor-semantics",
+    "redaction-and-security-exemptions"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "bd2067b454939521543caaf5778e65d5f583141bd06be3f3b423caa88c2fd3a4",
+    "adequacy_result_digest": "43336cd738bd5859fca831eab9c07cb96abe00e33e713b8a3a222880dc3bc7dd",
+    "executable_control_count": 35,
+    "negative_fixture_count": 10,
+    "coverage_witness_count": 179
+  }
+}

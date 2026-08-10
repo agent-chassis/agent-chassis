@@ -34,8 +34,17 @@ import {
 import { assertSelectedDependencyMountIntegrity } from "./terminal-wk-candidate-validation.mjs";
 import { deriveBackendReviewResult } from "./workspace-agent-dispatch-review-result.mjs";
 import {
-  projectAuthenticatedTerminalCandidateFailure
+  CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES,
+  projectAuthenticatedTerminalCandidateFailure,
+  projectTerminalCandidateRecoveryDiagnostic,
+  projectTerminalCandidateRecoveryReason,
+  TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION,
+  TERMINAL_CANDIDATE_RECOVERY_REASONS,
+  TERMINAL_REVIEW_UNIT_PROJECTION_CODES
 } from "@agent-chassis/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs";
+import {
+  PARENT_LIFECYCLE_CONTRACT_FACTS
+} from "@agent-chassis/wiki-core/src/lib/work-record-parent-lifecycle-contract.mjs";
 
 const TERMINAL_REVIEW_ATTEMPT_CONTRACT_SCHEMA_VERSION =
   "agent_launch.terminal_review_attempt_contract.v1";
@@ -152,6 +161,64 @@ function terminalCandidateFailureFromThrown(error) {
   return closedTerminalCandidateFailureProjection(
     projectAuthenticatedTerminalCandidateFailure(error)
   );
+}
+
+const TERMINAL_CANDIDATE_RECOVERY_REASON_VALUES = Object.freeze(
+  new Set(Object.values(TERMINAL_CANDIDATE_RECOVERY_REASONS))
+);
+const TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_KEYS = Object.freeze([
+  "schema_version",
+  "contract_code",
+  "projection_code",
+  "missing_facts",
+  "ambiguous_facts"
+]);
+const TERMINAL_CANDIDATE_RECOVERY_CONTRACT_CODES = Object.freeze(
+  new Set(Object.values(CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES))
+);
+const TERMINAL_CANDIDATE_RECOVERY_PROJECTION_CODES = Object.freeze(
+  new Set(Object.values(TERMINAL_REVIEW_UNIT_PROJECTION_CODES))
+);
+const PARENT_LIFECYCLE_CONTRACT_FACT_VALUES = Object.freeze(
+  new Set(Object.values(PARENT_LIFECYCLE_CONTRACT_FACTS))
+);
+
+function closedTerminalCandidateRecoveryReason(value) {
+  return TERMINAL_CANDIDATE_RECOVERY_REASON_VALUES.has(value)
+    ? value
+    : TERMINAL_CANDIDATE_RECOVERY_REASONS.FAILED;
+}
+
+function closedLifecycleFactList(value) {
+  if (!Array.isArray(value)) return undefined;
+  if (value.some((fact) => !PARENT_LIFECYCLE_CONTRACT_FACT_VALUES.has(fact))) return undefined;
+  return Object.freeze([...value]);
+}
+
+function closedTerminalCandidateRecoveryDiagnostic(value) {
+  if (value === null || value === undefined) return null;
+  const diagnostic = exactEnumerableDataProperties(
+    value,
+    TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_KEYS
+  );
+  if (diagnostic === null ||
+      diagnostic.schema_version !== TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION ||
+      !(diagnostic.contract_code === null ||
+        TERMINAL_CANDIDATE_RECOVERY_CONTRACT_CODES.has(diagnostic.contract_code)) ||
+      !(diagnostic.projection_code === null ||
+        TERMINAL_CANDIDATE_RECOVERY_PROJECTION_CODES.has(diagnostic.projection_code))) {
+    return null;
+  }
+  const missingFacts = closedLifecycleFactList(diagnostic.missing_facts);
+  const ambiguousFacts = closedLifecycleFactList(diagnostic.ambiguous_facts);
+  if (missingFacts === undefined || ambiguousFacts === undefined) return null;
+  return Object.freeze({
+    schema_version: TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION,
+    contract_code: diagnostic.contract_code,
+    projection_code: diagnostic.projection_code,
+    missing_facts: missingFacts,
+    ambiguous_facts: ambiguousFacts
+  });
 }
 
 export function createBackendTerminalReview(ctx) {
@@ -635,15 +702,22 @@ export function createBackendTerminalReview(ctx) {
         return { ok: false, refusal: terminalReviewLifecycleManagedRefusal(error, reviewAddress.subject) };
       }
       const recoveryFailure = terminalCandidateFailureFromThrown(error);
+
+      const recoveryReason =
+        closedTerminalCandidateRecoveryReason(projectTerminalCandidateRecoveryReason(error));
+      const recoveryDiagnostic = closedTerminalCandidateRecoveryDiagnostic(
+        projectTerminalCandidateRecoveryDiagnostic(error)
+      );
       return {
         ok: false,
         refusal: managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
           capability: "wk_context_review",
-          reason: "terminal_candidate_recovery_failed",
+          reason: recoveryReason,
           recovery_code: recoveryFailure.code,
           subject: reviewAddress.subject,
           message: recoveryFailure.message,
-          recovery_detail: recoveryFailure
+          recovery_detail: recoveryFailure,
+          recovery_diagnostic: recoveryDiagnostic
         })
       };
     } finally {

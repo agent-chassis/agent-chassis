@@ -1,0 +1,1331 @@
+{
+  "schema_version": "controlled-contract-verification-profile.experimental.v0.2",
+  "profile_id": "proof.result-shape.conformance",
+  "profile_version": "1.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.experimental.v0.2",
+  "vocabulary_version": "cv.experimental.0.34",
+  "vocabulary_signature_digest": "5743cbac037367c70252986863fb05df65f7ae825e3af880934370cbd3a99347",
+  "vocabulary_algebra_digest": "1f5b1b04df5ae806c68592e352cb2285cdaf10a7d7bb898818a2805d290a9b4f",
+  "vocabulary_definitions_digest": "203e07960ad043b5dc932b65adeb5378eadd9dd91babca03120f1b6fc0d96033",
+  "vocabulary_complete_digest": "ee81c2b6e030d96b36c5a7b96dc920ff3fb2968d5242961030452d444f27a966",
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "reference_roles": [
+    {
+      "role": "operation",
+      "allowed_type_terms": [
+        "cc:operation"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "result",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:resource"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "schema",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "result_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "result_members",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "one_or_more",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "required_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "required_members",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "one_or_more",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "optional_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "optional_members",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "zero_or_more",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "allowed_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "allowed_members",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "one_or_more",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "forbidden_member_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "forbidden_members",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "one_or_more",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "allowed_shape_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "allowed_shapes",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion"
+      ],
+      "cardinality": "one_or_more",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "forbidden_shape_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "forbidden_shapes",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion"
+      ],
+      "cardinality": "one_or_more",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "result_shape",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "result_count_signal",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "missing_required_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "unexpected_member_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "disallowed_shape_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "forbidden_shape_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "incorrect_count_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "result_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "required_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "optional_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "allowed_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "forbidden_member_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "allowed_shape_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "forbidden_shape_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "operation",
+        "result",
+        "schema",
+        "verification"
+      ]
+    },
+    {
+      "roles": [
+        "result_population",
+        "required_population",
+        "optional_population",
+        "allowed_population",
+        "forbidden_member_population",
+        "allowed_shape_population",
+        "forbidden_shape_population"
+      ]
+    },
+    {
+      "roles": [
+        "missing_required_condition",
+        "unexpected_member_condition",
+        "disallowed_shape_condition",
+        "forbidden_shape_condition",
+        "incorrect_count_condition"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-result-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "result_population",
+        "result_members"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-required-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "required_population",
+        "required_members"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-optional-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "optional_population",
+        "optional_members"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-allowed-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "allowed_population",
+        "allowed_members"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-forbidden-member-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "forbidden_member_population",
+        "forbidden_members"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-allowed-shape-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "allowed_shape_population",
+        "allowed_shapes"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-forbidden-shape-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "forbidden_shape_population",
+        "forbidden_shapes"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "result_members",
+      "number_role": "result_count"
+    },
+    {
+      "reference_role": "required_members",
+      "number_role": "required_count"
+    },
+    {
+      "reference_role": "optional_members",
+      "number_role": "optional_count"
+    },
+    {
+      "reference_role": "allowed_members",
+      "number_role": "allowed_count"
+    },
+    {
+      "reference_role": "forbidden_members",
+      "number_role": "forbidden_member_count"
+    },
+    {
+      "reference_role": "allowed_shapes",
+      "number_role": "allowed_shape_count"
+    },
+    {
+      "reference_role": "forbidden_shapes",
+      "number_role": "forbidden_shape_count"
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "operation-returns-result",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "operation",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "result-carries-member-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "result",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "result-declares-shape",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "result",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result_shape"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "schema-declares-member-populations",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "schema",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "required_population"
+          },
+          {
+            "kind": "reference",
+            "role": "optional_population"
+          },
+          {
+            "kind": "reference",
+            "role": "allowed_population"
+          },
+          {
+            "kind": "reference",
+            "role": "forbidden_member_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "schema-declares-shape-populations",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "schema",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_shape_population"
+          },
+          {
+            "kind": "reference",
+            "role": "forbidden_shape_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "required-population-allowed",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "required_population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "optional-population-allowed",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "optional_population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-forbidden-member-absent",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "forbidden_members",
+        "member_role": "forbidden_member"
+      },
+      "proposition_template": {
+        "subject_role": "forbidden_member",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "result-emits-count",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "result",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result_count_signal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "required-members-present",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "required_population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "result-members-allowed",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "result_population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "result-shape-allowed",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "result_shape",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_shape_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "result-shape-not-forbidden",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "result_shape",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "forbidden_shape_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "result-count-complete",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "result_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "result_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verification-reads-result-contract",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result"
+          },
+          {
+            "kind": "reference",
+            "role": "schema"
+          },
+          {
+            "kind": "reference",
+            "role": "result_population"
+          },
+          {
+            "kind": "reference",
+            "role": "required_population"
+          },
+          {
+            "kind": "reference",
+            "role": "allowed_population"
+          },
+          {
+            "kind": "reference",
+            "role": "forbidden_member_population"
+          },
+          {
+            "kind": "reference",
+            "role": "result_shape"
+          },
+          {
+            "kind": "reference",
+            "role": "allowed_shape_population"
+          },
+          {
+            "kind": "reference",
+            "role": "forbidden_shape_population"
+          },
+          {
+            "kind": "reference",
+            "role": "result_count_signal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "required-members-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "required_population",
+        "operator": "reference:not_subset_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "missing_required_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result_population"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "required_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "allowed-members-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "result_population",
+        "operator": "reference:not_subset_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "unexpected_member_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_population"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "allowed-shape-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "result_shape",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "disallowed_shape_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_shape_population"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_shape_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "forbidden-shape-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "result_shape",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "forbidden_shape_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "forbidden_shape_population"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "forbidden_shape_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "result-count-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "result_count_signal",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "incorrect_count_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "result_count"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "result_count_signal"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-target-required-members",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "required-members-verification",
+      "target_claim_pattern_id": "required-members-present"
+    },
+    {
+      "pattern_id": "verification-target-allowed-members",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "allowed-members-verification",
+      "target_claim_pattern_id": "result-members-allowed"
+    },
+    {
+      "pattern_id": "verification-target-allowed-shape",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "allowed-shape-verification",
+      "target_claim_pattern_id": "result-shape-allowed"
+    },
+    {
+      "pattern_id": "verification-target-forbidden-shape",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "forbidden-shape-verification",
+      "target_claim_pattern_id": "result-shape-not-forbidden"
+    },
+    {
+      "pattern_id": "verification-target-result-count",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "result-count-verification",
+      "target_claim_pattern_id": "result-count-complete"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-target-required-members",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "missing_required_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-allowed-members",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "unexpected_member_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-allowed-shape",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "disallowed_shape_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-forbidden-shape",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "forbidden_shape_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-result-count",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "incorrect_count_condition"
+        ]
+      }
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-result-population"
+      },
+      {
+        "pattern": "complete-required-population"
+      },
+      {
+        "pattern": "complete-optional-population"
+      },
+      {
+        "pattern": "complete-allowed-population"
+      },
+      {
+        "pattern": "complete-forbidden-member-population"
+      },
+      {
+        "pattern": "complete-allowed-shape-population"
+      },
+      {
+        "pattern": "complete-forbidden-shape-population"
+      },
+      {
+        "pattern": "operation-returns-result"
+      },
+      {
+        "pattern": "result-carries-member-population"
+      },
+      {
+        "pattern": "result-declares-shape"
+      },
+      {
+        "pattern": "schema-declares-member-populations"
+      },
+      {
+        "pattern": "schema-declares-shape-populations"
+      },
+      {
+        "pattern": "required-population-allowed"
+      },
+      {
+        "pattern": "optional-population-allowed"
+      },
+      {
+        "pattern": "each-forbidden-member-absent"
+      },
+      {
+        "pattern": "result-emits-count"
+      },
+      {
+        "pattern": "required-members-present"
+      },
+      {
+        "pattern": "result-members-allowed"
+      },
+      {
+        "pattern": "result-shape-allowed"
+      },
+      {
+        "pattern": "result-shape-not-forbidden"
+      },
+      {
+        "pattern": "result-count-complete"
+      },
+      {
+        "pattern": "verification-reads-result-contract"
+      },
+      {
+        "pattern": "required-members-verification"
+      },
+      {
+        "pattern": "allowed-members-verification"
+      },
+      {
+        "pattern": "allowed-shape-verification"
+      },
+      {
+        "pattern": "forbidden-shape-verification"
+      },
+      {
+        "pattern": "result-count-verification"
+      },
+      {
+        "pattern": "verification-target-required-members"
+      },
+      {
+        "pattern": "verification-target-allowed-members"
+      },
+      {
+        "pattern": "verification-target-allowed-shape"
+      },
+      {
+        "pattern": "verification-target-forbidden-shape"
+      },
+      {
+        "pattern": "verification-target-result-count"
+      }
+    ]
+  }
+}

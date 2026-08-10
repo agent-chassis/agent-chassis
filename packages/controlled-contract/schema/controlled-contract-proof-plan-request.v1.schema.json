@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-proof-plan-request.v1.schema.json",
+  "title": "controlled-contract-proof-plan-request.v1",
+  "type": "object",
+  "required": ["schema_version", "requested_intents", "selected_packs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "controlled-contract-proof-plan-request.v1" },
+    "requested_intents": { "$ref": "#/$defs/string_set" },
+    "selected_packs": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/selected_pack" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$"
+    },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "string_set": {
+      "type": "array", "uniqueItems": true, "maxItems": 256,
+      "items": { "$ref": "#/$defs/identifier" }
+    },
+    "exact_capture": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "capture_root": { "type": "string", "minLength": 1, "maxLength": 4096 },
+            "contract_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+            "evaluation_input_path": {
+              "type": "string", "minLength": 1, "maxLength": 4096
+            },
+            "sources": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "selected_pack": {
+      "type": "object",
+      "required": ["profile_id", "profile_version"],
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": { "$ref": "#/$defs/identifier" },
+        "profile_version": { "$ref": "#/$defs/semver" },
+        "evaluation_input_path": {
+          "type": "string", "minLength": 1, "maxLength": 4096
+        },
+        "exact_capture": { "$ref": "#/$defs/exact_capture" }
+      }
+    }
+  }
+}

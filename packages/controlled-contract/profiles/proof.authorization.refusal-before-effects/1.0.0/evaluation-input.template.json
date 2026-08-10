@@ -1,0 +1,54 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": ["REPLACE_OPERATION_REFERENCE"]
+    },
+    {
+      "role": "attempt",
+      "reference_ids": ["REPLACE_ATTEMPT_EVENT_REFERENCE"]
+    },
+    {
+      "role": "subject",
+      "reference_ids": ["REPLACE_UNAUTHORIZED_SUBJECT_REFERENCE"]
+    },
+    {
+      "role": "authority",
+      "reference_ids": ["REPLACE_AUTHORITY_REFERENCE"]
+    },
+    {
+      "role": "refusal",
+      "reference_ids": ["REPLACE_REFUSAL_EVENT_REFERENCE"]
+    },
+    {
+      "role": "protected_interval",
+      "reference_ids": ["REPLACE_PROTECTED_INTERVAL_REFERENCE"]
+    },
+    {
+      "role": "protected_effect_population",
+      "reference_ids": ["REPLACE_PROTECTED_EFFECT_POPULATION_REFERENCE"]
+    },
+    {
+      "role": "protected_effects",
+      "reference_ids": [
+        "REPLACE_PROTECTED_EFFECT_REFERENCE_1",
+        "REPLACE_PROTECTED_EFFECT_REFERENCE_2"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": ["REPLACE_VERIFICATION_REFERENCE"]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "protected_effect_count",
+      "value": 2
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

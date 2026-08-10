@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-proof-pack-binding-assistance.v1.schema.json",
+  "title": "controlled-contract-proof-pack-binding-assistance.v1",
+  "type": "object",
+  "required": [
+    "schema_version", "digest_algorithm", "profile_id", "profile_version",
+    "requested_intents", "contract_digest", "evaluation_input_digest",
+    "reference_roles", "number_roles", "evaluation_input_diagnostics",
+    "summary", "source_digests", "result_digest", "binding_selected",
+    "binding_written", "semantic_truth_inferred", "authority"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "controlled-contract-proof-pack-binding-assistance.v1"
+    },
+    "digest_algorithm": { "const": "sha256-canonical-json-v1" },
+    "profile_id": { "$ref": "#/$defs/identifier" },
+    "profile_version": { "$ref": "#/$defs/semver" },
+    "requested_intents": {
+      "type": "array", "uniqueItems": true, "maxItems": 256,
+      "items": { "$ref": "#/$defs/identifier" }
+    },
+    "contract_digest": { "$ref": "#/$defs/sha256" },
+    "evaluation_input_digest": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }]
+    },
+    "reference_roles": {
+      "type": "array", "maxItems": 256,
+      "items": { "$ref": "#/$defs/reference_role" }
+    },
+    "number_roles": {
+      "type": "array", "maxItems": 256,
+      "items": { "$ref": "#/$defs/number_role" }
+    },
+    "evaluation_input_diagnostics": {
+      "type": "array", "maxItems": 512,
+      "items": { "$ref": "#/$defs/diagnostic" }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "reference_role_count", "number_role_count",
+        "incompatible_binding_count", "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reference_role_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "number_role_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "incompatible_binding_count": { "type": "integer", "minimum": 0, "maximum": 1024 },
+        "status": { "enum": ["not_supplied", "valid", "invalid"] }
+      }
+    },
+    "source_digests": {
+      "type": "object",
+      "required": [
+        "catalog", "vocabulary", "profile_population", "intent_artifact",
+        "profile", "admission", "authoring_projection"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "catalog": { "$ref": "#/$defs/sha256" },
+        "vocabulary": { "$ref": "#/$defs/sha256" },
+        "profile_population": { "$ref": "#/$defs/sha256" },
+        "intent_artifact": { "$ref": "#/$defs/sha256" },
+        "profile": { "$ref": "#/$defs/sha256" },
+        "admission": { "$ref": "#/$defs/sha256" },
+        "authoring_projection": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "result_digest": { "$ref": "#/$defs/sha256" },
+    "binding_selected": { "const": false },
+    "binding_written": { "const": false },
+    "semantic_truth_inferred": { "const": false },
+    "authority": { "const": "non_authoritative" }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$"
+    },
+    "role": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "status": {
+      "enum": [
+        "unbound", "one_compatible_candidate", "ambiguous",
+        "incompatible", "validly_bound"
+      ]
+    },
+    "string_set": {
+      "type": "array", "uniqueItems": true, "maxItems": 1024,
+      "items": { "type": "string", "minLength": 1, "maxLength": 2048 }
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": ["code"],
+      "properties": { "code": { "type": "string", "minLength": 1, "maxLength": 128 } },
+      "additionalProperties": true
+    },
+    "profile_usage": {
+      "type": "object",
+      "required": ["patterns", "population_uses", "constraints"],
+      "additionalProperties": false,
+      "properties": {
+        "patterns": {
+          "type": "array", "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "required": ["category", "pattern_id", "role_paths"],
+            "additionalProperties": false,
+            "properties": {
+              "category": {
+                "enum": [
+                  "claim_patterns", "reference_binding_patterns",
+                  "relation_patterns", "collection_patterns",
+                  "resolver_fact_patterns", "evidence_patterns"
+                ]
+              },
+              "pattern_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "role_paths": { "$ref": "#/$defs/string_set" }
+            }
+          }
+        },
+        "population_uses": {
+          "type": "array", "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "required": ["pattern_id", "uses"],
+            "additionalProperties": false,
+            "properties": {
+              "pattern_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "uses": {
+                "type": "array", "uniqueItems": true,
+                "items": { "enum": ["population_role", "member_role"] }
+              }
+            }
+          }
+        },
+        "constraints": {
+          "type": "object",
+          "required": [
+            "distinct_reference_role_sets", "reference_role_count_bindings"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "distinct_reference_role_sets": {
+              "type": "array", "maxItems": 256,
+              "items": {
+                "type": "object", "required": ["roles"],
+                "additionalProperties": false,
+                "properties": { "roles": { "$ref": "#/$defs/string_set" } }
+              }
+            },
+            "reference_role_count_bindings": {
+              "type": "array", "maxItems": 256,
+              "items": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "reference_role": {
+      "type": "object",
+      "required": [
+        "role", "allowed_type_terms", "allowed_identity_kinds", "cardinality",
+        "compatible_candidates", "supplied_binding", "status", "diagnostics",
+        "profile_usage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "$ref": "#/$defs/role" },
+        "allowed_type_terms": { "$ref": "#/$defs/string_set" },
+        "allowed_identity_kinds": { "$ref": "#/$defs/string_set" },
+        "cardinality": {
+          "enum": ["exactly_one", "one_or_more", "zero_or_one", "zero_or_more"]
+        },
+        "compatible_candidates": {
+          "type": "array", "maxItems": 4096,
+          "items": {
+            "type": "object",
+            "required": ["reference_id", "type_term", "identity_kind", "compatibility"],
+            "additionalProperties": false,
+            "properties": {
+              "reference_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "type_term": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "identity_kind": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "compatibility": {
+                "type": "object",
+                "required": ["type_compatible", "identity_kind_compatible"],
+                "additionalProperties": false,
+                "properties": {
+                  "type_compatible": { "const": true },
+                  "identity_kind_compatible": { "const": true }
+                }
+              }
+            }
+          }
+        },
+        "supplied_binding": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "required": ["reference_ids"],
+              "additionalProperties": false,
+              "properties": { "reference_ids": { "$ref": "#/$defs/string_set" } }
+            }
+          ]
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "diagnostics": {
+          "type": "array", "maxItems": 1024,
+          "items": { "$ref": "#/$defs/diagnostic" }
+        },
+        "profile_usage": { "$ref": "#/$defs/profile_usage" }
+      }
+    },
+    "number_role": {
+      "type": "object",
+      "required": [
+        "role", "cardinality", "number_type", "minimum", "maximum",
+        "compatible_candidates", "supplied_binding", "status", "diagnostics",
+        "profile_usage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "$ref": "#/$defs/role" },
+        "cardinality": {
+          "enum": ["exactly_one", "one_or_more", "zero_or_one", "zero_or_more"]
+        },
+        "number_type": { "enum": ["integer", "number"] },
+        "minimum": { "oneOf": [{ "type": "number" }, { "type": "null" }] },
+        "maximum": { "oneOf": [{ "type": "number" }, { "type": "null" }] },
+        "compatible_candidates": {
+          "type": "array", "maxItems": 4096,
+          "items": {
+            "type": "object",
+            "required": ["value", "proposition_ids", "compatibility"],
+            "additionalProperties": false,
+            "properties": {
+              "value": { "type": "number" },
+              "proposition_ids": { "$ref": "#/$defs/string_set" },
+              "compatibility": {
+                "type": "object",
+                "required": [
+                  "number_type_compatible", "minimum_compatible", "maximum_compatible"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "number_type_compatible": { "const": true },
+                  "minimum_compatible": { "const": true },
+                  "maximum_compatible": { "const": true }
+                }
+              }
+            }
+          }
+        },
+        "supplied_binding": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "required": ["value"],
+              "additionalProperties": false,
+              "properties": { "value": { "type": "number" } }
+            }
+          ]
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "diagnostics": {
+          "type": "array", "maxItems": 1024,
+          "items": { "$ref": "#/$defs/diagnostic" }
+        },
+        "profile_usage": { "$ref": "#/$defs/profile_usage" }
+      }
+    }
+  }
+}

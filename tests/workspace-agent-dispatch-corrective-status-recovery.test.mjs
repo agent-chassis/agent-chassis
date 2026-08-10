@@ -3,12 +3,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import {
+  projectManagedIdentityCheckFailure
+} from "../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-lifecycle-launch.mjs";
 import { registerDispatchTools } from "../packages/wiki-mcp/src/lib/dispatch-tools/register.mjs";
 import { RUNTIME_BLOCKER_CODES } from "../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 const RECORD_ID = "WK-1793";
 const SLICE_ID = "SLICE-019";
 const SUBJECT = `${RECORD_ID}#${SLICE_ID}`;
+const GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE = "managed identity check failed";
+const MANAGED_CORRECTIVE_CONTINUATION_CODE =
+  "agent_launch.managed_run.corrective_integrated_state_unresolved.v1";
+const CANONICAL_INTEGRATED_STATE_IMPOSSIBLE_CODE =
+  "agent_launch.canonical_integrated_lifecycle_state.impossible.v1";
+const FIRST_INSTALL_FAILURE_CODE =
+  "agent_launch.managed_run.identity_store_read_failed.v1";
+const RAW_UNBOUNDED_TEXT = "caller-controlled raw text";
+const OBSERVED_CANONICAL_STATUS = Object.freeze({
+  record_id: RECORD_ID,
+  slice_id: SLICE_ID,
+  parent_status: "todo",
+  slice_status: "todo"
+});
 
 const schemaStub = new Proxy({}, {
   get: () => () => schemaStub
@@ -68,6 +85,79 @@ function correctiveRefusal(overrides = {}) {
     }
   };
 }
+
+test("WK-2000#SLICE-001 every early bare path retains the originating code", () => {
+  const errors = [
+    { code: FIRST_INSTALL_FAILURE_CODE, message: RAW_UNBOUNDED_TEXT,
+      stack: RAW_UNBOUNDED_TEXT, detail: { caller_text: RAW_UNBOUNDED_TEXT } },
+    { code: MANAGED_CORRECTIVE_CONTINUATION_CODE, message: RAW_UNBOUNDED_TEXT,
+      detail: { cause_code: "agent_launch.caller_controlled.cause.v1",
+        observed_canonical_status: OBSERVED_CANONICAL_STATUS, caller_text: RAW_UNBOUNDED_TEXT } },
+    { code: MANAGED_CORRECTIVE_CONTINUATION_CODE, stack: RAW_UNBOUNDED_TEXT,
+      detail: { cause_code: CANONICAL_INTEGRATED_STATE_IMPOSSIBLE_CODE,
+        observed_canonical_status: { ...OBSERVED_CANONICAL_STATUS,
+          caller_text: RAW_UNBOUNDED_TEXT } } }
+  ];
+
+  assert.deepEqual(errors.map(projectManagedIdentityCheckFailure), [
+    { message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE, code: FIRST_INSTALL_FAILURE_CODE },
+    { message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE,
+      code: MANAGED_CORRECTIVE_CONTINUATION_CODE },
+    { message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE,
+      code: MANAGED_CORRECTIVE_CONTINUATION_CODE }
+  ]);
+});
+
+test("WK-2000#SLICE-001 invalid recovery retains diagnosis and marks the carrier", () => {
+  const baseDetail = {
+    cause_code: CANONICAL_INTEGRATED_STATE_IMPOSSIBLE_CODE,
+    observed_canonical_status: OBSERVED_CANONICAL_STATUS
+  };
+  const results = [
+    projectManagedIdentityCheckFailure({ code: MANAGED_CORRECTIVE_CONTINUATION_CODE,
+      message: RAW_UNBOUNDED_TEXT, detail: { ...baseDetail,
+        recovery: { caller_text: RAW_UNBOUNDED_TEXT }, git_stderr: RAW_UNBOUNDED_TEXT } }),
+    projectManagedIdentityCheckFailure({ code: MANAGED_CORRECTIVE_CONTINUATION_CODE,
+      stack: RAW_UNBOUNDED_TEXT, detail: baseDetail })
+  ];
+  const builtDiagnosis = {
+    message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE,
+    code: MANAGED_CORRECTIVE_CONTINUATION_CODE,
+    cause_code: CANONICAL_INTEGRATED_STATE_IMPOSSIBLE_CODE,
+    observed_canonical_status: OBSERVED_CANONICAL_STATUS
+  };
+
+  assert.deepEqual(results, [
+    { ...builtDiagnosis, recovery_carrier_status: "malformed" },
+    { ...builtDiagnosis, recovery_carrier_status: "absent" }
+  ]);
+});
+
+test("WK-2000#SLICE-001 projection throws retain a previously available originating code", () => {
+  const error = {
+    code: FIRST_INSTALL_FAILURE_CODE,
+    message: RAW_UNBOUNDED_TEXT,
+    stack: RAW_UNBOUNDED_TEXT,
+    get detail() {
+      throw new Error(RAW_UNBOUNDED_TEXT);
+    }
+  };
+
+  assert.deepEqual(projectManagedIdentityCheckFailure(error), {
+    message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE,
+    code: FIRST_INSTALL_FAILURE_CODE
+  });
+});
+
+test("WK-2000#SLICE-001 thrown values without a code mark the cause unavailable", () => {
+  const error = new Error(RAW_UNBOUNDED_TEXT);
+  error.stack = RAW_UNBOUNDED_TEXT;
+
+  assert.deepEqual(projectManagedIdentityCheckFailure(error), {
+    message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE,
+    originating_code_status: "unavailable"
+  });
+});
 
 function createRegisteredFixture({ refusal = correctiveRefusal(), args = {} } = {}) {
   const tools = new Map();

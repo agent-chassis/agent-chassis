@@ -1,0 +1,57 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "ref-operation"
+      ]
+    },
+    {
+      "role": "first_invocation",
+      "reference_ids": [
+        "ref-first-invocation"
+      ]
+    },
+    {
+      "role": "second_invocation",
+      "reference_ids": [
+        "ref-second-invocation"
+      ]
+    },
+    {
+      "role": "equivalent_input",
+      "reference_ids": [
+        "ref-equivalent-input"
+      ]
+    },
+    {
+      "role": "effect_after_first",
+      "reference_ids": [
+        "ref-effect-after-first"
+      ]
+    },
+    {
+      "role": "effect_after_second",
+      "reference_ids": [
+        "ref-effect-after-second"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-verification"
+      ]
+    },
+    {
+      "role": "duplicate_effect_condition",
+      "reference_ids": [
+        "ref-duplicate-effect-condition"
+      ]
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

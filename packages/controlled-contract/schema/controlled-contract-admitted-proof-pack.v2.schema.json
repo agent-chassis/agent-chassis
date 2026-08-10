@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "controlled-contract-admitted-proof-pack.v2.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_id",
+    "profile_version",
+    "profile_digest",
+    "guarantee",
+    "guarantee_digest",
+    "explicit_exclusions",
+    "certification",
+    "exact_binding"
+  ],
+  "properties": {
+    "schema_version": { "const": "controlled-contract-admitted-proof-pack.v2" },
+    "profile_id": { "type": "string", "pattern": "^proof\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+    "profile_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "profile_digest": { "$ref": "#/$defs/sha256" },
+    "guarantee": { "type": "string", "minLength": 1 },
+    "guarantee_digest": { "$ref": "#/$defs/sha256" },
+    "explicit_exclusions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "certification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "adequacy_declaration_digest",
+        "adequacy_result_digest",
+        "executable_control_count",
+        "negative_fixture_count",
+        "coverage_witness_count"
+      ],
+      "properties": {
+        "method": { "const": "executable_adequacy_full_negative_corpus" },
+        "adequacy_declaration_digest": { "$ref": "#/$defs/sha256" },
+        "adequacy_result_digest": { "$ref": "#/$defs/sha256" },
+        "executable_control_count": { "type": "integer", "minimum": 1 },
+        "negative_fixture_count": { "type": "integer", "minimum": 1 },
+        "coverage_witness_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "exact_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declaration_digest",
+        "certification_result_digest",
+        "executable_control_count",
+        "binding_kinds",
+        "relation_operators",
+        "corpus_id",
+        "corpus_version",
+        "corpus_digest",
+        "passed_control_ids"
+      ],
+      "properties": {
+        "declaration_digest": { "$ref": "#/$defs/sha256" },
+        "certification_result_digest": { "$ref": "#/$defs/sha256" },
+        "executable_control_count": { "type": "integer", "minimum": 1 },
+        "binding_kinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": [
+            "artifact_bytes",
+            "complete_reachability_snapshot",
+            "observed_execution_mutation_snapshot"
+          ] }
+        },
+        "relation_operators": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["same_content_sha256", "distinct_capture_id", "distinct_source_descriptor", "deterministic_projection"] }
+        },
+        "corpus_id": { "$ref": "#/$defs/id" },
+        "corpus_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "corpus_digest": { "$ref": "#/$defs/sha256" },
+        "passed_control_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:[a-z0-9._-]*[a-z0-9])?$" }
+  }
+}

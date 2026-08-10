@@ -184,8 +184,11 @@ operating contract before committing setup.
 Bootstrap seeds the local wiki contract surfaces, the owned `IN-0001` adoption
 initiative, the `WK-0001` adoption tracker, local cache directories, `.gitignore`
 entries, the gitignored `wiki/.wiki-mcp.json` workspace declaration, and the
-initial lexical search index. It is idempotent: rerunning preserves your edits
-and only fills in missing surfaces. Bootstrap and postinstall do not execute
+initial lexical search index. It creates no adoption guide: the adoption guide is
+the single package-owned [docs/adoption.md](docs/adoption.md) shipped with
+`@agent-chassis/core`, and repository-specific adoption state lives in `IN-0001`
+and `WK-0001`. It is idempotent: rerunning preserves your edits and only fills in
+missing surfaces. Bootstrap and postinstall do not execute
 the setup commands: the operator creates or adapts `AGENTS.md`, copies or
 reviews `agent-launch.toml`, and runs `agent-launch init-config` before the
 first orchestrator launch. `agent-launch init-config` provisions the launcher
@@ -259,8 +262,9 @@ roadmaps are generated into each package README.
 - [docs/package-install.md](docs/package-install.md) — package roles and install detail
 - [docs/local-package-install.md](docs/local-package-install.md) — installing
   the packages from a local build.
-- [docs/adoption.md](docs/adoption.md) — adopting the contract in a new or
-  existing repo.
+- [docs/adoption.md](docs/adoption.md) — the single package-owned guide to
+  adopting the contract in a new or existing repo. It is repo-neutral and is
+  never copied into a consuming repository.
 
 ### Operating and enforcement model
 

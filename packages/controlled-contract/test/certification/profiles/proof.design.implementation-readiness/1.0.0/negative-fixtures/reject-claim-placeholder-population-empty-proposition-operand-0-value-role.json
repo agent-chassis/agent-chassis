@@ -1,0 +1,948 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-claim-placeholder-population-empty-proposition-operand-0-value-role",
+  "covers": [
+    {
+      "surface_id": "claim-placeholder-population-empty-proposition-operand-0-value-role",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-design-unit",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/design-unit"
+        }
+      },
+      {
+        "reference_id": "ref-requirement-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/requirement-population"
+        }
+      },
+      {
+        "reference_id": "ref-requirement-1",
+        "type_term": "cc:requirement",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/requirement-1"
+        }
+      },
+      {
+        "reference_id": "ref-requirement-2",
+        "type_term": "cc:requirement",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/requirement-2"
+        }
+      },
+      {
+        "reference_id": "ref-implementation-locus",
+        "type_term": "cc:runtime_component",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/implementation-locus"
+        }
+      },
+      {
+        "reference_id": "ref-test-locus",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/test-locus"
+        }
+      },
+      {
+        "reference_id": "ref-warning-signal",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/warning-signal"
+        }
+      },
+      {
+        "reference_id": "ref-warning-shape-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/warning-shape-population"
+        }
+      },
+      {
+        "reference_id": "ref-warning-code-field",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "implementation-readiness-scope-policy",
+          "value": "warning-code-field"
+        }
+      },
+      {
+        "reference_id": "ref-warning-severity-field",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "implementation-readiness-scope-policy",
+          "value": "warning-severity-field"
+        }
+      },
+      {
+        "reference_id": "ref-warning-message-field",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "implementation-readiness-scope-policy",
+          "value": "warning-message-field"
+        }
+      },
+      {
+        "reference_id": "ref-warning-payload-field",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "implementation-readiness-scope-policy",
+          "value": "warning-payload-field"
+        }
+      },
+      {
+        "reference_id": "ref-required-warning-shape-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/required-warning-shape-population"
+        }
+      },
+      {
+        "reference_id": "ref-warning-code-value",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "implementation-readiness-scope-policy",
+          "value": "warning-code-value"
+        }
+      },
+      {
+        "reference_id": "ref-warning-severity-value",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "implementation-readiness-scope-policy",
+          "value": "warning-severity-value"
+        }
+      },
+      {
+        "reference_id": "ref-warning-message-template",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "implementation-readiness-scope-policy",
+          "value": "warning-message-template"
+        }
+      },
+      {
+        "reference_id": "ref-warning-payload-schema",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/warning-payload-schema"
+        }
+      },
+      {
+        "reference_id": "ref-validation-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/validation-population"
+        }
+      },
+      {
+        "reference_id": "ref-placeholder-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/scope-policy",
+          "path": "fixtures/scope-policy/placeholder-population"
+        }
+      },
+      {
+        "reference_id": "ref-warning-shape-mismatch-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "scope-policy:warning-shape-mismatch-condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-complete-requirement-population-count",
+        "subject_reference_id": "ref-requirement-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-requirement-population-members",
+        "subject_reference_id": "ref-requirement-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-requirement-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-requirement-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-warning-shape-count",
+        "subject_reference_id": "ref-warning-shape-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 4
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-warning-shape-members",
+        "subject_reference_id": "ref-warning-shape-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-code-field"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-severity-field"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-message-field"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-payload-field"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-required-warning-shape-count",
+        "subject_reference_id": "ref-required-warning-shape-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 4
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-required-warning-shape-members",
+        "subject_reference_id": "ref-required-warning-shape-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-code-field"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-severity-field"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-message-field"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-payload-field"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-validation-population-count",
+        "subject_reference_id": "ref-validation-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-validation-population-members",
+        "subject_reference_id": "ref-validation-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-requirement-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-requirement-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-design-names-grounded-loci",
+        "subject_reference_id": "ref-design-unit",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-implementation-locus"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-test-locus"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-implementation-locus-targets-requirements",
+        "subject_reference_id": "ref-implementation-locus",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-requirement-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-test-locus-targets-implementation",
+        "subject_reference_id": "ref-test-locus",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-implementation-locus"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-warning-signal-contains-shape",
+        "subject_reference_id": "ref-warning-signal",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-shape-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-warning-signal-carries-exact-values",
+        "subject_reference_id": "ref-warning-signal",
+        "operator": "reference:has_value",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-code-value"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-severity-value"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-message-template"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-payload-schema"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-warning-code-value-exact",
+        "subject_reference_id": "ref-warning-code-field",
+        "operator": "reference:has_value",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-code-value"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-warning-severity-value-exact",
+        "subject_reference_id": "ref-warning-severity-field",
+        "operator": "reference:has_value",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-severity-value"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-warning-message-template-exact",
+        "subject_reference_id": "ref-warning-message-field",
+        "operator": "reference:has_value",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-message-template"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-warning-payload-schema-exact",
+        "subject_reference_id": "ref-warning-payload-field",
+        "operator": "reference:conforms_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-payload-schema"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-warning-shape-includes-required-fields",
+        "subject_reference_id": "ref-warning-shape-population",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-code-field"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-severity-field"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-message-field"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-payload-field"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-warning-shape-exact",
+        "subject_reference_id": "ref-warning-shape-population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-required-warning-shape-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-validation-covers-all-requirements",
+        "subject_reference_id": "ref-validation-population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-requirement-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-test-locus-covers-validation",
+        "subject_reference_id": "ref-test-locus",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-validation-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-placeholder-population-empty",
+        "subject_reference_id": "ref-placeholder-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-warning-shape-verification",
+        "subject_reference_id": "ref-warning-shape-population",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-warning-shape-mismatch-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-required-warning-shape-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-warning-shape-verification",
+        "subject_reference_id": "ref-test-locus",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-warning-signal"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-complete-requirement-population-count",
+        "proposition_id": "prop-complete-requirement-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-requirement-population-members",
+        "proposition_id": "prop-complete-requirement-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-warning-shape-count",
+        "proposition_id": "prop-complete-warning-shape-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-warning-shape-members",
+        "proposition_id": "prop-complete-warning-shape-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-required-warning-shape-count",
+        "proposition_id": "prop-complete-required-warning-shape-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-required-warning-shape-members",
+        "proposition_id": "prop-complete-required-warning-shape-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-validation-population-count",
+        "proposition_id": "prop-complete-validation-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-validation-population-members",
+        "proposition_id": "prop-complete-validation-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-design-names-grounded-loci",
+        "proposition_id": "prop-design-names-grounded-loci",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-implementation-locus-targets-requirements",
+        "proposition_id": "prop-implementation-locus-targets-requirements",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-test-locus-targets-implementation",
+        "proposition_id": "prop-test-locus-targets-implementation",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-warning-signal-contains-shape",
+        "proposition_id": "prop-warning-signal-contains-shape",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-warning-signal-carries-exact-values",
+        "proposition_id": "prop-warning-signal-carries-exact-values",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-warning-code-value-exact",
+        "proposition_id": "prop-warning-code-value-exact",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-warning-severity-value-exact",
+        "proposition_id": "prop-warning-severity-value-exact",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-warning-message-template-exact",
+        "proposition_id": "prop-warning-message-template-exact",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-warning-payload-schema-exact",
+        "proposition_id": "prop-warning-payload-schema-exact",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-warning-shape-includes-required-fields",
+        "proposition_id": "prop-warning-shape-includes-required-fields",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-warning-shape-exact",
+        "proposition_id": "prop-warning-shape-exact",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-validation-covers-all-requirements",
+        "proposition_id": "prop-validation-covers-all-requirements",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-test-locus-covers-validation",
+        "proposition_id": "prop-test-locus-covers-validation",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-placeholder-population-empty",
+        "proposition_id": "prop-placeholder-population-empty",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-warning-shape-verification",
+        "proposition_id": "prop-warning-shape-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-warning-shape-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-targets-warning-shape",
+        "role": "verifies",
+        "source_claim_id": "claim-warning-shape-verification",
+        "target_claim_id": "claim-warning-shape-exact"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "design_unit",
+        "reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      {
+        "role": "requirement_population",
+        "reference_ids": [
+          "ref-requirement-population"
+        ]
+      },
+      {
+        "role": "requirements",
+        "reference_ids": [
+          "ref-requirement-1",
+          "ref-requirement-2"
+        ]
+      },
+      {
+        "role": "implementation_locus",
+        "reference_ids": [
+          "ref-implementation-locus"
+        ]
+      },
+      {
+        "role": "test_locus",
+        "reference_ids": [
+          "ref-test-locus"
+        ]
+      },
+      {
+        "role": "warning_signal",
+        "reference_ids": [
+          "ref-warning-signal"
+        ]
+      },
+      {
+        "role": "warning_shape_population",
+        "reference_ids": [
+          "ref-warning-shape-population"
+        ]
+      },
+      {
+        "role": "warning_fields",
+        "reference_ids": [
+          "ref-warning-code-field",
+          "ref-warning-severity-field",
+          "ref-warning-message-field",
+          "ref-warning-payload-field"
+        ]
+      },
+      {
+        "role": "required_warning_shape_population",
+        "reference_ids": [
+          "ref-required-warning-shape-population"
+        ]
+      },
+      {
+        "role": "required_warning_fields",
+        "reference_ids": [
+          "ref-warning-code-field",
+          "ref-warning-severity-field",
+          "ref-warning-message-field",
+          "ref-warning-payload-field"
+        ]
+      },
+      {
+        "role": "warning_code_field",
+        "reference_ids": [
+          "ref-warning-code-field"
+        ]
+      },
+      {
+        "role": "warning_severity_field",
+        "reference_ids": [
+          "ref-warning-severity-field"
+        ]
+      },
+      {
+        "role": "warning_message_field",
+        "reference_ids": [
+          "ref-warning-message-field"
+        ]
+      },
+      {
+        "role": "warning_payload_field",
+        "reference_ids": [
+          "ref-warning-payload-field"
+        ]
+      },
+      {
+        "role": "warning_code_value",
+        "reference_ids": [
+          "ref-warning-code-value"
+        ]
+      },
+      {
+        "role": "warning_severity_value",
+        "reference_ids": [
+          "ref-warning-severity-value"
+        ]
+      },
+      {
+        "role": "warning_message_template",
+        "reference_ids": [
+          "ref-warning-message-template"
+        ]
+      },
+      {
+        "role": "warning_payload_schema",
+        "reference_ids": [
+          "ref-warning-payload-schema"
+        ]
+      },
+      {
+        "role": "validation_population",
+        "reference_ids": [
+          "ref-validation-population"
+        ]
+      },
+      {
+        "role": "validated_requirements",
+        "reference_ids": [
+          "ref-requirement-1",
+          "ref-requirement-2"
+        ]
+      },
+      {
+        "role": "placeholder_population",
+        "reference_ids": [
+          "ref-placeholder-population"
+        ]
+      },
+      {
+        "role": "placeholders",
+        "reference_ids": []
+      },
+      {
+        "role": "warning_shape_mismatch_condition",
+        "reference_ids": [
+          "ref-warning-shape-mismatch-condition"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "requirement_count",
+        "value": 2
+      },
+      {
+        "role": "validation_count",
+        "value": 2
+      },
+      {
+        "role": "warning_field_count",
+        "value": 4
+      },
+      {
+        "role": "required_warning_field_count",
+        "value": 4
+      },
+      {
+        "role": "placeholder_count",
+        "value": 0
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

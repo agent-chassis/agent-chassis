@@ -88,11 +88,15 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
 
     assert.match(
       stdout,
-      /Required checks: 5 \| Owned work items: 1/,
+      /Required checks: 5 \| Owned work items: 0/,
       "expected required-checks and owned-work count in output"
     );
 
-    assert.match(stdout, /Owned work:/, "expected owned work key list in output on creation");
+    assert.doesNotMatch(
+      stdout,
+      /Owned work:/,
+      "expected no `Owned work:` prose list when the IN-0001 backlog summary is empty"
+    );
 
     const adoptionRecordsLine = stdout
       .split("\n")
@@ -106,46 +110,16 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
       /\bWK-0001\b/,
       "expected the Adoption work records line to name WK-0001"
     );
-    const ownedWorkLine = stdout
-      .split("\n")
-      .find((line) => line.trimStart().startsWith("Owned work:"));
-    assert.ok(
-      ownedWorkLine,
-      "expected an `Owned work:` prose list line in first-run output"
-    );
-    assert.notEqual(
-      adoptionRecordsLine,
-      ownedWorkLine,
-      "expected the Adoption work records line to be a distinct line from the IN-0001 Owned work prose list"
-    );
-    assert.doesNotMatch(
-      ownedWorkLine,
-      /\bWK-0001\b/,
-      "expected the IN-0001 Owned work prose list to not name WK-0001 (WK-0001 belongs on the Adoption work records line)"
-    );
-    for (const ownedKey of ["adoption-docs"]) {
-      assert.match(
-        ownedWorkLine,
-        new RegExp(`\\b${ownedKey}\\b`),
-        `expected the IN-0001 Owned work prose list to include ${ownedKey}`
-      );
-    }
-    for (const removedOwnedKey of ["repo-local-agents", "launcher-config"]) {
-      assert.doesNotMatch(
-        ownedWorkLine,
-        new RegExp(`\\b${removedOwnedKey}\\b`),
-        `expected ${removedOwnedKey} to be operator first-run setup, not IN-0001 owned work`
-      );
-    }
 
     const seededPath = path.join(tempDir, "wiki", "initiatives", "IN-0001.md");
     const seeded = await readFile(seededPath, "utf8");
     assert.match(seeded, /\nid: IN-0001\n/, "expected IN-0001 frontmatter id in seeded file");
     assert.ok(
-      seeded.includes("Document local adoption choices"),
-      "expected seeded IN-0001 to mention adoption docs as owned work"
+      !seeded.includes("docs/adoption.md"),
+      "seeded IN-0001 must not name a consumer-local docs/adoption.md"
     );
     for (const removedTitle of [
+      "Document local adoption choices",
       "Add repo-local AGENTS guidance",
       "Add repo-local launcher role defaults"
     ]) {
@@ -155,9 +129,10 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
       );
     }
     assert.ok(
-      seeded.includes("WK-0001#adoption-verify"),
-      "expected seeded IN-0001 to name the WK-0001#adoption-verify review that performs the checks"
+      seeded.includes("configured repository root") && seeded.includes("coordinator-only"),
+      "expected seeded IN-0001 to assign checks to the configured-root coordinator"
     );
+    assert.ok(!seeded.includes("#adoption-verify"), "seeded IN-0001 must not name a retired review unit");
     for (const check of [
       "wiki search/read/get-record",
       "read-only graph-impact",
@@ -200,14 +175,18 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
       "bootstrap must not create AGENTS.md (target_surface in IN-0001 seed, not bootstrap output)"
     );
 
-    await access(path.join(tempDir, "docs", "adoption.md"));
+    await assert.rejects(
+      access(path.join(tempDir, "docs", "adoption.md")),
+      /ENOENT/,
+      "bootstrap must not create a consumer-local docs/adoption.md"
+    );
 
     assert.match(stdout, /\nNext steps:\n/, "expected a Next steps block in first-run output");
 
     for (const command of [
       "git status --short",
       "npx agent-chassis setup",
-      "git add wiki docs/adoption.md .gitignore AGENTS.md agent-launch.toml",
+      "git add wiki .gitignore AGENTS.md agent-launch.toml",
       'git commit -m "bootstrap wiki adoption surfaces"',
       'npx wiki code-index build --dir "$PWD"',
       "npx agent-launch orchestrator IN-0001",
@@ -285,8 +264,13 @@ test("wiki CLI bootstrap entrypoint seeds IN-0001 adoption initiative and report
 
     assert.match(
       stdout,
-      /seeds the committed docs\/adoption\.md operator guide from a template/,
-      "expected Next steps to state bootstrap seeds docs/adoption.md from a template"
+      /creates no adoption guide: the adoption guide is the single package-owned\s+docs\/adoption\.md shipped with @agent-chassis\/core/,
+      "expected Next steps to state bootstrap creates no adoption guide and name the package-owned one"
+    );
+    assert.doesNotMatch(
+      stdout,
+      /seeds the committed docs\/adoption\.md|preserved if you have customized it|git add[^\n]*docs\/adoption\.md/,
+      "bootstrap output must not tell the operator to commit, customize, or preserve a generated adoption guide"
     );
 
     assert.match(

@@ -1,0 +1,196 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "ref-operation"
+      ]
+    },
+    {
+      "role": "result",
+      "reference_ids": [
+        "ref-result"
+      ]
+    },
+    {
+      "role": "schema",
+      "reference_ids": [
+        "ref-schema"
+      ]
+    },
+    {
+      "role": "result_population",
+      "reference_ids": [
+        "ref-result-population"
+      ]
+    },
+    {
+      "role": "result_members",
+      "reference_ids": [
+        "ref-member-id-string",
+        "ref-member-total-number",
+        "ref-member-note-string"
+      ]
+    },
+    {
+      "role": "required_population",
+      "reference_ids": [
+        "ref-required-population"
+      ]
+    },
+    {
+      "role": "required_members",
+      "reference_ids": [
+        "ref-member-id-string",
+        "ref-member-total-number"
+      ]
+    },
+    {
+      "role": "optional_population",
+      "reference_ids": [
+        "ref-optional-population"
+      ]
+    },
+    {
+      "role": "optional_members",
+      "reference_ids": [
+        "ref-member-note-string"
+      ]
+    },
+    {
+      "role": "allowed_population",
+      "reference_ids": [
+        "ref-allowed-population"
+      ]
+    },
+    {
+      "role": "allowed_members",
+      "reference_ids": [
+        "ref-member-id-string",
+        "ref-member-total-number",
+        "ref-member-note-string"
+      ]
+    },
+    {
+      "role": "forbidden_member_population",
+      "reference_ids": [
+        "ref-forbidden-member-population"
+      ]
+    },
+    {
+      "role": "forbidden_members",
+      "reference_ids": [
+        "ref-member-password-string",
+        "ref-member-total-string"
+      ]
+    },
+    {
+      "role": "allowed_shape_population",
+      "reference_ids": [
+        "ref-allowed-shape-population"
+      ]
+    },
+    {
+      "role": "allowed_shapes",
+      "reference_ids": [
+        "ref-shape-object"
+      ]
+    },
+    {
+      "role": "forbidden_shape_population",
+      "reference_ids": [
+        "ref-forbidden-shape-population"
+      ]
+    },
+    {
+      "role": "forbidden_shapes",
+      "reference_ids": [
+        "ref-shape-array",
+        "ref-shape-scalar"
+      ]
+    },
+    {
+      "role": "result_shape",
+      "reference_ids": [
+        "ref-shape-object"
+      ]
+    },
+    {
+      "role": "result_count_signal",
+      "reference_ids": [
+        "ref-result-count-signal"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-verification"
+      ]
+    },
+    {
+      "role": "missing_required_condition",
+      "reference_ids": [
+        "ref-condition-missing-required"
+      ]
+    },
+    {
+      "role": "unexpected_member_condition",
+      "reference_ids": [
+        "ref-condition-unexpected-member"
+      ]
+    },
+    {
+      "role": "disallowed_shape_condition",
+      "reference_ids": [
+        "ref-condition-disallowed-shape"
+      ]
+    },
+    {
+      "role": "forbidden_shape_condition",
+      "reference_ids": [
+        "ref-condition-forbidden-shape"
+      ]
+    },
+    {
+      "role": "incorrect_count_condition",
+      "reference_ids": [
+        "ref-condition-incorrect-count"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "result_count",
+      "value": 3
+    },
+    {
+      "role": "required_count",
+      "value": 2
+    },
+    {
+      "role": "optional_count",
+      "value": 1
+    },
+    {
+      "role": "allowed_count",
+      "value": 3
+    },
+    {
+      "role": "forbidden_member_count",
+      "value": 2
+    },
+    {
+      "role": "allowed_shape_count",
+      "value": 1
+    },
+    {
+      "role": "forbidden_shape_count",
+      "value": 2
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

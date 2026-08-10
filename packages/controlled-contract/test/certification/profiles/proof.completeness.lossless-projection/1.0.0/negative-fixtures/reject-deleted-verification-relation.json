@@ -1,0 +1,1818 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-deleted-verification-relation",
+  "covers": [
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-tool",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-record-read",
+          "path": "fixtures/record-read.mjs",
+          "symbol": "tool"
+        }
+      },
+      {
+        "reference_id": "ref-compact-mode",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-record-read",
+          "path": "fixtures/record-read.mjs",
+          "symbol": "compact-mode"
+        }
+      },
+      {
+        "reference_id": "ref-complete-mode",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-record-read",
+          "path": "fixtures/record-read.mjs",
+          "symbol": "complete-mode"
+        }
+      },
+      {
+        "reference_id": "ref-mode-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "mode-population"
+        }
+      },
+      {
+        "reference_id": "ref-compact-result",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "compact-result"
+        }
+      },
+      {
+        "reference_id": "ref-complete-result",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "complete-result"
+        }
+      },
+      {
+        "reference_id": "ref-source-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "source-population"
+        }
+      },
+      {
+        "reference_id": "ref-light-member",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "light-member"
+        }
+      },
+      {
+        "reference_id": "ref-heavy-member",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "heavy-member"
+        }
+      },
+      {
+        "reference_id": "ref-compact-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "compact-population"
+        }
+      },
+      {
+        "reference_id": "ref-omission-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "omission-population"
+        }
+      },
+      {
+        "reference_id": "ref-complete-result-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "complete-result-population"
+        }
+      },
+      {
+        "reference_id": "ref-disclosed-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "disclosed-population"
+        }
+      },
+      {
+        "reference_id": "ref-accounted-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "accounted-population"
+        }
+      },
+      {
+        "reference_id": "ref-reason-catalog",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "reason-catalog"
+        }
+      },
+      {
+        "reference_id": "ref-projection-reason",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "projection-reason"
+        }
+      },
+      {
+        "reference_id": "ref-security-reason",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "security-reason"
+        }
+      },
+      {
+        "reference_id": "ref-heavy-member-class",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "heavy-member-class"
+        }
+      },
+      {
+        "reference_id": "ref-disclosure-signal",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "disclosure-signal"
+        }
+      },
+      {
+        "reference_id": "ref-total-count-signal",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "total-count-signal"
+        }
+      },
+      {
+        "reference_id": "ref-omission-count-signal",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "omission-count-signal"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-record-read",
+          "path": "fixtures/record-read.mjs",
+          "symbol": "verification"
+        }
+      },
+      {
+        "reference_id": "ref-condition-unrecoverable-loss",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "condition-unrecoverable-loss"
+        }
+      },
+      {
+        "reference_id": "ref-condition-no-compact-omission",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "condition-no-compact-omission"
+        }
+      },
+      {
+        "reference_id": "ref-condition-silent-omission",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "condition-silent-omission"
+        }
+      },
+      {
+        "reference_id": "ref-condition-unaccounted-source",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "condition-unaccounted-source"
+        }
+      },
+      {
+        "reference_id": "ref-condition-incomplete-total",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "condition-incomplete-total"
+        }
+      },
+      {
+        "reference_id": "ref-condition-incomplete-omission-count",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "proof-fixture:record-read",
+          "value": "condition-incomplete-omission-count"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-population-modes-contains",
+        "subject_reference_id": "ref-mode-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-compact-mode"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-complete-mode"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-modes-cardinality",
+        "subject_reference_id": "ref-mode-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-source-contains",
+        "subject_reference_id": "ref-source-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-light-member"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-heavy-member"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-source-cardinality",
+        "subject_reference_id": "ref-source-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-compact-contains",
+        "subject_reference_id": "ref-compact-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-light-member"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-compact-cardinality",
+        "subject_reference_id": "ref-compact-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-omissions-contains",
+        "subject_reference_id": "ref-omission-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-heavy-member"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-omissions-cardinality",
+        "subject_reference_id": "ref-omission-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-complete-result-contains",
+        "subject_reference_id": "ref-complete-result-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-light-member"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-heavy-member"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-complete-result-cardinality",
+        "subject_reference_id": "ref-complete-result-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-disclosed-contains",
+        "subject_reference_id": "ref-disclosed-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-heavy-member"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-disclosed-cardinality",
+        "subject_reference_id": "ref-disclosed-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-accounted-contains",
+        "subject_reference_id": "ref-accounted-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-light-member"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-heavy-member"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-accounted-cardinality",
+        "subject_reference_id": "ref-accounted-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-reasons-contains",
+        "subject_reference_id": "ref-reason-catalog",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-reason"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-security-reason"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-reasons-cardinality",
+        "subject_reference_id": "ref-reason-catalog",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-tool-declares-modes",
+        "subject_reference_id": "ref-tool",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-compact-mode"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-complete-mode"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-compact-mode-in-mode-population",
+        "subject_reference_id": "ref-compact-mode",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-mode-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-mode-in-mode-population",
+        "subject_reference_id": "ref-complete-mode",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-mode-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-compact-mode-returns-result",
+        "subject_reference_id": "ref-compact-mode",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-compact-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-mode-returns-result",
+        "subject_reference_id": "ref-complete-mode",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-complete-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-compact-result-names-complete-path",
+        "subject_reference_id": "ref-compact-result",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-complete-mode"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-compact-result-carries-population",
+        "subject_reference_id": "ref-compact-result",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-compact-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-result-carries-population",
+        "subject_reference_id": "ref-complete-result",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-complete-result-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-compact-population-within-source",
+        "subject_reference_id": "ref-compact-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-omission-population-within-source",
+        "subject_reference_id": "ref-omission-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-omitted-member-absent-from-compact-heavy-member",
+        "subject_reference_id": "ref-heavy-member",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-compact-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-omitted-member-present-in-complete-heavy-member",
+        "subject_reference_id": "ref-heavy-member",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-complete-result-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-omitted-member-heavy-heavy-member",
+        "subject_reference_id": "ref-heavy-member",
+        "operator": "reference:classifies_as",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-heavy-member-class"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-result-lossless",
+        "subject_reference_id": "ref-complete-result-population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-disclosure-population-complete",
+        "subject_reference_id": "ref-disclosed-population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-omission-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-reads-projection-partition",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-compact-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-omission-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-builds-accounted-population",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-accounted-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-accounting-complete",
+        "subject_reference_id": "ref-accounted-population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-reason-selected-from-closed-catalog",
+        "subject_reference_id": "ref-projection-reason",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-reason-catalog"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-disclosure-records-omissions",
+        "subject_reference_id": "ref-disclosure-signal",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-disclosed-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-disclosure-names-reason",
+        "subject_reference_id": "ref-disclosure-signal",
+        "operator": "reference:classifies_as",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-reason"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-disclosure-names-recovery-path",
+        "subject_reference_id": "ref-disclosure-signal",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-complete-mode"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-compact-result-emits-disclosure",
+        "subject_reference_id": "ref-compact-result",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-disclosure-signal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-total-count-complete",
+        "subject_reference_id": "ref-total-count-signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-omission-count-complete",
+        "subject_reference_id": "ref-omission-count-signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-compact-result-emits-counts",
+        "subject_reference_id": "ref-compact-result",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-total-count-signal"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-omission-count-signal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-reads-proof-subjects",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-compact-result"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-complete-result"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-omission-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-disclosed-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-disclosure-signal"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-total-count-signal"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-omission-count-signal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-lossless-recovery-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-complete-mode"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-lossless-recovery-verification",
+        "subject_reference_id": "ref-complete-result-population",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-unrecoverable-loss"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-disclosure-completeness-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-disclosure-signal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-disclosure-completeness-verification",
+        "subject_reference_id": "ref-disclosed-population",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-silent-omission"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-omission-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-accounting-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-accounted-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-projection-accounting-verification",
+        "subject_reference_id": "ref-accounted-population",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-unaccounted-source"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-total-count-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-total-count-signal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-total-count-verification",
+        "subject_reference_id": "ref-total-count-signal",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-incomplete-total"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-omission-count-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-omission-count-signal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-omission-count-verification",
+        "subject_reference_id": "ref-omission-count-signal",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-incomplete-omission-count"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-population-modes-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-modes-contains"
+      },
+      {
+        "claim_id": "claim-population-modes-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-modes-cardinality"
+      },
+      {
+        "claim_id": "claim-population-source-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-source-contains"
+      },
+      {
+        "claim_id": "claim-population-source-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-source-cardinality"
+      },
+      {
+        "claim_id": "claim-population-compact-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-compact-contains"
+      },
+      {
+        "claim_id": "claim-population-compact-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-compact-cardinality"
+      },
+      {
+        "claim_id": "claim-population-omissions-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-omissions-contains"
+      },
+      {
+        "claim_id": "claim-population-omissions-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-omissions-cardinality"
+      },
+      {
+        "claim_id": "claim-population-complete-result-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-complete-result-contains"
+      },
+      {
+        "claim_id": "claim-population-complete-result-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-complete-result-cardinality"
+      },
+      {
+        "claim_id": "claim-population-disclosed-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-disclosed-contains"
+      },
+      {
+        "claim_id": "claim-population-disclosed-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-disclosed-cardinality"
+      },
+      {
+        "claim_id": "claim-population-accounted-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-accounted-contains"
+      },
+      {
+        "claim_id": "claim-population-accounted-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-accounted-cardinality"
+      },
+      {
+        "claim_id": "claim-population-reasons-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-reasons-contains"
+      },
+      {
+        "claim_id": "claim-population-reasons-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-reasons-cardinality"
+      },
+      {
+        "claim_id": "claim-tool-declares-modes",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-tool-declares-modes"
+      },
+      {
+        "claim_id": "claim-compact-mode-in-mode-population",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-compact-mode-in-mode-population"
+      },
+      {
+        "claim_id": "claim-complete-mode-in-mode-population",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-mode-in-mode-population"
+      },
+      {
+        "claim_id": "claim-compact-mode-returns-result",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-compact-mode-returns-result"
+      },
+      {
+        "claim_id": "claim-complete-mode-returns-result",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-mode-returns-result"
+      },
+      {
+        "claim_id": "claim-compact-result-names-complete-path",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-compact-result-names-complete-path"
+      },
+      {
+        "claim_id": "claim-compact-result-carries-population",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-compact-result-carries-population"
+      },
+      {
+        "claim_id": "claim-complete-result-carries-population",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-result-carries-population"
+      },
+      {
+        "claim_id": "claim-compact-population-within-source",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-compact-population-within-source"
+      },
+      {
+        "claim_id": "claim-omission-population-within-source",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-omission-population-within-source"
+      },
+      {
+        "claim_id": "claim-each-omitted-member-absent-from-compact-heavy-member",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-omitted-member-absent-from-compact-heavy-member"
+      },
+      {
+        "claim_id": "claim-each-omitted-member-present-in-complete-heavy-member",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-omitted-member-present-in-complete-heavy-member"
+      },
+      {
+        "claim_id": "claim-each-omitted-member-heavy-heavy-member",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-omitted-member-heavy-heavy-member"
+      },
+      {
+        "claim_id": "claim-complete-result-lossless",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-result-lossless"
+      },
+      {
+        "claim_id": "claim-disclosure-population-complete",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-disclosure-population-complete"
+      },
+      {
+        "claim_id": "claim-verification-reads-projection-partition",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-reads-projection-partition"
+      },
+      {
+        "claim_id": "claim-verification-builds-accounted-population",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-builds-accounted-population"
+      },
+      {
+        "claim_id": "claim-projection-accounting-complete",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-accounting-complete"
+      },
+      {
+        "claim_id": "claim-reason-selected-from-closed-catalog",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-reason-selected-from-closed-catalog"
+      },
+      {
+        "claim_id": "claim-disclosure-records-omissions",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-disclosure-records-omissions"
+      },
+      {
+        "claim_id": "claim-disclosure-names-reason",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-disclosure-names-reason"
+      },
+      {
+        "claim_id": "claim-disclosure-names-recovery-path",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-disclosure-names-recovery-path"
+      },
+      {
+        "claim_id": "claim-compact-result-emits-disclosure",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-compact-result-emits-disclosure"
+      },
+      {
+        "claim_id": "claim-total-count-complete",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-total-count-complete"
+      },
+      {
+        "claim_id": "claim-omission-count-complete",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-omission-count-complete"
+      },
+      {
+        "claim_id": "claim-compact-result-emits-counts",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-compact-result-emits-counts"
+      },
+      {
+        "claim_id": "claim-verification-reads-proof-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-reads-proof-subjects"
+      },
+      {
+        "claim_id": "claim-lossless-recovery-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-lossless-recovery-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-lossless-recovery-verification"
+      },
+      {
+        "claim_id": "claim-disclosure-completeness-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-disclosure-completeness-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-disclosure-completeness-verification"
+      },
+      {
+        "claim_id": "claim-projection-accounting-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-accounting-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-projection-accounting-verification"
+      },
+      {
+        "claim_id": "claim-total-count-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-total-count-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-total-count-verification"
+      },
+      {
+        "claim_id": "claim-omission-count-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-omission-count-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-omission-count-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-target-lossless-recovery",
+        "role": "verifies",
+        "source_claim_id": "claim-lossless-recovery-verification",
+        "target_claim_id": "claim-complete-result-lossless"
+      },
+      {
+        "relation_id": "rel-verification-target-disclosure-completeness",
+        "role": "verifies",
+        "source_claim_id": "claim-disclosure-completeness-verification",
+        "target_claim_id": "claim-disclosure-population-complete"
+      },
+      {
+        "relation_id": "rel-verification-target-projection-accounting",
+        "role": "verifies",
+        "source_claim_id": "claim-projection-accounting-verification",
+        "target_claim_id": "claim-projection-accounting-complete"
+      },
+      {
+        "relation_id": "rel-verification-target-total-count",
+        "role": "verifies",
+        "source_claim_id": "claim-total-count-verification",
+        "target_claim_id": "claim-total-count-complete"
+      },
+      {
+        "relation_id": "rel-verification-target-omission-count",
+        "role": "verifies",
+        "source_claim_id": "claim-omission-count-verification",
+        "target_claim_id": "claim-omission-count-complete"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "tool",
+        "reference_ids": [
+          "ref-tool"
+        ]
+      },
+      {
+        "role": "compact_mode",
+        "reference_ids": [
+          "ref-compact-mode"
+        ]
+      },
+      {
+        "role": "complete_mode",
+        "reference_ids": [
+          "ref-complete-mode"
+        ]
+      },
+      {
+        "role": "mode_population",
+        "reference_ids": [
+          "ref-mode-population"
+        ]
+      },
+      {
+        "role": "tool_modes",
+        "reference_ids": [
+          "ref-compact-mode",
+          "ref-complete-mode"
+        ]
+      },
+      {
+        "role": "compact_result",
+        "reference_ids": [
+          "ref-compact-result"
+        ]
+      },
+      {
+        "role": "complete_result",
+        "reference_ids": [
+          "ref-complete-result"
+        ]
+      },
+      {
+        "role": "source_population",
+        "reference_ids": [
+          "ref-source-population"
+        ]
+      },
+      {
+        "role": "source_members",
+        "reference_ids": [
+          "ref-light-member",
+          "ref-heavy-member"
+        ]
+      },
+      {
+        "role": "compact_population",
+        "reference_ids": [
+          "ref-compact-population"
+        ]
+      },
+      {
+        "role": "compact_members",
+        "reference_ids": [
+          "ref-light-member"
+        ]
+      },
+      {
+        "role": "omission_population",
+        "reference_ids": [
+          "ref-omission-population"
+        ]
+      },
+      {
+        "role": "omitted_members",
+        "reference_ids": [
+          "ref-heavy-member"
+        ]
+      },
+      {
+        "role": "complete_result_population",
+        "reference_ids": [
+          "ref-complete-result-population"
+        ]
+      },
+      {
+        "role": "complete_result_members",
+        "reference_ids": [
+          "ref-light-member",
+          "ref-heavy-member"
+        ]
+      },
+      {
+        "role": "disclosed_population",
+        "reference_ids": [
+          "ref-disclosed-population"
+        ]
+      },
+      {
+        "role": "disclosed_members",
+        "reference_ids": [
+          "ref-heavy-member"
+        ]
+      },
+      {
+        "role": "accounted_population",
+        "reference_ids": [
+          "ref-accounted-population"
+        ]
+      },
+      {
+        "role": "accounted_members",
+        "reference_ids": [
+          "ref-light-member",
+          "ref-heavy-member"
+        ]
+      },
+      {
+        "role": "reason_catalog",
+        "reference_ids": [
+          "ref-reason-catalog"
+        ]
+      },
+      {
+        "role": "allowed_reasons",
+        "reference_ids": [
+          "ref-projection-reason",
+          "ref-security-reason"
+        ]
+      },
+      {
+        "role": "omission_reason",
+        "reference_ids": [
+          "ref-projection-reason"
+        ]
+      },
+      {
+        "role": "heavy_member_class",
+        "reference_ids": [
+          "ref-heavy-member-class"
+        ]
+      },
+      {
+        "role": "disclosure_signal",
+        "reference_ids": [
+          "ref-disclosure-signal"
+        ]
+      },
+      {
+        "role": "total_count_signal",
+        "reference_ids": [
+          "ref-total-count-signal"
+        ]
+      },
+      {
+        "role": "omission_count_signal",
+        "reference_ids": [
+          "ref-omission-count-signal"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "unrecoverable_loss_condition",
+        "reference_ids": [
+          "ref-condition-unrecoverable-loss"
+        ]
+      },
+      {
+        "role": "no_compact_omission_condition",
+        "reference_ids": [
+          "ref-condition-no-compact-omission"
+        ]
+      },
+      {
+        "role": "silent_omission_condition",
+        "reference_ids": [
+          "ref-condition-silent-omission"
+        ]
+      },
+      {
+        "role": "unaccounted_source_condition",
+        "reference_ids": [
+          "ref-condition-unaccounted-source"
+        ]
+      },
+      {
+        "role": "incomplete_total_condition",
+        "reference_ids": [
+          "ref-condition-incomplete-total"
+        ]
+      },
+      {
+        "role": "incomplete_omission_count_condition",
+        "reference_ids": [
+          "ref-condition-incomplete-omission-count"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "mode_count",
+        "value": 2
+      },
+      {
+        "role": "source_count",
+        "value": 2
+      },
+      {
+        "role": "omission_count",
+        "value": 1
+      }
+    ],
+    "claim_pattern_bindings": [
+      {
+        "pattern_id": "tool-declares-modes",
+        "claim_id": "claim-tool-declares-modes"
+      },
+      {
+        "pattern_id": "compact-mode-in-mode-population",
+        "claim_id": "claim-compact-mode-in-mode-population"
+      },
+      {
+        "pattern_id": "complete-mode-in-mode-population",
+        "claim_id": "claim-complete-mode-in-mode-population"
+      },
+      {
+        "pattern_id": "compact-mode-returns-result",
+        "claim_id": "claim-compact-mode-returns-result"
+      },
+      {
+        "pattern_id": "complete-mode-returns-result",
+        "claim_id": "claim-complete-mode-returns-result"
+      },
+      {
+        "pattern_id": "compact-result-names-complete-path",
+        "claim_id": "claim-compact-result-names-complete-path"
+      },
+      {
+        "pattern_id": "compact-result-carries-population",
+        "claim_id": "claim-compact-result-carries-population"
+      },
+      {
+        "pattern_id": "complete-result-carries-population",
+        "claim_id": "claim-complete-result-carries-population"
+      },
+      {
+        "pattern_id": "compact-population-within-source",
+        "claim_id": "claim-compact-population-within-source"
+      },
+      {
+        "pattern_id": "omission-population-within-source",
+        "claim_id": "claim-omission-population-within-source"
+      },
+      {
+        "pattern_id": "complete-result-lossless",
+        "claim_id": "claim-complete-result-lossless"
+      },
+      {
+        "pattern_id": "disclosure-population-complete",
+        "claim_id": "claim-disclosure-population-complete"
+      },
+      {
+        "pattern_id": "verification-reads-projection-partition",
+        "claim_id": "claim-verification-reads-projection-partition"
+      },
+      {
+        "pattern_id": "verification-builds-accounted-population",
+        "claim_id": "claim-verification-builds-accounted-population"
+      },
+      {
+        "pattern_id": "projection-accounting-complete",
+        "claim_id": "claim-projection-accounting-complete"
+      },
+      {
+        "pattern_id": "reason-selected-from-closed-catalog",
+        "claim_id": "claim-reason-selected-from-closed-catalog"
+      },
+      {
+        "pattern_id": "disclosure-records-omissions",
+        "claim_id": "claim-disclosure-records-omissions"
+      },
+      {
+        "pattern_id": "disclosure-names-reason",
+        "claim_id": "claim-disclosure-names-reason"
+      },
+      {
+        "pattern_id": "disclosure-names-recovery-path",
+        "claim_id": "claim-disclosure-names-recovery-path"
+      },
+      {
+        "pattern_id": "compact-result-emits-disclosure",
+        "claim_id": "claim-compact-result-emits-disclosure"
+      },
+      {
+        "pattern_id": "total-count-complete",
+        "claim_id": "claim-total-count-complete"
+      },
+      {
+        "pattern_id": "omission-count-complete",
+        "claim_id": "claim-omission-count-complete"
+      },
+      {
+        "pattern_id": "compact-result-emits-counts",
+        "claim_id": "claim-compact-result-emits-counts"
+      },
+      {
+        "pattern_id": "verification-reads-proof-subjects",
+        "claim_id": "claim-verification-reads-proof-subjects"
+      },
+      {
+        "pattern_id": "lossless-recovery-verification",
+        "claim_id": "claim-lossless-recovery-verification"
+      },
+      {
+        "pattern_id": "disclosure-completeness-verification",
+        "claim_id": "claim-disclosure-completeness-verification"
+      },
+      {
+        "pattern_id": "projection-accounting-verification",
+        "claim_id": "claim-projection-accounting-verification"
+      },
+      {
+        "pattern_id": "total-count-verification",
+        "claim_id": "claim-total-count-verification"
+      },
+      {
+        "pattern_id": "omission-count-verification",
+        "claim_id": "claim-omission-count-verification"
+      }
+    ],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

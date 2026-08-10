@@ -1,0 +1,130 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "ref-operation"
+      ]
+    },
+    {
+      "role": "legitimate_authority",
+      "reference_ids": [
+        "ref-legitimate-authority"
+      ]
+    },
+    {
+      "role": "failed_attempt",
+      "reference_ids": [
+        "ref-failed-attempt"
+      ]
+    },
+    {
+      "role": "valid_attempt",
+      "reference_ids": [
+        "ref-valid-attempt"
+      ]
+    },
+    {
+      "role": "failed_input",
+      "reference_ids": [
+        "ref-failed-input"
+      ]
+    },
+    {
+      "role": "valid_input",
+      "reference_ids": [
+        "ref-valid-input"
+      ]
+    },
+    {
+      "role": "refusal",
+      "reference_ids": [
+        "ref-refusal"
+      ]
+    },
+    {
+      "role": "valid_result",
+      "reference_ids": [
+        "ref-valid-result"
+      ]
+    },
+    {
+      "role": "authority_state_before",
+      "reference_ids": [
+        "ref-authority-state-before"
+      ]
+    },
+    {
+      "role": "authority_state_after_refusal",
+      "reference_ids": [
+        "ref-authority-state-after-refusal"
+      ]
+    },
+    {
+      "role": "expected_success_state",
+      "reference_ids": [
+        "ref-expected-success-state"
+      ]
+    },
+    {
+      "role": "valid_result_state",
+      "reference_ids": [
+        "ref-valid-result-state"
+      ]
+    },
+    {
+      "role": "observation_before_failed_attempt",
+      "reference_ids": [
+        "ref-observation-before-failed-attempt"
+      ]
+    },
+    {
+      "role": "observation_after_refusal",
+      "reference_ids": [
+        "ref-observation-after-refusal"
+      ]
+    },
+    {
+      "role": "valid_result_observation",
+      "reference_ids": [
+        "ref-valid-result-observation"
+      ]
+    },
+    {
+      "role": "nonconsumption_verification",
+      "reference_ids": [
+        "ref-nonconsumption-verification"
+      ]
+    },
+    {
+      "role": "later_use_verification",
+      "reference_ids": [
+        "ref-later-use-verification"
+      ]
+    },
+    {
+      "role": "success_criterion",
+      "reference_ids": [
+        "ref-success-criterion"
+      ]
+    },
+    {
+      "role": "failed_attempt_consumption_condition",
+      "reference_ids": [
+        "ref-failed-attempt-consumption-condition"
+      ]
+    },
+    {
+      "role": "valid_use_failure_condition",
+      "reference_ids": [
+        "ref-valid-use-failure-condition"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

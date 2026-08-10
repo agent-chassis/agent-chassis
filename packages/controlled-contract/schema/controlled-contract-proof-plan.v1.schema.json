@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-proof-plan.v1.schema.json",
+  "title": "controlled-contract-proof-plan.v1",
+  "type": "object",
+  "required": ["schema_version", "requested_intents", "digests", "packs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "controlled-contract-proof-plan.v1" },
+    "requested_intents": { "$ref": "#/$defs/string_set" },
+    "digests": {
+      "type": "object",
+      "required": ["contract", "catalog", "vocabulary", "profiles", "intent_artifact"],
+      "additionalProperties": false,
+      "properties": {
+        "contract": { "$ref": "#/$defs/sha256" },
+        "catalog": { "$ref": "#/$defs/sha256" },
+        "vocabulary": { "$ref": "#/$defs/sha256" },
+        "profiles": { "$ref": "#/$defs/sha256" },
+        "intent_artifact": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "packs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pack_request" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "string_set": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "source_digests": {
+      "type": "object",
+      "required": [
+        "profile", "admission", "guarantee", "adequacy_declaration",
+        "adequacy_result", "evaluation_input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile": { "$ref": "#/$defs/sha256" },
+        "admission": { "$ref": "#/$defs/sha256" },
+        "guarantee": { "$ref": "#/$defs/sha256" },
+        "adequacy_declaration": { "$ref": "#/$defs/sha256" },
+        "adequacy_result": { "$ref": "#/$defs/sha256" },
+        "evaluation_input": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "exact_binding_sources": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "exact_binding_declaration": { "$ref": "#/$defs/sha256" },
+        "exact_binding_certification": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "evaluation_input": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["path"],
+          "additionalProperties": false,
+          "properties": { "path": { "type": "string", "minLength": 1 } }
+        }
+      ]
+    },
+    "exact_binding": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": [
+            "capture_root", "contract_path", "evaluation_input_path", "sources"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "capture_root": { "type": "string", "minLength": 1 },
+            "contract_path": { "type": "string", "minLength": 1 },
+            "evaluation_input_path": { "type": "string", "minLength": 1 },
+            "sources": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "pack_request": {
+      "type": "object",
+      "required": [
+        "profile_id", "profile_version", "requested_intents", "evaluation_input",
+        "exact_binding", "source_digests"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": { "type": "string", "minLength": 1 },
+        "profile_version": { "type": "string", "minLength": 1 },
+        "requested_intents": { "$ref": "#/$defs/string_set" },
+        "evaluation_input": { "$ref": "#/$defs/evaluation_input" },
+        "exact_binding": { "$ref": "#/$defs/exact_binding" },
+        "source_digests": { "$ref": "#/$defs/source_digests" }
+      }
+    }
+  }
+}

@@ -1,0 +1,1608 @@
+{
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-projection-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-population"
+        }
+      },
+      {
+        "reference_id": "ref-projection-1",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-1"
+        }
+      },
+      {
+        "reference_id": "ref-projection-2",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-2"
+        }
+      },
+      {
+        "reference_id": "ref-projection-3",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-3"
+        }
+      },
+      {
+        "reference_id": "ref-projection-4",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-4"
+        }
+      },
+      {
+        "reference_id": "ref-projection-5",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-5"
+        }
+      },
+      {
+        "reference_id": "ref-projection-6",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-6"
+        }
+      },
+      {
+        "reference_id": "ref-projection-7",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-7"
+        }
+      },
+      {
+        "reference_id": "ref-projection-8",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-8"
+        }
+      },
+      {
+        "reference_id": "ref-projection-9",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-9"
+        }
+      },
+      {
+        "reference_id": "ref-projection-10",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-10"
+        }
+      },
+      {
+        "reference_id": "ref-projection-11",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-11"
+        }
+      },
+      {
+        "reference_id": "ref-projection-12",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-12"
+        }
+      },
+      {
+        "reference_id": "ref-projection-13",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-13"
+        }
+      },
+      {
+        "reference_id": "ref-projection-14",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-14"
+        }
+      },
+      {
+        "reference_id": "ref-projection-15",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-15"
+        }
+      },
+      {
+        "reference_id": "ref-projection-16",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-16"
+        }
+      },
+      {
+        "reference_id": "ref-projection-17",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-17"
+        }
+      },
+      {
+        "reference_id": "ref-projection-18",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-18"
+        }
+      },
+      {
+        "reference_id": "ref-projection-19",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-19"
+        }
+      },
+      {
+        "reference_id": "ref-projection-20",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-20"
+        }
+      },
+      {
+        "reference_id": "ref-projection-21",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-21"
+        }
+      },
+      {
+        "reference_id": "ref-projection-22",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-22"
+        }
+      },
+      {
+        "reference_id": "ref-projection-23",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-23"
+        }
+      },
+      {
+        "reference_id": "ref-projection-24",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-24"
+        }
+      },
+      {
+        "reference_id": "ref-projection-25",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-projection-25"
+        }
+      },
+      {
+        "reference_id": "ref-source-identity",
+        "type_term": "cc:entity",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ref-source-identity"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-projection-population-count",
+        "subject_reference_id": "ref-projection-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 25
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-population-members",
+        "subject_reference_id": "ref-projection-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-2"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-3"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-4"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-5"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-6"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-7"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-8"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-9"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-10"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-11"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-12"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-13"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-14"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-15"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-16"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-17"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-18"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-19"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-20"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-21"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-22"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-23"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-24"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-projection-25"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-1-identity",
+        "subject_reference_id": "ref-projection-1",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-1-usable",
+        "subject_reference_id": "ref-projection-1",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-2-identity",
+        "subject_reference_id": "ref-projection-2",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-2-usable",
+        "subject_reference_id": "ref-projection-2",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-3-identity",
+        "subject_reference_id": "ref-projection-3",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-3-usable",
+        "subject_reference_id": "ref-projection-3",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-4-identity",
+        "subject_reference_id": "ref-projection-4",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-4-usable",
+        "subject_reference_id": "ref-projection-4",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-5-identity",
+        "subject_reference_id": "ref-projection-5",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-5-usable",
+        "subject_reference_id": "ref-projection-5",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-6-identity",
+        "subject_reference_id": "ref-projection-6",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-6-usable",
+        "subject_reference_id": "ref-projection-6",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-7-identity",
+        "subject_reference_id": "ref-projection-7",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-7-usable",
+        "subject_reference_id": "ref-projection-7",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-8-identity",
+        "subject_reference_id": "ref-projection-8",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-8-usable",
+        "subject_reference_id": "ref-projection-8",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-9-identity",
+        "subject_reference_id": "ref-projection-9",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-9-usable",
+        "subject_reference_id": "ref-projection-9",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-10-identity",
+        "subject_reference_id": "ref-projection-10",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-10-usable",
+        "subject_reference_id": "ref-projection-10",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-11-identity",
+        "subject_reference_id": "ref-projection-11",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-11-usable",
+        "subject_reference_id": "ref-projection-11",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-12-identity",
+        "subject_reference_id": "ref-projection-12",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-12-usable",
+        "subject_reference_id": "ref-projection-12",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-13-identity",
+        "subject_reference_id": "ref-projection-13",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-13-usable",
+        "subject_reference_id": "ref-projection-13",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-14-identity",
+        "subject_reference_id": "ref-projection-14",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-14-usable",
+        "subject_reference_id": "ref-projection-14",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-15-identity",
+        "subject_reference_id": "ref-projection-15",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-15-usable",
+        "subject_reference_id": "ref-projection-15",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-16-identity",
+        "subject_reference_id": "ref-projection-16",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-16-usable",
+        "subject_reference_id": "ref-projection-16",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-17-identity",
+        "subject_reference_id": "ref-projection-17",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-17-usable",
+        "subject_reference_id": "ref-projection-17",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-18-identity",
+        "subject_reference_id": "ref-projection-18",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-18-usable",
+        "subject_reference_id": "ref-projection-18",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-19-identity",
+        "subject_reference_id": "ref-projection-19",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-19-usable",
+        "subject_reference_id": "ref-projection-19",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-20-identity",
+        "subject_reference_id": "ref-projection-20",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-20-usable",
+        "subject_reference_id": "ref-projection-20",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-21-identity",
+        "subject_reference_id": "ref-projection-21",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-21-usable",
+        "subject_reference_id": "ref-projection-21",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-22-identity",
+        "subject_reference_id": "ref-projection-22",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-22-usable",
+        "subject_reference_id": "ref-projection-22",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-23-identity",
+        "subject_reference_id": "ref-projection-23",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-23-usable",
+        "subject_reference_id": "ref-projection-23",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-24-identity",
+        "subject_reference_id": "ref-projection-24",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-24-usable",
+        "subject_reference_id": "ref-projection-24",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-25-identity",
+        "subject_reference_id": "ref-projection-25",
+        "operator": "reference:has_identity",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-identity"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-projection-25-usable",
+        "subject_reference_id": "ref-projection-25",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-projection-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-population-count"
+      },
+      {
+        "claim_id": "claim-projection-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-population-members"
+      },
+      {
+        "claim_id": "claim-projection-1-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-1-identity"
+      },
+      {
+        "claim_id": "claim-projection-1-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-1-usable"
+      },
+      {
+        "claim_id": "claim-projection-2-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-2-identity"
+      },
+      {
+        "claim_id": "claim-projection-2-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-2-usable"
+      },
+      {
+        "claim_id": "claim-projection-3-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-3-identity"
+      },
+      {
+        "claim_id": "claim-projection-3-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-3-usable"
+      },
+      {
+        "claim_id": "claim-projection-4-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-4-identity"
+      },
+      {
+        "claim_id": "claim-projection-4-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-4-usable"
+      },
+      {
+        "claim_id": "claim-projection-5-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-5-identity"
+      },
+      {
+        "claim_id": "claim-projection-5-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-5-usable"
+      },
+      {
+        "claim_id": "claim-projection-6-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-6-identity"
+      },
+      {
+        "claim_id": "claim-projection-6-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-6-usable"
+      },
+      {
+        "claim_id": "claim-projection-7-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-7-identity"
+      },
+      {
+        "claim_id": "claim-projection-7-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-7-usable"
+      },
+      {
+        "claim_id": "claim-projection-8-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-8-identity"
+      },
+      {
+        "claim_id": "claim-projection-8-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-8-usable"
+      },
+      {
+        "claim_id": "claim-projection-9-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-9-identity"
+      },
+      {
+        "claim_id": "claim-projection-9-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-9-usable"
+      },
+      {
+        "claim_id": "claim-projection-10-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-10-identity"
+      },
+      {
+        "claim_id": "claim-projection-10-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-10-usable"
+      },
+      {
+        "claim_id": "claim-projection-11-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-11-identity"
+      },
+      {
+        "claim_id": "claim-projection-11-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-11-usable"
+      },
+      {
+        "claim_id": "claim-projection-12-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-12-identity"
+      },
+      {
+        "claim_id": "claim-projection-12-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-12-usable"
+      },
+      {
+        "claim_id": "claim-projection-13-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-13-identity"
+      },
+      {
+        "claim_id": "claim-projection-13-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-13-usable"
+      },
+      {
+        "claim_id": "claim-projection-14-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-14-identity"
+      },
+      {
+        "claim_id": "claim-projection-14-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-14-usable"
+      },
+      {
+        "claim_id": "claim-projection-15-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-15-identity"
+      },
+      {
+        "claim_id": "claim-projection-15-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-15-usable"
+      },
+      {
+        "claim_id": "claim-projection-16-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-16-identity"
+      },
+      {
+        "claim_id": "claim-projection-16-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-16-usable"
+      },
+      {
+        "claim_id": "claim-projection-17-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-17-identity"
+      },
+      {
+        "claim_id": "claim-projection-17-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-17-usable"
+      },
+      {
+        "claim_id": "claim-projection-18-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-18-identity"
+      },
+      {
+        "claim_id": "claim-projection-18-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-18-usable"
+      },
+      {
+        "claim_id": "claim-projection-19-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-19-identity"
+      },
+      {
+        "claim_id": "claim-projection-19-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-19-usable"
+      },
+      {
+        "claim_id": "claim-projection-20-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-20-identity"
+      },
+      {
+        "claim_id": "claim-projection-20-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-20-usable"
+      },
+      {
+        "claim_id": "claim-projection-21-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-21-identity"
+      },
+      {
+        "claim_id": "claim-projection-21-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-21-usable"
+      },
+      {
+        "claim_id": "claim-projection-22-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-22-identity"
+      },
+      {
+        "claim_id": "claim-projection-22-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-22-usable"
+      },
+      {
+        "claim_id": "claim-projection-23-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-23-identity"
+      },
+      {
+        "claim_id": "claim-projection-23-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-23-usable"
+      },
+      {
+        "claim_id": "claim-projection-24-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-24-identity"
+      },
+      {
+        "claim_id": "claim-projection-24-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-24-usable"
+      },
+      {
+        "claim_id": "claim-projection-25-identity",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-25-identity"
+      },
+      {
+        "claim_id": "claim-projection-25-usable",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-projection-25-usable"
+      }
+    ],
+    "relations": [],
+    "collections": [],
+    "residue": [],
+    "annotations": []
+  },
+  "profile": {
+    "schema_version": "controlled-contract-verification-profile.experimental.v0.2",
+    "profile_id": "prototype.p12.arbitrary-projection-coherence",
+    "profile_version": "0.0.1",
+    "contract_schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "vocabulary_signature_digest": "5c5e34017a7e0defc5222b9e3fc7fcaec8ca12d70541e609ca29e49c279c5a7d",
+    "vocabulary_algebra_digest": "1f5b1b04df5ae806c68592e352cb2285cdaf10a7d7bb898818a2805d290a9b4f",
+    "vocabulary_definitions_digest": "203e07960ad043b5dc932b65adeb5378eadd9dd91babca03120f1b6fc0d96033",
+    "vocabulary_complete_digest": "65195755c4124bfc55fe88ba0e817478f0036cc10bff15a9a64884cfd1241341",
+    "evaluation_stages": [
+      "post_delivery"
+    ],
+    "reference_roles": [
+      {
+        "role": "projection_population",
+        "allowed_type_terms": [
+          "cc:population"
+        ],
+        "cardinality": "exactly_one"
+      },
+      {
+        "role": "projections",
+        "allowed_type_terms": [
+          "cc:resource"
+        ],
+        "cardinality": "one_or_more"
+      },
+      {
+        "role": "source_identity",
+        "allowed_type_terms": [
+          "cc:entity"
+        ],
+        "cardinality": "exactly_one"
+      }
+    ],
+    "number_roles": [],
+    "distinct_reference_role_sets": [],
+    "reference_binding_patterns": [
+      {
+        "pattern_id": "complete-projection-population",
+        "required_by_stage": "post_delivery",
+        "comparison": "complete_population",
+        "roles": [
+          "projection_population",
+          "projections"
+        ],
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        }
+      }
+    ],
+    "reference_role_count_bindings": [],
+    "claim_patterns": [
+      {
+        "pattern_id": "each-projection-shares-source",
+        "required_by_stage": "post_delivery",
+        "claim_kind": "evidence",
+        "allowed_modalities": [
+          "MUST"
+        ],
+        "for_each": {
+          "population_role": "projections",
+          "member_role": "projection"
+        },
+        "proposition_template": {
+          "subject_role": "projection",
+          "operator": "reference:has_identity",
+          "applicability_context": {
+            "mode": "unconditional",
+            "operand_roles": []
+          },
+          "operands": [
+            {
+              "kind": "reference",
+              "role": "source_identity"
+            }
+          ]
+        }
+      },
+      {
+        "pattern_id": "each-projection-usable",
+        "required_by_stage": "post_delivery",
+        "claim_kind": "evidence",
+        "allowed_modalities": [
+          "MUST"
+        ],
+        "for_each": {
+          "population_role": "projections",
+          "member_role": "projection"
+        },
+        "proposition_template": {
+          "subject_role": "projection",
+          "operator": "boolean:exists",
+          "applicability_context": {
+            "mode": "unconditional",
+            "operand_roles": []
+          },
+          "operands": [
+            {
+              "kind": "boolean",
+              "value": true
+            }
+          ]
+        }
+      }
+    ],
+    "relation_patterns": [],
+    "collection_patterns": [],
+    "resolver_fact_patterns": [],
+    "evidence_patterns": [],
+    "falsifier_condition_bindings": [
+      {
+        "relation_pattern_id": "unused-falsifier-binding",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        }
+      }
+    ],
+    "satisfaction_expression": {
+      "all_of": [
+        {
+          "pattern": "complete-projection-population"
+        },
+        {
+          "pattern": "each-projection-shares-source"
+        },
+        {
+          "pattern": "each-projection-usable"
+        }
+      ]
+    }
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "post_delivery",
+    "reference_bindings": [
+      {
+        "role": "projection_population",
+        "reference_ids": [
+          "ref-projection-population"
+        ]
+      },
+      {
+        "role": "projections",
+        "reference_ids": [
+          "ref-projection-1",
+          "ref-projection-2",
+          "ref-projection-3",
+          "ref-projection-4",
+          "ref-projection-5",
+          "ref-projection-6",
+          "ref-projection-7",
+          "ref-projection-8",
+          "ref-projection-9",
+          "ref-projection-10",
+          "ref-projection-11",
+          "ref-projection-12",
+          "ref-projection-13",
+          "ref-projection-14",
+          "ref-projection-15",
+          "ref-projection-16",
+          "ref-projection-17",
+          "ref-projection-18",
+          "ref-projection-19",
+          "ref-projection-20",
+          "ref-projection-21",
+          "ref-projection-22",
+          "ref-projection-23",
+          "ref-projection-24",
+          "ref-projection-25"
+        ]
+      },
+      {
+        "role": "source_identity",
+        "reference_ids": [
+          "ref-source-identity"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

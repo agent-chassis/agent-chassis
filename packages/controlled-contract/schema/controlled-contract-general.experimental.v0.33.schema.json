@@ -1,0 +1,1010 @@
+{
+  "title": "controlled-contract-general.experimental.v0.33",
+  "description": "NONCANONICAL EXPERIMENTAL general controlled-contract grammar. The model selects readable value-kind:predicate operators. Declarative and verification claims remain distinct, every claim carries at least one invocation-bound controlled operand, and the deterministic compiler enforces operator signatures and source coverage.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "vocabulary_version",
+    "profile_id",
+    "variables",
+    "collections",
+    "declarative_claims",
+    "verification_claims",
+    "relations"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "controlled-contract-general.experimental.v0.33"
+      ]
+    },
+    "vocabulary_version": {
+      "type": "string",
+      "enum": [
+        "cv.experimental.0.33"
+      ]
+    },
+    "profile_id": {
+      "type": "string",
+      "enum": [
+        "general-controlled-contract.experimental.v0.33"
+      ]
+    },
+    "variables": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "$ref": "#/$defs/variable"
+      }
+    },
+    "collections": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "$ref": "#/$defs/collection"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "$ref": "#/$defs/relation"
+      }
+    },
+    "declarative_claims": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "$ref": "#/$defs/declarative_claim"
+      }
+    },
+    "verification_claims": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "$ref": "#/$defs/verification_claim"
+      }
+    }
+  },
+  "$defs": {
+    "reference_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "member_reference_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_span": {
+      "type": "object",
+      "required": [
+        "source_segment_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_segment_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "required": [
+        "mode",
+        "operand_reference_ids"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "if",
+            "unless",
+            "when",
+            "while",
+            "where",
+            "before",
+            "after",
+            "during",
+            "until",
+            "role_route",
+            "frozen_base"
+          ]
+        },
+        "operand_reference_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/reference_id"
+          }
+        }
+      }
+    },
+    "set_quantifier": {
+      "type": "object",
+      "required": [
+        "kind",
+        "variable_reference_ids"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "existential",
+            "universal",
+            "none",
+            "enumerated_set"
+          ]
+        },
+        "variable_reference_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/reference_id"
+          }
+        }
+      }
+    },
+    "numeric_quantifier": {
+      "type": "object",
+      "required": [
+        "kind",
+        "variable_reference_ids",
+        "amount"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "exactly",
+            "at_least",
+            "at_most"
+          ]
+        },
+        "variable_reference_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/reference_id"
+          }
+        },
+        "amount": {
+          "type": "number"
+        }
+      }
+    },
+    "variable": {
+      "type": "object",
+      "required": [
+        "variable_id",
+        "source_phrase_id",
+        "type_term"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "variable_id": {
+          "type": "string",
+          "enum": [
+            "variable-001",
+            "variable-002",
+            "variable-003",
+            "variable-004",
+            "variable-005",
+            "variable-006",
+            "variable-007",
+            "variable-008",
+            "variable-009",
+            "variable-010",
+            "variable-011",
+            "variable-012",
+            "variable-013",
+            "variable-014",
+            "variable-015",
+            "variable-016",
+            "variable-017",
+            "variable-018",
+            "variable-019",
+            "variable-020",
+            "variable-021",
+            "variable-022",
+            "variable-023",
+            "variable-024",
+            "variable-025",
+            "variable-026",
+            "variable-027",
+            "variable-028",
+            "variable-029",
+            "variable-030",
+            "variable-031",
+            "variable-032",
+            "variable-033",
+            "variable-034",
+            "variable-035",
+            "variable-036",
+            "variable-037",
+            "variable-038",
+            "variable-039",
+            "variable-040",
+            "variable-041",
+            "variable-042",
+            "variable-043",
+            "variable-044",
+            "variable-045",
+            "variable-046",
+            "variable-047",
+            "variable-048",
+            "variable-049",
+            "variable-050",
+            "variable-051",
+            "variable-052",
+            "variable-053",
+            "variable-054",
+            "variable-055",
+            "variable-056",
+            "variable-057",
+            "variable-058",
+            "variable-059",
+            "variable-060",
+            "variable-061",
+            "variable-062",
+            "variable-063",
+            "variable-064"
+          ]
+        },
+        "type_term": {
+          "type": "string",
+          "enum": [
+            "cc:entity",
+            "cc:actor",
+            "cc:process",
+            "cc:event",
+            "cc:state",
+            "cc:artifact",
+            "cc:resource",
+            "cc:capability",
+            "cc:requirement",
+            "cc:criterion",
+            "cc:invariant",
+            "cc:evidence",
+            "cc:conflict",
+            "cc:escalation",
+            "cc:authority",
+            "cc:scope",
+            "cc:configuration",
+            "cc:test",
+            "cc:command",
+            "cc:runtime_component",
+            "cc:lifecycle_entity",
+            "cc:operation"
+          ]
+        },
+        "source_phrase_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "collection": {
+      "type": "object",
+      "required": [
+        "collection_id",
+        "collection_kind",
+        "member_reference_ids"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "collection_id": {
+          "type": "string",
+          "enum": [
+            "collection-001",
+            "collection-002",
+            "collection-003",
+            "collection-004",
+            "collection-005",
+            "collection-006",
+            "collection-007",
+            "collection-008",
+            "collection-009",
+            "collection-010",
+            "collection-011",
+            "collection-012",
+            "collection-013",
+            "collection-014",
+            "collection-015",
+            "collection-016"
+          ]
+        },
+        "collection_kind": {
+          "type": "string",
+          "enum": [
+            "closed_set",
+            "ordered_sequence"
+          ],
+          "description": "closed_set when membership matters and order does not; ordered_sequence only when member order is itself mandatory"
+        },
+        "member_reference_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/member_reference_id"
+          }
+        }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "required": [
+        "source_spans",
+        "role",
+        "source_reference_id",
+        "target_reference_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_spans": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source_span"
+          }
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "satisfies",
+            "verifies",
+            "derives_from",
+            "refines",
+            "traces",
+            "replaces",
+            "generated_by",
+            "instrument"
+          ]
+        },
+        "source_reference_id": {
+          "$ref": "#/$defs/reference_id"
+        },
+        "target_reference_id": {
+          "$ref": "#/$defs/reference_id"
+        }
+      }
+    },
+    "operator_code": {
+      "type": "string",
+      "enum": [
+        "reference:accepts",
+        "reference:adds",
+        "reference:allows",
+        "reference:approves",
+        "reference:authorizes",
+        "reference:behaviorally_equivalent",
+        "reference:blocks",
+        "reference:calls",
+        "reference:classifies_as",
+        "reference:complete_against",
+        "reference:completes",
+        "reference:conflicts_with",
+        "reference:conforms_to",
+        "reference:contains",
+        "reference:covers",
+        "reference:creates",
+        "reference:deletes",
+        "reference:depends_on",
+        "reference:emits",
+        "reference:equals",
+        "reference:exports",
+        "reference:follows",
+        "reference:forwards_to",
+        "reference:generates",
+        "reference:has_identity",
+        "reference:has_property",
+        "reference:has_state",
+        "reference:has_status",
+        "reference:has_type",
+        "reference:has_value",
+        "reference:imports",
+        "reference:includes",
+        "reference:invalidates",
+        "reference:isolated_from",
+        "reference:matches",
+        "reference:member_of",
+        "reference:modifies",
+        "reference:mutates",
+        "reference:not_equals",
+        "reference:not_member_of",
+        "reference:omits",
+        "reference:performs",
+        "reference:precedes",
+        "reference:preserves",
+        "reference:replaces",
+        "reference:reads",
+        "reference:records",
+        "reference:rejects",
+        "reference:resolves_to",
+        "reference:retains",
+        "reference:returns",
+        "reference:authoritative_for",
+        "reference:contained_in",
+        "reference:ordered_as",
+        "reference:requests_authorization",
+        "reference:routes_to",
+        "reference:same_container_as",
+        "reference:semantically_equivalent",
+        "reference:escalates_to",
+        "reference:starts",
+        "reference:supports",
+        "reference:targets",
+        "reference:traces_to",
+        "reference:unchanged_from_frozen_base",
+        "reference:uses",
+        "reference:visible_in_scope",
+        "reference:within_scope",
+        "reference:writable_in_scope",
+        "reference:writes",
+        "boolean:authoritative",
+        "boolean:deterministic",
+        "boolean:exists",
+        "boolean:fails_when",
+        "boolean:immutable",
+        "number:emits",
+        "number:equals",
+        "number:has_cardinality",
+        "number:has_value",
+        "number:matches",
+        "number:not_equals",
+        "number:returns",
+        "range:has_cardinality",
+        "range:has_range"
+      ],
+      "description": "Controlled value-kind:predicate operator. The prefix fixes the required operand family. Examples: reference:replaces, boolean:exists, range:has_cardinality."
+    },
+    "declarative_claim": {
+      "type": "object",
+      "required": [
+        "source_spans",
+        "claim_kind",
+        "operator",
+        "modality",
+        "subject_reference_id",
+        "applicability_conditions",
+        "set_quantifiers",
+        "numeric_quantifiers",
+        "operand_tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_spans": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source_span"
+          }
+        },
+        "claim_kind": {
+          "type": "string",
+          "enum": [
+            "behavior",
+            "evidence"
+          ],
+          "description": "behavior and evidence are declarative claims; verification requires a method and falsifying condition"
+        },
+        "operator": {
+          "$ref": "#/$defs/operator_code"
+        },
+        "modality": {
+          "type": "string",
+          "enum": [
+            "MUST",
+            "MUST_NOT",
+            "SHOULD",
+            "SHOULD_NOT",
+            "MAY"
+          ]
+        },
+        "subject_reference_id": {
+          "$ref": "#/$defs/reference_id"
+        },
+        "applicability_conditions": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        },
+        "set_quantifiers": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/$defs/set_quantifier"
+          }
+        },
+        "numeric_quantifiers": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/$defs/numeric_quantifier"
+          }
+        },
+        "operand_tokens": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 3
+          }
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "reference:accepts",
+                "reference:adds",
+                "reference:allows",
+                "reference:approves",
+                "reference:authorizes",
+                "reference:behaviorally_equivalent",
+                "reference:blocks",
+                "reference:calls",
+                "reference:classifies_as",
+                "reference:complete_against",
+                "reference:completes",
+                "reference:conflicts_with",
+                "reference:conforms_to",
+                "reference:contains",
+                "reference:covers",
+                "reference:creates",
+                "reference:deletes",
+                "reference:depends_on",
+                "reference:emits",
+                "reference:equals",
+                "reference:exports",
+                "reference:follows",
+                "reference:forwards_to",
+                "reference:generates",
+                "reference:has_identity",
+                "reference:has_property",
+                "reference:has_state",
+                "reference:has_status",
+                "reference:has_type",
+                "reference:has_value",
+                "reference:imports",
+                "reference:includes",
+                "reference:invalidates",
+                "reference:isolated_from",
+                "reference:matches",
+                "reference:member_of",
+                "reference:modifies",
+                "reference:mutates",
+                "reference:not_equals",
+                "reference:not_member_of",
+                "reference:omits",
+                "reference:performs",
+                "reference:precedes",
+                "reference:preserves",
+                "reference:replaces",
+                "reference:reads",
+                "reference:records",
+                "reference:rejects",
+                "reference:resolves_to",
+                "reference:retains",
+                "reference:returns",
+                "reference:authoritative_for",
+                "reference:contained_in",
+                "reference:ordered_as",
+                "reference:requests_authorization",
+                "reference:routes_to",
+                "reference:same_container_as",
+                "reference:semantically_equivalent",
+                "reference:escalates_to",
+                "reference:starts",
+                "reference:supports",
+                "reference:targets",
+                "reference:traces_to",
+                "reference:unchanged_from_frozen_base",
+                "reference:uses",
+                "reference:visible_in_scope",
+                "reference:within_scope",
+                "reference:writable_in_scope",
+                "reference:writes"
+              ]
+            },
+            "operand_tokens": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^(?:r):"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "boolean:authoritative",
+                "boolean:deterministic",
+                "boolean:exists",
+                "boolean:fails_when",
+                "boolean:immutable"
+              ]
+            },
+            "operand_tokens": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^(?:b):"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "number:emits",
+                "number:equals",
+                "number:has_cardinality",
+                "number:has_value",
+                "number:matches",
+                "number:not_equals",
+                "number:returns"
+              ]
+            },
+            "operand_tokens": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^(?:n):"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "range:has_cardinality",
+                "range:has_range"
+              ]
+            },
+            "operand_tokens": {
+              "type": "array",
+              "anyOf": [
+                {
+                  "minItems": 1,
+                  "maxItems": 1,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^(?:min|max):"
+                  }
+                },
+                {
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?:min):"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^(?:max):"
+                    }
+                  ],
+                  "items": false
+                },
+                {
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?:max):"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^(?:min):"
+                    }
+                  ],
+                  "items": false
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "verification_claim": {
+      "type": "object",
+      "required": [
+        "source_spans",
+        "operator",
+        "modality",
+        "subject_reference_id",
+        "applicability_conditions",
+        "set_quantifiers",
+        "numeric_quantifiers",
+        "verification_method",
+        "falsifying_condition_spans",
+        "operand_tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_spans": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source_span"
+          }
+        },
+        "operator": {
+          "$ref": "#/$defs/operator_code"
+        },
+        "modality": {
+          "type": "string",
+          "enum": [
+            "MUST",
+            "MUST_NOT",
+            "SHOULD",
+            "SHOULD_NOT",
+            "MAY"
+          ]
+        },
+        "subject_reference_id": {
+          "$ref": "#/$defs/reference_id"
+        },
+        "applicability_conditions": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        },
+        "set_quantifiers": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/$defs/set_quantifier"
+          }
+        },
+        "numeric_quantifiers": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/$defs/numeric_quantifier"
+          }
+        },
+        "falsifying_condition_spans": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source_span"
+          }
+        },
+        "verification_method": {
+          "type": "string",
+          "enum": [
+            "inspection",
+            "analysis",
+            "demonstration",
+            "test_execution",
+            "audit",
+            "proof"
+          ]
+        },
+        "operand_tokens": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 3
+          }
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "reference:accepts",
+                "reference:adds",
+                "reference:allows",
+                "reference:approves",
+                "reference:authorizes",
+                "reference:behaviorally_equivalent",
+                "reference:blocks",
+                "reference:calls",
+                "reference:classifies_as",
+                "reference:complete_against",
+                "reference:completes",
+                "reference:conflicts_with",
+                "reference:conforms_to",
+                "reference:contains",
+                "reference:covers",
+                "reference:creates",
+                "reference:deletes",
+                "reference:depends_on",
+                "reference:emits",
+                "reference:equals",
+                "reference:exports",
+                "reference:follows",
+                "reference:forwards_to",
+                "reference:generates",
+                "reference:has_identity",
+                "reference:has_property",
+                "reference:has_state",
+                "reference:has_status",
+                "reference:has_type",
+                "reference:has_value",
+                "reference:imports",
+                "reference:includes",
+                "reference:invalidates",
+                "reference:isolated_from",
+                "reference:matches",
+                "reference:member_of",
+                "reference:modifies",
+                "reference:mutates",
+                "reference:not_equals",
+                "reference:not_member_of",
+                "reference:omits",
+                "reference:performs",
+                "reference:precedes",
+                "reference:preserves",
+                "reference:replaces",
+                "reference:reads",
+                "reference:records",
+                "reference:rejects",
+                "reference:resolves_to",
+                "reference:retains",
+                "reference:returns",
+                "reference:authoritative_for",
+                "reference:contained_in",
+                "reference:ordered_as",
+                "reference:requests_authorization",
+                "reference:routes_to",
+                "reference:same_container_as",
+                "reference:semantically_equivalent",
+                "reference:escalates_to",
+                "reference:starts",
+                "reference:supports",
+                "reference:targets",
+                "reference:traces_to",
+                "reference:unchanged_from_frozen_base",
+                "reference:uses",
+                "reference:visible_in_scope",
+                "reference:within_scope",
+                "reference:writable_in_scope",
+                "reference:writes"
+              ]
+            },
+            "operand_tokens": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^(?:r):"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "boolean:authoritative",
+                "boolean:deterministic",
+                "boolean:exists",
+                "boolean:fails_when",
+                "boolean:immutable"
+              ]
+            },
+            "operand_tokens": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^(?:b):"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "number:emits",
+                "number:equals",
+                "number:has_cardinality",
+                "number:has_value",
+                "number:matches",
+                "number:not_equals",
+                "number:returns"
+              ]
+            },
+            "operand_tokens": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^(?:n):"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "operator": {
+              "type": "string",
+              "enum": [
+                "range:has_cardinality",
+                "range:has_range"
+              ]
+            },
+            "operand_tokens": {
+              "type": "array",
+              "anyOf": [
+                {
+                  "minItems": 1,
+                  "maxItems": 1,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^(?:min|max):"
+                  }
+                },
+                {
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?:min):"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^(?:max):"
+                    }
+                  ],
+                  "items": false
+                },
+                {
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?:max):"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^(?:min):"
+                    }
+                  ],
+                  "items": false
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

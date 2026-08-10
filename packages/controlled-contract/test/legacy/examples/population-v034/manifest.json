@@ -1,0 +1,10 @@
+{
+  "p8-n3-positive.json": "satisfied",
+  "p8-n3-missing-member-claim.json": "unsatisfied",
+  "p12-n25-positive.json": "satisfied",
+  "p12-n25-missing-identity.json": "unsatisfied",
+  "p13-strict-subset-positive.json": "satisfied",
+  "p13-partial-overlap-negative.json": "invalid",
+  "p13-empty-subset-positive.json": "satisfied",
+  "p13-empty-not-subset-negative.json": "invalid"
+}

@@ -1,0 +1,1536 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "2e6bf0d0f1c6235e3fa4b82d4999125fc8d7f55450f5c94d18a2eb6e7a9b40fc",
+  "witnesses": [
+    {
+      "surface_id": "claim-actor-does-not-mutate-protected-resources-during-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-mutate-protected-resources-during-interval-modalities",
+      "weakened_profile_digest": "b98f4f6e15c727c0fdaca92c3b83d256c7d95706e8cfd43281886ea2e5000779",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-mode",
+      "weakened_profile_digest": "c8c3f20ac35fe18c190d70f0d518131792f77c2a07a9736ee13bc01807729936",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-operands",
+      "weakened_profile_digest": "276e1f118fa186ba2b95230ebe4236a14458028253b130b5a98e90fb0bea358e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-actor-does-not-write-protected-resources-during-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-write-protected-resources-during-interval-modalities",
+      "weakened_profile_digest": "86a83e949bc65634c0f37153a4cd53502f1a7e035fd404f317a194817ef20d4a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-mode",
+      "weakened_profile_digest": "078b69b98f0811e98ff86607e0067406462ae106e31e0435eb286d380dbbfdb4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-operands",
+      "weakened_profile_digest": "87cacac32f30e509f66b4877d776350cd90c4e2b51e1acee832444fd23babb19",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-end-event-completes-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-end-event-completes-interval-modalities",
+      "weakened_profile_digest": "7ed286fb67e523baa98a338ab208530a0e1d18dd073206635ee7f9f37a534e8c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-end-event-completes-interval-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-end-event-completes-interval-proposition-operand-0-role",
+      "weakened_profile_digest": "2395672035489205f9371e2411668494c9f28e9989fafa24bddfdfea46216bf0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-end-event-completes-interval-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-end-event-completes-interval-proposition-operator",
+      "weakened_profile_digest": "73ccc577c4fafcf6051e85c55eb4f677e6f71741d173f8c10bcb21d9a427c7e0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:starts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-end-event-completes-interval-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-end-event-completes-interval-proposition-subject",
+      "weakened_profile_digest": "5f67e7462ab81ddfc9a1ee5936322c2d266da9cc9c5f97087565580aa3627690",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/subject_role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "claim-patterns",
+      "weakened_profile_digest": "7f11141ad11111525b040946b91e2f3db3bdba72ea4dba4e918b086c6908422c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "end-event-completes-interval",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "end_event",
+                "operator": "reference:completes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "interval"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "start-event-precedes-end-event",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "start_event",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "end_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "actor-does-not-write-protected-resources-during-interval",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "actor",
+                "operator": "reference:writes",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "interval"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_resources"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "actor-does-not-mutate-protected-resources-during-interval",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "actor",
+                "operator": "reference:mutates",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "interval"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_resources"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-observes-exact-bounded-proof-subjects",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "actor"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "start_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "end_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "interval"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "protected_resources"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-no-during-interval-write",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_resource_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "actor",
+                "operator": "reference:writes",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "interval"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_resources"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-no-during-interval-mutation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "interval"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "actor",
+                "operator": "reference:mutates",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "interval"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_resources"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-protected-resource-population"
+              },
+              {
+                "pattern": "end-event-completes-interval"
+              },
+              {
+                "pattern": "start-event-precedes-end-event"
+              },
+              {
+                "pattern": "actor-does-not-write-protected-resources-during-interval"
+              },
+              {
+                "pattern": "actor-does-not-mutate-protected-resources-during-interval"
+              },
+              {
+                "pattern": "verification-observes-exact-bounded-proof-subjects"
+              },
+              {
+                "pattern": "verify-no-during-interval-write"
+              },
+              {
+                "pattern": "verify-no-during-interval-mutation"
+              },
+              {
+                "pattern": "verification-target-no-write"
+              },
+              {
+                "pattern": "verification-target-no-mutation"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-start-event-precedes-end-event-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-precedes-end-event-modalities",
+      "weakened_profile_digest": "906125a8ece579cd7728b459b70c9094243567b366003edca5617fed36dbc53e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-start-event-precedes-end-event-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-precedes-end-event-proposition-operand-0-role",
+      "weakened_profile_digest": "af9c78ce460f7512732ca011eb2428a59149d0cf3d8b65375be0d5cef2520546",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-start-event-precedes-end-event-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-precedes-end-event-proposition-operator",
+      "weakened_profile_digest": "7839adf4de7cb172066a3f6bfc96325c0a38750cc861a97c95d0211df5373096",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:follows"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-start-event-precedes-end-event-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-precedes-end-event-proposition-subject",
+      "weakened_profile_digest": "5d1a6af6402ab5ba603d250a2d0d28d6a559feed99f7cc02bbe39911ea0a4b33",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-start-event-starts-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-starts-interval-modalities",
+      "weakened_profile_digest": "e4f2201fe380a03ca326a1bd74e0933d9dbe3047a90db5838115b586f401155f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-start-event-starts-interval-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-starts-interval-proposition-operand-0-role",
+      "weakened_profile_digest": "779463052ced36a4207ad72b9738f6ced0521218d428f2b452b4eae7d1bf1fb3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-start-event-starts-interval-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-starts-interval-proposition-operator",
+      "weakened_profile_digest": "5c5d3345c3b7da4cb4cf83de9e85069df5ea1dff7c3cfb370c5a82e2085f446d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:completes"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-start-event-starts-interval-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-starts-interval-proposition-subject",
+      "weakened_profile_digest": "5da7062bdf7637e3b1d671f20bf531f9b2db86fd0dfc48ad56cff532392c2134",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-modalities",
+      "weakened_profile_digest": "432c17f358cc1fdf242408860c4314317bc191adeb8ce6cbbca308ace2ad8fef",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-0-role",
+      "weakened_profile_digest": "6e470bb6ad97650ccac497af73abfdfff1042743f67f44f200f6d9647100a2e0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "interval"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-1-role",
+      "weakened_profile_digest": "5de6d9c73fe868cf062d8e5720684c568fb23d83b59aa056424c6db60a679c8f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/1/role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-2-role",
+      "weakened_profile_digest": "87f558ae86df538f23b54568daa494175c13e870942e9e7fdeab766ca9c123c5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/2/role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-3-role",
+      "weakened_profile_digest": "70d3aefc6a79daba778cf4c8b8eeb93d66819e6daf1a8b18521b0436b85aca4c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/3/role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-4-role",
+      "weakened_profile_digest": "83e240948378864b85a60ef1662868c9164426546dd82b5f96c56d9393f7393b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/4/role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operator",
+      "weakened_profile_digest": "054a242a7f93b91e5fdf0ec4f2f26740def39c9aa48e51b906198f4115853448",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:covers"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-subject",
+      "weakened_profile_digest": "c34dad4efdcabf8acbf10edd7a42ecc328c4d6f8fc53341af3c1fd5089b8e2f0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/subject_role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-modalities",
+      "weakened_profile_digest": "4fc56b8558554d3e0bcd06e265748b02b294ccdc7a4e9622d37637e79ed813e7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-proposition-operand-0-role",
+      "weakened_profile_digest": "bd2b0b926b69f62786041ca2cc012514c0c028e41a54c23e9ff49d72d1096c05",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/0/role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-proposition-operator",
+      "weakened_profile_digest": "ff41748368c941b08f6787229f22199cafe87d830d252e31559a821d6bfc6040",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-proposition-subject",
+      "weakened_profile_digest": "3206b733ee5a7150cceed636dfebe11a033af7d6c62d65c64491130e55c83e44",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/subject_role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-verification-methods",
+      "weakened_profile_digest": "acb4bc041ba15015ff0a0424e1e189c514502d22fd74b1b4a5ed5e600663136e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-modalities",
+      "weakened_profile_digest": "bbc07c158049ec4ee9f18ec79ad61e474c4c51a45a4b378cd356826f30707a3f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-proposition-operand-0-role",
+      "weakened_profile_digest": "a57d7306a90c5df4fbb57dd58d8c018279f981ebd33c045494d734c4388e4859",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operands/0/role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-proposition-operator",
+      "weakened_profile_digest": "e7a58040e3470be7ca123309c614da09410ed2cf90cc0ec8837ee566e27c31b6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-proposition-subject",
+      "weakened_profile_digest": "6495ff36022926d18fcac88a078c37605663732c6ae0a692a07f9f6493f963bb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/subject_role",
+          "value": "actor"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-verification-methods",
+      "weakened_profile_digest": "42cf69b83d75305bf2bf3d283e85df39aa19168331166c27c093936c2b8b3b7e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "distinct-reference-role-sets",
+      "weakened_profile_digest": "e9ddf4cf0656942c4574e43853f1957ce93bada094e2256f77c983a486536393",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "falsifier-condition-bindings",
+      "weakened_profile_digest": "40b867cb48a8b663fd37a6b433008d3b37e06f877cdae4713f0edeed73df5805",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/falsifying_proposition_template/applicability_context",
+          "value": {
+            "mode": "unconditional",
+            "operand_roles": []
+          }
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/1/applicability_context",
+          "value": {
+            "mode": "unconditional",
+            "operand_roles": []
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "number-roles",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "number-roles",
+      "weakened_profile_digest": "f50f6a0d30785456b65a2440dc05a7bd2e5f19df1c9e32b1ed1684fb319f26fb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/number_roles/0/minimum",
+          "value": 0
+        },
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "reference-binding-patterns",
+      "weakened_profile_digest": "cc1bedda9b0de1b8c0d68ab51e9526e2c20278d16493e75d2b9c476359f9124f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "start-event-starts-interval"
+              },
+              {
+                "pattern": "end-event-completes-interval"
+              },
+              {
+                "pattern": "start-event-precedes-end-event"
+              },
+              {
+                "pattern": "actor-does-not-write-protected-resources-during-interval"
+              },
+              {
+                "pattern": "actor-does-not-mutate-protected-resources-during-interval"
+              },
+              {
+                "pattern": "verification-observes-exact-bounded-proof-subjects"
+              },
+              {
+                "pattern": "verify-no-during-interval-write"
+              },
+              {
+                "pattern": "verify-no-during-interval-mutation"
+              },
+              {
+                "pattern": "verification-target-no-write"
+              },
+              {
+                "pattern": "verification-target-no-mutation"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "reference-role-count-bindings",
+      "weakened_profile_digest": "d9f06eca1ae6903716fc6f225f37ad0e533e483e97e2eed278f7491f2d45a942",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "relation-patterns",
+      "weakened_profile_digest": "2310f54cf14a865b7ba89462122be5c80b2a823f3f19bc939f47e9b184ccd8e7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "start-event-starts-interval",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "start_event",
+                "operator": "reference:starts",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "interval"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "end-event-completes-interval",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "end_event",
+                "operator": "reference:completes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "interval"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "start-event-precedes-end-event",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "start_event",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "end_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "actor-does-not-write-protected-resources-during-interval",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "actor",
+                "operator": "reference:writes",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "interval"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_resources"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-observes-exact-bounded-proof-subjects",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "actor"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "start_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "end_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "interval"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "protected_resources"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-no-during-interval-write",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_resource_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "actor",
+                "operator": "reference:writes",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "interval"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_resources"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-target-no-write",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-no-during-interval-write",
+              "target_claim_pattern_id": "actor-does-not-write-protected-resources-during-interval"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-target-no-write",
+              "applicability_context": {
+                "mode": "during",
+                "operand_roles": [
+                  "interval"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-protected-resource-population"
+              },
+              {
+                "pattern": "start-event-starts-interval"
+              },
+              {
+                "pattern": "end-event-completes-interval"
+              },
+              {
+                "pattern": "start-event-precedes-end-event"
+              },
+              {
+                "pattern": "actor-does-not-write-protected-resources-during-interval"
+              },
+              {
+                "pattern": "verification-observes-exact-bounded-proof-subjects"
+              },
+              {
+                "pattern": "verify-no-during-interval-write"
+              },
+              {
+                "pattern": "verification-target-no-write"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "role-actor-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-actor-identity-kinds",
+      "weakened_profile_digest": "5b945e0289211440664d970f1cf09ca489ed2afbd65019cd3ca0f32ef7291d33",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-actor-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-actor-types",
+      "weakened_profile_digest": "91fe7cb89718f534f9701bf4bcbf9b49eea045eacafdc3b82deb57330ef08d56",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:actor",
+            "cc:process",
+            "cc:runtime_component",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-end-event-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-end-event-identity-kinds",
+      "weakened_profile_digest": "cd9f71dc0ee66c8d07bd522ab970c5e98c735e6c20786b108e900683ff59c204",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-end-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-end-event-types",
+      "weakened_profile_digest": "bd0e506e3c778104e1634b84e3334a1b6b04250adc9c62a026fee5c53ae1dcfd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-interval-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-interval-identity-kinds",
+      "weakened_profile_digest": "d49dfe313db499c32d8a867099b58a291228ef2712000ac5a452a18488e1acdf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-interval-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-interval-types",
+      "weakened_profile_digest": "30d456f6bacfaf34eec1260f73028fe40922df6615a5f3890e3f1c6a2d7e7913",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:process",
+            "cc:scope",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-protected-resource-population-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-protected-resource-population-identity-kinds",
+      "weakened_profile_digest": "b769d3d8f302f8ab217304c192cf337087f7719bb5f64df966a1fb97974155e2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-protected-resource-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-protected-resource-population-types",
+      "weakened_profile_digest": "f7f2d1a4b57650f88af14ed0d1feb76bd5ea4d7627e5816ff43edb8d155ea75c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-protected-resources-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-protected-resources-identity-kinds",
+      "weakened_profile_digest": "5fe2635103e96a05830e05c09ba7d7cdaeb5cdeba9814c816f5cab7876e48926",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-protected-resources-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-protected-resources-types",
+      "weakened_profile_digest": "fb6fea8bcf43322edbeefac34fd87b6ef862b52b6b9fafdfdd2f4cab6c7a2c81",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:resource",
+            "cc:artifact",
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-start-event-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-start-event-identity-kinds",
+      "weakened_profile_digest": "25c7ddf18f3107ee63350edb46d68dc8845edcf9ace7d2bd30a8053d4c120392",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-start-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-start-event-types",
+      "weakened_profile_digest": "93d1806082528f4cf2889a2de8602291bfb434f64e311b07e38bbdddf04ad562",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-verification-identity-kinds",
+      "weakened_profile_digest": "fd9fbb64f77ac7e25f9c77c9a1828a0791e6feee909d2faaadd05697a3382a08",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-verification-types",
+      "weakened_profile_digest": "12b96b68bd536402a472418b305573ab81470be0f46a11b9dfef5f14ce94957c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:test",
+            "cc:process",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "satisfaction-expression",
+      "weakened_profile_digest": "e0e2f7302f59feb607595741437819a95f071926d348aa4cdaaba0ab31f41b0f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "complete-protected-resource-population"
+              },
+              {
+                "pattern": "start-event-starts-interval"
+              },
+              {
+                "pattern": "end-event-completes-interval"
+              },
+              {
+                "pattern": "start-event-precedes-end-event"
+              },
+              {
+                "pattern": "actor-does-not-write-protected-resources-during-interval"
+              },
+              {
+                "pattern": "actor-does-not-mutate-protected-resources-during-interval"
+              },
+              {
+                "pattern": "verification-observes-exact-bounded-proof-subjects"
+              },
+              {
+                "pattern": "verify-no-during-interval-write"
+              },
+              {
+                "pattern": "verify-no-during-interval-mutation"
+              },
+              {
+                "pattern": "verification-target-no-write"
+              },
+              {
+                "pattern": "verification-target-no-mutation"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

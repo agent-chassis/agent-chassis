@@ -11,7 +11,6 @@ import {
   writeContractMetadata
 } from "../lib/wiki.mjs";
 import {
-  ensureAdoptionDoc,
   ensureAdoptionWorkRecords,
   ensureAgentsBoilerplateTemplate,
   ensureWikiMcpDeclaration,
@@ -147,8 +146,6 @@ export async function bootstrapRepo({
 
   const agentsBoilerplate = await ensureAgentsBoilerplateTemplate(targetDir);
 
-  const adoptionDoc = await ensureAdoptionDoc(targetDir, { repo: resolvedRepo });
-
   const {
     getStaticIn0001AdoptionSeed,
     getStaticIn0001AdoptionSeedWorkRecords,
@@ -202,10 +199,6 @@ export async function bootstrapRepo({
     agentsBoilerplateTemplate: {
       path: agentsBoilerplate.relativePath,
       state: agentsBoilerplate.state
-    },
-    adoptionDoc: {
-      path: adoptionDoc.relativePath,
-      state: adoptionDoc.state
     },
     allocatorState,
     metadataPath: contractMetadata.metadataPath,

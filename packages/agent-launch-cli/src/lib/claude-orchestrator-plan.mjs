@@ -766,6 +766,8 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
     const outcome = await superviseInteractiveOrchestratorLaunch({
       runtimeDir: launchPlan.runtimeDir,
       descriptor: claudeOrchestratorSessionDescriptor(launchPlan),
+      stdioMcpConduit: conduit,
+      stderr: io.stderr ?? process.stderr,
       spawnChild: () => spawnClaudeOrchestratorChild({ plan: launchPlan, io })
     });
 

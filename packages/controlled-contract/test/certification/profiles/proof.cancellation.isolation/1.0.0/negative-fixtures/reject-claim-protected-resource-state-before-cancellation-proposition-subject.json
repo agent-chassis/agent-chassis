@@ -1,0 +1,1538 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-claim-protected-resource-state-before-cancellation-proposition-subject",
+  "covers": [
+    {
+      "surface_id": "claim-protected-resource-state-before-cancellation-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cancellation-search_session",
+          "value": "search_session:operation"
+        }
+      },
+      {
+        "reference_id": "ref-cancellation-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cancellation-search_session",
+          "value": "search_session:cancellation_operation"
+        }
+      },
+      {
+        "reference_id": "ref-cancelled-generation",
+        "type_term": "cc:lifecycle_entity",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cancellation-search_session",
+          "value": "search_session:cancelled_generation"
+        }
+      },
+      {
+        "reference_id": "ref-surviving-generation",
+        "type_term": "cc:lifecycle_entity",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cancellation-search_session",
+          "value": "search_session:surviving_generation"
+        }
+      },
+      {
+        "reference_id": "ref-cancelled-attempt",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cancellation-search_session",
+          "value": "search_session:cancelled_attempt"
+        }
+      },
+      {
+        "reference_id": "ref-surviving-attempt",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cancellation-search_session",
+          "value": "search_session:surviving_attempt"
+        }
+      },
+      {
+        "reference_id": "ref-cancellation-request",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:cancellation_request"
+        }
+      },
+      {
+        "reference_id": "ref-cancellation-result",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:cancellation_result"
+        }
+      },
+      {
+        "reference_id": "ref-surviving-result",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:surviving_result"
+        }
+      },
+      {
+        "reference_id": "ref-protected-resource",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cancellation-search_session",
+          "value": "search_session:protected_resource"
+        }
+      },
+      {
+        "reference_id": "ref-surviving-authority",
+        "type_term": "cc:authority",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cancellation-search_session",
+          "value": "search_session:surviving_authority"
+        }
+      },
+      {
+        "reference_id": "ref-cancelled-expected-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:cancelled_expected_state"
+        }
+      },
+      {
+        "reference_id": "ref-cancelled-observed-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:cancelled_observed_state"
+        }
+      },
+      {
+        "reference_id": "ref-survivor-state-before",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:survivor_state_before"
+        }
+      },
+      {
+        "reference_id": "ref-survivor-state-after",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:survivor_state_after"
+        }
+      },
+      {
+        "reference_id": "ref-expected-success-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:expected_success_state"
+        }
+      },
+      {
+        "reference_id": "ref-observed-success-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:observed_success_state"
+        }
+      },
+      {
+        "reference_id": "ref-cancellation-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:cancellation_observation"
+        }
+      },
+      {
+        "reference_id": "ref-state-before-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:state_before_observation"
+        }
+      },
+      {
+        "reference_id": "ref-state-after-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:state_after_observation"
+        }
+      },
+      {
+        "reference_id": "ref-success-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:success_observation"
+        }
+      },
+      {
+        "reference_id": "ref-cancellation-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:cancellation_verification"
+        }
+      },
+      {
+        "reference_id": "ref-state-isolation-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:state_isolation_verification"
+        }
+      },
+      {
+        "reference_id": "ref-authority-isolation-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:authority_isolation_verification"
+        }
+      },
+      {
+        "reference_id": "ref-success-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:success_verification"
+        }
+      },
+      {
+        "reference_id": "ref-cancellation-criterion",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:cancellation_criterion"
+        }
+      },
+      {
+        "reference_id": "ref-success-criterion",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:success_criterion"
+        }
+      },
+      {
+        "reference_id": "ref-cancellation-failed-condition",
+        "type_term": "cc:invariant",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:cancellation_failed_condition"
+        }
+      },
+      {
+        "reference_id": "ref-state-interference-condition",
+        "type_term": "cc:invariant",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:state_interference_condition"
+        }
+      },
+      {
+        "reference_id": "ref-authority-interference-condition",
+        "type_term": "cc:invariant",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:authority_interference_condition"
+        }
+      },
+      {
+        "reference_id": "ref-survivor-failure-condition",
+        "type_term": "cc:invariant",
+        "identity": {
+          "kind": "profile_term",
+          "term": "search_session:survivor_failure_condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-cancelled-attempt-performs-operation",
+        "subject_reference_id": "ref-cancelled-attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancelled-attempt-targets-generation",
+        "subject_reference_id": "ref-cancelled-attempt",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancelled-generation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-attempt-performs-operation",
+        "subject_reference_id": "ref-surviving-attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-attempt-targets-generation",
+        "subject_reference_id": "ref-surviving-attempt",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-generation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-attempt-uses-authority",
+        "subject_reference_id": "ref-surviving-attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-authority"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancelled-attempt-precedes-cancellation",
+        "subject_reference_id": "ref-cancelled-attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-request"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-attempt-precedes-cancellation",
+        "subject_reference_id": "ref-surviving-attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-request"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancellation-request-performs-operation",
+        "subject_reference_id": "ref-cancellation-request",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancelled-attempt",
+            "ref-surviving-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancellation-request-targets-cancelled-generation",
+        "subject_reference_id": "ref-cancellation-request",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancelled-attempt",
+            "ref-surviving-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancelled-generation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancellation-request-precedes-result",
+        "subject_reference_id": "ref-cancellation-request",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancellation-result-accepts-request",
+        "subject_reference_id": "ref-cancellation-result",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-request"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-request"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancelled-state-conforms-to-criterion",
+        "subject_reference_id": "ref-cancelled-expected-state",
+        "operator": "reference:conforms_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-criterion"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancelled-generation-state-after-cancellation",
+        "subject_reference_id": "ref-cancelled-generation",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancelled-observed-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancellation-observation-records-state",
+        "subject_reference_id": "ref-cancellation-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancelled-observed-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancelled-generation-reaches-cancelled-state",
+        "subject_reference_id": "ref-cancelled-observed-state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancelled-expected-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancellation-verification-reads-subjects",
+        "subject_reference_id": "ref-cancellation-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancelled-generation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-request"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-result"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-observation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancellation-verification",
+        "subject_reference_id": "ref-cancellation-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-cancellation-verification",
+        "subject_reference_id": "ref-cancelled-observed-state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-cancellation-failed-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancelled-expected-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-resource-state-before-cancellation",
+        "subject_reference_id": "ref-success-criterion",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-cancellation-request"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-survivor-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-generation-uses-protected-resource-before-cancellation",
+        "subject_reference_id": "ref-surviving-generation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-cancellation-request"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-state-before-observation-records-state",
+        "subject_reference_id": "ref-state-before-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-cancellation-request"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-survivor-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-resource-state-after-cancellation",
+        "subject_reference_id": "ref-protected-resource",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-survivor-state-after"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-generation-uses-protected-resource-after-cancellation",
+        "subject_reference_id": "ref-surviving-generation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-state-after-observation-records-state",
+        "subject_reference_id": "ref-state-after-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-survivor-state-after"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-state-preserved",
+        "subject_reference_id": "ref-survivor-state-after",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-survivor-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-state-isolation-verification-reads-subjects",
+        "subject_reference_id": "ref-state-isolation-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-generation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-before-observation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-after-observation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-state-isolation-verification",
+        "subject_reference_id": "ref-state-isolation-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-state-isolation-verification",
+        "subject_reference_id": "ref-survivor-state-after",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-state-interference-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-survivor-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-authorizes-surviving-generation",
+        "subject_reference_id": "ref-surviving-authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-cancellation-request"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-generation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-authority-not-invalidated",
+        "subject_reference_id": "ref-cancellation-result",
+        "operator": "reference:invalidates",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-request"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-authority"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-authorizes-surviving-generation-after-cancellation",
+        "subject_reference_id": "ref-surviving-authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-generation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-isolation-verification-reads-subjects",
+        "subject_reference_id": "ref-authority-isolation-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-generation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-cancellation-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-isolation-verification",
+        "subject_reference_id": "ref-authority-isolation-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-authority"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-authority-isolation-verification",
+        "subject_reference_id": "ref-cancellation-result",
+        "operator": "reference:invalidates",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-authority-interference-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-authority"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cancellation-result-precedes-surviving-result",
+        "subject_reference_id": "ref-cancellation-result",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-result-accepts-attempt",
+        "subject_reference_id": "ref-surviving-result",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-expected-success-state-conforms-to-criterion",
+        "subject_reference_id": "ref-expected-success-state",
+        "operator": "reference:conforms_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-success-criterion"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-result-state",
+        "subject_reference_id": "ref-surviving-result",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-cancellation-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-success-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-success-observation-records-state",
+        "subject_reference_id": "ref-success-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-surviving-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-success-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-surviving-result-matches-success-state",
+        "subject_reference_id": "ref-observed-success-state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-surviving-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-expected-success-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-success-verification-reads-subjects",
+        "subject_reference_id": "ref-success-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-surviving-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-generation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-attempt"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-result"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-success-observation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-success-verification",
+        "subject_reference_id": "ref-success-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-surviving-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-success-verification",
+        "subject_reference_id": "ref-observed-success-state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-survivor-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-expected-success-state"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-cancelled-attempt-performs-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancelled-attempt-performs-operation"
+      },
+      {
+        "claim_id": "claim-cancelled-attempt-targets-generation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancelled-attempt-targets-generation"
+      },
+      {
+        "claim_id": "claim-surviving-attempt-performs-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-attempt-performs-operation"
+      },
+      {
+        "claim_id": "claim-surviving-attempt-targets-generation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-attempt-targets-generation"
+      },
+      {
+        "claim_id": "claim-surviving-attempt-uses-authority",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-attempt-uses-authority"
+      },
+      {
+        "claim_id": "claim-cancelled-attempt-precedes-cancellation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancelled-attempt-precedes-cancellation"
+      },
+      {
+        "claim_id": "claim-surviving-attempt-precedes-cancellation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-attempt-precedes-cancellation"
+      },
+      {
+        "claim_id": "claim-cancellation-request-performs-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancellation-request-performs-operation"
+      },
+      {
+        "claim_id": "claim-cancellation-request-targets-cancelled-generation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancellation-request-targets-cancelled-generation"
+      },
+      {
+        "claim_id": "claim-cancellation-request-precedes-result",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancellation-request-precedes-result"
+      },
+      {
+        "claim_id": "claim-cancellation-result-accepts-request",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancellation-result-accepts-request"
+      },
+      {
+        "claim_id": "claim-cancelled-state-conforms-to-criterion",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancelled-state-conforms-to-criterion"
+      },
+      {
+        "claim_id": "claim-cancelled-generation-state-after-cancellation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancelled-generation-state-after-cancellation"
+      },
+      {
+        "claim_id": "claim-cancellation-observation-records-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancellation-observation-records-state"
+      },
+      {
+        "claim_id": "claim-cancelled-generation-reaches-cancelled-state",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-cancelled-generation-reaches-cancelled-state"
+      },
+      {
+        "claim_id": "claim-cancellation-verification-reads-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancellation-verification-reads-subjects"
+      },
+      {
+        "claim_id": "claim-cancellation-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-cancellation-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-cancellation-verification"
+      },
+      {
+        "claim_id": "claim-protected-resource-state-before-cancellation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-protected-resource-state-before-cancellation"
+      },
+      {
+        "claim_id": "claim-surviving-generation-uses-protected-resource-before-cancellation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-generation-uses-protected-resource-before-cancellation"
+      },
+      {
+        "claim_id": "claim-state-before-observation-records-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-state-before-observation-records-state"
+      },
+      {
+        "claim_id": "claim-protected-resource-state-after-cancellation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-protected-resource-state-after-cancellation"
+      },
+      {
+        "claim_id": "claim-surviving-generation-uses-protected-resource-after-cancellation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-generation-uses-protected-resource-after-cancellation"
+      },
+      {
+        "claim_id": "claim-state-after-observation-records-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-state-after-observation-records-state"
+      },
+      {
+        "claim_id": "claim-surviving-state-preserved",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-state-preserved"
+      },
+      {
+        "claim_id": "claim-state-isolation-verification-reads-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-state-isolation-verification-reads-subjects"
+      },
+      {
+        "claim_id": "claim-state-isolation-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-state-isolation-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-state-isolation-verification"
+      },
+      {
+        "claim_id": "claim-authority-authorizes-surviving-generation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authority-authorizes-surviving-generation"
+      },
+      {
+        "claim_id": "claim-surviving-authority-not-invalidated",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-surviving-authority-not-invalidated"
+      },
+      {
+        "claim_id": "claim-authority-authorizes-surviving-generation-after-cancellation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authority-authorizes-surviving-generation-after-cancellation"
+      },
+      {
+        "claim_id": "claim-authority-isolation-verification-reads-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authority-isolation-verification-reads-subjects"
+      },
+      {
+        "claim_id": "claim-authority-isolation-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-authority-isolation-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-authority-isolation-verification"
+      },
+      {
+        "claim_id": "claim-cancellation-result-precedes-surviving-result",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cancellation-result-precedes-surviving-result"
+      },
+      {
+        "claim_id": "claim-surviving-result-accepts-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-result-accepts-attempt"
+      },
+      {
+        "claim_id": "claim-expected-success-state-conforms-to-criterion",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-expected-success-state-conforms-to-criterion"
+      },
+      {
+        "claim_id": "claim-surviving-result-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-result-state"
+      },
+      {
+        "claim_id": "claim-success-observation-records-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-success-observation-records-state"
+      },
+      {
+        "claim_id": "claim-surviving-result-matches-success-state",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-surviving-result-matches-success-state"
+      },
+      {
+        "claim_id": "claim-success-verification-reads-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-success-verification-reads-subjects"
+      },
+      {
+        "claim_id": "claim-success-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-success-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-success-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-target-cancellation",
+        "role": "verifies",
+        "source_claim_id": "claim-cancellation-verification",
+        "target_claim_id": "claim-cancelled-generation-reaches-cancelled-state"
+      },
+      {
+        "relation_id": "rel-verification-target-state-isolation",
+        "role": "verifies",
+        "source_claim_id": "claim-state-isolation-verification",
+        "target_claim_id": "claim-surviving-state-preserved"
+      },
+      {
+        "relation_id": "rel-verification-target-authority-isolation",
+        "role": "verifies",
+        "source_claim_id": "claim-authority-isolation-verification",
+        "target_claim_id": "claim-surviving-authority-not-invalidated"
+      },
+      {
+        "relation_id": "rel-verification-target-surviving-success",
+        "role": "verifies",
+        "source_claim_id": "claim-success-verification",
+        "target_claim_id": "claim-surviving-result-matches-success-state"
+      }
+    ],
+    "collections": [
+      {
+        "collection_id": "set-cancellation-isolation-proof-population",
+        "collection_kind": "closed_set",
+        "purpose": "proof_cancellation_isolation_population",
+        "member_claim_ids": [
+          "claim-cancelled-attempt-performs-operation",
+          "claim-cancelled-attempt-targets-generation",
+          "claim-surviving-attempt-performs-operation",
+          "claim-surviving-attempt-targets-generation",
+          "claim-surviving-attempt-uses-authority",
+          "claim-cancelled-attempt-precedes-cancellation",
+          "claim-surviving-attempt-precedes-cancellation",
+          "claim-cancellation-request-performs-operation",
+          "claim-cancellation-request-targets-cancelled-generation",
+          "claim-cancellation-request-precedes-result",
+          "claim-cancellation-result-accepts-request",
+          "claim-cancelled-state-conforms-to-criterion",
+          "claim-cancelled-generation-state-after-cancellation",
+          "claim-cancellation-observation-records-state",
+          "claim-cancelled-generation-reaches-cancelled-state",
+          "claim-cancellation-verification-reads-subjects",
+          "claim-cancellation-verification",
+          "claim-protected-resource-state-before-cancellation",
+          "claim-surviving-generation-uses-protected-resource-before-cancellation",
+          "claim-state-before-observation-records-state",
+          "claim-protected-resource-state-after-cancellation",
+          "claim-surviving-generation-uses-protected-resource-after-cancellation",
+          "claim-state-after-observation-records-state",
+          "claim-surviving-state-preserved",
+          "claim-state-isolation-verification-reads-subjects",
+          "claim-state-isolation-verification",
+          "claim-authority-authorizes-surviving-generation",
+          "claim-surviving-authority-not-invalidated",
+          "claim-authority-authorizes-surviving-generation-after-cancellation",
+          "claim-authority-isolation-verification-reads-subjects",
+          "claim-authority-isolation-verification",
+          "claim-cancellation-result-precedes-surviving-result",
+          "claim-surviving-result-accepts-attempt",
+          "claim-expected-success-state-conforms-to-criterion",
+          "claim-surviving-result-state",
+          "claim-success-observation-records-state",
+          "claim-surviving-result-matches-success-state",
+          "claim-success-verification-reads-subjects",
+          "claim-success-verification"
+        ]
+      }
+    ],
+    "residue": [],
+    "annotations": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "operation",
+        "reference_ids": [
+          "ref-operation"
+        ]
+      },
+      {
+        "role": "cancellation_operation",
+        "reference_ids": [
+          "ref-cancellation-operation"
+        ]
+      },
+      {
+        "role": "cancelled_generation",
+        "reference_ids": [
+          "ref-cancelled-generation"
+        ]
+      },
+      {
+        "role": "surviving_generation",
+        "reference_ids": [
+          "ref-surviving-generation"
+        ]
+      },
+      {
+        "role": "cancelled_attempt",
+        "reference_ids": [
+          "ref-cancelled-attempt"
+        ]
+      },
+      {
+        "role": "surviving_attempt",
+        "reference_ids": [
+          "ref-surviving-attempt"
+        ]
+      },
+      {
+        "role": "cancellation_request",
+        "reference_ids": [
+          "ref-cancellation-request"
+        ]
+      },
+      {
+        "role": "cancellation_result",
+        "reference_ids": [
+          "ref-cancellation-result"
+        ]
+      },
+      {
+        "role": "surviving_result",
+        "reference_ids": [
+          "ref-surviving-result"
+        ]
+      },
+      {
+        "role": "protected_resource",
+        "reference_ids": [
+          "ref-protected-resource"
+        ]
+      },
+      {
+        "role": "surviving_authority",
+        "reference_ids": [
+          "ref-surviving-authority"
+        ]
+      },
+      {
+        "role": "cancelled_expected_state",
+        "reference_ids": [
+          "ref-cancelled-expected-state"
+        ]
+      },
+      {
+        "role": "cancelled_observed_state",
+        "reference_ids": [
+          "ref-cancelled-observed-state"
+        ]
+      },
+      {
+        "role": "survivor_state_before",
+        "reference_ids": [
+          "ref-survivor-state-before"
+        ]
+      },
+      {
+        "role": "survivor_state_after",
+        "reference_ids": [
+          "ref-survivor-state-after"
+        ]
+      },
+      {
+        "role": "expected_success_state",
+        "reference_ids": [
+          "ref-expected-success-state"
+        ]
+      },
+      {
+        "role": "observed_success_state",
+        "reference_ids": [
+          "ref-observed-success-state"
+        ]
+      },
+      {
+        "role": "cancellation_observation",
+        "reference_ids": [
+          "ref-cancellation-observation"
+        ]
+      },
+      {
+        "role": "state_before_observation",
+        "reference_ids": [
+          "ref-state-before-observation"
+        ]
+      },
+      {
+        "role": "state_after_observation",
+        "reference_ids": [
+          "ref-state-after-observation"
+        ]
+      },
+      {
+        "role": "success_observation",
+        "reference_ids": [
+          "ref-success-observation"
+        ]
+      },
+      {
+        "role": "cancellation_verification",
+        "reference_ids": [
+          "ref-cancellation-verification"
+        ]
+      },
+      {
+        "role": "state_isolation_verification",
+        "reference_ids": [
+          "ref-state-isolation-verification"
+        ]
+      },
+      {
+        "role": "authority_isolation_verification",
+        "reference_ids": [
+          "ref-authority-isolation-verification"
+        ]
+      },
+      {
+        "role": "success_verification",
+        "reference_ids": [
+          "ref-success-verification"
+        ]
+      },
+      {
+        "role": "cancellation_criterion",
+        "reference_ids": [
+          "ref-cancellation-criterion"
+        ]
+      },
+      {
+        "role": "success_criterion",
+        "reference_ids": [
+          "ref-success-criterion"
+        ]
+      },
+      {
+        "role": "cancellation_failed_condition",
+        "reference_ids": [
+          "ref-cancellation-failed-condition"
+        ]
+      },
+      {
+        "role": "state_interference_condition",
+        "reference_ids": [
+          "ref-state-interference-condition"
+        ]
+      },
+      {
+        "role": "authority_interference_condition",
+        "reference_ids": [
+          "ref-authority-interference-condition"
+        ]
+      },
+      {
+        "role": "survivor_failure_condition",
+        "reference_ids": [
+          "ref-survivor-failure-condition"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

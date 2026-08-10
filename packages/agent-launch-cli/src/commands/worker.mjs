@@ -98,7 +98,8 @@ export async function runWorker(argv, io = {}, { backend: injectedBackend } = {}
     profileName: parsed.profileName,
     app: parsed.app,
     model: parsed.model,
-    env: process.env
+    env: process.env,
+    dir: process.cwd()
   });
   if (!resolution.ok && shouldResolveWorkerLiveAppWithoutModelHint({ parsed, resolution })) {
 
@@ -107,7 +108,8 @@ export async function runWorker(argv, io = {}, { backend: injectedBackend } = {}
       profileName: parsed.profileName,
       app: parsed.app,
       model: null,
-      env: process.env
+      env: process.env,
+      dir: process.cwd()
     });
   }
   if (!resolution.ok) {

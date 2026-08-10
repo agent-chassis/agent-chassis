@@ -86,11 +86,15 @@ test("a supported mixed-cause aggregate preserves only its stable mismatch code"
   assert.equal(Object.hasOwn(projected, "recovery"), false);
 });
 
-test("an actionable carrier without a valid recovery route is generic", () => {
+test("an actionable carrier without a valid recovery route retains its diagnosis", () => {
   const carrier = trustedError();
   delete carrier.detail.recovery;
   assert.deepEqual(projectManagedIdentityCheckFailure(carrier), {
-    message: "managed identity check failed"
+    message: "managed identity check failed",
+    code: CODE,
+    cause_code: CAUSE_CODE,
+    observed_canonical_status: carrier.detail.observed_canonical_status,
+    recovery_carrier_status: "absent"
   });
 });
 
@@ -111,15 +115,77 @@ test("a nonactionable carrier may retain bounded status facts without recovery",
   assert.equal(Object.hasOwn(projected, "recovery"), false);
 });
 
-test("foreign or malformed carriers retain the generic refusal", () => {
-  for (const error of [
+test("foreign or malformed carriers remain bounded", () => {
+  const errors = [
     { code: "foreign.code", detail: { cause_code: CAUSE_CODE } },
     trustedError({ cause_code: "foreign.cause" }),
     trustedError({ observed_canonical_status: { record_id: "WK-1712", slice_id: "SLICE-001", parent_status: "todo" } }),
     trustedError({ recovery: { recovery_kind: "foreign" } }),
     trustedError({ observed_canonical_status: { record_id: "WK-1712", slice_id: "SLICE-001", parent_status: "todo", slice_status: "todo", secret: "do not copy" } })
-  ]) {
-    const projected = projectManagedIdentityCheckFailure(error);
-    assert.deepEqual(projected, { message: "managed identity check failed" });
-  }
+  ];
+  assert.deepEqual(errors.map(projectManagedIdentityCheckFailure), [
+    { message: "managed identity check failed", originating_code_status: "invalid" },
+    { message: "managed identity check failed", code: CODE },
+    { message: "managed identity check failed", code: CODE },
+    {
+      message: "managed identity check failed",
+      code: CODE,
+      cause_code: CAUSE_CODE,
+      observed_canonical_status: errors[3].detail.observed_canonical_status,
+      recovery_carrier_status: "malformed"
+    },
+    { message: "managed identity check failed", code: CODE }
+  ]);
+});
+
+test("hostile string codes are rejected without echo", () => {
+  const hostileCodes = [
+    "raw producer prose containing a secret",
+    "/var/private/identity-store",
+    "",
+    `agent_launch.${"x".repeat(128)}.v1`
+  ];
+  assert.deepEqual(hostileCodes.map((code) => projectManagedIdentityCheckFailure({ code })),
+    hostileCodes.map(() => ({
+      message: "managed identity check failed",
+      originating_code_status: "invalid"
+    })));
+});
+
+test("dotted and bare snake_case codes are carried with bounded source evidence", () => {
+  const codes = [
+    "agent_launch.managed_run.identity_store_read_failed.v1",
+    "managed_run_identity_check_threw"
+  ];
+  assert.deepEqual(codes.map((code) => projectManagedIdentityCheckFailure({
+    code,
+    detail: { source_code: "EACCES" }
+  })), codes.map((code) => ({
+    message: "managed identity check failed",
+    code,
+    source_code: "EACCES"
+  })));
+});
+
+test("carried, unavailable, and invalid originating-code outcomes are distinct", () => {
+  const values = ["operator_recovery_needed", undefined, 17, "not a stable code"];
+  assert.deepEqual(values.map((code) => projectManagedIdentityCheckFailure({ code })), [
+    { message: "managed identity check failed", code: "operator_recovery_needed" },
+    { message: "managed identity check failed", originating_code_status: "unavailable" },
+    { message: "managed identity check failed", originating_code_status: "unavailable" },
+    { message: "managed identity check failed", originating_code_status: "invalid" }
+  ]);
+});
+
+test("source_code is carried only when its bounded system-code shape is valid", () => {
+  const code = "managed_run_identity_check_threw";
+  assert.deepEqual([
+    projectManagedIdentityCheckFailure({ code, detail: { source_code: "EAI_AGAIN" } }),
+    projectManagedIdentityCheckFailure({ code, detail: { source_code: "/secret/errno" } }),
+    projectManagedIdentityCheckFailure({ code, detail: { source_code: "E".repeat(129) } })
+  ], [
+    { message: "managed identity check failed", code, source_code: "EAI_AGAIN" },
+    { message: "managed identity check failed", code },
+    { message: "managed identity check failed", code }
+  ]);
 });

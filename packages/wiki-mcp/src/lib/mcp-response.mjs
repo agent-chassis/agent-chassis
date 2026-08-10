@@ -357,6 +357,139 @@ export function installProcessErrorGuards({ processLike = process, log = null } 
   return { installed: true };
 }
 
+export function createDiagnosticSink({
+  stderr = process.stderr,
+  serialize = JSON.stringify,
+  write = (stream, text) => stream.write(text),
+  log = null
+} = {}) {
+  let state = "active";
+  const disable = () => { state = "disabled"; };
+  if (stderr && typeof stderr.on === "function") {
+    stderr.on("error", disable);
+    stderr.on("close", disable);
+  }
+  const emit = (entry) => {
+    if (state !== "active") return false;
+    state = "emitting";
+    try {
+      write(stderr, `${serialize(entry)}\n`);
+      if (typeof log === "function") log(entry);
+
+      if (state === "emitting") state = "active";
+      return true;
+    } catch {
+      disable();
+      return false;
+    }
+  };
+  return {
+    emit,
+    disable,
+    get state() { return state; },
+    get disabled() { return state === "disabled"; }
+  };
+}
+
+export function createStdioShutdownController({
+  processLike = process,
+  stdin = process.stdin,
+  stdout = process.stdout,
+  stderr = process.stderr,
+  readPpid = () => processLike.ppid,
+  setIntervalFn = setInterval,
+  clearIntervalFn = clearInterval,
+  setTimeoutFn = setTimeout,
+  clearTimeoutFn = clearTimeout,
+  terminate = (code) => processLike.exit(code),
+  disableDiagnostics = () => {},
+  closeTimeoutMs = 2000
+} = {}) {
+  if (!processLike || typeof processLike.on !== "function") {
+    throw new Error("createStdioShutdownController requires a process-like object");
+  }
+  const on = (stream, event, handler) => {
+    if (!stream || typeof stream.on !== "function") {
+      throw new Error(`shutdown controller requires a ${event} stream listener`);
+    }
+    stream.on(event, handler);
+  };
+  let phase = "running";
+  let outcome = 0;
+  let eofObserved = false;
+  let serverCloseHook = null;
+  let cleanupPromise = null;
+  let cleanupCompletionPromise = null;
+  let cleanupHook = null;
+  let parentInterval = null;
+  let cleanupTimer = null;
+  let terminalActionTaken = false;
+  const initialPpid = readPpid();
+
+  const terminateOnce = (code) => {
+    if (terminalActionTaken) return;
+    terminalActionTaken = true;
+    if (cleanupTimer !== null) clearTimeoutFn(cleanupTimer);
+    if (parentInterval !== null) {
+      clearIntervalFn(parentInterval);
+      parentInterval = null;
+    }
+    phase = "terminated";
+    terminate(code);
+  };
+  const cleanup = () => {
+    if (cleanupPromise) return cleanupPromise;
+
+    cleanupHook = serverCloseHook;
+    cleanupPromise = Promise.resolve().then(() => (
+      typeof cleanupHook === "function" ? cleanupHook() : undefined
+    ));
+    return cleanupPromise;
+  };
+  const requestShutdown = (requestedOutcome = 1) => {
+    if (phase === "terminated") return cleanupPromise || Promise.resolve();
+    if (requestedOutcome === 1) outcome = 1;
+    if (phase === "running") phase = "closing";
+    const currentCleanup = cleanup();
+    if (cleanupTimer === null) cleanupTimer = setTimeoutFn(() => terminateOnce(1), closeTimeoutMs);
+    if (cleanupCompletionPromise === null) {
+      cleanupCompletionPromise = currentCleanup.then(
+        () => terminateOnce(outcome),
+        () => terminateOnce(1)
+      );
+    }
+    return currentCleanup;
+  };
+  on(stdin, "end", () => { eofObserved = true; requestShutdown(0); });
+  on(stdin, "close", () => requestShutdown(eofObserved ? 0 : 1));
+  on(stdin, "error", () => requestShutdown(1));
+  on(stdout, "close", () => requestShutdown(1));
+  on(stdout, "error", () => requestShutdown(1));
+  on(stderr, "close", disableDiagnostics);
+  on(stderr, "error", disableDiagnostics);
+
+  const initialPpidValid = Number.isInteger(initialPpid) && initialPpid > 1;
+  if (!initialPpidValid) {
+    requestShutdown(1);
+  } else {
+    parentInterval = setIntervalFn(() => {
+      if (readPpid() !== initialPpid) requestShutdown(1);
+    }, 250);
+    if (parentInterval && typeof parentInterval.unref === "function") parentInterval.unref();
+  }
+  return {
+    requestShutdown,
+    setServerCloseHook(hook) {
+      if (typeof hook !== "function") throw new TypeError("server close hook must be a function");
+      serverCloseHook = hook;
+    },
+    cleanup,
+    get phase() { return phase; },
+    get outcome() { return outcome; },
+    get parentInterval() { return parentInterval; }
+  };
+}
+
 function isBoundaryCharacter(char) {
   return (
     char === "" ||

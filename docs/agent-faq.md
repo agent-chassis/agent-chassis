@@ -77,6 +77,9 @@ A complete `symptom` may also appear when its JSON-encoded string is at most
 160 bytes; longer symptoms are omitted rather than clipped. Routes, causes,
 forks, docs, records, and tier metadata are never part of the default row.
 
+`proof_pack_binding_result_too_large` is a legacy presentation bound, not proof-plan
+invalidity; free/local recovery uses targeted MCP pages, never complete/CLI fallback.
+
 Exact `id` selection returns at most one bounded detail entry. A
 `related_code` selection returns at most eight bounded matching detail entries.
 Both selector modes have a corpus-independent 65,536-byte pretty-printed UTF-8

@@ -1,0 +1,60 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.compatibility.behavioral-preservation",
+  "profile_version": "1.0.0",
+  "profile_digest": "fedc131cdb3739d10ca9143708a3419f6ac4f7eb004a6d1d5ce0e13b43493761",
+  "guarantee": "For one declared logical behavior source, two distinct baseline and candidate behavior-report artifacts expose equal complete populations of typed observable descriptors by mutual subset, bind one shared exact nonnegative observable count, emit count signals equal to that count, and expose one explicitly selected canonical observable-value pair that is exactly equal. One verification reads both full reports and each verified equality has its controlled complement as a separate falsifier. Exact-bound admission additionally requires two distinct caller-selected source descriptors for the full report artifacts whose complete captured bytes have the same SHA-256.",
+  "guarantee_digest": "85c6d4e5fd97c4cb01ad7fc5f81d15b7519d174eb130895291118e5c69947ae8",
+  "explicit_exclusions": [
+    "applicability-selection",
+    "automatic-or-arbitrary-multi-value-pairing",
+    "behavior-outside-the-two-captured-reports",
+    "business-semantics-referential-integrity-and-cross-observable-invariants",
+    "caller-authored-observable-population-truthfulness-and-completeness",
+    "captured-report-construction-canonicalization-and-provenance",
+    "delivered-test-execution-and-result-authenticity",
+    "field-name-schema-or-semantic-mapping",
+    "logical-behavior-source-provenance",
+    "nondeterminism-timing-ordering-and-side-effects-not-encoded-in-the-reports",
+    "runtime-behavior-beyond-the-captured-observation-point",
+    "type-coercion-normalization-unit-conversion-rounding-or-timezone-conversion",
+    "typed-observable-descriptor-authoritative-construction-or-existence"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "35f15c1647cbeb685affff9efefb4345bf2cd4a94377182cebdf3ca2e65375b7",
+    "adequacy_result_digest": "101be14d370042213b1866d11eb0fc95e202e104fcf13e7e6f84f6eb4670900b",
+    "executable_control_count": 41,
+    "negative_fixture_count": 87,
+    "coverage_witness_count": 87
+  },
+  "exact_binding": {
+    "declaration_digest": "97d8231c9d9922f654bbb066a2659abed98d8b3d5523ecaabcb01e8536dcb415",
+    "certification_result_digest": "24292e4cbaa027c5a57b107cea528b08a17dafb41afcc8048d55675ec7b9c54f",
+    "executable_control_count": 12,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "distinct_source_descriptor",
+      "same_content_sha256"
+    ],
+    "corpus_id": "behavioral-preservation-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "fd6216a2d0c3ab984972bd8ce64f6e8d4d6313a7c133761066b9538e8baac062",
+    "passed_control_ids": [
+      "artifact-bytes-match",
+      "artifact-bytes-mismatch-rejected",
+      "contract-context-splice-rejected",
+      "declaration-digest-stale-rejected",
+      "deterministic-source-order",
+      "evaluation-context-splice-rejected",
+      "extra-source-invalid",
+      "missing-baseline-indeterminate",
+      "missing-candidate-indeterminate",
+      "noncanonical-declaration-rejected",
+      "role-coverage-swap-rejected",
+      "source-descriptors-distinct"
+    ]
+  }
+}

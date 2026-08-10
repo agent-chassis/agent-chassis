@@ -56,8 +56,11 @@ lint-findings.json
 *.tmp
 *.swp
 
-internal/scratch/*
 *.log
 
 *.tgz
 *.tar.gz
+
+internal/scratch/*
+docs/scratch/*
+scratch/*

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "controlled-contract-proof-pack-adequacy-run.experimental.v0.1",
+  "description": "Machine-readable observations returned by a proof pack's executable adequacy module.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "profile_id",
+    "profile_version",
+    "profile_digest",
+    "guarantee_digest",
+    "controls"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "controlled-contract-proof-pack-adequacy-run.experimental.v0.1"
+      ]
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9.-]+$"
+    },
+    "profile_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "profile_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "guarantee_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "controls": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "control_id",
+          "category",
+          "implementation_outcome",
+          "profile_satisfaction"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "control_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "positive",
+              "mutant",
+              "profile_rejection",
+              "exclusion"
+            ]
+          },
+          "implementation_outcome": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "killed",
+              "not_applicable",
+              "boundary_demonstrated"
+            ]
+          },
+          "profile_satisfaction": {
+            "type": "string",
+            "enum": [
+              "satisfied",
+              "unsatisfied",
+              "invalid",
+              "indeterminate",
+              "not_evaluated"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

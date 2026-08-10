@@ -94,8 +94,6 @@ an agent, or reaches an external service.
 - `wiki/work-records/WK-0001.json` — the adoption tracker.
 - `wiki/templates/AGENTS.md.boilerplate.md` — a helper template you adapt into
   your repo's own root `AGENTS.md`.
-- `docs/adoption.md` — a repo-adapted operator adoption guide (a customized copy
-  is preserved on rerun).
 - `wiki/.wiki-contract.json` — local contract metadata (your `vocab.topics.local`
   and `inference.paths` entries are preserved across reruns).
 - `wiki/.wiki-mcp.json` — a gitignored local workspace declaration recording your
@@ -107,7 +105,10 @@ Bootstrap is idempotent and non-overwriting: rerunning it preserves `IN-0001`,
 seeded records, and any repo-specific edits, and only fills in missing surfaces.
 
 Bootstrap does **not** create root guidance files, does **not** write global MCP
-client config, and does **not** build the code index. Use
+client config, does **not** build the code index, and does **not** create an
+adoption guide. The adoption guide is the single package-owned, repo-neutral
+[docs/adoption.md](adoption.md) shipped with `@agent-chassis/core`; your
+repository's own adoption state lives in `IN-0001` and `WK-0001`. Use
 `npx agent-chassis setup` for the first-run flow; setup only creates the
 selected empty root guidance placeholder/checkpoint when absent (`AGENTS.md` for
 Codex or `CLAUDE.md` for Claude). Review and adapt that file before treating it
@@ -131,7 +132,7 @@ review/commit checkpoint — for example:
 ```bash
 npx agent-launch init-config
 git status --short
-git add <selected-guidance-file> docs/adoption.md wiki .gitignore agent-launch.toml
+git add <selected-guidance-file> wiki .gitignore agent-launch.toml
 git commit -m "bootstrap AgentChassis wiki adoption"
 npx wiki code-index build --json
 ```

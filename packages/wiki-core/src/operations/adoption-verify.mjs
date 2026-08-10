@@ -25,8 +25,13 @@ const LAUNCHER_CONFIG_DIR = ".agent-launch";
 const LAUNCHER_REGISTRY_PATH = `${LAUNCHER_CONFIG_DIR}/launchers.v1.json`;
 const LAUNCHER_ROLE_GUARD_SECRET_PATH = `${LAUNCHER_CONFIG_DIR}/role-guard-secret.key`;
 const LAUNCHER_REQUIRED_ROLES = Object.freeze(["orchestrator", "worker", "reviewer", "redteam"]);
-
-const ADOPTION_DOC_PATH = "docs/adoption.md";
+const ADOPTION_SLICE_ADDRESS = `${ADOPTION_TRACKER_ID}#SLICE-001`;
+const ADOPTION_LIFECYCLE_BLOCKER = "adoption_lifecycle_blocked";
+const ADOPTION_POST_DISPATCH_STATUSES = Object.freeze(["active", "review", "done"]);
+const ADOPTION_SUPPORTED_SLICE_STATUSES = Object.freeze([
+  "todo",
+  ...ADOPTION_POST_DISPATCH_STATUSES
+]);
 
 export const ADOPTION_VERIFY_REQUIRED_CHECK_IDS = Object.freeze([
   "wiki-retrieval",
@@ -256,7 +261,7 @@ async function runWorkRecordsCheck(targetDir) {
 
   return {
     status: "pass",
-    detail: `Work record ${ADOPTION_TRACKER_ID} loaded and validated (0 errors); review-only adoption tracker is not treated as an implementation dispatch target.`,
+    detail: `Work record ${ADOPTION_TRACKER_ID} loaded and validated (0 errors); the seeded implementation slice is the adoption dispatch target.`,
     evidence: {
       record_id: ADOPTION_TRACKER_ID,
       valid: true,
@@ -340,14 +345,12 @@ async function runGraphImpactCheck(targetDir, graphImpactPath) {
 
 async function runDispatchPreflightCheck(targetDir) {
   const loadedTracker = await readWorkRecordById({ dir: targetDir, id: ADOPTION_TRACKER_ID });
-  const tracker = loadedTracker?.valid === true ? loadedTracker.record : null;
+  const trackerValid = loadedTracker?.valid === true;
+  const tracker = trackerValid ? loadedTracker.record : null;
   const trackerSlices = Array.isArray(tracker?.slices) ? tracker.slices : [];
   const implementationSlices = trackerSlices.filter((slice) => slice?.work_kind === "implementation");
   const reviewSlices = trackerSlices.filter((slice) => slice?.work_kind === "review");
-  const reviewOnlyTracker =
-    tracker?.work_kind === "review" &&
-    implementationSlices.length === 0 &&
-    (Array.isArray(tracker?.write_scope) ? tracker.write_scope.length === 0 : true);
+  const seededSlice = trackerSlices.find((slice) => slice?.id === "SLICE-001") ?? null;
 
   const agentsPresent = await pathExists(path.join(targetDir, ROOT_AGENTS_PATH));
   const launcherToml = await readTextIfPresent(path.join(targetDir, LAUNCHER_TOML_PATH));
@@ -395,10 +398,111 @@ async function runDispatchPreflightCheck(targetDir) {
     }
   };
 
-  if (tracker && !reviewOnlyTracker) {
+  const baseEvidence = {
+    unit: ADOPTION_SLICE_ADDRESS,
+    tracker_unit: ADOPTION_TRACKER_ID,
+    seeded_slice: seededSlice
+      ? { id: seededSlice.id, status: seededSlice.status, work_kind: seededSlice.work_kind }
+      : null,
+    review_slices: reviewSlices.map((slice) => ({ id: slice.id, status: slice.status })),
+    implementation_slices: implementationSlices.map((slice) => ({
+      id: slice.id,
+      status: slice.status
+    })),
+    ...operatorPrerequisites
+  };
+
+  if (!trackerValid) {
+    const diagnostics = Array.isArray(loadedTracker?.diagnostics) ? loadedTracker.diagnostics : [];
+    return {
+      status: "fail",
+      detail: `${ADOPTION_TRACKER_ID} could not be loaded as a valid canonical work record; adoption dispatch stage is unknown.`,
+      evidence: {
+        ...baseEvidence,
+        tracker_mode: "invalid",
+        tracker_valid: false,
+        diagnostics: diagnostics.slice(0, 5)
+      },
+      blocker: {
+        code: ADOPTION_LIFECYCLE_BLOCKER,
+        message: `${ADOPTION_TRACKER_ID} is unloadable or invalid; seeded adoption slice lifecycle cannot be established`
+      },
+      remediation:
+        'Restore the seeded `WK-0001#SLICE-001` topology, then re-run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir "$PWD" --json`.'
+    };
+  }
+
+  if (!seededSlice) {
+    return {
+      status: "fail",
+      detail: `${ADOPTION_SLICE_ADDRESS} is missing from the supported current adoption topology.`,
+      evidence: {
+        ...baseEvidence,
+        tracker_mode: "missing-seeded-slice",
+        tracker_valid: true
+      },
+      blocker: {
+        code: ADOPTION_LIFECYCLE_BLOCKER,
+        message: `${ADOPTION_SLICE_ADDRESS} is missing; adoption dispatch stage cannot be established`
+      },
+      remediation:
+        'Restore the seeded `WK-0001#SLICE-001` topology, then re-run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir "$PWD" --json`.'
+    };
+  }
+
+  const sliceStatus = seededSlice.status;
+  if (!ADOPTION_SUPPORTED_SLICE_STATUSES.includes(sliceStatus)) {
+    return {
+      status: "fail",
+      detail: `${ADOPTION_SLICE_ADDRESS} has unsupported lifecycle status ${JSON.stringify(sliceStatus)} for adoption dispatch preflight.`,
+      evidence: {
+        ...baseEvidence,
+        tracker_mode: "lifecycle-refused",
+        tracker_valid: true,
+        observed_status: sliceStatus
+      },
+      blocker: {
+        code: ADOPTION_LIFECYCLE_BLOCKER,
+        message: `${ADOPTION_SLICE_ADDRESS} has unsupported lifecycle status ${JSON.stringify(sliceStatus)}; adoption dispatch preflight is blocked`
+      },
+      remediation:
+        'Restore the seeded slice to a supported adoption lifecycle state, then re-run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir "$PWD" --json`.'
+    };
+  }
+
+  if (ADOPTION_POST_DISPATCH_STATUSES.includes(sliceStatus)) {
+    const pass = missing.length === 0;
+    return {
+      status: pass ? "pass" : "fail",
+      detail: pass
+        ? `${ADOPTION_SLICE_ADDRESS} is ${sliceStatus}; the initial dispatch gate has already been crossed and launcher first-run prerequisites are present.`
+        : `${ADOPTION_SLICE_ADDRESS} is ${sliceStatus}; the initial dispatch gate has already been crossed, but launcher first-run prerequisites are incomplete: ${missing.join(", ")}.`,
+      evidence: {
+        ...baseEvidence,
+        tracker_mode: "post-dispatch",
+        tracker_valid: true,
+        dispatch_target: false,
+        initial_dispatch_gate: "crossed",
+        observed_status: sliceStatus,
+        coordination_preflight:
+          "post-dispatch slice state is not revalidated and does not gate terminal candidate publication"
+      },
+      blocker: pass
+        ? null
+        : {
+            code: "operator_first_run_prerequisites_missing",
+            message: `launcher first-run prerequisites are incomplete before orchestration: ${missing.join(", ")}`
+          },
+      remediation: pass
+        ? null
+        : 'Follow the first-run launcher guidance: copy/review the detected agent-launch.<claude-or-codex>.toml template to agent-launch.toml, run `npx agent-launch init-config`, review/commit those setup surfaces, then re-run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir "$PWD" --json`.'
+    };
+  }
+
+  if (sliceStatus === "todo") {
     const readiness = await validateWorkRecordDispatch({
       dir: targetDir,
-      unitAddress: ADOPTION_TRACKER_ID
+      unitAddress: ADOPTION_SLICE_ADDRESS
     });
     const dispatchable = readiness?.dispatchable === true;
     const reasons = Array.isArray(readiness?.reasons) ? readiness.reasons : [];
@@ -415,23 +519,18 @@ async function runDispatchPreflightCheck(targetDir) {
     return {
       status: pass ? "pass" : "fail",
       detail: pass
-        ? `${ADOPTION_TRACKER_ID} is not review-only, so validate-dispatch was evaluated and reported dispatchable; launcher first-run prerequisites are present.`
-        : `${ADOPTION_TRACKER_ID} is not review-only, so validate-dispatch was evaluated before treating the repo as ready: ${blockers.join("; ")}.`,
+        ? `${ADOPTION_SLICE_ADDRESS} is todo and validate-dispatch reported dispatchable; launcher first-run prerequisites are present.`
+        : `${ADOPTION_SLICE_ADDRESS} is todo and validate-dispatch was evaluated before treating the repo as ready: ${blockers.join("; ")}.`,
       evidence: {
-        unit: ADOPTION_TRACKER_ID,
-        tracker_mode: "dispatch-target",
+        ...baseEvidence,
+        tracker_mode: "pre-dispatch",
+        tracker_valid: true,
         dispatch_target: true,
         dispatchable,
         decision_code: decisionCode,
         reasons,
-        review_slices: reviewSlices.map((slice) => ({ id: slice.id, status: slice.status })),
-        implementation_slices: implementationSlices.map((slice) => ({
-          id: slice.id,
-          status: slice.status
-        })),
-        ...operatorPrerequisites,
         coordination_preflight:
-          "non-review-only WK-0001 must pass validate-dispatch and launcher first-run setup before orchestration; AGENTS.md is advisory context"
+          "todo WK-0001#SLICE-001 must pass validate-dispatch and launcher first-run setup before orchestration; the role-less parent is never a dispatch target"
       },
       blocker: pass
         ? null
@@ -441,40 +540,15 @@ async function runDispatchPreflightCheck(targetDir) {
               : "tracker_validate_dispatch_failed",
             message: dispatchable
               ? `launcher first-run prerequisites are incomplete before orchestration: ${missing.join(", ")}`
-              : `${ADOPTION_TRACKER_ID} validate-dispatch failed with ${decisionCode}`
+              : `${ADOPTION_SLICE_ADDRESS} validate-dispatch failed with ${decisionCode}`
           },
       remediation: pass
         ? null
         : dispatchable
           ? 'Follow the first-run launcher guidance: copy/review the detected agent-launch.<claude-or-codex>.toml template to agent-launch.toml, run `npx agent-launch init-config`, review/commit those setup surfaces, then re-run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir "$PWD" --json`.'
-          : 'Run `npx -p @agent-chassis/wiki-cli wiki validate-dispatch --unit WK-0001 --dir "$PWD" --json` and resolve the reported dispatch-readiness blockers before treating WK-0001 as an implementation dispatch target.'
+          : `Run \`npx -p @agent-chassis/wiki-cli wiki validate-dispatch --unit ${ADOPTION_SLICE_ADDRESS} --dir "$PWD" --json\` and resolve the reported dispatch-readiness blockers before dispatching the seeded slice.`
     };
   }
-
-  const pass = missing.length === 0;
-  return {
-    status: pass ? "pass" : "fail",
-    detail: pass
-      ? "Launcher first-run prerequisites for orchestration are present: agent-launch.toml role defaults and launcher init-config local config surfaces."
-      : `Launcher first-run prerequisites for orchestration are incomplete: ${missing.join(", ")}.`,
-    evidence: {
-      unit: ADOPTION_TRACKER_ID,
-      tracker_mode: "review-only",
-      dispatch_target: false,
-      ...operatorPrerequisites,
-      coordination_preflight:
-        "launcher first-run setup must be completed before orchestrator dispatch; AGENTS.md is advisory context"
-    },
-    blocker: pass
-      ? null
-      : {
-          code: "operator_first_run_prerequisites_missing",
-          message: `launcher first-run prerequisites are incomplete before orchestration: ${missing.join(", ")}`
-        },
-    remediation: pass
-      ? null
-      : 'Follow the first-run launcher guidance: copy/review the detected agent-launch.<claude-or-codex>.toml template to agent-launch.toml, run `npx agent-launch init-config`, review/commit those setup surfaces, then re-run `npx -p @agent-chassis/wiki-cli wiki adoption verify --dir "$PWD" --json`.'
-  };
 }
 
 async function runAgentsMdInfo(targetDir) {
@@ -489,34 +563,6 @@ async function runAgentsMdInfo(targetDir) {
     remediation: present
       ? null
       : "Add or adapt AGENTS.md from the seeded wiki/templates/AGENTS.md.boilerplate.md helper for durable repo-local agent guidance."
-  };
-}
-
-async function runAdoptionDocInfo(targetDir) {
-
-  const docPath = path.join(targetDir, ADOPTION_DOC_PATH);
-  let present = false;
-  let content = "";
-  try {
-    content = await readFile(docPath, "utf8");
-    present = true;
-  } catch {
-    present = false;
-  }
-  const hasHeading = /^#\s+\S/m.test(content);
-  const valid = present && content.trim().length >= 50 && hasHeading;
-  return {
-    status: valid ? "pass" : "skipped",
-    detail: valid
-      ? `Bootstrap-seeded ${ADOPTION_DOC_PATH} is present and valid (Markdown with a top-level heading).`
-      : present
-        ? `${ADOPTION_DOC_PATH} is present but looks empty/placeholder (no top-level heading or too short); customizing it is operator-owned and does not gate agent-operability.`
-        : `${ADOPTION_DOC_PATH} is not present. Bootstrap seeds it from a template; re-run bootstrap to restore it. Authoring/customizing it is operator-owned and does not gate agent-operability.`,
-    evidence: { path: ADOPTION_DOC_PATH, present, has_heading: hasHeading, length: content.length },
-    blocker: null,
-    remediation: valid
-      ? null
-      : 'Re-run `npx -p @agent-chassis/wiki-cli wiki bootstrap --dir "$PWD"` to seed docs/adoption.md from the package template, then customize it for this repo (operator-owned; does not block this check).'
   };
 }
 
@@ -591,13 +637,6 @@ function checkDescriptors(graphImpactPath) {
       required: false,
       kind: "operator-owned",
       run: (dir) => runAgentsMdInfo(dir)
-    },
-    {
-      id: "adoption-doc",
-      title: "docs/adoption.md presence + basic validity (operator-owned)",
-      required: false,
-      kind: "operator-owned",
-      run: (dir) => runAdoptionDocInfo(dir)
     },
     {
       id: "wiki-mcp-alias",

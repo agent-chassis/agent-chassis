@@ -10,7 +10,8 @@ import { mkdtemp, rm, readdir, access, mkdir, readFile, writeFile } from "node:f
 import {
   bootstrapRepo,
   runAdoptionVerify,
-  ADOPTION_VERIFY_REQUIRED_CHECK_IDS
+  ADOPTION_VERIFY_REQUIRED_CHECK_IDS,
+  validateWorkRecordDispatch
 } from "../packages/wiki-core/src/index.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -101,6 +102,21 @@ async function listAllFiles(rootDir) {
   return out.sort();
 }
 
+async function updateWk0001(tempDir, update) {
+  const wkPath = path.join(tempDir, "wiki", "work-records", "WK-0001.json");
+  const record = JSON.parse(await readFile(wkPath, "utf8"));
+  await update(record);
+  await writeFile(wkPath, `${JSON.stringify(record, null, 2)}\n`);
+}
+
+async function setSeededSliceStatus(tempDir, status) {
+  await updateWk0001(tempDir, (record) => {
+    const seededSlice = record.slices.find((slice) => slice.id === "SLICE-001");
+    assert.ok(seededSlice, "bootstrap must seed WK-0001#SLICE-001");
+    seededSlice.status = status;
+  });
+}
+
 test("runAdoptionVerify exposes the required-check ids in deterministic order", () => {
   assert.deepEqual([...ADOPTION_VERIFY_REQUIRED_CHECK_IDS], REQUIRED_IDS);
 });
@@ -109,6 +125,16 @@ test("runAdoptionVerify returns the adoption-verify.v1 envelope with all five re
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-ready" });
     await writeFirstRunLauncherSetup(tempDir);
+
+    const parentReadiness = await validateWorkRecordDispatch({
+      dir: tempDir,
+      unitAddress: "WK-0001"
+    });
+    assert.equal(
+      parentReadiness.dispatchable,
+      false,
+      "the role-less parent is deliberately not a dispatchable substitute for its seeded slice"
+    );
 
     const result = await runAdoptionVerify({ dir: tempDir, repo: "agent-chassis/adoption-verify-ready" });
 
@@ -147,6 +173,13 @@ test("runAdoptionVerify returns the adoption-verify.v1 envelope with all five re
     }
     assert.equal(result.agent_operable, true);
     assert.equal(result.verdict, "ready");
+    const dispatchPreflight = result.checks.find((check) => check.check === "dispatch-preflight");
+    assert.equal(dispatchPreflight.evidence.unit, "WK-0001#SLICE-001");
+    assert.equal(dispatchPreflight.evidence.tracker_unit, "WK-0001");
+    assert.equal(dispatchPreflight.evidence.tracker_mode, "pre-dispatch");
+    assert.equal(dispatchPreflight.evidence.dispatch_target, true);
+    assert.equal(dispatchPreflight.evidence.dispatchable, true);
+    assert.doesNotMatch(dispatchPreflight.detail, /review-only/);
 
     assert.equal(result.summary.total, result.checks.length);
     const recomputed = { pass: 0, fail: 0, skipped: 0 };
@@ -259,6 +292,8 @@ test("WK-1747 runAdoptionVerify reports the seeded implementation slice and no r
     assert.equal(ready.agent_operable, true);
     const readyDispatchPreflight = ready.checks.find((check) => check.check === "dispatch-preflight");
     assert.equal(readyDispatchPreflight.status, "pass");
+    assert.equal(readyDispatchPreflight.evidence.unit, "WK-0001#SLICE-001");
+    assert.equal(readyDispatchPreflight.evidence.tracker_mode, "pre-dispatch");
   });
 });
 
@@ -273,6 +308,11 @@ test("WK-1747 distributed WK-0001 carries only its seeded implementation work", 
     assert.equal(workRecords.evidence.work_kind, "implementation");
     assert.equal(workRecords.evidence.write_scope_count, 1);
     assert.deepEqual(workRecords.evidence.implementation_slices, [{ id: "SLICE-001", status: "todo" }]);
+    assert.doesNotMatch(
+      workRecords.detail,
+      /review-only/,
+      "current seeded implementation topology must not be described as review-only"
+    );
 
     assert.deepEqual(
       workRecords.evidence.review_slices,
@@ -283,26 +323,52 @@ test("WK-1747 distributed WK-0001 carries only its seeded implementation work", 
   });
 });
 
-test("WK-0795 adoption-verify reports the bootstrap-seeded docs/adoption.md as a non-gating informational pass", async () => {
+test("WK-1994 adoption-verify never checks or reports a consumer-local docs/adoption.md", async () => {
   await withTempDir(async (tempDir) => {
     await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-doc" });
 
     const result = await runAdoptionVerify({ dir: tempDir });
 
-    const adoptionDoc = result.checks.find((check) => check.check === "adoption-doc");
-    assert.ok(adoptionDoc, "adoption-verify must report an adoption-doc informational check");
-    assert.equal(adoptionDoc.required, false, "adoption-doc must be a non-required informational check");
-    assert.equal(adoptionDoc.kind, "operator-owned");
-    assert.equal(adoptionDoc.status, "pass", "bootstrap-seeded docs/adoption.md must pass the presence/validity check");
-    assert.equal(adoptionDoc.evidence.present, true);
-    assert.equal(adoptionDoc.evidence.has_heading, true);
-    assert.equal(adoptionDoc.blocker, null, "the informational adoption-doc check must never carry a blocker");
+    assert.equal(
+      result.checks.find((check) => /adoption-doc|adoption-guide/.test(check.check)),
+      undefined,
+      "adoption-verify must report no consumer adoption-guide check"
+    );
+    assert.ok(
+      !JSON.stringify(result).includes("docs/adoption.md"),
+      "no adoption-verify check, detail, evidence, or remediation may name docs/adoption.md"
+    );
 
     const requiredEntries = result.checks.filter((check) => check.required);
     assert.deepEqual(
       requiredEntries.map((check) => check.check),
       REQUIRED_IDS,
-      "the five required checks are unchanged by adding the adoption-doc informational check"
+      "removing the adoption-guide informational check must not disturb the five required checks"
+    );
+  });
+});
+
+test("WK-1994 a consumer-authored docs/adoption.md does not reintroduce an adoption-guide check", async () => {
+  await withTempDir(async (tempDir) => {
+    await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-authored-doc" });
+
+    await mkdir(path.join(tempDir, "docs"), { recursive: true });
+    await writeFile(
+      path.join(tempDir, "docs", "adoption.md"),
+      "# Our own adoption notes\n\nRepo-specific operating notes.\n",
+      "utf8"
+    );
+
+    const result = await runAdoptionVerify({ dir: tempDir });
+
+    assert.equal(
+      result.checks.find((check) => /adoption-doc|adoption-guide/.test(check.check)),
+      undefined,
+      "a consumer-authored adoption guide must not create an adoption-guide check"
+    );
+    assert.ok(
+      !JSON.stringify(result).includes("docs/adoption.md"),
+      "adoption-verify must not report a consumer-authored docs/adoption.md"
     );
   });
 });
@@ -431,24 +497,26 @@ test("adoption verify CLI blocked text output uses no success/agent-operable lan
 });
 
 async function makeWk0001NonDispatchableImplementation(tempDir) {
-  const wkPath = path.join(tempDir, "wiki", "work-records", "WK-0001.json");
-  const record = JSON.parse(await readFile(wkPath, "utf8"));
-  record.work_kind = "implementation";
-  record.slices = [];
-  record.dispatch_intent = {
-    intended_agent_role: "worker",
-    target_unit: "record",
-    requires_graph_impact: false,
-    requires_escalation: false
-  };
+  await updateWk0001(tempDir, (record) => {
+    const seededSlice = record.slices.find((slice) => slice.id === "SLICE-001");
+    assert.ok(seededSlice, "bootstrap must seed WK-0001#SLICE-001");
+    seededSlice.dispatch_intent = {
+      intended_agent_role: "worker",
+      target_unit: "slice",
+      requires_graph_impact: false,
+      requires_escalation: false
+    };
 
-  record.write_scope = [
-    "packages/a/src/one.mjs",
-    "packages/b/src/two.mjs",
-    "docs/three.md",
-    "tests/four.test.mjs"
-  ];
-  await writeFile(wkPath, JSON.stringify(record, null, 2));
+    seededSlice.write_scope = [
+      "packages/a/src/one.mjs",
+      "packages/b/src/two.mjs",
+      "docs/three.md",
+      "tests/four.test.mjs"
+    ];
+    seededSlice.repo_paths = [...seededSlice.write_scope];
+    record.write_scope = [...seededSlice.write_scope];
+    record.repo_paths = [...seededSlice.repo_paths];
+  });
 }
 
 test("runAdoptionVerify is blocked (agent_operable:false) when WK-0001 is non-dispatchable (missing_graph_impact), even though validate-dispatch returns a structured decision", async () => {
@@ -457,6 +525,13 @@ test("runAdoptionVerify is blocked (agent_operable:false) when WK-0001 is non-di
     await writeFirstRunLauncherSetup(tempDir);
     await makeWk0001NonDispatchableImplementation(tempDir);
 
+    const exactReadiness = await validateWorkRecordDispatch({
+      dir: tempDir,
+      unitAddress: "WK-0001#SLICE-001"
+    });
+    assert.equal(exactReadiness.dispatchable, false);
+    assert.equal(exactReadiness.decision_code, "missing_graph_impact");
+
     const result = await runAdoptionVerify({ dir: tempDir });
 
     assert.equal(result.verdict, "blocked");
@@ -464,12 +539,10 @@ test("runAdoptionVerify is blocked (agent_operable:false) when WK-0001 is non-di
 
     const dispatchPreflight = result.checks.find((check) => check.check === "dispatch-preflight");
     assert.equal(dispatchPreflight.status, "fail", "dispatch-preflight must fail when WK-0001 is non-dispatchable");
+    assert.equal(dispatchPreflight.evidence.unit, "WK-0001#SLICE-001");
     assert.equal(dispatchPreflight.evidence.dispatchable, false);
-    assert.equal(dispatchPreflight.evidence.decision_code, "missing_graph_impact");
-    assert.ok(
-      Array.isArray(dispatchPreflight.evidence.reasons) && dispatchPreflight.evidence.reasons.length > 0,
-      "the failing dispatch-preflight must surface the decision reasons"
-    );
+    assert.equal(dispatchPreflight.evidence.decision_code, exactReadiness.decision_code);
+    assert.deepEqual(dispatchPreflight.evidence.reasons, exactReadiness.reasons);
     assert.ok(
       dispatchPreflight.blocker && typeof dispatchPreflight.blocker.code === "string",
       "a failing dispatch-preflight must carry a structured blocker"
@@ -511,7 +584,136 @@ test("adoption verify CLI exits nonzero when WK-0001 is non-dispatchable (missin
     assert.equal(envelope.agent_operable, false);
     const dispatchPreflight = envelope.checks.find((check) => check.check === "dispatch-preflight");
     assert.equal(dispatchPreflight.status, "fail");
+    assert.equal(dispatchPreflight.evidence.unit, "WK-0001#SLICE-001");
     assert.equal(dispatchPreflight.evidence.dispatchable, false);
+  });
+});
+
+test("WK-1995 post-dispatch active, review, and done states skip dispatch validation while launcher prerequisites still gate", async () => {
+  for (const status of ["active", "review", "done"]) {
+    await withTempDir(async (tempDir) => {
+      await bootstrapRepo({ dir: tempDir, repo: `agent-chassis/adoption-verify-${status}` });
+      await setSeededSliceStatus(tempDir, status);
+      await makeWk0001NonDispatchableImplementation(tempDir);
+
+      const directReadiness = await validateWorkRecordDispatch({
+        dir: tempDir,
+        unitAddress: "WK-0001#SLICE-001"
+      });
+      assert.equal(
+        directReadiness.dispatchable,
+        false,
+        `${status} must be non-dispatchable if validate-dispatch is called directly`
+      );
+
+      const prerequisitesMissing = await runAdoptionVerify({ dir: tempDir });
+      const blockedPreflight = prerequisitesMissing.checks.find(
+        (check) => check.check === "dispatch-preflight"
+      );
+      assert.equal(blockedPreflight.status, "fail");
+      assert.equal(blockedPreflight.blocker.code, "operator_first_run_prerequisites_missing");
+      assert.equal(blockedPreflight.evidence.tracker_mode, "post-dispatch");
+      assert.equal(blockedPreflight.evidence.observed_status, status);
+      assert.equal(blockedPreflight.evidence.dispatch_target, false);
+      assert.equal("dispatchable" in blockedPreflight.evidence, false);
+
+      await writeFirstRunLauncherSetup(tempDir);
+      const ready = await runAdoptionVerify({ dir: tempDir });
+      const readyPreflight = ready.checks.find((check) => check.check === "dispatch-preflight");
+      assert.equal(ready.verdict, "ready");
+      assert.equal(readyPreflight.status, "pass");
+      assert.equal(readyPreflight.evidence.initial_dispatch_gate, "crossed");
+      assert.equal(readyPreflight.evidence.observed_status, status);
+      assert.equal("decision_code" in readyPreflight.evidence, false);
+      assert.equal("reasons" in readyPreflight.evidence, false);
+    });
+  }
+});
+
+test("WK-1995 invalid or unloadable WK-0001 returns the stable adoption lifecycle blocker", async () => {
+  await withTempDir(async (tempDir) => {
+    await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-invalid-record" });
+    await writeFirstRunLauncherSetup(tempDir);
+    await writeFile(
+      path.join(tempDir, "wiki", "work-records", "WK-0001.json"),
+      "{ invalid JSON\n"
+    );
+
+    const result = await runAdoptionVerify({ dir: tempDir });
+    const dispatchPreflight = result.checks.find((check) => check.check === "dispatch-preflight");
+    assert.equal(result.verdict, "blocked");
+    assert.equal(result.agent_operable, false);
+    assert.equal(dispatchPreflight.status, "fail");
+    assert.equal(dispatchPreflight.blocker.code, "adoption_lifecycle_blocked");
+    assert.equal(dispatchPreflight.evidence.tracker_mode, "invalid");
+    assert.equal(dispatchPreflight.evidence.tracker_valid, false);
+    assert.equal(dispatchPreflight.evidence.dispatch_target, undefined);
+  });
+});
+
+test("WK-1995 missing SLICE-001 in the current topology refuses without parent fallback", async () => {
+  await withTempDir(async (tempDir) => {
+    await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-missing-slice" });
+    await writeFirstRunLauncherSetup(tempDir);
+    await updateWk0001(tempDir, (record) => {
+      record.slices = [];
+    });
+
+    const result = await runAdoptionVerify({ dir: tempDir });
+    const dispatchPreflight = result.checks.find((check) => check.check === "dispatch-preflight");
+    assert.equal(result.verdict, "blocked");
+    assert.equal(dispatchPreflight.status, "fail");
+    assert.equal(dispatchPreflight.blocker.code, "adoption_lifecycle_blocked");
+    assert.equal(dispatchPreflight.evidence.tracker_mode, "missing-seeded-slice");
+    assert.equal(dispatchPreflight.evidence.unit, "WK-0001#SLICE-001");
+    assert.equal(dispatchPreflight.evidence.dispatch_target, undefined);
+    assert.equal("dispatchable" in dispatchPreflight.evidence, false);
+  });
+});
+
+test("WK-1995 inbox, blocked, parked, and cancelled slice states return typed lifecycle refusals", async () => {
+  for (const status of ["inbox", "blocked", "parked", "cancelled"]) {
+    await withTempDir(async (tempDir) => {
+      await bootstrapRepo({ dir: tempDir, repo: `agent-chassis/adoption-verify-refused-${status}` });
+      await writeFirstRunLauncherSetup(tempDir);
+      await setSeededSliceStatus(tempDir, status);
+
+      const result = await runAdoptionVerify({ dir: tempDir });
+      const dispatchPreflight = result.checks.find(
+        (check) => check.check === "dispatch-preflight"
+      );
+      assert.equal(result.verdict, "blocked", `${status} must not report adoption ready`);
+      assert.equal(result.agent_operable, false);
+      assert.equal(dispatchPreflight.status, "fail");
+      assert.equal(dispatchPreflight.blocker.code, "adoption_lifecycle_blocked");
+      assert.equal(dispatchPreflight.evidence.tracker_mode, "lifecycle-refused");
+      assert.equal(dispatchPreflight.evidence.observed_status, status);
+      assert.equal(dispatchPreflight.evidence.dispatch_target, undefined);
+      assert.equal("dispatchable" in dispatchPreflight.evidence, false);
+    });
+  }
+});
+
+test("WK-1995 adoption verification has no terminal candidate publication dependency", async () => {
+  const source = await readFile(
+    path.join(repoRoot, "packages", "wiki-core", "src", "operations", "adoption-verify.mjs"),
+    "utf8"
+  );
+  const importLines = source
+    .split("\n")
+    .filter((line) => line.startsWith("import "))
+    .join("\n");
+  assert.doesNotMatch(importLines, /forge|handoff|candidate|publication|publish/);
+
+  await withTempDir(async (tempDir) => {
+    await bootstrapRepo({ dir: tempDir, repo: "agent-chassis/adoption-verify-no-publication-gate" });
+    await writeFirstRunLauncherSetup(tempDir);
+    const result = await runAdoptionVerify({ dir: tempDir });
+    assert.equal(result.verdict, "ready");
+    assert.equal(
+      result.checks.some((check) => /forge|handoff|candidate|publication|publish/.test(check.check)),
+      false
+    );
   });
 });
 

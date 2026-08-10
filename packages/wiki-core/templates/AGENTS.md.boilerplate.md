@@ -59,6 +59,47 @@ Slice-scoped working notes go on that slice, not on the parent WK.
 
 Create new work only through the repo's allocator-backed structured create capability — never mint IDs by hand.
 
+## Controlled Contract Design Check
+
+When the repository's tool discovery advertises the controlled-contract
+surface, use its package-backed target description, expected-absence create,
+digest-bound paged/selected query, typed patch, proof-plan metadata, vocabulary, intent, exact-pack,
+binding, proof-plan, assessment, and artifact operations. Those routes resolve
+repository and package resources server-side; complete-carrier read/write is
+operator recovery only. Never substitute caller paths, roots, cwd, environment,
+modules, executables, catalogs, or output locations. For proof-plan-request
+create and selected-pack upsert, omit `evaluation_input_path`: the server derives
+the canonical same-WK evaluation-input basename from the WK identity and optional
+focus. A supplied matching value is tolerated but is never resolution authority.
+In a fresh session, describe only the needed target, page/filter identities,
+query exact nodes, patch by returned identity, recover proof-plan metadata,
+rebuild by current digest, assess, and retrieve only targeted detail.
+
+Binding inspection is compact-first: without `roles`, `statuses`, or `cursor`,
+the package adapter returns a summary and no compatible-candidate arrays. Up to
+64 roles and 8 statuses select combined targeted detail; continuation pages are
+digest-bound, use the final 16,384-byte MCP presentation envelope, and may return
+an item-scoped reference for one oversized entry. The core default summary's
+4,096-byte check precedes the MCP workspace prefix. Omitting `evaluation_focus`
+means no evaluation input; a canonical slug selects a focused same-WK carrier.
+Do not claim a root/null selector unless discovery and schema advertise it.
+These response limits bound presentation, not proof-plan validation: plan
+construction validates the complete canonical supplied bindings without
+enumerating compatible candidates. On a binding-size refusal, query
+`workspace_agent_faq` by code and use targeted role/status inspection with
+continuation only when the advertised implementation supports it. Never retry a
+complete result, fall back to a package CLI, or treat presentation failure as
+contract invalidity; report a transport gap when the legacy complete-result
+guard fires before targeting or the FAQ exposes no recovery.
+
+Treat every result as the package marks it: structural and profile evidence is
+not runtime truth, evidence sufficiency, policy, readiness, authorization, or
+dispatch authority. Create/patch authoring and proof-plan construction are
+orchestrator/operator-only; reviewer/redteam access is limited to the advertised
+inspection surface, including assessment and artifact reads but no carrier
+authoring or proof-plan construction; workers receive no controlled-contract
+tools.
+
 ## WK Execution Lifecycle
 
 A slice is a subunit of one contract that shares the parent's single review and closure story. Slice order is advisory, so do not promote a slice to a child `WK-*` just to get a machine-enforced ordering edge. But when a `WK-*` accumulates so many slices that it no longer has one closure story, fan it out into child `WK-*` under an initiative rather than piling on more slices. Create a child `WK-*` only for a genuinely independent lifecycle: distinct ownership, a separate review/closure history, or a cross-repo boundary.
@@ -70,8 +111,9 @@ Every `WK-*` and slice follows one standard lifecycle:
 3. Repeat design and redteam until no blocking or medium findings remain, or record the surviving findings as explicit blockers.
 4. Implement only after the WK/slice is independently executable and unblocked.
 5. Run a findings-only review after implementation. This review is mandatory for every implementation WK or slice.
-6. Remediate review findings until no blocking or medium findings remain, or record the remainder as explicit blockers.
-7. Record closure and status: surfaces changed, validation run, blockers, and follow-on work. Move remaining work into a new or existing `WK-*` rather than leaving unchecked tasks on a closed item. When the change adds a new agent-usable capability, surface it in the same change on an always-on agent surface this repo has adopted.
+6. Blueteam every redteam or findings-only review result that reports findings; a no-findings result needs no blueteam. One bounded reviewer pass binds the exact prior result and reviewed commit/base, independently challenges each finding for reality, contract scope, and proportionality, and neither expands the contract nor creates new functional objectives. A blueteam is not itself blueteamed.
+7. Remediate only findings that survive blueteam until no blocking or medium findings remain, or record the remainder as explicit blockers. Record why retired findings were closed. A blueteam modifies and integrates nothing and never opportunistically remediates; a confirmed blocking or medium defect requires a fresh coordinator-created remediation unit.
+8. Record closure and status: surfaces changed, validation run, blockers, and follow-on work. Move remaining work into a new or existing `WK-*` rather than leaving unchecked tasks on a closed item. When the change adds a new agent-usable capability, surface it in the same change on an always-on agent surface this repo has adopted.
 
 Integration is the coordinator's action and the only way a slice's delivery reaches the WK's accumulated ref. An unintegrated delivery is invisible to every later slice, whose worker starts from the unadvanced ref — that is how a remediation slice rebuilds its predecessor's work instead of iterating on it. A slice is reviewed before it integrates, and the final whole-WK candidate is reviewed before it is published. What those reviews return is advisory: the coordinator accepts, rejects, or defers each finding and records the disposition rather than treating severity as a veto.
 
@@ -105,7 +147,7 @@ Coordinators own scope, sequencing, WK readiness, delegation, review disposition
 
 A worker owns execution within its stated write scope: verify the WK's contract rather than only the currently passing tests, make the requested changes, stay in scope unless a blocker forces escalation, and return closure evidence for coordinator recording. A worker must not return only a plan when implementation was requested, silently broaden scope, or take over sibling `WK-*` items.
 
-A decision, review, or redteam worker does that mode only. It produces a decision brief or findings ordered by severity with file/line references, and does not opportunistically implement fixes unless explicitly reassigned.
+A decision, review, redteam, or blueteam worker does that mode only. It produces a decision brief or findings ordered by severity with file/line references and does not opportunistically implement fixes. A blueteam cannot be reassigned to remediate within that pass.
 
 ## Prompt Requests
 

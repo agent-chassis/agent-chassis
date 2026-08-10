@@ -22,6 +22,10 @@ import {
   settleStdioMcpConduitCleanup
 } from "./stdio-mcp-conduit-contract.mjs";
 
+import {
+  readLauncherConduitTerminationEvidence
+} from "./launch-isolation-spawn.mjs";
+
 export const ORCHESTRATOR_LAUNCH_RUNTIME_SCHEMA_VERSION =
   "orchestrator-launch-runtime.v1";
 
@@ -66,10 +70,15 @@ function boundedToken(value, max = 128) {
     : null;
 }
 
+export const STDIO_MCP_LAUNCHER_TERMINATION_REASON =
+  "stdio_mcp_launcher_terminated_client";
+
 export function buildOrchestratorStdioMcpDiagnostic(conduit) {
   const primary = conduit?.failure ?? conduit?.readinessFailure ?? null;
   const cleanup = conduit?.cleanupFailure ?? null;
-  if (primary === null && cleanup === null) return null;
+
+  const termination = readLauncherConduitTerminationEvidence(conduit ?? null);
+  if (primary === null && cleanup === null && termination === null) return null;
 
   const primaryCode = boundedToken(primary?.code);
   const cleanupCode = boundedToken(cleanup?.code);
@@ -93,21 +102,65 @@ export function buildOrchestratorStdioMcpDiagnostic(conduit) {
     phase = "lifecycle";
   } else if (reaping) {
     phase = "reaping";
-  } else {
+  } else if (cleanup !== null) {
     phase = "cleanup";
+  } else {
+
+    phase = "launcher_termination";
   }
 
   return Object.freeze({
-    stdio_mcp_reason: primaryCode ?? cleanupCode ?? STDIO_MCP_CONDUIT_ERROR_CODES.CLEANUP_FAILED,
+    stdio_mcp_reason: primaryCode ?? cleanupCode ??
+      (cleanup === null
+        ? STDIO_MCP_LAUNCHER_TERMINATION_REASON
+        : STDIO_MCP_CONDUIT_ERROR_CODES.CLEANUP_FAILED),
     stdio_mcp_detail: Object.freeze({
       phase,
       run_id: boundedToken(conduit?.runId, 128),
       conduit_error_code: primaryCode,
       cleanup_error_code: cleanupCode,
       cleanup_phase: cleanup === null ? null : reaping ? "reaping" : "cleanup",
-      cleanup_failures: Object.freeze(cleanupFailures)
+      cleanup_failures: Object.freeze(cleanupFailures),
+
+      ...(termination === null ? {} : { launcher_termination: termination })
     })
   });
+}
+
+export function renderOrchestratorStdioMcpDiagnostic(stream, diagnostic) {
+  if (diagnostic === null || diagnostic === undefined) return [];
+  const detail = diagnostic.stdio_mcp_detail ?? null;
+  const termination = detail?.launcher_termination ?? null;
+  const lines = [
+    `agent-launch: wiki-MCP conduit diagnostic reason=${diagnostic.stdio_mcp_reason} ` +
+      `phase=${detail?.phase ?? "unknown"} run_id=${detail?.run_id ?? "unknown"}`
+  ];
+  if (termination !== null) {
+    const cause = termination.cause_available === true
+      ? `cause=${termination.cause_code}`
+      : `cause=unavailable boundary=${termination.cause_boundary}`;
+    if (termination.sigterm !== null && termination.sigterm !== undefined) {
+      lines.push(
+        `agent-launch: the launcher terminal supervisor issued SIGTERM to the confined client ` +
+        `(initiated_by=${termination.initiated_by} fact=${termination.initiating_fact} ` +
+        `${cause} delivered=${termination.sigterm.delivered})`);
+    }
+    if (termination.sigkill !== null && termination.sigkill !== undefined) {
+      lines.push(
+        `agent-launch: the launcher terminal supervisor escalated to SIGKILL ` +
+        `(delivered=${termination.sigkill.delivered})`);
+    }
+  }
+  if (stream !== null && stream !== undefined && typeof stream.write === "function") {
+    for (const line of lines) {
+      try {
+        stream.write(`${line}\n`);
+      } catch {
+
+      }
+    }
+  }
+  return lines;
 }
 
 export const HEADLESS_REQUIRES_BUBBLEWRAP_REASON =
@@ -179,6 +232,8 @@ export async function superviseInteractiveOrchestratorLaunch({
   spawnChild,
   stdioMcpConduit = null,
   recordSessionState = recordOrchestratorSessionState,
+
+  stderr = process.stderr,
   signals = ORCHESTRATOR_FORWARDED_SIGNALS
 } = {}) {
   if (typeof spawnChild !== "function") {
@@ -238,6 +293,8 @@ export async function superviseInteractiveOrchestratorLaunch({
     }
     const stdioMcpDiagnostic = buildOrchestratorStdioMcpDiagnostic(stdioMcpConduit);
     if (stdioMcpDiagnostic !== null) {
+
+      renderOrchestratorStdioMcpDiagnostic(stderr, stdioMcpDiagnostic);
       try {
         await recordSessionState({
           runtimeDir,

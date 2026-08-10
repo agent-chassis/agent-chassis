@@ -1,0 +1,1325 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "dac9bbac1cfba25f0ae899d631e867e31056764ed884b7a1dca79ba0e7f72a78",
+  "witnesses": [
+    {
+      "surface_id": "claim-all-prefix-cases-preserved-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-all-prefix-cases-preserved-modalities",
+      "variant_id": "fixed-claim-all-prefix-cases-preserved-modalities",
+      "weakened_profile_digest": "c490d5d3508e8a72cdbfbf9772591445decf9e4bf3d566a801b910613448ebf9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-census-includes-case-population-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-census-includes-case-population-modalities",
+      "variant_id": "fixed-claim-census-includes-case-population-modalities",
+      "weakened_profile_digest": "7af82305c584ceb0a023681493d9e2685c1de1ad29d6eb8da5f7535ccb768f4f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-census-includes-case-population-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-census-includes-case-population-proposition-operand-0-role",
+      "variant_id": "fixed-claim-census-includes-case-population-proposition-operand-0-role",
+      "weakened_profile_digest": "7b0f2494f4ac4d2f603696854ba58e9fab8e9fa7764551cef123ddbee8084923",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-census-includes-case-population-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-census-includes-case-population-proposition-operator",
+      "variant_id": "fixed-claim-census-includes-case-population-proposition-operator",
+      "weakened_profile_digest": "bb0a6afab0bdbc300b7416996b10c0eaa3934f3cc3a83715098f51e7c769e89d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-census-includes-case-population-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-census-includes-case-population-proposition-subject",
+      "variant_id": "fixed-claim-census-includes-case-population-proposition-subject",
+      "weakened_profile_digest": "5fe8cdb3b7ec3e0436e04f782f79bac1f12336a78c31ed244ed41141df6f8048",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-prefix-case-preserved-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-each-prefix-case-preserved-modalities",
+      "variant_id": "fixed-claim-each-prefix-case-preserved-modalities",
+      "weakened_profile_digest": "50eb62fc17b73dadc77cac205dba71c20f56b72ff15eacc685071f2b971cd1ed",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-prefix-case-preserved-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-prefix-case-preserved-proposition-operand-0-role",
+      "variant_id": "fixed-claim-each-prefix-case-preserved-proposition-operand-0-role",
+      "weakened_profile_digest": "d3d155eaba60d6efd29dae7d69d9c1845702ff7c55626f7e80669cbbfe6b32cd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-prefix-case-preserved-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-prefix-case-preserved-proposition-operator",
+      "variant_id": "fixed-claim-each-prefix-case-preserved-proposition-operator",
+      "weakened_profile_digest": "853ba21fc26104c4f5c7f1a3fc2df078a9c8949ca23495d47f32a1f3ab602211",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "fixed-claim-patterns",
+      "variant_id": "fixed-claim-patterns",
+      "weakened_profile_digest": "83b4954bb0deb790e3c868233dbb493fe896e64ad0af29e4355164fcf11e0d91",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "census-includes-case-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "prefix_census",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "prefix_case_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "preservation-result-records-case-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "preservation_result",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "prefix_case_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "all-prefix-cases-preserved",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "preservation_result",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "preserved_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-exact-prefix-census",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "integration_dag"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "integration_units"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "execution_paths"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "prefix_census"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "prefix_cases"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "preservation_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-all-prefix-cases-preserved",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "preservation_result"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "preservation_result",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "case_failure_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "preserved_state"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-prefix-case-population"
+              },
+              {
+                "pattern": "census-includes-case-population"
+              },
+              {
+                "pattern": "preservation-result-records-case-population"
+              },
+              {
+                "pattern": "all-prefix-cases-preserved"
+              },
+              {
+                "pattern": "verification-reads-exact-prefix-census"
+              },
+              {
+                "pattern": "verify-all-prefix-cases-preserved"
+              },
+              {
+                "pattern": "verification-target-prefix-preservation"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-preservation-result-records-case-population-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-preservation-result-records-case-population-modalities",
+      "variant_id": "fixed-claim-preservation-result-records-case-population-modalities",
+      "weakened_profile_digest": "220368799de4aa38974fb40400db858f03cce173fb467b1e606f277b20d42de8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-preservation-result-records-case-population-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-preservation-result-records-case-population-proposition-operand-0-role",
+      "variant_id": "fixed-claim-preservation-result-records-case-population-proposition-operand-0-role",
+      "weakened_profile_digest": "018bc0237e18076e6b3ec1d8de70b6f48b5330d710e368e5720a4a0b336153ce",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-preservation-result-records-case-population-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-preservation-result-records-case-population-proposition-operator",
+      "variant_id": "fixed-claim-preservation-result-records-case-population-proposition-operator",
+      "weakened_profile_digest": "f0c7f1bfa3ac0908af3017fa576d1aae04cac0d7b2ba82248d8e08d8b66eb172",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-preservation-result-records-case-population-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-preservation-result-records-case-population-proposition-subject",
+      "variant_id": "fixed-claim-preservation-result-records-case-population-proposition-subject",
+      "weakened_profile_digest": "818fb5689b54b86d6324ac566c94fd07266cb039dbe67e2cf3d71901ec6f8065",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-prefix-census-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-verification-reads-exact-prefix-census-modalities",
+      "variant_id": "fixed-claim-verification-reads-exact-prefix-census-modalities",
+      "weakened_profile_digest": "0bc130c66985b82fca24d4f2bfdbf24fa4a2a7ff48f9a9447c2b0a6a39e016cc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-prefix-census-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-0-role",
+      "variant_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-0-role",
+      "weakened_profile_digest": "a30e9029fda8f08de6d30641dffc22e7ebc44463097ccea2b67e200df6568ec0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/0/role",
+          "value": "integration_units"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-prefix-census-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-1-role",
+      "variant_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-1-role",
+      "weakened_profile_digest": "2d329d4bb2f5767f04efe9267d4edc4ef6b217a228206217725a5247b8261775",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/1/role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-prefix-census-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-2-role",
+      "variant_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-2-role",
+      "weakened_profile_digest": "e5ff41d399afb540bb59aab5632a6bd7aa683d3b251df931481481f48cd31d8d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/2/role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-prefix-census-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-3-role",
+      "variant_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-3-role",
+      "weakened_profile_digest": "658a8241e8103557a7094b620147a4ac97793697caae513e58fcfb2abc3eb577",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/3/role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-prefix-census-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-4-role",
+      "variant_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-4-role",
+      "weakened_profile_digest": "1c0e538f2ba07f3b5c7219d9d3942e8e05611f5d82e0cf50b996c4536172c10c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/4/role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-prefix-census-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-5-role",
+      "variant_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operand-5-role",
+      "weakened_profile_digest": "1276d5b299dbacac3aed5d7cf281603aab575095890d87c75c9d10adb563bfbb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/5/role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-prefix-census-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operator",
+      "variant_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-operator",
+      "weakened_profile_digest": "503f449532a87cd1e1d44b802877020e8062a285274d21bf90b771726bb7e70a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-prefix-census-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-subject",
+      "variant_id": "fixed-claim-verification-reads-exact-prefix-census-proposition-subject",
+      "weakened_profile_digest": "b4a60763c3c1c4a671b257c5f4bcbd802802af13fce98cd8cd90f60e2116cb09",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/subject_role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-all-prefix-cases-preserved-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-verify-all-prefix-cases-preserved-modalities",
+      "variant_id": "fixed-claim-verify-all-prefix-cases-preserved-modalities",
+      "weakened_profile_digest": "cbea268ba0e39670601a2bb99e60bca43e5047acb66a3c824ea8f65012cab4e2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-all-prefix-cases-preserved-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verify-all-prefix-cases-preserved-proposition-operand-0-role",
+      "variant_id": "fixed-claim-verify-all-prefix-cases-preserved-proposition-operand-0-role",
+      "weakened_profile_digest": "0853b62697d26b88e0806fd0d66aa2161c3e3c3a00f6b83cfb6852206bed83ba",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-all-prefix-cases-preserved-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verify-all-prefix-cases-preserved-proposition-operator",
+      "variant_id": "fixed-claim-verify-all-prefix-cases-preserved-proposition-operator",
+      "weakened_profile_digest": "b466e5c60c1f5d6b8af263c9fc3c77abd3b752a8dabbc254c6b45a674af1c068",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-all-prefix-cases-preserved-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verify-all-prefix-cases-preserved-proposition-subject",
+      "variant_id": "fixed-claim-verify-all-prefix-cases-preserved-proposition-subject",
+      "weakened_profile_digest": "195da74172bf2bc2d75b218f6fca0da39dcad14247fa4c089fc94fd55306ed21",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/subject_role",
+          "value": "integration_dag"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-all-prefix-cases-preserved-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "fixed-claim-verify-all-prefix-cases-preserved-verification-methods",
+      "variant_id": "fixed-claim-verify-all-prefix-cases-preserved-verification-methods",
+      "weakened_profile_digest": "bb5ee6a021b3d095cc411bfa72656f49536d486474859174376e0bb6f43d6c05",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "fixed-distinct-reference-role-sets",
+      "variant_id": "fixed-distinct-reference-role-sets",
+      "weakened_profile_digest": "e8b84c92ed11aa89f112abb2ad4d591382daed55dbfea876bfe1390b9275bf3f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "fixed-falsifier-condition-bindings",
+      "variant_id": "fixed-falsifier-condition-bindings",
+      "weakened_profile_digest": "b1d7dfccfa6f790d66d5599d4f3eff78c338ffbaaf211f0ab3d52e8d891e44b3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-target-prefix-preservation",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "preserved_state"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/falsifying_proposition_template/applicability_context",
+          "value": {
+            "mode": "when",
+            "operand_roles": [
+              "preserved_state"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "number-roles",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "fixed-number-roles",
+      "variant_id": "fixed-number-roles",
+      "weakened_profile_digest": "100672c785c4986598ff08a0870752f9e5add94ac01cc5222d47a3b6f9b3a672",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/number_roles",
+          "value": [
+            {
+              "role": "case_count",
+              "cardinality": "exactly_one",
+              "number_type": "integer",
+              "minimum": 0
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "fixed-reference-binding-patterns",
+      "variant_id": "fixed-reference-binding-patterns",
+      "weakened_profile_digest": "b163829602d2e1ac95d94d84b0a0663eb266ece4d0ffc951558182675c51542e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-prefix-case-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "prefix_case_population",
+                "alternate_cases"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/for_each/population_role",
+          "value": "alternate_cases"
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles",
+          "value": [
+            {
+              "role": "integration_dag",
+              "allowed_type_terms": [
+                "cc:artifact"
+              ],
+              "allowed_identity_kinds": [
+                "durable_id",
+                "repository_path",
+                "runtime_parameter"
+              ],
+              "cardinality": "exactly_one"
+            },
+            {
+              "role": "integration_units",
+              "allowed_type_terms": [
+                "cc:artifact"
+              ],
+              "allowed_identity_kinds": [
+                "durable_id",
+                "repository_path",
+                "runtime_parameter"
+              ],
+              "cardinality": "exactly_one"
+            },
+            {
+              "role": "execution_paths",
+              "allowed_type_terms": [
+                "cc:artifact"
+              ],
+              "allowed_identity_kinds": [
+                "durable_id",
+                "repository_path",
+                "runtime_parameter"
+              ],
+              "cardinality": "exactly_one"
+            },
+            {
+              "role": "prefix_census",
+              "allowed_type_terms": [
+                "cc:artifact"
+              ],
+              "allowed_identity_kinds": [
+                "durable_id",
+                "repository_path",
+                "runtime_parameter"
+              ],
+              "cardinality": "exactly_one"
+            },
+            {
+              "role": "prefix_case_population",
+              "allowed_type_terms": [
+                "cc:population"
+              ],
+              "allowed_identity_kinds": [
+                "durable_id",
+                "runtime_parameter"
+              ],
+              "cardinality": "exactly_one"
+            },
+            {
+              "role": "prefix_cases",
+              "allowed_type_terms": [
+                "cc:evidence"
+              ],
+              "allowed_identity_kinds": [
+                "durable_id"
+              ],
+              "cardinality": "one_or_more"
+            },
+            {
+              "role": "preservation_result",
+              "allowed_type_terms": [
+                "cc:evidence",
+                "cc:state"
+              ],
+              "allowed_identity_kinds": [
+                "durable_id",
+                "runtime_parameter"
+              ],
+              "cardinality": "exactly_one"
+            },
+            {
+              "role": "preserved_state",
+              "allowed_type_terms": [
+                "cc:state"
+              ],
+              "allowed_identity_kinds": [
+                "durable_id",
+                "runtime_parameter"
+              ],
+              "cardinality": "exactly_one"
+            },
+            {
+              "role": "verification",
+              "allowed_type_terms": [
+                "cc:process",
+                "cc:test"
+              ],
+              "allowed_identity_kinds": [
+                "code_symbol",
+                "durable_id",
+                "repository_path"
+              ],
+              "cardinality": "exactly_one"
+            },
+            {
+              "role": "case_failure_condition",
+              "allowed_type_terms": [
+                "cc:criterion",
+                "cc:state"
+              ],
+              "cardinality": "exactly_one"
+            },
+            {
+              "role": "alternate_cases",
+              "allowed_type_terms": [
+                "cc:state"
+              ],
+              "allowed_identity_kinds": [
+                "durable_id"
+              ],
+              "cardinality": "one_or_more"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "fixed-reference-role-count-bindings",
+      "variant_id": "fixed-reference-role-count-bindings",
+      "weakened_profile_digest": "6effe8c361a98d42bf9effe15b71b0f9d9b64181d794c2e3b5a49fe8542d59b8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "fixed-relation-patterns",
+      "variant_id": "fixed-relation-patterns",
+      "weakened_profile_digest": "7b109eea12c2861ea841fad01b677de93c6e4b781b220d8b9f16acb6a98be0b6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-target-prefix-preservation",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-all-prefix-cases-preserved",
+              "target_claim_pattern_id": "alternate-all-prefix-cases-preserved"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "census-includes-case-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "prefix_census",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "prefix_case_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-prefix-case-preserved",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "prefix_cases",
+                "member_role": "prefix_case"
+              },
+              "proposition_template": {
+                "subject_role": "prefix_case",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "preserved_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "preservation-result-records-case-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "preservation_result",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "prefix_case_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "all-prefix-cases-preserved",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "preservation_result",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "preserved_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-exact-prefix-census",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "integration_dag"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "integration_units"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "execution_paths"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "prefix_census"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "prefix_cases"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "preservation_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-all-prefix-cases-preserved",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "preservation_result"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "prefix_census",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "case_failure_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "preserved_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "alternate-all-prefix-cases-preserved",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "prefix_census",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "preserved_state"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-prefix-case-population"
+              },
+              {
+                "pattern": "census-includes-case-population"
+              },
+              {
+                "pattern": "each-prefix-case-preserved"
+              },
+              {
+                "pattern": "preservation-result-records-case-population"
+              },
+              {
+                "pattern": "all-prefix-cases-preserved"
+              },
+              {
+                "pattern": "alternate-all-prefix-cases-preserved"
+              },
+              {
+                "pattern": "verification-reads-exact-prefix-census"
+              },
+              {
+                "pattern": "verify-all-prefix-cases-preserved"
+              },
+              {
+                "pattern": "verification-target-prefix-preservation"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "role-case-failure-condition-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-case-failure-condition-allowed-type-terms",
+      "variant_id": "fixed-role-case-failure-condition-allowed-type-terms",
+      "weakened_profile_digest": "cbba482b4e4e1df793d1e0b54504489e8cd03054549a5e22b9bb62d2b60848cb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:criterion",
+            "cc:state",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-execution-paths-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-execution-paths-allowed-type-terms",
+      "variant_id": "fixed-role-execution-paths-allowed-type-terms",
+      "weakened_profile_digest": "2b792a1fa2bca7c48f8f1f02b52d4972955c15e7b1ce37083f9ae624ea821f06",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:authority"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-integration-dag-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-integration-dag-allowed-type-terms",
+      "variant_id": "fixed-role-integration-dag-allowed-type-terms",
+      "weakened_profile_digest": "0cef59668c42bb87743a1a981eaf14c2303de70b3ca5005d6410c6c72e40e376",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:authority"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-integration-units-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-integration-units-allowed-type-terms",
+      "variant_id": "fixed-role-integration-units-allowed-type-terms",
+      "weakened_profile_digest": "b07edd233023c006771d0cc97de4b711c65b2631a47fb4c4a8b1112c2bb33b0b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:authority"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-prefix-case-population-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-prefix-case-population-allowed-type-terms",
+      "variant_id": "fixed-role-prefix-case-population-allowed-type-terms",
+      "weakened_profile_digest": "addacccaa1215a4aa4e473ce069a727e4bd5b010722b4e4b37fa07b0f71c1701",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-prefix-cases-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-prefix-cases-allowed-type-terms",
+      "variant_id": "fixed-role-prefix-cases-allowed-type-terms",
+      "weakened_profile_digest": "7d00cbe1884d4cfe5e3683b4d4f2e195a0c16d2348c844691d31110a09c6deed",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:evidence",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-prefix-census-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-prefix-census-allowed-type-terms",
+      "variant_id": "fixed-role-prefix-census-allowed-type-terms",
+      "weakened_profile_digest": "705bc840f3a665d695cbbf9096b77f8a5f360a0ce5795c1d70a5d5645b634723",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:authority"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-preservation-result-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-preservation-result-allowed-type-terms",
+      "variant_id": "fixed-role-preservation-result-allowed-type-terms",
+      "weakened_profile_digest": "2b3b347960898fa806cfe7bb3af137c6fc5773f02638ac9911012c6a2294be97",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:evidence",
+            "cc:state",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-preserved-state-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-preserved-state-allowed-type-terms",
+      "variant_id": "fixed-role-preserved-state-allowed-type-terms",
+      "weakened_profile_digest": "aec25eeeb6203a4e4b315441b53f3286f29d2c614e9565d50a80aaf40cd9bc43",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-verification-allowed-type-terms",
+      "variant_id": "fixed-role-verification-allowed-type-terms",
+      "weakened_profile_digest": "8bbf8ee19240d2bc8084358510b4f01d37e920b94d5bc5d124ab6d7a0990a993",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "fixed-satisfaction-expression",
+      "variant_id": "fixed-satisfaction-expression",
+      "weakened_profile_digest": "1d17f024163796a6ced432230d9184129431db20ab9a0398f47a7babbe32bf6c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "complete-prefix-case-population"
+              },
+              {
+                "pattern": "census-includes-case-population"
+              },
+              {
+                "pattern": "each-prefix-case-preserved"
+              },
+              {
+                "pattern": "preservation-result-records-case-population"
+              },
+              {
+                "pattern": "all-prefix-cases-preserved"
+              },
+              {
+                "pattern": "verification-reads-exact-prefix-census"
+              },
+              {
+                "pattern": "verify-all-prefix-cases-preserved"
+              },
+              {
+                "pattern": "verification-target-prefix-preservation"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -10,7 +10,8 @@ import {
   projectSliceReviewReceiptContracts
 } from "../../../wiki-core/src/index.mjs";
 import {
-  evaluateWorkRecordParentLifecycleContract
+  evaluateWorkRecordParentLifecycleContract,
+  PARENT_LIFECYCLE_CONTRACT_FACTS
 } from "../../../wiki-core/src/lib/work-record-parent-lifecycle-contract.mjs";
 
 import {
@@ -51,13 +52,50 @@ function declaredValidationTargets(record) {
   return Object.freeze([...new Set(targets)].sort());
 }
 
+export const TERMINAL_REVIEW_UNIT_PROJECTION_CODES = Object.freeze({
+  PARENT_LIFECYCLE_CONTRACT_INCOMPLETE: "parent_lifecycle_contract_incomplete",
+  SLICE_REVIEW_CONTRACT_ABSENT: "slice_review_contract_absent"
+});
+
+const PARENT_LIFECYCLE_CONTRACT_FACT_ORDER = Object.freeze(
+  Object.values(PARENT_LIFECYCLE_CONTRACT_FACTS)
+);
+const NO_LIFECYCLE_FACTS = Object.freeze([]);
+
+function closedLifecycleFacts(facts) {
+  if (!Array.isArray(facts) || facts.length === 0) return NO_LIFECYCLE_FACTS;
+  const present = new Set(facts);
+  const closed = PARENT_LIFECYCLE_CONTRACT_FACT_ORDER.filter((fact) => present.has(fact));
+  return closed.length === 0 ? NO_LIFECYCLE_FACTS : Object.freeze(closed);
+}
+
+function terminalReviewUnitProjectionFailure(code, parentLifecycle = null) {
+  return Object.freeze({
+    ok: false,
+    cause: Object.freeze({
+      code,
+      missing_facts: closedLifecycleFacts(parentLifecycle?.missing_facts),
+      ambiguous_facts: closedLifecycleFacts(parentLifecycle?.ambiguous_facts)
+    })
+  });
+}
+
 function projectTerminalReviewUnit(record) {
   const parentLifecycle = evaluateWorkRecordParentLifecycleContract(record);
-  if (parentLifecycle.complete !== true) return null;
+  if (parentLifecycle.complete !== true) {
+    return terminalReviewUnitProjectionFailure(
+      TERMINAL_REVIEW_UNIT_PROJECTION_CODES.PARENT_LIFECYCLE_CONTRACT_INCOMPLETE,
+      parentLifecycle
+    );
+  }
   const slice = parentLifecycle.terminal_review_contract_unit;
   const contracts = projectSliceReviewReceiptContracts(record, slice.id);
-  if (contracts.slice_review_contract === null) return null;
-  return Object.freeze({ slice_id: slice.id, contracts });
+  if (contracts.slice_review_contract === null) {
+    return terminalReviewUnitProjectionFailure(
+      TERMINAL_REVIEW_UNIT_PROJECTION_CODES.SLICE_REVIEW_CONTRACT_ABSENT
+    );
+  }
+  return Object.freeze({ ok: true, slice_id: slice.id, contracts });
 }
 
 function exactWkBoundContract({ recordId, initiative = null, mainRepo, wkSha }) {
@@ -80,7 +118,7 @@ function exactWkBoundContract({ recordId, initiative = null, mainRepo, wkSha }) 
     throw new Error("terminal candidate exact WK-bound contract identity disagrees");
   }
   const projected = projectTerminalReviewUnit(record);
-  const reviewUnit = projected === null ? null : Object.freeze({
+  const reviewUnit = projected.ok !== true ? null : Object.freeze({
     record_id: recordId,
     slice_id: projected.slice_id,
     subject: `${recordId}#${projected.slice_id}`,
@@ -95,29 +133,69 @@ function exactWkBoundContract({ recordId, initiative = null, mainRepo, wkSha }) 
     initiative: record.initiative,
     digest: computeWorkRecordSourceDigest(record),
     targets: declaredValidationTargets(record),
-    review_unit: reviewUnit
+    review_unit: reviewUnit,
+
+    review_unit_absence: projected.ok === true ? null : projected.cause
   });
 }
 
 export const TERMINAL_REVIEW_CONTRACT_BINDING_SCHEMA_VERSION =
   "agent_launch.terminal_review_contract_binding.v1";
 
+export const CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES = Object.freeze({
+  REPOSITORY_ROOT_NOT_CANONICAL: "canonical_repository_root_not_canonical",
+  RECORD_UNREADABLE: "canonical_record_unreadable",
+  RECORD_IDENTITY_DISAGREES: "canonical_record_identity_disagrees",
+  TERMINAL_REVIEW_UNIT_UNPROJECTABLE: "terminal_review_unit_unprojectable",
+  REVIEW_SUBJECT_MOVED: "canonical_review_subject_moved",
+  REVIEW_CONTRACT_DIGEST_MOVED: "canonical_review_contract_digest_moved"
+});
+
+function canonicalCurrentTerminalReviewFailure(code, projectionCause = null) {
+  return Object.freeze({
+    ok: false,
+    cause: Object.freeze({
+      code,
+      projection_code: projectionCause?.code ?? null,
+      missing_facts: projectionCause?.missing_facts ?? NO_LIFECYCLE_FACTS,
+      ambiguous_facts: projectionCause?.ambiguous_facts ?? NO_LIFECYCLE_FACTS
+    })
+  });
+}
+
 function canonicalCurrentTerminalReviewContract({ mainRepo, recordId }) {
+  let requested;
+  try {
+    requested = path.resolve(mainRepo);
+
+    if (realpathSync(requested) !== requested) {
+      return canonicalCurrentTerminalReviewFailure(
+        CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REPOSITORY_ROOT_NOT_CANONICAL);
+    }
+  } catch {
+    return canonicalCurrentTerminalReviewFailure(
+      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REPOSITORY_ROOT_NOT_CANONICAL);
+  }
   let record;
   try {
-    const requested = path.resolve(mainRepo);
-
-    if (realpathSync(requested) !== requested) return null;
     record = JSON.parse(readFileSync(
       path.join(requested, "wiki", "work-records", `${recordId}.json`),
       "utf8"
     ));
   } catch {
-    return null;
+    return canonicalCurrentTerminalReviewFailure(
+      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_UNREADABLE);
   }
-  if (record?.id !== recordId || !/^IN-\d{4}$/u.test(record?.initiative ?? "")) return null;
+  if (record?.id !== recordId || !/^IN-\d{4}$/u.test(record?.initiative ?? "")) {
+    return canonicalCurrentTerminalReviewFailure(
+      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_IDENTITY_DISAGREES);
+  }
   const projected = projectTerminalReviewUnit(record);
-  if (projected === null) return null;
+  if (projected.ok !== true) {
+    return canonicalCurrentTerminalReviewFailure(
+      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.TERMINAL_REVIEW_UNIT_UNPROJECTABLE,
+      projected.cause);
+  }
   const subject = `${recordId}#${projected.slice_id}`;
 
   const binding = {
@@ -128,7 +206,7 @@ function canonicalCurrentTerminalReviewContract({ mainRepo, recordId }) {
     review_subject: subject,
     review_unit_contract: projected.contracts.slice_review_contract
   };
-  return Object.freeze({
+  return Object.freeze({ ok: true, contract: Object.freeze({
     initiative: record.initiative,
     digest: computeWorkRecordSourceDigest(record),
     targets: declaredValidationTargets(record),
@@ -147,7 +225,7 @@ function canonicalCurrentTerminalReviewContract({ mainRepo, recordId }) {
       canonical_parent_wk_contract: projected.contracts.canonical_parent_wk_contract,
       review_unit_contract: projected.contracts.slice_review_contract
     })
-  });
+  }) });
 }
 
 export const TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION =
@@ -266,13 +344,45 @@ export function projectTerminalWkCandidateFailure(error) {
 
 const terminalCandidateRecoveryFailures = new WeakMap();
 
-function failTerminalCandidateRecovery(reason, cause = null) {
+export const TERMINAL_CANDIDATE_RECOVERY_REASONS = Object.freeze({
+  FAILED: "terminal_candidate_recovery_failed",
+  CONSTRUCTION_FAILED: "terminal_candidate_recovery_construction_failed",
+  CANONICAL_REVIEW_CONTRACT_UNAVAILABLE:
+    "terminal_candidate_recovery_canonical_review_contract_unavailable",
+  CURRENT_REF_ABSENT: "terminal_candidate_recovery_current_ref_absent",
+  REVIEW_CONTRACT_MOVED: "terminal_candidate_recovery_review_contract_moved",
+  CURRENT_REF_PUBLICATION_DISAGREES:
+    "terminal_candidate_recovery_current_ref_publication_disagrees",
+  CANONICAL_WK_BINDING_DISAGREES:
+    "terminal_candidate_recovery_canonical_wk_binding_disagrees",
+  REVIEW_CONTRACT_BINDING_DISAGREES:
+    "terminal_candidate_recovery_review_contract_binding_disagrees",
+  NO_DETERMINISTIC_MATCH: "terminal_candidate_recovery_no_deterministic_match",
+  VALIDATION_EVIDENCE_UNAVAILABLE:
+    "terminal_candidate_recovery_validation_evidence_unavailable"
+});
+
+export const TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION =
+  "agent_launch.terminal_candidate_recovery_diagnostic.v1";
+
+function terminalCandidateRecoveryDiagnostic(cause) {
+  if (cause === null || cause === undefined) return null;
+  return Object.freeze({
+    schema_version: TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION,
+    contract_code: cause.code ?? null,
+    projection_code: cause.projection_code ?? null,
+    missing_facts: cause.missing_facts ?? NO_LIFECYCLE_FACTS,
+    ambiguous_facts: cause.ambiguous_facts ?? NO_LIFECYCLE_FACTS
+  });
+}
+
+function failTerminalCandidateRecovery(reason, diagnostic = null) {
   const error = new Error(reason);
   error.code = reason;
-  if (cause !== null) error.cause = cause;
   terminalCandidateRecoveryFailures.set(error, Object.freeze({
     reason,
-    failure: UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION
+    failure: UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION,
+    diagnostic
   }));
   throw error;
 }
@@ -283,7 +393,12 @@ function failTerminalCandidateConstruction(failure) {
   error.code = reason;
 
   error.terminal_candidate_failure = failure;
-  terminalCandidateRecoveryFailures.set(error, Object.freeze({ reason, failure }));
+  terminalCandidateRecoveryFailures.set(error, Object.freeze({
+    reason,
+    failure,
+
+    diagnostic: null
+  }));
   throw error;
 }
 
@@ -314,6 +429,13 @@ export function projectTerminalCandidateRecoveryReason(error) {
   }
   return terminalCandidateRecoveryFailures.get(error)?.reason ??
     "terminal_candidate_recovery_failed";
+}
+
+export function projectTerminalCandidateRecoveryDiagnostic(error) {
+  if ((typeof error !== "object" || error === null) && typeof error !== "function") {
+    return null;
+  }
+  return terminalCandidateRecoveryFailures.get(error)?.diagnostic ?? null;
 }
 
 export function createTerminalCandidateCoordinator({
@@ -387,12 +509,14 @@ export function createTerminalCandidateCoordinator({
   };
 
   const reconstructAbsentTerminalCandidate = ({ wkId, currentRef }) => {
-    const canonical = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
-    if (canonical === null) {
+    const resolved = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
+    if (resolved.ok !== true) {
       if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
       failTerminalCandidateRecovery(
-        "terminal_candidate_recovery_canonical_review_contract_unavailable");
+        "terminal_candidate_recovery_canonical_review_contract_unavailable",
+        terminalCandidateRecoveryDiagnostic(resolved.cause));
     }
+    const canonical = resolved.contract;
     const frozen = freezeReconstructedTerminalWkCandidateInputs({
       mainRepo,
       initiative: canonical.initiative,
@@ -410,11 +534,18 @@ export function createTerminalCandidateCoordinator({
     const derived = deriveTerminalWkCandidate({ frozen, runGit });
 
     const republished = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
-    if (republished === null ||
-        republished.review_subject !== frozen.terminal_review_subject ||
-        republished.review_contract_digest !== frozen.terminal_review_contract_digest) {
+
+    const republishedMovement = republished.ok !== true
+      ? republished.cause
+      : republished.contract.review_subject !== frozen.terminal_review_subject
+        ? { code: CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REVIEW_SUBJECT_MOVED }
+        : republished.contract.review_contract_digest !== frozen.terminal_review_contract_digest
+          ? { code: CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REVIEW_CONTRACT_DIGEST_MOVED }
+          : null;
+    if (republishedMovement !== null) {
       if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery("terminal_candidate_recovery_review_contract_moved");
+      failTerminalCandidateRecovery("terminal_candidate_recovery_review_contract_moved",
+        terminalCandidateRecoveryDiagnostic(republishedMovement));
     }
     assertTerminalWkCandidateInputsUnmoved({ frozen, runGit });
 
@@ -446,7 +577,8 @@ export function createTerminalCandidateCoordinator({
       const recoveredCanonical = exactWkBoundContract({ recordId: wkId, mainRepo, wkSha: candidate });
       if (recoveredCanonical.review_unit === null) {
         if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-        failTerminalCandidateRecovery("terminal_candidate_recovery_canonical_wk_binding_disagrees");
+        failTerminalCandidateRecovery("terminal_candidate_recovery_canonical_wk_binding_disagrees",
+          terminalCandidateRecoveryDiagnostic(recoveredCanonical.review_unit_absence));
       }
       return {
         canonical: recoveredCanonical,
@@ -454,17 +586,22 @@ export function createTerminalCandidateCoordinator({
         wkRef: `refs/heads/wk/${recoveredCanonical.initiative}/${wkId}`
       };
     }
-    const canonical = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
-    if (canonical === null) {
+    const resolved = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
+    if (resolved.ok !== true) {
       if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
       failTerminalCandidateRecovery(
-        "terminal_candidate_recovery_canonical_review_contract_unavailable");
+        "terminal_candidate_recovery_canonical_review_contract_unavailable",
+        terminalCandidateRecoveryDiagnostic(resolved.cause));
     }
+    const canonical = resolved.contract;
 
     if (canonical.review_subject !== metadata.terminal_review_subject) {
       if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
       failTerminalCandidateRecovery(
-        "terminal_candidate_recovery_review_contract_binding_disagrees");
+        "terminal_candidate_recovery_review_contract_binding_disagrees",
+        terminalCandidateRecoveryDiagnostic({
+          code: CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REVIEW_SUBJECT_MOVED
+        }));
     }
     return {
       canonical,

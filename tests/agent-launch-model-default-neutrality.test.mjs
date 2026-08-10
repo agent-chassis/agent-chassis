@@ -17,7 +17,29 @@ const CODEX_PRESET_PATHS = [
 ];
 
 const LUNA_MODEL = "gpt-5.6-luna";
+const SOL_MODEL = "gpt-5.6-sol";
 const MINI_MODEL = "gpt-5.4-mini";
+
+const EXPECTED_CODEX_ROLES = {
+  worker: { model: LUNA_MODEL, effort: "medium" },
+  reviewer: { model: SOL_MODEL, effort: "high" },
+  orchestrator: { model: SOL_MODEL, effort: "high" },
+  redteam: { model: SOL_MODEL, effort: "high" },
+};
+
+function parseRoleMatrix(presetText) {
+  return Object.fromEntries(
+    Object.entries(EXPECTED_CODEX_ROLES).map(([role]) => {
+      const section = presetText
+        .split(/\r?\n(?=\[)/)
+        .find((candidate) => candidate.startsWith(`[roles.${role}]`));
+      assert.ok(section, `shipped Codex preset must declare [roles.${role}]`);
+      const model = section.match(/^model = "([^"]+)"$/m)?.[1];
+      const effort = section.match(/^effort = "([^"]+)"$/m)?.[1];
+      return [role, { model, effort }];
+    })
+  );
+}
 
 test("Codex model authority has no baked Mini default", async (t) => {
   const adapterSource = await readFile(CODEX_ADAPTER_PATH, "utf8");
@@ -30,12 +52,7 @@ test("Codex model authority has no baked Mini default", async (t) => {
   assert.deepEqual(templatePreset, shippedPreset);
 
   const presetText = shippedPreset.toString("utf8");
-  const workerSection = presetText
-    .split(/\r?\n(?=\[)/)
-    .find((section) => section.startsWith("[roles.worker]"));
-  assert.ok(workerSection, "shipped Codex preset must declare [roles.worker]");
-  assert.match(workerSection, /^model = "gpt-5\.6-luna"$/m);
-  assert.match(workerSection, /^effort = "medium"$/m);
+  assert.deepEqual(parseRoleMatrix(presetText), EXPECTED_CODEX_ROLES);
   assert.doesNotMatch(presetText, new RegExp(MINI_MODEL.replaceAll(".", "\\.")));
 
   const dir = await mkdtemp(path.join(os.tmpdir(), "agent-launch-model-default-neutrality-"));

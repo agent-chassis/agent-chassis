@@ -1,0 +1,3853 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "1af959a8f2761f1be941d5482e09849354e9f8de50f6dae73b312ab0e69d48ca",
+  "witnesses": [
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "reject-status-only",
+      "variant_id": "reject-status-only",
+      "weakened_profile_digest": "e83e8b756450738a24b106d3a575ad035d47ae449e1510b90c212a50f4cdc016",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "failure-injection-precedes-failure",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_injection",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "injected_failure"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "injected-failure-targets-operation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "injected_failure",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "injected-failure-carries-cause",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "injected_failure",
+                "operator": "reference:has_property",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_cause"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "original-failure-cause-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_cause",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "injected_failure"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "original_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-cause-observation-records-original",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cause_observation_at_failure",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "injected_failure"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "original_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cleanup-follows-injected-failure",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cleanup_event",
+                "operator": "reference:follows",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "injected_failure"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cleanup-targets-residue-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cleanup_event",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "injected_failure"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "residue_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settlement-follows-cleanup",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settlement_event",
+                "operator": "reference:follows",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "cleanup_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settlement-follows-injected-failure",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settlement_event",
+                "operator": "reference:follows",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "injected_failure"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-residue-population-cardinality",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "residue_population",
+                "operator": "number:has_cardinality",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "residue_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "residue-observation-records-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "residue_observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "residue_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-failure-record-preserves-cause",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settled_failure_record",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_cause"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-failure-cause-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_cause",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-cause-observation-records-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cause_observation_at_settlement",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cleanup-verification-reads-settlement",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cleanup_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "residue_observation"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settlement_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "residue-population-empty-after-settlement",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "residue_population",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value": 0
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cleanup-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cleanup_verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "residue_population"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "residue_population",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "cleanup_failure_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value": 0
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "audit",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ]
+            },
+            {
+              "pattern_id": "cause-verification-reads-observations",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cause_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "cause_observation_at_failure"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "cause_observation_at_settlement"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settled_failure_record"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "original-failure-cause-preserved",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settled_cause_state",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "original_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cause-preservation-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cause_verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_cause"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "settled_cause_state",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "cause_loss_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "original_cause_state"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "audit",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ]
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "failure-injection-precedes-failure",
+            "injected-failure-carries-cause",
+            "original-failure-cause-state",
+            "cleanup-follows-injected-failure",
+            "cleanup-targets-residue-population",
+            "settlement-follows-cleanup",
+            "settled-residue-population-cardinality",
+            "residue-population-empty-after-settlement",
+            "settled-failure-record-preserves-cause",
+            "settled-failure-cause-state",
+            "original-failure-cause-preserved"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/member_claim_pattern_ids",
+          "value": [
+            "failure-injection-precedes-failure",
+            "injected-failure-targets-operation",
+            "injected-failure-carries-cause",
+            "original-failure-cause-state",
+            "failure-cause-observation-records-original",
+            "cleanup-follows-injected-failure",
+            "cleanup-targets-residue-population",
+            "settlement-follows-cleanup",
+            "settlement-follows-injected-failure",
+            "settled-residue-population-cardinality",
+            "residue-observation-records-population",
+            "settled-failure-record-preserves-cause",
+            "settled-failure-cause-state",
+            "settled-cause-observation-records-state",
+            "cleanup-verification-reads-settlement",
+            "residue-population-empty-after-settlement",
+            "cleanup-verification",
+            "cause-verification-reads-observations",
+            "original-failure-cause-preserved",
+            "cause-preservation-verification"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "failure-injection-precedes-failure"
+            },
+            {
+              "pattern": "injected-failure-targets-operation"
+            },
+            {
+              "pattern": "injected-failure-carries-cause"
+            },
+            {
+              "pattern": "original-failure-cause-state"
+            },
+            {
+              "pattern": "failure-cause-observation-records-original"
+            },
+            {
+              "pattern": "cleanup-follows-injected-failure"
+            },
+            {
+              "pattern": "cleanup-targets-residue-population"
+            },
+            {
+              "pattern": "settlement-follows-cleanup"
+            },
+            {
+              "pattern": "settlement-follows-injected-failure"
+            },
+            {
+              "pattern": "settled-residue-population-cardinality"
+            },
+            {
+              "pattern": "residue-observation-records-population"
+            },
+            {
+              "pattern": "settled-failure-record-preserves-cause"
+            },
+            {
+              "pattern": "settled-failure-cause-state"
+            },
+            {
+              "pattern": "settled-cause-observation-records-state"
+            },
+            {
+              "pattern": "cleanup-verification-reads-settlement"
+            },
+            {
+              "pattern": "residue-population-empty-after-settlement"
+            },
+            {
+              "pattern": "cleanup-verification"
+            },
+            {
+              "pattern": "cause-verification-reads-observations"
+            },
+            {
+              "pattern": "original-failure-cause-preserved"
+            },
+            {
+              "pattern": "cause-preservation-verification"
+            },
+            {
+              "pattern": "cleanup-verifies-empty-residue"
+            },
+            {
+              "pattern": "cause-verifies-preservation"
+            },
+            {
+              "pattern": "proof-sequence"
+            },
+            {
+              "pattern": "proof-population"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-performs-operation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-performs-operation-modalities",
+      "weakened_profile_digest": "073faccca671ed4a78e6183a8f95f94453f7e0bc3b7bb1fd11ede1a2ae1d551c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+      "weakened_profile_digest": "72b5d4ec1ab060407708fbbed828ad214f6c4d1405b79a305bfa14642874f776",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "operation_attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-performs-operation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-performs-operation-proposition-operator",
+      "weakened_profile_digest": "8a9a02df9e28417388d9ed63b96cf372b28810dfbeb8a0c543c0ed2458d26a5c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-performs-operation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-performs-operation-proposition-subject",
+      "weakened_profile_digest": "11fba05efbd06f2131b01a8d2703c6689a79b2d796be1f893c33ea69b96bc345",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-injection-precedes-failure-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-injection-precedes-failure-modalities",
+      "weakened_profile_digest": "c8babb79004c3a248c942465fda791d8def80b5d24b7114aec12f13c32a03037",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-injection-precedes-failure-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-injection-precedes-failure-proposition-applicability-mode",
+      "weakened_profile_digest": "2eb970805332b710f43f9c8592792ca62fda96a4c604c1ad63ccd61f985f6655",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-injection-precedes-failure-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-injection-precedes-failure-proposition-applicability-operands",
+      "weakened_profile_digest": "e64486ee6231e6949bbe5efb817be58913d3364d31222a20efa5e71b6007f519",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-injection-precedes-failure-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-injection-precedes-failure-proposition-operand-0-role",
+      "weakened_profile_digest": "4fa0d7a1dd3947e9210ceff8c8bf77939abc9e9b4af66ec5f0df1459fc78af36",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-injection-precedes-failure-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-injection-precedes-failure-proposition-operator",
+      "weakened_profile_digest": "83f21fe1df947109aba071639ed44d507e6b25b4c3126e86b3c0ff1e6f2034c9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-injection-precedes-failure-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-injection-precedes-failure-proposition-subject",
+      "weakened_profile_digest": "dd4ccbf81d459f865bc3ff1b2dd3e04d9369eba3f04fdc69bae9bf8815cbfcf2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-residue-population-cardinality-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-residue-population-cardinality-modalities",
+      "weakened_profile_digest": "d5f914ed8752194928116c85f99d7296e66af2d123ae79d8e5a666ba1209e51f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-residue-population-cardinality-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-residue-population-cardinality-proposition-applicability-mode",
+      "weakened_profile_digest": "5f9eb90802cf7209d9180764f385cd9ef84d24626a464e30e8433b0406746e57",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-residue-population-cardinality-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-residue-population-cardinality-proposition-applicability-operands",
+      "weakened_profile_digest": "e3a2701950ad65d9874c752c83f74f43f46df7fcbe3c621bde09494640656cab",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-residue-population-cardinality-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-residue-population-cardinality-proposition-operator",
+      "weakened_profile_digest": "32ce0b0fdb041d56ec4d0a8d8b6fcc41230476976183925d1ac38decb2db6d10",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operator",
+          "value": "number:emits"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-residue-population-cardinality-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-residue-population-cardinality-proposition-subject",
+      "weakened_profile_digest": "81d43994fc7d5a947ca518eaafc29be982caf9f28d7b45b2398fa2ae7a4fb9fa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-observation-records-population-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-observation-records-population-modalities",
+      "weakened_profile_digest": "a43030fb40ce7f6d87febaf0983729358c8f19ee22fabeae5f5dca2955f5fea9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-observation-records-population-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-observation-records-population-proposition-applicability-mode",
+      "weakened_profile_digest": "00dd164a79659b1e46cf49a6fc42a21d3514f104ff237457143d090547bfd470",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-observation-records-population-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-observation-records-population-proposition-applicability-operands",
+      "weakened_profile_digest": "5d438f28b00eef4e225bb7f8d29562930fd2208d68260906a09133dd1dd26875",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-observation-records-population-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-observation-records-population-proposition-operand-0-role",
+      "weakened_profile_digest": "10003d3abd677aca53f1c4ded1948356a3b4ed8b69c09bda6ad47eff62899cd0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-observation-records-population-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-observation-records-population-proposition-operator",
+      "weakened_profile_digest": "d62196caa076f202e417b93c99f5baca134e16c564f2f7d4431dc12bd7f927a5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-observation-records-population-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-observation-records-population-proposition-subject",
+      "weakened_profile_digest": "a27b5ba234c44ab26c165f3f25cb49cec32b566d949d8a5c2a74f1184ae2a931",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-record-preserves-cause-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-record-preserves-cause-modalities",
+      "weakened_profile_digest": "42ecc065a4b18d2af92ae13e2415c0dcbd5c67d3c965b2821eecd73dc5d359ef",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-record-preserves-cause-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-record-preserves-cause-proposition-applicability-mode",
+      "weakened_profile_digest": "e83f8997a67c74ae568731aeb976b1be9839556b86e6a0f38d69b32abbe3ae33",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-record-preserves-cause-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-record-preserves-cause-proposition-applicability-operands",
+      "weakened_profile_digest": "428618851cf925c0d22e78c807105088b79088a8f8e1f6a9b3612a8ee9503e48",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-record-preserves-cause-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-record-preserves-cause-proposition-operand-0-role",
+      "weakened_profile_digest": "fc9543300a743405dac190e01a8876fc53a22c602e026f4cf9133d91d6bf3e69",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-record-preserves-cause-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-record-preserves-cause-proposition-operator",
+      "weakened_profile_digest": "2def80ba6eb52580d0114bf2d4eebcc62af3998aecc2baed25a03df42a09100b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-record-preserves-cause-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-record-preserves-cause-proposition-subject",
+      "weakened_profile_digest": "6880ca949af0dfdcecfcd4ba88bf5919a006d9de3cc2cddc13be4dede1364c1b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-cause-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-cause-state-modalities",
+      "weakened_profile_digest": "8fede213d57912d27b6d4cec07fa99f9cffb2b9c8a3d1b9fdb73a9d63c988dd7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-cause-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-cause-state-proposition-applicability-mode",
+      "weakened_profile_digest": "c28a4425a75566c29b5a70630555bfd3d873b50d666978cf556a51444339b8ef",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-cause-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-cause-state-proposition-applicability-operands",
+      "weakened_profile_digest": "c9085eb78ce678532fd9f52b63ab4f11e770d9ae84e59d9b28152568aabc3472",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-cause-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-cause-state-proposition-operand-0-role",
+      "weakened_profile_digest": "f5b9f6ea7502ac1bc86f5fb32c8ec3b3d9e423ce7ea7364a0983a713dccdbb94",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-cause-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-cause-state-proposition-operator",
+      "weakened_profile_digest": "4dfc26a9b23077a1b72cad6d40962028138b0d73047fedf29834099931e56844",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-failure-cause-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-failure-cause-state-proposition-subject",
+      "weakened_profile_digest": "3737768560d9f8d5ca4421fc7bc62ab83ee720086b1970a5301363d633a19d10",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-cause-observation-records-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-cause-observation-records-state-modalities",
+      "weakened_profile_digest": "2bd55e81ac3ec13593eeda52c4591faa933e07f99776089d5ca40dca60ab06c9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-cause-observation-records-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-cause-observation-records-state-proposition-applicability-mode",
+      "weakened_profile_digest": "01f46d2accdc1ab5cfe5be40dba0a7e8ffacbdd1b6153db2698653cf22b3dfd4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-cause-observation-records-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-cause-observation-records-state-proposition-applicability-operands",
+      "weakened_profile_digest": "3b5087687a1bd971f69753f82abd75b8ac483431db3c33e9dd3bbe31a91f5c28",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-cause-observation-records-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-cause-observation-records-state-proposition-operand-0-role",
+      "weakened_profile_digest": "6f23bac4caed465bfa6e5ace5e9806ffd50f37b8c19cf6fd662e0729756cf4e2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-cause-observation-records-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-cause-observation-records-state-proposition-operator",
+      "weakened_profile_digest": "fa4b5ed1689bdc24fe3163b2198d64631e9f00676ca7a083e0019cae8143a053",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-cause-observation-records-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settled-cause-observation-records-state-proposition-subject",
+      "weakened_profile_digest": "1b2ec9fd4ba4dca16fa972bc4a4e6bfef74be42b4d8ae6d33fec4d159cdeb919",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-reads-settlement-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-reads-settlement-modalities",
+      "weakened_profile_digest": "4c99d8c922326fe1cc624c8997d010c5bda3e119fd2ae22bb2f4b6b7d76c3cbe",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-reads-settlement-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-reads-settlement-proposition-applicability-mode",
+      "weakened_profile_digest": "1dc0f4824e9028e09400186d3c90a6d98097b8f3c503b45c8ff46cb04f34ee84",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-reads-settlement-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-reads-settlement-proposition-applicability-operands",
+      "weakened_profile_digest": "1d8dd06871ab9ad3f52b35bf9edcee771052ccfa9e6d05e1a0aa7d4cb75c4629",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-reads-settlement-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-reads-settlement-proposition-operand-0-role",
+      "weakened_profile_digest": "469bf7730cd9eec11bcb412561bd171d58847d5f486d0cdb22efd13201125e1f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-reads-settlement-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-reads-settlement-proposition-operand-1-role",
+      "weakened_profile_digest": "de314016d5581bfb781f5abeb5f6eb907fc9c1e41a720a47d7ea034dc3e709f4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/operands/1/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-reads-settlement-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-reads-settlement-proposition-operator",
+      "weakened_profile_digest": "3715c5b4afa622b5ebffdaa819bc08b0e59a26e5cbb8fadac1015a57ca060ef6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-reads-settlement-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-reads-settlement-proposition-subject",
+      "weakened_profile_digest": "64acf7e25880af125357315de7e4451132fd0f0d60328defe33b3ba7015c956c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-population-empty-after-settlement-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-population-empty-after-settlement-modalities",
+      "weakened_profile_digest": "dd67300d75aaca53c4770af9605073e9404015e09f3952dbdd35c57dccd20372",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-population-empty-after-settlement-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-population-empty-after-settlement-proposition-applicability-mode",
+      "weakened_profile_digest": "51ad6762f86e3d3aaf80e1cadd9651ccea78f54964d8e3d10f22d36182b7dac4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-population-empty-after-settlement-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-population-empty-after-settlement-proposition-applicability-operands",
+      "weakened_profile_digest": "e006f1c0329f10748c2f2d0c3244c3beab5ff63ccdce7f9757257ebac5e0ceae",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-residue-population-empty-after-settlement-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-residue-population-empty-after-settlement-proposition-operator",
+      "weakened_profile_digest": "0a0ad7054fb6a5b2f3765f3d175ecb767e0e92b09a04a3584ff05983ea11b9d0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operator",
+          "value": "number:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/operator",
+          "value": "number:equals"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-modalities",
+      "weakened_profile_digest": "9f6643805de79251dfc15baf758e9aa97cbb73b04c7195ab8c7fc3a94c6bdaa9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/allowed_modalities/0",
+          "value": "SHOULD"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operator",
+          "value": "number:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/operator",
+          "value": "number:equals"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "ff4ac770a6668853b9a56b6fc3c846750537d7bdb86a67e2bfae6157be0d16f0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-proposition-operator",
+      "weakened_profile_digest": "a1f1f48e0a500441d0d12f87bd848a923feb0ad1457ebb155c46bc8e3af10027",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-proposition-subject",
+      "weakened_profile_digest": "8fa9f7ccf77420ebae446f13170ada676e7996242a49114b8b0084fc5ac655e0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-verification-verification-methods",
+      "weakened_profile_digest": "821fcc1c87e00eb36ea350fbff99565282d51a88a9f5c5b082f3c165ba43b94a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/verification_methods",
+          "value": [
+            "analysis",
+            "audit",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-verification-reads-observations-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-verification-reads-observations-modalities",
+      "weakened_profile_digest": "b35a80500a41c23aa1804ce987cf9c8f0c69e74083ff336896211eaf25bab43d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-verification-reads-observations-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-verification-reads-observations-proposition-applicability-mode",
+      "weakened_profile_digest": "e14ddb4fb8a190856d5056dfabd7a93b7f502cd3bfb7a39d7621afab2ac6f295",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-verification-reads-observations-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-verification-reads-observations-proposition-applicability-operands",
+      "weakened_profile_digest": "058b3e212f7a614539179afc655632d478f7d8bded12d27536e9ea653208f509",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-verification-reads-observations-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-verification-reads-observations-proposition-operand-0-role",
+      "weakened_profile_digest": "98e72f83c2eb916f00d49c0d37b8f486a9ab2ee45d38113dfbeaa844ebe9f872",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-verification-reads-observations-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-verification-reads-observations-proposition-operand-1-role",
+      "weakened_profile_digest": "3675fff3b0de1ee2ff4994d64472ea2696f0201de3ee2a9a7b0b833db5b5249c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/operands/1/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-verification-reads-observations-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-verification-reads-observations-proposition-operand-2-role",
+      "weakened_profile_digest": "74b2e26c9ef4863d5d9496aa8503109b2a076890ba03b6148e724bf51b57bc8f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/operands/2/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-verification-reads-observations-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-verification-reads-observations-proposition-operator",
+      "weakened_profile_digest": "6817fd8289a912db4783d1da683394e71c4c412a459d84eb208b94440f4d15a5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-verification-reads-observations-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-verification-reads-observations-proposition-subject",
+      "weakened_profile_digest": "3abe054803040222e7b77b75a131955cdf5679813b6298d86373e52209721e67",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-preserved-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-preserved-modalities",
+      "weakened_profile_digest": "a165340d2d44e04a474953d92f87320a5c55b64c8a54f3d90058b1be793090c9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-preserved-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-preserved-proposition-applicability-mode",
+      "weakened_profile_digest": "4f40365a040b52aff7bec71da922f59e43845318614c707771eef87857d0521d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-preserved-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-preserved-proposition-applicability-operands",
+      "weakened_profile_digest": "88d49351f0a84a0b76fd721d327be8b953f787b7150ca89e33c44fc844dff8e4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-preserved-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-preserved-proposition-operator",
+      "weakened_profile_digest": "eaa10ecab2f9204b92f9a6e8baa6671a66c1a9e7f4960ef3fcc3841c7209c1cb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/proposition_template/operator",
+          "value": "reference:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/falsifying_proposition_template/operator",
+          "value": "reference:equals"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-targets-operation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-targets-operation-modalities",
+      "weakened_profile_digest": "6dc6d02167b9a125780e0f1cf2418ce0f0194361cdbca499324b8ad81f0d2b65",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-targets-operation-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-targets-operation-proposition-applicability-mode",
+      "weakened_profile_digest": "ee9a521bac5a77232e720e1974dcb7d9f96c1f7c0958b41b40a719bcf86f622b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-targets-operation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-targets-operation-proposition-applicability-operands",
+      "weakened_profile_digest": "8d35834e8b6d66fe645b3ac38a948ceafa105abceb229ec2ddcfe5b0864ad566",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-targets-operation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-targets-operation-proposition-operand-0-role",
+      "weakened_profile_digest": "db597e6364455096484f9999db0f24f374ebbfa1a3fa887669855021d66b3fa2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "operation_attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-targets-operation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-targets-operation-proposition-operator",
+      "weakened_profile_digest": "13e46f9594119c3ac65702abcd78330a76ff4c7f457c8fcc820b3bd160324d47",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-targets-operation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-targets-operation-proposition-subject",
+      "weakened_profile_digest": "8adf7166cabb69c23a4ff795fdbaae4cca5f65e76db7686a7349fe9ce62ec7f1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-preservation-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-preservation-verification-modalities",
+      "weakened_profile_digest": "b4ddacc5c0be6c176964454936653b98c756331c431e2d4ef393671b3e5a3ef5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/allowed_modalities/0",
+          "value": "SHOULD"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/proposition_template/operator",
+          "value": "reference:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/falsifying_proposition_template/operator",
+          "value": "reference:equals"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-preservation-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-preservation-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "ee0050f6f35e9ee2666bf053c2346bea6a81fae72e24dc5750d230068ebee987",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-preservation-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-preservation-verification-proposition-operator",
+      "weakened_profile_digest": "7b8217971b3807a26351af1fa727092b8cf729d39b6a4042bbde3a503e22ed91",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-preservation-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-preservation-verification-proposition-subject",
+      "weakened_profile_digest": "9ee3ea3dec3f4f1eb84ac5c0a8e1e5df16d9d5eb5e837b638614db839c651160",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cause-preservation-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cause-preservation-verification-verification-methods",
+      "weakened_profile_digest": "33788cb510ed0bec65d3e7232639b07c5b425596fa2d9c8b1b7d37390b3a0462",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/verification_methods",
+          "value": [
+            "analysis",
+            "audit",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-carries-cause-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-carries-cause-modalities",
+      "weakened_profile_digest": "29b5538f019144e3b48cc721948ab2fa21beff0e765fa6caf35e6e3ab617d151",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-carries-cause-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-carries-cause-proposition-operand-0-role",
+      "weakened_profile_digest": "3250f76258f45987fd2962ca6132368d3c5a1986e51fed6f061699d1b9debb7b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-carries-cause-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-carries-cause-proposition-operator",
+      "weakened_profile_digest": "ca9ba2979f5ce2938077339915b20839b5a6a9bac62dbc8355877dbaf4ece9f3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-injected-failure-carries-cause-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-injected-failure-carries-cause-proposition-subject",
+      "weakened_profile_digest": "4f34fc16ea1e0f7a097c77b9c0f3608dd4754bcb5da31621c332bdc0b0a8b0ab",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-state-modalities",
+      "weakened_profile_digest": "dbdae8e2ea3a7e54664cd6fc54a23ee54345c1ea7a88e5eaba5a453d4ffa0ac8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-state-proposition-applicability-mode",
+      "weakened_profile_digest": "bcb95941bca0ecede5b38a2082792046797dece00386c2b4b2aeebc93f604ccf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-state-proposition-applicability-operands",
+      "weakened_profile_digest": "c926a1c2e9696f8355d174ba28b6b68ce687a7b2010790ec4462767a7878b100",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-state-proposition-operand-0-role",
+      "weakened_profile_digest": "b86e8aa3e4c37b3b43e6d1dd9b7f2cb9a7846fbfd5a3580e63dc47cad1fac057",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-state-proposition-operator",
+      "weakened_profile_digest": "bc3fddb793b9ed6ea13ba6f48652f0b67318c54004029772da5105d86502e024",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-original-failure-cause-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-original-failure-cause-state-proposition-subject",
+      "weakened_profile_digest": "753bce5b208ee9a8069b23cbccbdaf9d2e543f6949cf00e13d55ae7c0ec993aa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-cause-observation-records-original-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-cause-observation-records-original-modalities",
+      "weakened_profile_digest": "f05f1946befefc5e2879e5b4d50b7bb91bb532d99ada0b88706434cd0560e065",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-cause-observation-records-original-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-cause-observation-records-original-proposition-applicability-mode",
+      "weakened_profile_digest": "4b5868acb4c921030c88be0c9506babb0c1299daa9135dd665ba466c1af05b10",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-cause-observation-records-original-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-cause-observation-records-original-proposition-applicability-operands",
+      "weakened_profile_digest": "e55cc767a65fe587aa112d7cf8df8869f67eb2aa2411553e7e004953da00e851",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-cause-observation-records-original-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-cause-observation-records-original-proposition-operand-0-role",
+      "weakened_profile_digest": "0fd9a1fe8dfefc79fc9a64c6a79e00ef5ba834ca76c6b279d262d78b8198a895",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-cause-observation-records-original-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-cause-observation-records-original-proposition-operator",
+      "weakened_profile_digest": "fdf544426fea560712fd9b15f0c58c065b9e2df4644a99a1a566f32bee89bc2e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-cause-observation-records-original-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-failure-cause-observation-records-original-proposition-subject",
+      "weakened_profile_digest": "72d77928f1824dc3189aaedd23f0c9f00bc2edbe1729061a944755067440f0b1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-follows-injected-failure-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-follows-injected-failure-modalities",
+      "weakened_profile_digest": "a96d8234d63d1e906dc7c3f771394277b5b74a2e16a7e3ef0ba7de2860839d15",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-follows-injected-failure-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-follows-injected-failure-proposition-applicability-mode",
+      "weakened_profile_digest": "501a00cbc8aec809eada99d93995d512ca5ec171812591a537ab5fedee60704b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-follows-injected-failure-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-follows-injected-failure-proposition-applicability-operands",
+      "weakened_profile_digest": "55acc20967b5c808f54dcdc452d3b63441d77cce22b1f41038f6a7c686126830",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-follows-injected-failure-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-follows-injected-failure-proposition-operand-0-role",
+      "weakened_profile_digest": "e0f71b872f43cdcd76abd3022ffd6b4bba5fa26bbe4c8b6782f8ef2abb77ca04",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-follows-injected-failure-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-follows-injected-failure-proposition-operator",
+      "weakened_profile_digest": "03da12fe74a35b5c9ccfd6aeb96be9eac028177a6fb93dd2061e0c19dd6d1435",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-follows-injected-failure-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-follows-injected-failure-proposition-subject",
+      "weakened_profile_digest": "8bd4a43b6dd2779fea9b6e8628b8cfdea524b8cba7c79358cb61e51121bf770f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-targets-residue-population-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-targets-residue-population-modalities",
+      "weakened_profile_digest": "975cc68b0a12579b11269581d26332dc8d0c4d056132c783bd872771b526d51e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-targets-residue-population-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-targets-residue-population-proposition-applicability-mode",
+      "weakened_profile_digest": "f4e1694450ce2d5ff052e6ed0833eec585b2574eda943e094b2be71f10260106",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-targets-residue-population-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-targets-residue-population-proposition-applicability-operands",
+      "weakened_profile_digest": "3fc86293b278f44f1fc40c5043a27125b77913784ac6e8bc14f476a19fa82bbe",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-targets-residue-population-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-targets-residue-population-proposition-operand-0-role",
+      "weakened_profile_digest": "bd7508fa8833b6b42df70d35ed7c92b5c6c00287f37d89db3c9c8da0b3f5c823",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-targets-residue-population-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-targets-residue-population-proposition-operator",
+      "weakened_profile_digest": "8bda563bb1688e1240116945c35725a34dfec3a0938017f9e9b99b66e0ea9717",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-cleanup-targets-residue-population-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-cleanup-targets-residue-population-proposition-subject",
+      "weakened_profile_digest": "8e6d5c532fd52d6c89930bd550404f2e478c1ed9d700f041fb53da21fa84e7bb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-cleanup-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-cleanup-modalities",
+      "weakened_profile_digest": "0ed14e516ae905d2eead3ffae2007af734921258b34486b870ce2fa9aabc0f55",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-cleanup-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-cleanup-proposition-applicability-mode",
+      "weakened_profile_digest": "bac0065401305300308359cea5a9207cec99631296a3a90501e0229822522a76",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-cleanup-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-cleanup-proposition-applicability-operands",
+      "weakened_profile_digest": "b8510da41a7b7ff96235daeaebf32ca9d68a4dc8a5fc2cc4eff85481021a65f3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-cleanup-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-cleanup-proposition-operand-0-role",
+      "weakened_profile_digest": "0900838a5604b0a8eca97315c7a67eff0c615665a8d426284a16717e3c1dac11",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-cleanup-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-cleanup-proposition-operator",
+      "weakened_profile_digest": "90e10dc96c42a31d52859c320ff06f9bf5d8978999ec37583657e4f0a66969ec",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-cleanup-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-cleanup-proposition-subject",
+      "weakened_profile_digest": "cf0119d4a77c559b49a5c6ff97f9fd7e7068dbe853b50b637271c39df8cbd6ec",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-injected-failure-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-injected-failure-modalities",
+      "weakened_profile_digest": "ec319fb4948e7d75aee02ce4363108aa4bf81de5033a041debf3f26ad42aaf23",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-injected-failure-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-injected-failure-proposition-applicability-mode",
+      "weakened_profile_digest": "ae87cb1ab45d16d1738a5022e37272e5c8042bc45a656098ba502c6a6da4e8bc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-injected-failure-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-injected-failure-proposition-applicability-operands",
+      "weakened_profile_digest": "35b5b820734c6d755ab8d8d8db5292f11de53af51eaacc1f7c64f3a55a177668",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-injected-failure-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-injected-failure-proposition-operand-0-role",
+      "weakened_profile_digest": "0ce14c6f18a3bf3afa6e7624484c428e4a8ffc7bddf35146e8e2448c1c013a2a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/0/role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-injected-failure-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-injected-failure-proposition-operator",
+      "weakened_profile_digest": "fd3d30c0c6c84cb9fa4b9ad9c0f6cdae88225d3fc34e0ad84659920bd7f72540",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-follows-injected-failure-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-settlement-follows-injected-failure-proposition-subject",
+      "weakened_profile_digest": "4803971b87c09b168bbc0279624eaebf4ed9c0c4ec0ad27dd33903efdb47595a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/subject_role",
+          "value": "operation"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-patterns",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-collection-patterns",
+      "variant_id": "reject-collection-patterns",
+      "weakened_profile_digest": "e90781785e7006da3306cc0fad9420d6097d3ce65be4ae4d96d5b13f8689b858",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "attempt-performs-operation"
+            },
+            {
+              "pattern": "failure-injection-precedes-failure"
+            },
+            {
+              "pattern": "injected-failure-targets-operation"
+            },
+            {
+              "pattern": "injected-failure-carries-cause"
+            },
+            {
+              "pattern": "original-failure-cause-state"
+            },
+            {
+              "pattern": "failure-cause-observation-records-original"
+            },
+            {
+              "pattern": "cleanup-follows-injected-failure"
+            },
+            {
+              "pattern": "cleanup-targets-residue-population"
+            },
+            {
+              "pattern": "settlement-follows-cleanup"
+            },
+            {
+              "pattern": "settlement-follows-injected-failure"
+            },
+            {
+              "pattern": "settled-residue-population-cardinality"
+            },
+            {
+              "pattern": "residue-observation-records-population"
+            },
+            {
+              "pattern": "settled-failure-record-preserves-cause"
+            },
+            {
+              "pattern": "settled-failure-cause-state"
+            },
+            {
+              "pattern": "settled-cause-observation-records-state"
+            },
+            {
+              "pattern": "cleanup-verification-reads-settlement"
+            },
+            {
+              "pattern": "residue-population-empty-after-settlement"
+            },
+            {
+              "pattern": "cleanup-verification"
+            },
+            {
+              "pattern": "cause-verification-reads-observations"
+            },
+            {
+              "pattern": "original-failure-cause-preserved"
+            },
+            {
+              "pattern": "cause-preservation-verification"
+            },
+            {
+              "pattern": "cleanup-verifies-empty-residue"
+            },
+            {
+              "pattern": "cause-verifies-preservation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-0-candidate-quantifier",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "reject-collection-0-candidate-quantifier",
+      "variant_id": "reject-collection-0-candidate-quantifier",
+      "weakened_profile_digest": "3fd7d105d19c2148fa54e8710f9fc5412069a3c1278993f8df8c6fdfa29bcf3b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/candidate_quantifier",
+          "value": "any"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-0-kind",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-collection-0-kind",
+      "variant_id": "reject-collection-0-kind",
+      "weakened_profile_digest": "ec86e3afee96a26db4b8d6b2ffb7d9b3ec318af038b6b01b5f4e9927810d95e7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_kind",
+          "value": "closed_set"
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/match_mode",
+          "value": "exact"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-0-purpose",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-collection-0-purpose",
+      "variant_id": "reject-collection-0-purpose",
+      "weakened_profile_digest": "94c744267b9706f1006995eae0ebf3aa8dcf0f741a0c9f17876df762a78af760",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_purpose",
+          "value": "proof_failure_settlement_cleanup_sequence_alternative"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-0-members",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "reject-collection-0-members",
+      "variant_id": "reject-collection-0-members",
+      "weakened_profile_digest": "a727e56de2144ea714b3c1f069b35d1f0bad9dd1ac8b73c847949c9d8c1ddee4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "attempt-performs-operation",
+            "failure-injection-precedes-failure",
+            "injected-failure-carries-cause",
+            "original-failure-cause-state",
+            "cleanup-follows-injected-failure",
+            "cleanup-targets-residue-population",
+            "settlement-follows-cleanup",
+            "settled-residue-population-cardinality",
+            "residue-population-empty-after-settlement",
+            "settled-failure-record-preserves-cause",
+            "settled-failure-cause-state"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-1-candidate-quantifier",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "reject-collection-1-candidate-quantifier",
+      "variant_id": "reject-collection-1-candidate-quantifier",
+      "weakened_profile_digest": "57703e9d794c2bcf560678dab3e8459e0301c2dd67c8adb9364fca73fba4b31e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/candidate_quantifier",
+          "value": "any"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-1-kind",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-collection-1-kind",
+      "variant_id": "reject-collection-1-kind",
+      "weakened_profile_digest": "26b115d03ad2d219115a0389953f597cad1d86d4a1920945bf6ecd64c414f6db",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/collection_kind",
+          "value": "ordered_sequence"
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/match_mode",
+          "value": "subsequence"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-1-purpose",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-collection-1-purpose",
+      "variant_id": "reject-collection-1-purpose",
+      "weakened_profile_digest": "8c73eca91c51d1e2266737ca49feab6f37b21648c6cd92e9da165bb7d8dd5b3e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/collection_purpose",
+          "value": "proof_failure_settlement_cleanup_population_alternative"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-1-members",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "reject-collection-1-members",
+      "variant_id": "reject-collection-1-members",
+      "weakened_profile_digest": "c21f347bb5086dccd0b60c98e0314f8cb299c96cd238c71d270a099a986478a4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/member_claim_pattern_ids",
+          "value": [
+            "attempt-performs-operation",
+            "failure-injection-precedes-failure",
+            "injected-failure-targets-operation",
+            "injected-failure-carries-cause",
+            "original-failure-cause-state",
+            "failure-cause-observation-records-original",
+            "cleanup-follows-injected-failure",
+            "cleanup-targets-residue-population",
+            "settlement-follows-cleanup",
+            "settlement-follows-injected-failure",
+            "settled-residue-population-cardinality",
+            "residue-observation-records-population",
+            "settled-failure-record-preserves-cause",
+            "settled-failure-cause-state",
+            "settled-cause-observation-records-state",
+            "cleanup-verification-reads-settlement",
+            "residue-population-empty-after-settlement",
+            "cleanup-verification",
+            "cause-verification-reads-observations",
+            "original-failure-cause-preserved"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-collapsed-distinct-reference-roles",
+      "variant_id": "reject-collapsed-distinct-reference-roles",
+      "weakened_profile_digest": "c04fd831603cd4f328084731c1057edcbbfc64ad6a353673ac6a3facec7b599b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-wrong-falsifier-condition",
+      "variant_id": "reject-wrong-falsifier-condition",
+      "weakened_profile_digest": "bb0d536532280b5ceed7a19cf64fdbab1d76a6f63716466bbb18e80bdbd40189",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "cleanup-verifies-empty-residue",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "cause_loss_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "cause-verifies-preservation",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "cause_loss_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/applicability_context/operand_roles/0",
+          "value": "cause_loss_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-operation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-operation-types",
+      "weakened_profile_digest": "73479ae81e2ace51a7930f287530e84e4d4b1b78dd31e6b28e7385b7ce574dce",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:operation",
+            "cc:process",
+            "cc:command",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-operation-attempt-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-operation-attempt-types",
+      "weakened_profile_digest": "6f57a45b8a2acd8b8e5bd5370ceb4e184e1ba092cce2a8895b5959636e1010eb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settlement-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-settlement-event-types",
+      "weakened_profile_digest": "fd4998c5dd296163e3a245291fc07609d007df87c4198ac99153f04a81b81c0f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-residue-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-residue-population-types",
+      "weakened_profile_digest": "80feb6d1d0f888af15aac0501237b11bde1c86c78119843fd3716b131af816ae",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:resource",
+            "cc:scope",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-residue-observation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-residue-observation-types",
+      "weakened_profile_digest": "d9ece7bf8bb522535deac1a75197a49a1935f4dd8be79827cce7ef2087cbc8e5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:state"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settled-failure-record-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-settled-failure-record-types",
+      "weakened_profile_digest": "026e70dba6d5d7fc95fcc54e2cfde63dae9551718b163033f11ae1b1ab3d3977",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:state"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-cleanup-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-cleanup-verification-types",
+      "weakened_profile_digest": "68141f1070d0804a32e71f3a63638c21d9d3fb99866d37b5f8861b2081fd6080",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-cause-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-cause-verification-types",
+      "weakened_profile_digest": "d43d6822f3fd259713245e95dcc7c74b4ff2d52edb652f01b3255b611b9f70b2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/15/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-cleanup-failure-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-cleanup-failure-condition-types",
+      "weakened_profile_digest": "f182f0c118d862d452c18a534e0c00fc3e037c9e98d20920c9aa8e44c3ab7377",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/16/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:criterion",
+            "cc:state",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-cause-loss-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-cause-loss-condition-types",
+      "weakened_profile_digest": "4e5981536a6c62c2501b8a0f895b41c1a0b520b9e441ac16014284e28037a2aa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/17/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:criterion",
+            "cc:state",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-injection-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-failure-injection-types",
+      "weakened_profile_digest": "8df9c1394c2dd5d5c4fc98402cfe9e9283e6ba1766d9d08e4036e853c10fb14c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-injected-failure-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-injected-failure-types",
+      "weakened_profile_digest": "6915fa60d0f28c5a282233a9591517cbc9f45cb73527fc2329a3241309261740",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:artifact",
+            "cc:state"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-cause-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-failure-cause-types",
+      "weakened_profile_digest": "072604589445d8a55dedf88f26792b9c78027912e85d418219674d679102eea3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:state",
+            "cc:operation"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-original-cause-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-original-cause-state-types",
+      "weakened_profile_digest": "e345267e562e704481de3872c8ffca9e828ca02fb383d4835fe5e3c64b3979d3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settled-cause-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-settled-cause-state-types",
+      "weakened_profile_digest": "4e392cf7d9d79f3bf701aabb6d872076c71f37fea4d6e52613a5247f53be91e0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-cause-observation-at-failure-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-cause-observation-at-failure-types",
+      "weakened_profile_digest": "6388b662ff78d50e50adefa972eae1e2d5edfb1215f6f072a3f548d2afcf09bc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:state"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-cause-observation-at-settlement-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-cause-observation-at-settlement-types",
+      "weakened_profile_digest": "59d299433ccdedf33b01c53173fe66012e5f90dd6e2aace79601f466cf3dacd1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:state"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-cleanup-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-variations-base",
+      "variant_id": "role-cleanup-event-types",
+      "weakened_profile_digest": "fae4238779eaf215bbe4b4cff2f0c87654eb780996a6c4bc49f360415a704fc6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:process",
+            "cc:artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "reject-swapped-verification-targets",
+      "variant_id": "reject-swapped-verification-targets",
+      "weakened_profile_digest": "710aadc3c171dd95607ae4a6b74058ab2a6e84ae2a928010e5e7fa6763e86603",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "cleanup-verifies-empty-residue",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "cleanup-verification",
+              "target_claim_pattern_id": "original-failure-cause-preserved"
+            },
+            {
+              "pattern_id": "cause-verifies-preservation",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "cause-preservation-verification",
+              "target_claim_pattern_id": "residue-population-empty-after-settlement"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/subject_role",
+          "value": "settled_cause_state"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/operator",
+          "value": "reference:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/applicability_context/operand_roles/0",
+          "value": "cause_loss_condition"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/operands/0",
+          "value": {
+            "kind": "reference",
+            "role": "original_cause_state"
+          }
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/falsifying_proposition_template/subject_role",
+          "value": "residue_population"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/falsifying_proposition_template/operator",
+          "value": "number:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/falsifying_proposition_template/applicability_context/operand_roles/0",
+          "value": "cleanup_failure_condition"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/20/falsifying_proposition_template/operands/0",
+          "value": {
+            "kind": "number",
+            "value": 0
+          }
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context/operand_roles/0",
+          "value": "cause_loss_condition"
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/1/applicability_context/operand_roles/0",
+          "value": "cleanup_failure_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "reject-status-only",
+      "variant_id": "reject-status-only",
+      "weakened_profile_digest": "e83e8b756450738a24b106d3a575ad035d47ae449e1510b90c212a50f4cdc016",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "failure-injection-precedes-failure"
+              },
+              {
+                "pattern": "injected-failure-targets-operation"
+              },
+              {
+                "pattern": "injected-failure-carries-cause"
+              },
+              {
+                "pattern": "original-failure-cause-state"
+              },
+              {
+                "pattern": "failure-cause-observation-records-original"
+              },
+              {
+                "pattern": "cleanup-follows-injected-failure"
+              },
+              {
+                "pattern": "cleanup-targets-residue-population"
+              },
+              {
+                "pattern": "settlement-follows-cleanup"
+              },
+              {
+                "pattern": "settlement-follows-injected-failure"
+              },
+              {
+                "pattern": "settled-residue-population-cardinality"
+              },
+              {
+                "pattern": "residue-observation-records-population"
+              },
+              {
+                "pattern": "settled-failure-record-preserves-cause"
+              },
+              {
+                "pattern": "settled-failure-cause-state"
+              },
+              {
+                "pattern": "settled-cause-observation-records-state"
+              },
+              {
+                "pattern": "cleanup-verification-reads-settlement"
+              },
+              {
+                "pattern": "residue-population-empty-after-settlement"
+              },
+              {
+                "pattern": "cleanup-verification"
+              },
+              {
+                "pattern": "cause-verification-reads-observations"
+              },
+              {
+                "pattern": "original-failure-cause-preserved"
+              },
+              {
+                "pattern": "cause-preservation-verification"
+              },
+              {
+                "pattern": "cleanup-verifies-empty-residue"
+              },
+              {
+                "pattern": "cause-verifies-preservation"
+              },
+              {
+                "pattern": "proof-sequence"
+              },
+              {
+                "pattern": "proof-population"
+              }
+            ]
+          }
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "failure-injection-precedes-failure",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_injection",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "injected_failure"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "injected-failure-targets-operation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "injected_failure",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "injected-failure-carries-cause",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "injected_failure",
+                "operator": "reference:has_property",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_cause"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "original-failure-cause-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_cause",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "injected_failure"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "original_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-cause-observation-records-original",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cause_observation_at_failure",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "injected_failure"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "original_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cleanup-follows-injected-failure",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cleanup_event",
+                "operator": "reference:follows",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "injected_failure"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cleanup-targets-residue-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cleanup_event",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "injected_failure"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "residue_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settlement-follows-cleanup",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settlement_event",
+                "operator": "reference:follows",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "cleanup_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settlement-follows-injected-failure",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settlement_event",
+                "operator": "reference:follows",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "operation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "injected_failure"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-residue-population-cardinality",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "residue_population",
+                "operator": "number:has_cardinality",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "residue_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "residue-observation-records-population",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "residue_observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "residue_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-failure-record-preserves-cause",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settled_failure_record",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_cause"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-failure-cause-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_cause",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-cause-observation-records-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cause_observation_at_settlement",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cleanup-verification-reads-settlement",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cleanup_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "residue_observation"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settlement_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "residue-population-empty-after-settlement",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "residue_population",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value": 0
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cleanup-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cleanup_verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "residue_population"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "residue_population",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "cleanup_failure_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value": 0
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "audit",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ]
+            },
+            {
+              "pattern_id": "cause-verification-reads-observations",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cause_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "cause_observation_at_failure"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "cause_observation_at_settlement"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settled_failure_record"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "original-failure-cause-preserved",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settled_cause_state",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "original_cause_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "cause-preservation-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "cause_verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_cause"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "settled_cause_state",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "cause_loss_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "original_cause_state"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "audit",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ]
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "failure-injection-precedes-failure",
+            "injected-failure-carries-cause",
+            "original-failure-cause-state",
+            "cleanup-follows-injected-failure",
+            "cleanup-targets-residue-population",
+            "settlement-follows-cleanup",
+            "settled-residue-population-cardinality",
+            "residue-population-empty-after-settlement",
+            "settled-failure-record-preserves-cause",
+            "settled-failure-cause-state",
+            "original-failure-cause-preserved"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/member_claim_pattern_ids",
+          "value": [
+            "failure-injection-precedes-failure",
+            "injected-failure-targets-operation",
+            "injected-failure-carries-cause",
+            "original-failure-cause-state",
+            "failure-cause-observation-records-original",
+            "cleanup-follows-injected-failure",
+            "cleanup-targets-residue-population",
+            "settlement-follows-cleanup",
+            "settlement-follows-injected-failure",
+            "settled-residue-population-cardinality",
+            "residue-observation-records-population",
+            "settled-failure-record-preserves-cause",
+            "settled-failure-cause-state",
+            "settled-cause-observation-records-state",
+            "cleanup-verification-reads-settlement",
+            "residue-population-empty-after-settlement",
+            "cleanup-verification",
+            "cause-verification-reads-observations",
+            "original-failure-cause-preserved",
+            "cause-preservation-verification"
+          ]
+        }
+      ]
+    }
+  ]
+}

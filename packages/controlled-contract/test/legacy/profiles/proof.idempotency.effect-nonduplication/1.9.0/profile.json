@@ -1,0 +1,854 @@
+{
+  "schema_version": "controlled-contract-verification-profile.experimental.v0.1",
+  "profile_id": "proof.idempotency.effect-nonduplication",
+  "profile_version": "1.9.0",
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "reference_roles": [
+    {
+      "role": "operation",
+      "allowed_type_terms": [
+        "cc:operation"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "first_invocation",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "second_invocation",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "first_input",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "second_input",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_subject",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "state_after_first",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "state_before_second",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "state_after_second",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "observation_after_first",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "observation_before_second",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "observation_after_second",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "intervening_reset_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "duplicate_effect_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "expected_effect_cardinality",
+      "cardinality": "zero_or_one",
+      "number_type": "integer",
+      "minimum": 1
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "first_invocation",
+        "second_invocation"
+      ]
+    },
+    {
+      "roles": [
+        "observation_after_first",
+        "observation_before_second",
+        "observation_after_second"
+      ]
+    },
+    {
+      "roles": [
+        "state_after_first",
+        "state_before_second"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "identical-input-binding",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "same_reference",
+      "roles": [
+        "first_input",
+        "second_input"
+      ]
+    },
+    {
+      "pattern_id": "distinct-effect-state-binding",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "distinct_references",
+      "roles": [
+        "state_after_first",
+        "state_after_second"
+      ]
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "idempotent-effect",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "state_after_second",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "second_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "second-effect-cardinality",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "observation_after_second",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "second_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "expected_effect_cardinality"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-invocation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_invocation",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-input",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_invocation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "first_input"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-effect-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-observation-record",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "observation_after_first",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-observation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "observation_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "pre-second-effect-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "second_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_before_second"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "pre-second-observation-record",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "observation_before_second",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "second_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_before_second"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "pre-second-observation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "second_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "observation_before_second"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "state-continuity",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "state_before_second",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "until",
+          "operand_roles": [
+            "second_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "second-invocation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "second_invocation",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "second-input",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "second_invocation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "second_input"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "second-effect-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "second_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_after_second"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "second-observation-record",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "observation_after_second",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "second_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_after_second"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "second-observation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "second_invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "observation_after_second"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "idempotency-equivalence-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "state_after_second",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "counterfactual",
+          "operand_roles": [
+            "duplicate_effect_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "idempotency-cardinality-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "observation_after_second",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "counterfactual",
+          "operand_roles": [
+            "duplicate_effect_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "expected_effect_cardinality"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "continuity-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_subject"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "state_before_second",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "counterfactual",
+          "operand_roles": [
+            "intervening_reset_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "state_after_first"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-target-equivalence",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "idempotency-equivalence-verification",
+      "target_claim_pattern_id": "idempotent-effect"
+    },
+    {
+      "pattern_id": "verification-target-cardinality",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "idempotency-cardinality-verification",
+      "target_claim_pattern_id": "second-effect-cardinality"
+    },
+    {
+      "pattern_id": "verification-target-state-continuity",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "continuity-verification",
+      "target_claim_pattern_id": "state-continuity"
+    }
+  ],
+  "collection_patterns": [
+    {
+      "pattern_id": "proof-sequence",
+      "required_by_stage": "pre_dispatch",
+      "collection_kind": "ordered_sequence",
+      "match_mode": "subsequence",
+      "candidate_quantifier": "all_covering",
+      "collection_purpose": "profile_proof_sequence",
+      "member_claim_pattern_ids": [
+        "first-invocation",
+        "first-effect-state",
+        "first-observation-record",
+        "first-observation",
+        "pre-second-effect-state",
+        "pre-second-observation-record",
+        "pre-second-observation",
+        "second-invocation",
+        "second-effect-state",
+        "second-observation-record",
+        "second-observation"
+      ]
+    },
+    {
+      "pattern_id": "proof-population",
+      "required_by_stage": "pre_dispatch",
+      "collection_kind": "closed_set",
+      "match_mode": "exact",
+      "candidate_quantifier": "all_covering",
+      "collection_purpose": "profile_proof_population",
+      "member_claim_pattern_ids": [
+        "first-invocation",
+        "first-effect-state",
+        "first-observation-record",
+        "first-observation",
+        "pre-second-effect-state",
+        "pre-second-observation-record",
+        "pre-second-observation",
+        "second-invocation",
+        "second-effect-state",
+        "second-observation-record",
+        "second-observation"
+      ]
+    }
+  ],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "first-invocation"
+      },
+      {
+        "pattern": "first-input"
+      },
+      {
+        "pattern": "first-effect-state"
+      },
+      {
+        "pattern": "first-observation-record"
+      },
+      {
+        "pattern": "first-observation"
+      },
+      {
+        "pattern": "pre-second-effect-state"
+      },
+      {
+        "pattern": "pre-second-observation-record"
+      },
+      {
+        "pattern": "pre-second-observation"
+      },
+      {
+        "pattern": "state-continuity"
+      },
+      {
+        "pattern": "continuity-verification"
+      },
+      {
+        "pattern": "verification-target-state-continuity"
+      },
+      {
+        "pattern": "second-invocation"
+      },
+      {
+        "pattern": "second-input"
+      },
+      {
+        "pattern": "identical-input-binding"
+      },
+      {
+        "pattern": "second-effect-state"
+      },
+      {
+        "pattern": "second-observation-record"
+      },
+      {
+        "pattern": "second-observation"
+      },
+      {
+        "pattern": "proof-sequence"
+      },
+      {
+        "pattern": "proof-population"
+      },
+      {
+        "any_of": [
+          {
+            "all_of": [
+              {
+                "pattern": "idempotent-effect"
+              },
+              {
+                "pattern": "distinct-effect-state-binding"
+              },
+              {
+                "pattern": "idempotency-equivalence-verification"
+              },
+              {
+                "pattern": "verification-target-equivalence"
+              }
+            ]
+          },
+          {
+            "all_of": [
+              {
+                "pattern": "second-effect-cardinality"
+              },
+              {
+                "pattern": "idempotency-cardinality-verification"
+              },
+              {
+                "pattern": "verification-target-cardinality"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

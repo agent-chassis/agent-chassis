@@ -20,6 +20,58 @@ overhead. A payload that fits that single-copy envelope remains inline; a larger
 payload keeps the existing file-backed spill descriptor, content reference,
 ranged continuation, refusal, and error-envelope contracts.
 
+## Controlled-contract adapter boundary
+
+The structured controlled-contract routes are thin repository adapters over
+the public `@agent-chassis/controlled-contract` library. Wiki-core resolves
+canonical `wiki/contracts` carriers and the fixed ignored assessment store;
+wiki-MCP supplies only the configured repository and existing role, schema,
+response, error-envelope, compact/spill, and discovery machinery. The adapters
+do not spawn package CLIs or reproduce vocabulary, validation, intent, pack,
+binding, proof-plan, assessment, exact-binding, capture, or digest semantics.
+
+Every caller input is typed and bounded. Repository roots, canonical carrier
+paths, evaluation-input filenames named by a canonical proof-plan request,
+package resources, profiles, capture roots, and bundle publication locations
+are resolved server-side. Canonical contract/evaluation-input authoring and
+package-produced proof-plan publication use exact content-digest CAS. Normal
+agent authoring uses expected-absence create, bounded selective query, and typed
+server-side patch; fresh sessions first request only the needed package-backed
+schema target, page/filter identities, query exact nodes, patch by returned
+identity, recover proof-plan metadata, rebuild by its current digest, assess,
+and retrieve only targeted proof/artifact detail. Complete-carrier
+read/replacement is operator recovery only.
+
+For structured proof-plan-request create and selected-pack upsert, callers omit
+`evaluation_input_path`. Wiki-core derives the exact canonical evaluation-input
+carrier basename from the request's `wk_id` and optional `focus`, injects it
+before package validation, and persists that package-compatible request.
+Caller-supplied paths are never used for resolution and must exactly match the
+derived basename when present; absolute, traversal, cross-WK, differently
+focused, and substrate-selecting values refuse before persistence. Existing
+canonical requests remain readable and buildable.
+
+Bounded authoring projections apply their byte limit to the final pretty-JSON
+MCP structured response, after production content references and integrity
+metadata are present. Spill SHA-256 and byte counts come from the exact stored
+artifact bytes. Oversized index identities and targeted proof-detail entries
+advance by one cursor position and expose only an item-scoped recoverable
+reference, so a successful continuation cannot repeat its supplied cursor.
+Binding inspection uses the same bounds and item recovery; package paging and cursors
+bind every carrier, pack, selector, result, position, and evaluation-input state.
+Assessment publication remains the package's content-addressed ignored bundle; the compact
+result is an index into its fixed files, and large explicit artifact reads flow
+through the existing spill/content-reference protocol.
+
+The role profile remains the sole exposure policy. Controlled-contract
+create/patch authoring and proof-plan builds are orchestrator/operator-only;
+reviewers and redteams receive read-only authoring description, query, proof
+selection/description/inspection, assessment, and artifact routes, and workers receive no
+controlled-contract route,
+including no pack-selection capability. See
+[MCP Operation Reference](mcp-operation-reference.md#controlled-contract-operations)
+for the exact operation population.
+
 ## Transport
 
 The only model-to-server transport is transparent stdio over one launcher-minted

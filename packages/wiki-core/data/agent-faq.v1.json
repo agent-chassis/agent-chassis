@@ -399,6 +399,18 @@
       "related_docs": [
         "docs/agent-launch-confinement-mcp-conduit.md"
       ]
+    },
+    {
+      "id": "proof-pack-binding-result-too-large",
+      "title": "Legacy complete proof-pack binding inspection exceeds its presentation bound",
+      "symptom": "Binding inspection refuses with proof_pack_binding_result_too_large.",
+      "cause": "The legacy complete-inspection projection exceeded its 65,536-byte presentation bound. This does not mean the proof plan or its complete supplied bindings are invalid.",
+      "actor": "agent",
+      "tier_visibility": ["free_local"],
+      "routes": [{ "tool": "workspace_controlled_proof_pack_bindings_inspect",
+        "note": "Use targeted roles/statuses and digest-bound pagination. Do not retry complete inspection, read the complete carrier, invoke the package CLI as fallback, or generate a token-heavy substitute projection." }],
+      "related_codes": ["proof_pack_binding_result_too_large"],
+      "related_docs": ["docs/mcp-operation-reference.md"]
     }
   ]
 }

@@ -1,0 +1,2733 @@
+{
+  "schema_version": "controlled-contract-proof-pack-adequacy.experimental.v0.1",
+  "profile_id": "proof.result-shape.conformance",
+  "profile_version": "1.0.0",
+  "profile_digest": "6f93c19165daf4194aedbe6a376b1e55165f918baf4f29593a32ba9672655f11",
+  "guarantee": "When one declared operation returns one grounded result governed by one grounded schema, the declared observed-result, required-member, optional-member, allowed-member, forbidden-member, allowed-shape, and forbidden-shape populations are complete; every declared required typed member descriptor is present in the observed result population, every observed typed member descriptor belongs to the exact allowed population, every declared forbidden member descriptor is absent, the observed result shape belongs to the exact allowed-shape population and not to the exact forbidden-shape population, and the emitted result count equals the exact observed-member population cardinality.",
+  "guarantee_digest": "77dd35821e275dadeb0b82724b51343668e1b595860742aea18e6c3570f85e46",
+  "required_positive_cases": [
+    "invoice-object-result",
+    "telemetry-map-result",
+    "command-tuple-result"
+  ],
+  "required_mutant_kills": [
+    "required-member-missing",
+    "undeclared-extra-member",
+    "required-member-wrong-type",
+    "explicitly-forbidden-member",
+    "explicitly-forbidden-shape",
+    "result-count-mismatch"
+  ],
+  "required_profile_rejections": [
+    "status-only-verification",
+    "suite-covers-symbol-negation-only",
+    "missing-operation-result-stimulus",
+    "missing-result-population-stimulus",
+    "missing-required-member-comparison",
+    "missing-extra-member-comparison",
+    "missing-forbidden-member-assertions",
+    "missing-allowed-shape-comparison",
+    "missing-forbidden-shape-comparison",
+    "missing-count-comparison",
+    "missing-verification-read-spine",
+    "wrong-required-member-falsifier",
+    "ambiguous-duplicate-shape-claim",
+    "missing-result-role-binding",
+    "ungrounded-result-profile-term",
+    "ungrounded-schema-profile-term",
+    "collapsed-result-schema-identities",
+    "unbound-result-count"
+  ],
+  "explicit_exclusions": [
+    "authored-schema-truthfulness",
+    "identity-target-existence",
+    "delivered-test-implementation",
+    "member-value-business-semantics",
+    "nested-recursive-shape-validation",
+    "conditional-cross-member-invariants",
+    "serialization-and-transport-media",
+    "optional-member-presence",
+    "schema-version-negotiation"
+  ],
+  "executable_module": "packages/controlled-contract/test/proof-packs/result-shape-conformance-v1-adequacy.mjs",
+  "executable_module_digest": "f8566b211c9ff19fcda8323accdce60e9f53f05371888018b164b5bcfb70d500",
+  "executable_dependency_digests": [
+    {
+      "path": "packages/controlled-contract/lib/native-contract-carrier-v034.mjs",
+      "sha256": "39d1b01fc19379762f68f79679925ee9767a47780b9e95ed80dda9da53a256af"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-carrier.mjs",
+      "sha256": "d66af02e8de4214cb2623dad624b48b243e445e7a6b70ee7ba244397dcc9b67a"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
+      "sha256": "5ae748ea3ea224ca2a0c9aa7320876d114345b3de336f1f91001f03c7427cb23"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
+      "sha256": "99802fbcb40c48c9976ea3fc141e85cc531d40cba2861e273aff1c80611729df"
+    },
+    {
+      "path": "packages/controlled-contract/lib/population-semantics-v034.mjs",
+      "sha256": "adf234cd61cce8b8fc25358b2aecd5f996198a976652a85b698d993cb809d5ac"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-v034.mjs",
+      "sha256": "d0bf11ef4a41c0d24e89f4641c2bd5fb669d265993967964f1287d4af6187d87"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile.mjs",
+      "sha256": "80ed26da14823a639460053a25a6dbd99de010ab0cbe669bfd40d71a294aa03d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/vocabulary-v034.mjs",
+      "sha256": "0685d29caed0c39c846f67552c99f30469647d0f81e9f8cf8394d2823e0ba0a0"
+    },
+    {
+      "path": "packages/controlled-contract/test/certification/profiles/proof.result-shape.conformance/1.0.0/profile.json",
+      "sha256": "364c463aaa9a72cc2623a6529dcd43d62baf3677585d080bc7a9ebae5e40f019"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/result-shape-conformance-v1-fixture.mjs",
+      "sha256": "0d652262ef294f189ba4d44cbd0fd8aae0c3065564eee42d53045476a08ba4f5"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/result-shape-conformance-v1-harness.mjs",
+      "sha256": "b288afe4d54954be8de11eaaa32c977662746cbf75f1feb0be7ca361bd360e77"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/proof-pack-adequacy-constants.mjs",
+      "sha256": "d55f40522f447e2541469ff531375a149f2c78703434bbf00914ac0c19d40a55"
+    },
+    {
+      "path": "packages/controlled-contract/vocabulary/cv.experimental.0.34.mjs",
+      "sha256": "cc7ba4aa6278640348d274c4095a494f55762de6034c98596d65df7a36a54779"
+    }
+  ],
+  "negative_contract_fixtures": [
+    {
+      "fixture_id": "aggregate-constraint-variations",
+      "path": "packages/controlled-contract/test/certification/profiles/proof.result-shape.conformance/1.0.0/negative-fixtures/aggregate-constraint-variations.json",
+      "sha256": "59df4ff3654735cd2201021d3dea5c84024b5547f7c8c9738b8874667bdc4866"
+    },
+    {
+      "fixture_id": "reference-role-surface-variations",
+      "path": "packages/controlled-contract/test/certification/profiles/proof.result-shape.conformance/1.0.0/negative-fixtures/reference-role-surface-variations.json",
+      "sha256": "deb34b4f4244f876a35567110c2020314e96ed6ccb71c1528c0a004bd204fd36"
+    },
+    {
+      "fixture_id": "semantic-surface-variations",
+      "path": "packages/controlled-contract/test/certification/profiles/proof.result-shape.conformance/1.0.0/negative-fixtures/semantic-surface-variations.json",
+      "sha256": "46452e84c825805bfa86526d28def470b3ee09b40b921434e2dd583daa292326"
+    }
+  ],
+  "coverage_witness_index": {
+    "path": "packages/controlled-contract/test/certification/profiles/proof.result-shape.conformance/1.0.0/witness-profile-weakenings.json",
+    "sha256": "821c89ae2f42d4082f9a8975dad94227f1656b3da84920eed3fe9560daf3d733"
+  },
+  "guarantee_critical_profile_surfaces": [
+    {
+      "surface_id": "claim-patterns",
+      "profile_json_pointer": "/claim_patterns",
+      "surface_digest": "4313927693756becd9c3ad811f8af9c18c8ac7aaea6c14678ae58037d7662738",
+      "coverage": [
+        {
+          "weakening_class": "deletion",
+          "negative_fixture_ids": [
+            "aggregate-constraint-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-operation-returns-result-modalities",
+      "profile_json_pointer": "/claim_patterns/0/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-operation-returns-result-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/operands/0/role",
+      "surface_digest": "d9fd9a3d81d750e6edc61aec66e7c4112f7af7c34ebe0a0d20189464ec9df135",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-operation-returns-result-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/operator",
+      "surface_digest": "ef4edf61dd65e4b6fc7b5840dd2e976652e24b252414cb79263e1b9c02bdcfde",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-operation-returns-result-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/subject_role",
+      "surface_digest": "063bd51742f1ca8f53066539d5ff51551e71684917181d906c49789759c4bfff",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-carries-member-population-modalities",
+      "profile_json_pointer": "/claim_patterns/1/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-carries-member-population-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operands/0/role",
+      "surface_digest": "108d3b44ea878417f788c7aa1f250a5bf7b1d10cd75589bdc32f0b2910aaec61",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-carries-member-population-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operator",
+      "surface_digest": "9ff311c372a276065d8c5dfdff6d8c7276ac667a301d4f9259a7c09cd1f4f7af",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-carries-member-population-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/subject_role",
+      "surface_digest": "d9fd9a3d81d750e6edc61aec66e7c4112f7af7c34ebe0a0d20189464ec9df135",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-members-allowed-modalities",
+      "profile_json_pointer": "/claim_patterns/10/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-members-allowed-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/10/proposition_template/operator",
+      "surface_digest": "187efa0f8bbfbc331618cdde7bd3073087d29eb62ebe2e27adcece8db6adad7e",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-shape-allowed-modalities",
+      "profile_json_pointer": "/claim_patterns/11/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-shape-allowed-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/11/proposition_template/operator",
+      "surface_digest": "30b9303099917570af1160dfa3d84f5de1109989fee94950a4a644e1155b2402",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-shape-not-forbidden-modalities",
+      "profile_json_pointer": "/claim_patterns/12/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-shape-not-forbidden-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/12/proposition_template/operator",
+      "surface_digest": "243ceaf55c07c928d06391b44dc72216bc6785664100b5ff2b60b4a1fb00b3a1",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-count-complete-modalities",
+      "profile_json_pointer": "/claim_patterns/13/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-count-complete-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/13/proposition_template/operator",
+      "surface_digest": "720a6bab94e6cf90a97fe0a900fb8bf75cb59fd940889c8b97e3e115a09d0589",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-modalities",
+      "profile_json_pointer": "/claim_patterns/14/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/0/role",
+      "surface_digest": "d9fd9a3d81d750e6edc61aec66e7c4112f7af7c34ebe0a0d20189464ec9df135",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-1-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/1/role",
+      "surface_digest": "a50dde9a71a786a7f314d0c04853ccdd8b67680fee3304e4a5a4f905e65e1714",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-2-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/2/role",
+      "surface_digest": "108d3b44ea878417f788c7aa1f250a5bf7b1d10cd75589bdc32f0b2910aaec61",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-3-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/3/role",
+      "surface_digest": "a662ebd483cff1a03a5153c9e8e6a770fef6ffe570e2ac17034a2399e1930162",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-4-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/4/role",
+      "surface_digest": "c395502bd1b83bb5b4a867c8f68a2389853f475fe8d20806f758348ad02532a1",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-5-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/5/role",
+      "surface_digest": "19ec8211d52857c5828e73c28951decc979c740c1424b73081c4b593b24d3a97",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-6-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/6/role",
+      "surface_digest": "eb5fca9f4cf5d14708c15d8ba6b6f3be097a0ca2b03de32d2e431239d00594a4",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-7-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/7/role",
+      "surface_digest": "dd2cafce5c1e6bb1740c744b021b6547d2b43871bc592260b095b7b6bbcbbaee",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-8-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/8/role",
+      "surface_digest": "0d42d9eebeff6da96561b762e8c3da07c081502b3ea19273dbf4e33b5cda58ac",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operand-9-role",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operands/9/role",
+      "surface_digest": "3d109ae3ef6cc8a548ed76d286f5b9bd5dfeb2b61d0835fc06cb37e4082fbefe",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/operator",
+      "surface_digest": "2bbe4a2f7455a6354228eb93fd790f924f44117ec8406df9965755849387c77e",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/subject_role",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-members-verification-modalities",
+      "profile_json_pointer": "/claim_patterns/15/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-members-verification-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/15/proposition_template/operands/0/role",
+      "surface_digest": "a662ebd483cff1a03a5153c9e8e6a770fef6ffe570e2ac17034a2399e1930162",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-members-verification-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/15/proposition_template/operator",
+      "surface_digest": "c79c541c7889e10e0d8dcef16aedd91213c1886202272511c76a19cde6afbcf7",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-members-verification-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/15/proposition_template/subject_role",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-members-verification-verification-methods",
+      "profile_json_pointer": "/claim_patterns/15/verification_methods",
+      "surface_digest": "662e97a82ceee8aee845e4142700ebd6d6ccbffe0965a172baffa78463400020",
+      "coverage": [
+        {
+          "weakening_class": "verification_method_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-modalities",
+      "profile_json_pointer": "/claim_patterns/16/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/16/proposition_template/operands/0/role",
+      "surface_digest": "c395502bd1b83bb5b4a867c8f68a2389853f475fe8d20806f758348ad02532a1",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/16/proposition_template/operator",
+      "surface_digest": "c79c541c7889e10e0d8dcef16aedd91213c1886202272511c76a19cde6afbcf7",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/16/proposition_template/subject_role",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-verification-methods",
+      "profile_json_pointer": "/claim_patterns/16/verification_methods",
+      "surface_digest": "662e97a82ceee8aee845e4142700ebd6d6ccbffe0965a172baffa78463400020",
+      "coverage": [
+        {
+          "weakening_class": "verification_method_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-modalities",
+      "profile_json_pointer": "/claim_patterns/17/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/17/proposition_template/operands/0/role",
+      "surface_digest": "dd2cafce5c1e6bb1740c744b021b6547d2b43871bc592260b095b7b6bbcbbaee",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/17/proposition_template/operator",
+      "surface_digest": "c79c541c7889e10e0d8dcef16aedd91213c1886202272511c76a19cde6afbcf7",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/17/proposition_template/subject_role",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-verification-methods",
+      "profile_json_pointer": "/claim_patterns/17/verification_methods",
+      "surface_digest": "662e97a82ceee8aee845e4142700ebd6d6ccbffe0965a172baffa78463400020",
+      "coverage": [
+        {
+          "weakening_class": "verification_method_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-modalities",
+      "profile_json_pointer": "/claim_patterns/18/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/18/proposition_template/operands/0/role",
+      "surface_digest": "0d42d9eebeff6da96561b762e8c3da07c081502b3ea19273dbf4e33b5cda58ac",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/18/proposition_template/operator",
+      "surface_digest": "c79c541c7889e10e0d8dcef16aedd91213c1886202272511c76a19cde6afbcf7",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/18/proposition_template/subject_role",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-verification-methods",
+      "profile_json_pointer": "/claim_patterns/18/verification_methods",
+      "surface_digest": "662e97a82ceee8aee845e4142700ebd6d6ccbffe0965a172baffa78463400020",
+      "coverage": [
+        {
+          "weakening_class": "verification_method_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-count-verification-modalities",
+      "profile_json_pointer": "/claim_patterns/19/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-count-verification-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/19/proposition_template/operands/0/role",
+      "surface_digest": "3d109ae3ef6cc8a548ed76d286f5b9bd5dfeb2b61d0835fc06cb37e4082fbefe",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-count-verification-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/19/proposition_template/operator",
+      "surface_digest": "c79c541c7889e10e0d8dcef16aedd91213c1886202272511c76a19cde6afbcf7",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-count-verification-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/19/proposition_template/subject_role",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-count-verification-verification-methods",
+      "profile_json_pointer": "/claim_patterns/19/verification_methods",
+      "surface_digest": "662e97a82ceee8aee845e4142700ebd6d6ccbffe0965a172baffa78463400020",
+      "coverage": [
+        {
+          "weakening_class": "verification_method_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-declares-shape-modalities",
+      "profile_json_pointer": "/claim_patterns/2/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-declares-shape-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/operands/0/role",
+      "surface_digest": "eb5fca9f4cf5d14708c15d8ba6b6f3be097a0ca2b03de32d2e431239d00594a4",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-declares-shape-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/operator",
+      "surface_digest": "77eb2ff87888eb0ce6955873a6edc3e656b401100ed49d586e09641acaf0558c",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-declares-shape-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/subject_role",
+      "surface_digest": "d9fd9a3d81d750e6edc61aec66e7c4112f7af7c34ebe0a0d20189464ec9df135",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-modalities",
+      "profile_json_pointer": "/claim_patterns/3/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/0/role",
+      "surface_digest": "a662ebd483cff1a03a5153c9e8e6a770fef6ffe570e2ac17034a2399e1930162",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-proposition-operand-1-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/1/role",
+      "surface_digest": "afb5f13accb507e8f2edc77fd165c7764ab596f8e46181832e16505afd9bc97a",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-proposition-operand-2-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/2/role",
+      "surface_digest": "c395502bd1b83bb5b4a867c8f68a2389853f475fe8d20806f758348ad02532a1",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-proposition-operand-3-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/3/role",
+      "surface_digest": "19ec8211d52857c5828e73c28951decc979c740c1424b73081c4b593b24d3a97",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operator",
+      "surface_digest": "77eb2ff87888eb0ce6955873a6edc3e656b401100ed49d586e09641acaf0558c",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/subject_role",
+      "surface_digest": "a50dde9a71a786a7f314d0c04853ccdd8b67680fee3304e4a5a4f905e65e1714",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-shape-populations-modalities",
+      "profile_json_pointer": "/claim_patterns/4/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-shape-populations-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/operands/0/role",
+      "surface_digest": "dd2cafce5c1e6bb1740c744b021b6547d2b43871bc592260b095b7b6bbcbbaee",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-shape-populations-proposition-operand-1-role",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/operands/1/role",
+      "surface_digest": "0d42d9eebeff6da96561b762e8c3da07c081502b3ea19273dbf4e33b5cda58ac",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-shape-populations-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/operator",
+      "surface_digest": "77eb2ff87888eb0ce6955873a6edc3e656b401100ed49d586e09641acaf0558c",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-schema-declares-shape-populations-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/subject_role",
+      "surface_digest": "a50dde9a71a786a7f314d0c04853ccdd8b67680fee3304e4a5a4f905e65e1714",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-population-allowed-modalities",
+      "profile_json_pointer": "/claim_patterns/5/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-population-allowed-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operands/0/role",
+      "surface_digest": "c395502bd1b83bb5b4a867c8f68a2389853f475fe8d20806f758348ad02532a1",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-population-allowed-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operator",
+      "surface_digest": "187efa0f8bbfbc331618cdde7bd3073087d29eb62ebe2e27adcece8db6adad7e",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-population-allowed-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/subject_role",
+      "surface_digest": "a662ebd483cff1a03a5153c9e8e6a770fef6ffe570e2ac17034a2399e1930162",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-optional-population-allowed-modalities",
+      "profile_json_pointer": "/claim_patterns/6/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-optional-population-allowed-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/operands/0/role",
+      "surface_digest": "c395502bd1b83bb5b4a867c8f68a2389853f475fe8d20806f758348ad02532a1",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-optional-population-allowed-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/operator",
+      "surface_digest": "187efa0f8bbfbc331618cdde7bd3073087d29eb62ebe2e27adcece8db6adad7e",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-optional-population-allowed-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/subject_role",
+      "surface_digest": "afb5f13accb507e8f2edc77fd165c7764ab596f8e46181832e16505afd9bc97a",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-forbidden-member-absent-modalities",
+      "profile_json_pointer": "/claim_patterns/7/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-forbidden-member-absent-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operands/0/role",
+      "surface_digest": "108d3b44ea878417f788c7aa1f250a5bf7b1d10cd75589bdc32f0b2910aaec61",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-forbidden-member-absent-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operator",
+      "surface_digest": "243ceaf55c07c928d06391b44dc72216bc6785664100b5ff2b60b4a1fb00b3a1",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-emits-count-modalities",
+      "profile_json_pointer": "/claim_patterns/8/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-emits-count-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/8/proposition_template/operands/0/role",
+      "surface_digest": "3d109ae3ef6cc8a548ed76d286f5b9bd5dfeb2b61d0835fc06cb37e4082fbefe",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-emits-count-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/8/proposition_template/operator",
+      "surface_digest": "4ede482e4c30bf3004210259b66aa75f1fa71a499e219a11f779f30c09475b21",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-result-emits-count-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/8/proposition_template/subject_role",
+      "surface_digest": "d9fd9a3d81d750e6edc61aec66e7c4112f7af7c34ebe0a0d20189464ec9df135",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-members-present-modalities",
+      "profile_json_pointer": "/claim_patterns/9/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-required-members-present-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/9/proposition_template/operator",
+      "surface_digest": "187efa0f8bbfbc331618cdde7bd3073087d29eb62ebe2e27adcece8db6adad7e",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "semantic-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "profile_json_pointer": "/distinct_reference_role_sets",
+      "surface_digest": "11a0b1219312060a9c81a56fe279678179e649e4687b4698d25ea7405a07daf3",
+      "coverage": [
+        {
+          "weakening_class": "binding_constraint_weakening",
+          "negative_fixture_ids": [
+            "aggregate-constraint-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "profile_json_pointer": "/falsifier_condition_bindings",
+      "surface_digest": "7705b08a3578f15671669cf894832fc6ab639245db98a2a5b4566800043d0634",
+      "coverage": [
+        {
+          "weakening_class": "falsifier_weakening",
+          "negative_fixture_ids": [
+            "aggregate-constraint-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "number-roles",
+      "profile_json_pointer": "/number_roles",
+      "surface_digest": "2235ed365b400a46e5a522e6c4defdd5ee04822d8c0e0cc104a5b2e8e8a97318",
+      "coverage": [
+        {
+          "weakening_class": "binding_constraint_weakening",
+          "negative_fixture_ids": [
+            "aggregate-constraint-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "profile_json_pointer": "/reference_binding_patterns",
+      "surface_digest": "5c3f368132ac19f2c45b28aa6fa9f8bb818dfe60958be43c109e81f84d2ec6e3",
+      "coverage": [
+        {
+          "weakening_class": "binding_constraint_weakening",
+          "negative_fixture_ids": [
+            "aggregate-constraint-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "profile_json_pointer": "/reference_role_count_bindings",
+      "surface_digest": "b73016fda776e6b3b7322e44af0a036bdeb791cd994716662dbea28cf699e4e3",
+      "coverage": [
+        {
+          "weakening_class": "binding_constraint_weakening",
+          "negative_fixture_ids": [
+            "aggregate-constraint-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-operation-identity-kinds",
+      "profile_json_pointer": "/reference_roles/0/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-operation-types",
+      "profile_json_pointer": "/reference_roles/0/allowed_type_terms",
+      "surface_digest": "3be6bf005ae2bda4edbc5f9ae96a9f7df4f065625ffa73c18ebac57ca35731ac",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-identity-kinds",
+      "profile_json_pointer": "/reference_roles/1/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-types",
+      "profile_json_pointer": "/reference_roles/1/allowed_type_terms",
+      "surface_digest": "3a3443c02bd62bddcba968a9de024df3264666515ea70d7e01e173db263bed24",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-members-identity-kinds",
+      "profile_json_pointer": "/reference_roles/10/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-members-types",
+      "profile_json_pointer": "/reference_roles/10/allowed_type_terms",
+      "surface_digest": "9feb681e7402ff17adbeace5662b57c00b33b4de5310865216b98d42a53634fd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-forbidden-member-population-identity-kinds",
+      "profile_json_pointer": "/reference_roles/11/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-forbidden-member-population-types",
+      "profile_json_pointer": "/reference_roles/11/allowed_type_terms",
+      "surface_digest": "4d1015f29068a10d8cb0cfbea775b4226b79406e2108ff984921c52b2c766534",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-forbidden-members-identity-kinds",
+      "profile_json_pointer": "/reference_roles/12/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-forbidden-members-types",
+      "profile_json_pointer": "/reference_roles/12/allowed_type_terms",
+      "surface_digest": "9feb681e7402ff17adbeace5662b57c00b33b4de5310865216b98d42a53634fd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-shape-population-identity-kinds",
+      "profile_json_pointer": "/reference_roles/13/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-shape-population-types",
+      "profile_json_pointer": "/reference_roles/13/allowed_type_terms",
+      "surface_digest": "4d1015f29068a10d8cb0cfbea775b4226b79406e2108ff984921c52b2c766534",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-shapes-identity-kinds",
+      "profile_json_pointer": "/reference_roles/14/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-shapes-types",
+      "profile_json_pointer": "/reference_roles/14/allowed_type_terms",
+      "surface_digest": "70b20234a671323db23b0b516e19a13a6a654e24013de0917176e9709e32b472",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-forbidden-shape-population-identity-kinds",
+      "profile_json_pointer": "/reference_roles/15/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-forbidden-shape-population-types",
+      "profile_json_pointer": "/reference_roles/15/allowed_type_terms",
+      "surface_digest": "4d1015f29068a10d8cb0cfbea775b4226b79406e2108ff984921c52b2c766534",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-forbidden-shapes-identity-kinds",
+      "profile_json_pointer": "/reference_roles/16/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-forbidden-shapes-types",
+      "profile_json_pointer": "/reference_roles/16/allowed_type_terms",
+      "surface_digest": "70b20234a671323db23b0b516e19a13a6a654e24013de0917176e9709e32b472",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-shape-identity-kinds",
+      "profile_json_pointer": "/reference_roles/17/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-shape-types",
+      "profile_json_pointer": "/reference_roles/17/allowed_type_terms",
+      "surface_digest": "70b20234a671323db23b0b516e19a13a6a654e24013de0917176e9709e32b472",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-count-signal-identity-kinds",
+      "profile_json_pointer": "/reference_roles/18/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-count-signal-types",
+      "profile_json_pointer": "/reference_roles/18/allowed_type_terms",
+      "surface_digest": "34d615a26c9c98c85148ead0b480046b1d33956b8cd6ec88b04d6655745488dd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-identity-kinds",
+      "profile_json_pointer": "/reference_roles/19/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-types",
+      "profile_json_pointer": "/reference_roles/19/allowed_type_terms",
+      "surface_digest": "e29e2059814a71e22f9dbe9c39adcc2e081158cdb289ffcee5ada1895ffb8952",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-schema-identity-kinds",
+      "profile_json_pointer": "/reference_roles/2/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-schema-types",
+      "profile_json_pointer": "/reference_roles/2/allowed_type_terms",
+      "surface_digest": "952b8db293003e7ac6c7812071697d1d97845ac1e4df4d4ec5848e1857046ed1",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-missing-required-condition-types",
+      "profile_json_pointer": "/reference_roles/20/allowed_type_terms",
+      "surface_digest": "d767175d6a5e250f449e5c6af36b0551beb155c10b545d0fd2484e220e81f2f8",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-unexpected-member-condition-types",
+      "profile_json_pointer": "/reference_roles/21/allowed_type_terms",
+      "surface_digest": "d767175d6a5e250f449e5c6af36b0551beb155c10b545d0fd2484e220e81f2f8",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-disallowed-shape-condition-types",
+      "profile_json_pointer": "/reference_roles/22/allowed_type_terms",
+      "surface_digest": "d767175d6a5e250f449e5c6af36b0551beb155c10b545d0fd2484e220e81f2f8",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-forbidden-shape-condition-types",
+      "profile_json_pointer": "/reference_roles/23/allowed_type_terms",
+      "surface_digest": "d767175d6a5e250f449e5c6af36b0551beb155c10b545d0fd2484e220e81f2f8",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-incorrect-count-condition-types",
+      "profile_json_pointer": "/reference_roles/24/allowed_type_terms",
+      "surface_digest": "d767175d6a5e250f449e5c6af36b0551beb155c10b545d0fd2484e220e81f2f8",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-population-identity-kinds",
+      "profile_json_pointer": "/reference_roles/3/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-population-types",
+      "profile_json_pointer": "/reference_roles/3/allowed_type_terms",
+      "surface_digest": "4d1015f29068a10d8cb0cfbea775b4226b79406e2108ff984921c52b2c766534",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-members-identity-kinds",
+      "profile_json_pointer": "/reference_roles/4/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-result-members-types",
+      "profile_json_pointer": "/reference_roles/4/allowed_type_terms",
+      "surface_digest": "9feb681e7402ff17adbeace5662b57c00b33b4de5310865216b98d42a53634fd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-required-population-identity-kinds",
+      "profile_json_pointer": "/reference_roles/5/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-required-population-types",
+      "profile_json_pointer": "/reference_roles/5/allowed_type_terms",
+      "surface_digest": "4d1015f29068a10d8cb0cfbea775b4226b79406e2108ff984921c52b2c766534",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-required-members-identity-kinds",
+      "profile_json_pointer": "/reference_roles/6/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-required-members-types",
+      "profile_json_pointer": "/reference_roles/6/allowed_type_terms",
+      "surface_digest": "9feb681e7402ff17adbeace5662b57c00b33b4de5310865216b98d42a53634fd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-optional-population-identity-kinds",
+      "profile_json_pointer": "/reference_roles/7/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-optional-population-types",
+      "profile_json_pointer": "/reference_roles/7/allowed_type_terms",
+      "surface_digest": "4d1015f29068a10d8cb0cfbea775b4226b79406e2108ff984921c52b2c766534",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-optional-members-identity-kinds",
+      "profile_json_pointer": "/reference_roles/8/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-optional-members-types",
+      "profile_json_pointer": "/reference_roles/8/allowed_type_terms",
+      "surface_digest": "9feb681e7402ff17adbeace5662b57c00b33b4de5310865216b98d42a53634fd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-population-identity-kinds",
+      "profile_json_pointer": "/reference_roles/9/allowed_identity_kinds",
+      "surface_digest": "adf9f1d056c5a9295bdad80aa7da12d6265e04205a8b4c904078dd3097acc206",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-population-types",
+      "profile_json_pointer": "/reference_roles/9/allowed_type_terms",
+      "surface_digest": "4d1015f29068a10d8cb0cfbea775b4226b79406e2108ff984921c52b2c766534",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "reference-role-surface-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "profile_json_pointer": "/relation_patterns",
+      "surface_digest": "6fb02694ae1fdcbc39b566cfdfc9c0f522a0af89eeb191a39e47c7e41098c766",
+      "coverage": [
+        {
+          "weakening_class": "relation_weakening",
+          "negative_fixture_ids": [
+            "aggregate-constraint-variations"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "profile_json_pointer": "/satisfaction_expression",
+      "surface_digest": "db090b30f636a79b60f0da64a6ea09289a0f0c07f62ba0fb7b53205c9ea94d3c",
+      "coverage": [
+        {
+          "weakening_class": "satisfaction_branch_broadening",
+          "negative_fixture_ids": [
+            "aggregate-constraint-variations"
+          ]
+        }
+      ]
+    }
+  ],
+  "noncritical_profile_surfaces": [
+    {
+      "surface_id": "claim-operation-returns-result-claim-kind",
+      "profile_json_pointer": "/claim_patterns/0/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-operation-returns-result-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-operation-returns-result-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-operation-returns-result-required-stage",
+      "profile_json_pointer": "/claim_patterns/0/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-carries-member-population-claim-kind",
+      "profile_json_pointer": "/claim_patterns/1/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-carries-member-population-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-carries-member-population-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-carries-member-population-required-stage",
+      "profile_json_pointer": "/claim_patterns/1/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-members-allowed-claim-kind",
+      "profile_json_pointer": "/claim_patterns/10/claim_kind",
+      "surface_digest": "e3e7d3b58414410f3ab29fb1aea29166c439eb702757e2cfc85f3350aae41cee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-members-allowed-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/10/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-members-allowed-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/10/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-members-allowed-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/10/proposition_template/operands/0/role",
+      "surface_digest": "c395502bd1b83bb5b4a867c8f68a2389853f475fe8d20806f758348ad02532a1",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-members-allowed-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/10/proposition_template/subject_role",
+      "surface_digest": "108d3b44ea878417f788c7aa1f250a5bf7b1d10cd75589bdc32f0b2910aaec61",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-members-allowed-required-stage",
+      "profile_json_pointer": "/claim_patterns/10/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-allowed-claim-kind",
+      "profile_json_pointer": "/claim_patterns/11/claim_kind",
+      "surface_digest": "e3e7d3b58414410f3ab29fb1aea29166c439eb702757e2cfc85f3350aae41cee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-allowed-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/11/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-allowed-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/11/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-allowed-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/11/proposition_template/operands/0/role",
+      "surface_digest": "dd2cafce5c1e6bb1740c744b021b6547d2b43871bc592260b095b7b6bbcbbaee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-allowed-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/11/proposition_template/subject_role",
+      "surface_digest": "eb5fca9f4cf5d14708c15d8ba6b6f3be097a0ca2b03de32d2e431239d00594a4",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-allowed-required-stage",
+      "profile_json_pointer": "/claim_patterns/11/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-not-forbidden-claim-kind",
+      "profile_json_pointer": "/claim_patterns/12/claim_kind",
+      "surface_digest": "e3e7d3b58414410f3ab29fb1aea29166c439eb702757e2cfc85f3350aae41cee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-not-forbidden-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/12/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-not-forbidden-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/12/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-not-forbidden-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/12/proposition_template/operands/0/role",
+      "surface_digest": "0d42d9eebeff6da96561b762e8c3da07c081502b3ea19273dbf4e33b5cda58ac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-not-forbidden-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/12/proposition_template/subject_role",
+      "surface_digest": "eb5fca9f4cf5d14708c15d8ba6b6f3be097a0ca2b03de32d2e431239d00594a4",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-shape-not-forbidden-required-stage",
+      "profile_json_pointer": "/claim_patterns/12/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-complete-claim-kind",
+      "profile_json_pointer": "/claim_patterns/13/claim_kind",
+      "surface_digest": "e3e7d3b58414410f3ab29fb1aea29166c439eb702757e2cfc85f3350aae41cee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-complete-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/13/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-complete-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/13/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-complete-proposition-operand-0-value-role",
+      "profile_json_pointer": "/claim_patterns/13/proposition_template/operands/0/value_role",
+      "surface_digest": "8eaf6a87fad27efbc279bda794cb7c2bf7a43543b7cacb2a9c927d32a226f717",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-complete-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/13/proposition_template/subject_role",
+      "surface_digest": "3d109ae3ef6cc8a548ed76d286f5b9bd5dfeb2b61d0835fc06cb37e4082fbefe",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-complete-required-stage",
+      "profile_json_pointer": "/claim_patterns/13/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-claim-kind",
+      "profile_json_pointer": "/claim_patterns/14/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/14/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verification-reads-result-contract-required-stage",
+      "profile_json_pointer": "/claim_patterns/14/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-verification-claim-kind",
+      "profile_json_pointer": "/claim_patterns/15/claim_kind",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-verification-falsifier-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/15/falsifying_proposition_template/applicability_context/mode",
+      "surface_digest": "6d924791a1798656302bd4b9716a494a0c5f7f55ad9ceebf629dfb2317e86078",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-required-members-verification-falsifier-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/15/falsifying_proposition_template/applicability_context/operand_roles",
+      "surface_digest": "03fc31c04a0248989c223323f31eeaa33bb1b6c1ade7dd1ec69ba802bfe8198d",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-required-members-verification-falsifier-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/15/falsifying_proposition_template/operands/0/role",
+      "surface_digest": "108d3b44ea878417f788c7aa1f250a5bf7b1d10cd75589bdc32f0b2910aaec61",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-verification-falsifier-operator",
+      "profile_json_pointer": "/claim_patterns/15/falsifying_proposition_template/operator",
+      "surface_digest": "046e27f16a1a985c38301092c9adf23f82e984726ddac3f5cd917ddc0d5beb2f",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-required-members-verification-falsifier-subject",
+      "profile_json_pointer": "/claim_patterns/15/falsifying_proposition_template/subject_role",
+      "surface_digest": "a662ebd483cff1a03a5153c9e8e6a770fef6ffe570e2ac17034a2399e1930162",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-verification-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/15/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-verification-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/15/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-verification-required-stage",
+      "profile_json_pointer": "/claim_patterns/15/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-claim-kind",
+      "profile_json_pointer": "/claim_patterns/16/claim_kind",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-falsifier-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/16/falsifying_proposition_template/applicability_context/mode",
+      "surface_digest": "6d924791a1798656302bd4b9716a494a0c5f7f55ad9ceebf629dfb2317e86078",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-falsifier-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/16/falsifying_proposition_template/applicability_context/operand_roles",
+      "surface_digest": "2dc01f85409fbdc4dab30deb5dbbd7deb069c266cdbcb02e7a6e4da566ca6dcc",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-falsifier-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/16/falsifying_proposition_template/operands/0/role",
+      "surface_digest": "c395502bd1b83bb5b4a867c8f68a2389853f475fe8d20806f758348ad02532a1",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-falsifier-operator",
+      "profile_json_pointer": "/claim_patterns/16/falsifying_proposition_template/operator",
+      "surface_digest": "046e27f16a1a985c38301092c9adf23f82e984726ddac3f5cd917ddc0d5beb2f",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-falsifier-subject",
+      "profile_json_pointer": "/claim_patterns/16/falsifying_proposition_template/subject_role",
+      "surface_digest": "108d3b44ea878417f788c7aa1f250a5bf7b1d10cd75589bdc32f0b2910aaec61",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/16/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/16/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-members-verification-required-stage",
+      "profile_json_pointer": "/claim_patterns/16/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-claim-kind",
+      "profile_json_pointer": "/claim_patterns/17/claim_kind",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-falsifier-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/17/falsifying_proposition_template/applicability_context/mode",
+      "surface_digest": "6d924791a1798656302bd4b9716a494a0c5f7f55ad9ceebf629dfb2317e86078",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-falsifier-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/17/falsifying_proposition_template/applicability_context/operand_roles",
+      "surface_digest": "482738aaa1f018ea25fe175036edad49f82d6d5cfae1934e9ad90f564545c95d",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-falsifier-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/17/falsifying_proposition_template/operands/0/role",
+      "surface_digest": "dd2cafce5c1e6bb1740c744b021b6547d2b43871bc592260b095b7b6bbcbbaee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-falsifier-operator",
+      "profile_json_pointer": "/claim_patterns/17/falsifying_proposition_template/operator",
+      "surface_digest": "243ceaf55c07c928d06391b44dc72216bc6785664100b5ff2b60b4a1fb00b3a1",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-falsifier-subject",
+      "profile_json_pointer": "/claim_patterns/17/falsifying_proposition_template/subject_role",
+      "surface_digest": "eb5fca9f4cf5d14708c15d8ba6b6f3be097a0ca2b03de32d2e431239d00594a4",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/17/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/17/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-allowed-shape-verification-required-stage",
+      "profile_json_pointer": "/claim_patterns/17/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-claim-kind",
+      "profile_json_pointer": "/claim_patterns/18/claim_kind",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-falsifier-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/18/falsifying_proposition_template/applicability_context/mode",
+      "surface_digest": "6d924791a1798656302bd4b9716a494a0c5f7f55ad9ceebf629dfb2317e86078",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-falsifier-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/18/falsifying_proposition_template/applicability_context/operand_roles",
+      "surface_digest": "e6e2dea8bef33b4149b592db7eb360d2d686caeea357905bc177404400814193",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-falsifier-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/18/falsifying_proposition_template/operands/0/role",
+      "surface_digest": "0d42d9eebeff6da96561b762e8c3da07c081502b3ea19273dbf4e33b5cda58ac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-falsifier-operator",
+      "profile_json_pointer": "/claim_patterns/18/falsifying_proposition_template/operator",
+      "surface_digest": "30b9303099917570af1160dfa3d84f5de1109989fee94950a4a644e1155b2402",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-falsifier-subject",
+      "profile_json_pointer": "/claim_patterns/18/falsifying_proposition_template/subject_role",
+      "surface_digest": "eb5fca9f4cf5d14708c15d8ba6b6f3be097a0ca2b03de32d2e431239d00594a4",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/18/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/18/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-forbidden-shape-verification-required-stage",
+      "profile_json_pointer": "/claim_patterns/18/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-verification-claim-kind",
+      "profile_json_pointer": "/claim_patterns/19/claim_kind",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-verification-falsifier-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/19/falsifying_proposition_template/applicability_context/mode",
+      "surface_digest": "6d924791a1798656302bd4b9716a494a0c5f7f55ad9ceebf629dfb2317e86078",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-result-count-verification-falsifier-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/19/falsifying_proposition_template/applicability_context/operand_roles",
+      "surface_digest": "f26c7463934cf3d4d7a43c65b53e49d2dbcd8e5bdc31664eb6e81574bea3509b",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-result-count-verification-falsifier-operand-0-value-role",
+      "profile_json_pointer": "/claim_patterns/19/falsifying_proposition_template/operands/0/value_role",
+      "surface_digest": "8eaf6a87fad27efbc279bda794cb7c2bf7a43543b7cacb2a9c927d32a226f717",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-verification-falsifier-operator",
+      "profile_json_pointer": "/claim_patterns/19/falsifying_proposition_template/operator",
+      "surface_digest": "13c31f56748eda94b958d7a39d74e3e6905cbfd3c2ffd232a3efd4b2f0862983",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-result-count-verification-falsifier-subject",
+      "profile_json_pointer": "/claim_patterns/19/falsifying_proposition_template/subject_role",
+      "surface_digest": "3d109ae3ef6cc8a548ed76d286f5b9bd5dfeb2b61d0835fc06cb37e4082fbefe",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-verification-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/19/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-verification-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/19/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-count-verification-required-stage",
+      "profile_json_pointer": "/claim_patterns/19/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-declares-shape-claim-kind",
+      "profile_json_pointer": "/claim_patterns/2/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-declares-shape-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-declares-shape-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-declares-shape-required-stage",
+      "profile_json_pointer": "/claim_patterns/2/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-claim-kind",
+      "profile_json_pointer": "/claim_patterns/3/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-schema-declares-member-populations-required-stage",
+      "profile_json_pointer": "/claim_patterns/3/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-schema-declares-shape-populations-claim-kind",
+      "profile_json_pointer": "/claim_patterns/4/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-schema-declares-shape-populations-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-schema-declares-shape-populations-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-schema-declares-shape-populations-required-stage",
+      "profile_json_pointer": "/claim_patterns/4/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-population-allowed-claim-kind",
+      "profile_json_pointer": "/claim_patterns/5/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-population-allowed-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-population-allowed-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-population-allowed-required-stage",
+      "profile_json_pointer": "/claim_patterns/5/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-optional-population-allowed-claim-kind",
+      "profile_json_pointer": "/claim_patterns/6/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-optional-population-allowed-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-optional-population-allowed-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-optional-population-allowed-required-stage",
+      "profile_json_pointer": "/claim_patterns/6/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-each-forbidden-member-absent-claim-kind",
+      "profile_json_pointer": "/claim_patterns/7/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-each-forbidden-member-absent-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-each-forbidden-member-absent-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-each-forbidden-member-absent-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/subject_role",
+      "surface_digest": "886d22228dd1419114ac5cefd0b3c193537f6a95f4f6e91cfbf06cfa96e0a37a",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-each-forbidden-member-absent-required-stage",
+      "profile_json_pointer": "/claim_patterns/7/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-emits-count-claim-kind",
+      "profile_json_pointer": "/claim_patterns/8/claim_kind",
+      "surface_digest": "edecec53ab11f560816e75a17681eb83886beace01d7fb927d99707d3d031aac",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-emits-count-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/8/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-emits-count-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/8/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-result-emits-count-required-stage",
+      "profile_json_pointer": "/claim_patterns/8/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-present-claim-kind",
+      "profile_json_pointer": "/claim_patterns/9/claim_kind",
+      "surface_digest": "e3e7d3b58414410f3ab29fb1aea29166c439eb702757e2cfc85f3350aae41cee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-present-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/9/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-present-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/9/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-present-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/9/proposition_template/operands/0/role",
+      "surface_digest": "108d3b44ea878417f788c7aa1f250a5bf7b1d10cd75589bdc32f0b2910aaec61",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-present-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/9/proposition_template/subject_role",
+      "surface_digest": "a662ebd483cff1a03a5153c9e8e6a770fef6ffe570e2ac17034a2399e1930162",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-required-members-present-required-stage",
+      "profile_json_pointer": "/claim_patterns/9/required_by_stage",
+      "surface_digest": "d0742b10cebcb5773ad7fbabf5c6e38f4f26b898d3d095186de63865b9b8bb16",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "empty-collection-patterns",
+      "profile_json_pointer": "/collection_patterns",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "empty_optional_mechanism"
+    },
+    {
+      "surface_id": "artifact-binding-contract-schema-version",
+      "profile_json_pointer": "/contract_schema_version",
+      "surface_digest": "c18173db7a90b8f462084d6c6bc8403a15bfd34381eb8b26c4a5a5d506fc8ead",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "evaluation-stages",
+      "profile_json_pointer": "/evaluation_stages",
+      "surface_digest": "adbaebd57bbdb857b7114e20738fefcdab91ac2bac51d35e70f4f04b1c21f815",
+      "reason": "extension_only_stage_set"
+    },
+    {
+      "surface_id": "empty-evidence-patterns",
+      "profile_json_pointer": "/evidence_patterns",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "empty_optional_mechanism"
+    },
+    {
+      "surface_id": "artifact-binding-profile-id",
+      "profile_json_pointer": "/profile_id",
+      "surface_digest": "f9d19d89794d4607f9c97771a34defba735860f551a3f9360c51b19ff38459ef",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "artifact-binding-profile-version",
+      "profile_json_pointer": "/profile_version",
+      "surface_digest": "39fe4a40977d0585fd5704359e3685b0ada5cf5ee061e5d97385601d120cd0ec",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "empty-resolver-fact-patterns",
+      "profile_json_pointer": "/resolver_fact_patterns",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "empty_optional_mechanism"
+    },
+    {
+      "surface_id": "artifact-binding-schema-version",
+      "profile_json_pointer": "/schema_version",
+      "surface_digest": "45160761127e4b1abb3a745de6cb5caa32ba955a021955e657a69d3f32cb9f5a",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "verification-falsifier-policy",
+      "profile_json_pointer": "/verification_falsifier_policy",
+      "surface_digest": "aaae577b3b144d404f671746b56801734cb9c308e07a6fbc6c8074fd72013c3a",
+      "reason": "schema_singleton_constant"
+    },
+    {
+      "surface_id": "artifact-binding-vocabulary-algebra-digest",
+      "profile_json_pointer": "/vocabulary_algebra_digest",
+      "surface_digest": "2b8dc00de4f88bac72d10838a026512dd7504c6dc9578560e09bb11f835b22c4",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "artifact-binding-vocabulary-complete-digest",
+      "profile_json_pointer": "/vocabulary_complete_digest",
+      "surface_digest": "393f6b7b6aa09373e4fcfbbbec720fa0077c5a2f9017036327da566e76ce47f3",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "artifact-binding-vocabulary-definitions-digest",
+      "profile_json_pointer": "/vocabulary_definitions_digest",
+      "surface_digest": "5ae98c7d3d662df4fa66ab0eeba95eeaaec09e62149297ffd4be9137a61519e4",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "artifact-binding-vocabulary-signature-digest",
+      "profile_json_pointer": "/vocabulary_signature_digest",
+      "surface_digest": "d621fc2daa14a098fe406813a764f3f70181d693d6ed33db736ca3ff55ce9e27",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "artifact-binding-vocabulary-version",
+      "profile_json_pointer": "/vocabulary_version",
+      "surface_digest": "9ce25a31160185bc60f87e425f5e840a8a815c5a8ad7c109eb7602a04ec17904",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    }
+  ]
+}

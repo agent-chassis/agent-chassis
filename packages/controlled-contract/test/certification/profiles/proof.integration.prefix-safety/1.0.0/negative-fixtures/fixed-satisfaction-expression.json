@@ -1,0 +1,324 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "fixed-satisfaction-expression",
+  "covers": [
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-integration-dag",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-integration-dag"
+        }
+      },
+      {
+        "reference_id": "ref-integration-units",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-integration-units"
+        }
+      },
+      {
+        "reference_id": "ref-execution-paths",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-execution-paths"
+        }
+      },
+      {
+        "reference_id": "ref-prefix-census",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-prefix-census"
+        }
+      },
+      {
+        "reference_id": "ref-prefix-case-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-prefix-case-population"
+        }
+      },
+      {
+        "reference_id": "ref-case-11046cfedf91ad20374cd1c17518c08bb0c8ad11715718135eaa97676f02de83",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-case-11046cfedf91ad20374cd1c17518c08bb0c8ad11715718135eaa97676f02de83"
+        }
+      },
+      {
+        "reference_id": "ref-case-2e7fd5239cadbcfea7d2d81909be20efc563d677014b48249653a4bc21d777f5",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-case-2e7fd5239cadbcfea7d2d81909be20efc563d677014b48249653a4bc21d777f5"
+        }
+      },
+      {
+        "reference_id": "ref-case-5e05156b5b25c87d670f4caa4ffa44885e1dcd6f9eca24f0ea4c1bc851058d94",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-case-5e05156b5b25c87d670f4caa4ffa44885e1dcd6f9eca24f0ea4c1bc851058d94"
+        }
+      },
+      {
+        "reference_id": "ref-case-c1d1f68e2cde34c714d098f11d756eb9f521d120eb437c698ff1398dd41d1ca2",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-case-c1d1f68e2cde34c714d098f11d756eb9f521d120eb437c698ff1398dd41d1ca2"
+        }
+      },
+      {
+        "reference_id": "ref-case-d5c9b2fa9abdcc72ab9a52d8dcac154529bd9abc753d57bd097e69896b39fa24",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-case-d5c9b2fa9abdcc72ab9a52d8dcac154529bd9abc753d57bd097e69896b39fa24"
+        }
+      },
+      {
+        "reference_id": "ref-case-de6807d46aceb92273718f767fd5fa15480e15a1c54654f2dda537a8cbdcb730",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-case-de6807d46aceb92273718f767fd5fa15480e15a1c54654f2dda537a8cbdcb730"
+        }
+      },
+      {
+        "reference_id": "ref-preservation-result",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-preservation-result"
+        }
+      },
+      {
+        "reference_id": "ref-preserved-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-preserved-state"
+        }
+      },
+      {
+        "reference_id": "ref-prefix-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/managed-repository-selection",
+          "path": "test/prefix-safety.mjs",
+          "symbol": "ref-prefix-verification"
+        }
+      },
+      {
+        "reference_id": "ref-case-failure-condition",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "prefix-safety-managed-repository-selection",
+          "value": "ref-case-failure-condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-complete-prefix-case-population-count",
+        "subject_reference_id": "ref-prefix-case-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 6
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-prefix-case-population-members",
+        "subject_reference_id": "ref-prefix-case-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-case-11046cfedf91ad20374cd1c17518c08bb0c8ad11715718135eaa97676f02de83"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-case-2e7fd5239cadbcfea7d2d81909be20efc563d677014b48249653a4bc21d777f5"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-case-5e05156b5b25c87d670f4caa4ffa44885e1dcd6f9eca24f0ea4c1bc851058d94"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-case-c1d1f68e2cde34c714d098f11d756eb9f521d120eb437c698ff1398dd41d1ca2"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-case-d5c9b2fa9abdcc72ab9a52d8dcac154529bd9abc753d57bd097e69896b39fa24"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-case-de6807d46aceb92273718f767fd5fa15480e15a1c54654f2dda537a8cbdcb730"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-census-includes-case-population",
+        "subject_reference_id": "ref-prefix-census",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-prefix-case-population"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-complete-prefix-case-population-count",
+        "proposition_id": "prop-complete-prefix-case-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-prefix-case-population-members",
+        "proposition_id": "prop-complete-prefix-case-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-census-includes-case-population",
+        "proposition_id": "prop-census-includes-case-population",
+        "kind": "evidence",
+        "modality": "MUST"
+      }
+    ],
+    "relations": [],
+    "collections": [],
+    "residue": [],
+    "annotations": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "integration_dag",
+        "reference_ids": [
+          "ref-integration-dag"
+        ]
+      },
+      {
+        "role": "integration_units",
+        "reference_ids": [
+          "ref-integration-units"
+        ]
+      },
+      {
+        "role": "execution_paths",
+        "reference_ids": [
+          "ref-execution-paths"
+        ]
+      },
+      {
+        "role": "prefix_census",
+        "reference_ids": [
+          "ref-prefix-census"
+        ]
+      },
+      {
+        "role": "prefix_case_population",
+        "reference_ids": [
+          "ref-prefix-case-population"
+        ]
+      },
+      {
+        "role": "prefix_cases",
+        "reference_ids": [
+          "ref-case-11046cfedf91ad20374cd1c17518c08bb0c8ad11715718135eaa97676f02de83",
+          "ref-case-2e7fd5239cadbcfea7d2d81909be20efc563d677014b48249653a4bc21d777f5",
+          "ref-case-5e05156b5b25c87d670f4caa4ffa44885e1dcd6f9eca24f0ea4c1bc851058d94",
+          "ref-case-c1d1f68e2cde34c714d098f11d756eb9f521d120eb437c698ff1398dd41d1ca2",
+          "ref-case-d5c9b2fa9abdcc72ab9a52d8dcac154529bd9abc753d57bd097e69896b39fa24",
+          "ref-case-de6807d46aceb92273718f767fd5fa15480e15a1c54654f2dda537a8cbdcb730"
+        ]
+      },
+      {
+        "role": "preservation_result",
+        "reference_ids": [
+          "ref-preservation-result"
+        ]
+      },
+      {
+        "role": "preserved_state",
+        "reference_ids": [
+          "ref-preserved-state"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-prefix-verification"
+        ]
+      },
+      {
+        "role": "case_failure_condition",
+        "reference_ids": [
+          "ref-case-failure-condition"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "case_count",
+        "value": 6
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

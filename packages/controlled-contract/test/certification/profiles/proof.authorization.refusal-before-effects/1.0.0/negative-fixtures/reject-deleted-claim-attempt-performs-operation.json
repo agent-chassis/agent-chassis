@@ -1,0 +1,534 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-deleted-claim-attempt-performs-operation",
+  "covers": [
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
+    "vocabulary_version": "cv.experimental.0.34",
+    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "references": [
+      {
+        "reference_id": "ref-operation",
+        "type_term": "cc:capability",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:operation"
+        }
+      },
+      {
+        "reference_id": "ref-attempt",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:attempt"
+        }
+      },
+      {
+        "reference_id": "ref-subject",
+        "type_term": "cc:actor",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:subject"
+        }
+      },
+      {
+        "reference_id": "ref-authority",
+        "type_term": "cc:authority",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:authority"
+        }
+      },
+      {
+        "reference_id": "ref-refusal",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:refusal"
+        }
+      },
+      {
+        "reference_id": "ref-protected-interval",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:protected_interval"
+        }
+      },
+      {
+        "reference_id": "ref-protected-effect-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:protected_effect_population"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:verification"
+        }
+      },
+      {
+        "reference_id": "ref-protected-channel",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:protected-effect-1"
+        }
+      },
+      {
+        "reference_id": "ref-protected-configuration",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:protected-effect-2"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-attempt-uses-subject",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-subject-unauthorized-for-operation",
+        "subject_reference_id": "ref-authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-operation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-refusal-rejects-attempt",
+        "subject_reference_id": "ref-refusal",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-attempt-precedes-protected-interval",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-interval"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-interval-precedes-refusal",
+        "subject_reference_id": "ref-protected-interval",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-refusal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-effect-population-membership",
+        "subject_reference_id": "ref-protected-effect-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-effect-population-cardinality",
+        "subject_reference_id": "ref-protected-effect-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-observes-exact-proof-subjects",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-attempt"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-refusal"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-protected-write-before-refusal",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-protected-mutation-before-refusal",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-write-prohibition-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-write-prohibition-verification",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-mutation-prohibition-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-effect-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-mutation-prohibition-verification",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-attempt-uses-subject",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-attempt-uses-subject"
+      },
+      {
+        "claim_id": "claim-subject-unauthorized-for-operation",
+        "kind": "evidence",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-subject-unauthorized-for-operation"
+      },
+      {
+        "claim_id": "claim-refusal-rejects-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-refusal-rejects-attempt"
+      },
+      {
+        "claim_id": "claim-attempt-precedes-protected-interval",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-attempt-precedes-protected-interval"
+      },
+      {
+        "claim_id": "claim-protected-interval-precedes-refusal",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-protected-interval-precedes-refusal"
+      },
+      {
+        "claim_id": "claim-protected-effect-population-membership",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-protected-effect-population-membership"
+      },
+      {
+        "claim_id": "claim-protected-effect-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-protected-effect-population-cardinality"
+      },
+      {
+        "claim_id": "claim-verification-observes-exact-proof-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-observes-exact-proof-subjects"
+      },
+      {
+        "claim_id": "claim-no-protected-write-before-refusal",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-protected-write-before-refusal"
+      },
+      {
+        "claim_id": "claim-no-protected-mutation-before-refusal",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-protected-mutation-before-refusal"
+      },
+      {
+        "claim_id": "claim-write-prohibition-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-write-prohibition-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-write-prohibition-verification"
+      },
+      {
+        "claim_id": "claim-mutation-prohibition-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-mutation-prohibition-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-mutation-prohibition-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-write-verification-target",
+        "role": "verifies",
+        "source_claim_id": "claim-write-prohibition-verification",
+        "target_claim_id": "claim-no-protected-write-before-refusal"
+      },
+      {
+        "relation_id": "rel-mutation-verification-target",
+        "role": "verifies",
+        "source_claim_id": "claim-mutation-prohibition-verification",
+        "target_claim_id": "claim-no-protected-mutation-before-refusal"
+      }
+    ],
+    "collections": [
+      {
+        "collection_id": "set-proof-population",
+        "collection_kind": "closed_set",
+        "purpose": "profile_proof_population",
+        "member_claim_ids": [
+          "claim-attempt-uses-subject",
+          "claim-subject-unauthorized-for-operation",
+          "claim-refusal-rejects-attempt",
+          "claim-attempt-precedes-protected-interval",
+          "claim-protected-interval-precedes-refusal",
+          "claim-verification-observes-exact-proof-subjects"
+        ]
+      }
+    ],
+    "residue": [],
+    "annotations": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "operation",
+        "reference_ids": [
+          "ref-operation"
+        ]
+      },
+      {
+        "role": "attempt",
+        "reference_ids": [
+          "ref-attempt"
+        ]
+      },
+      {
+        "role": "subject",
+        "reference_ids": [
+          "ref-subject"
+        ]
+      },
+      {
+        "role": "authority",
+        "reference_ids": [
+          "ref-authority"
+        ]
+      },
+      {
+        "role": "refusal",
+        "reference_ids": [
+          "ref-refusal"
+        ]
+      },
+      {
+        "role": "protected_interval",
+        "reference_ids": [
+          "ref-protected-interval"
+        ]
+      },
+      {
+        "role": "protected_effect_population",
+        "reference_ids": [
+          "ref-protected-effect-population"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "protected_effects",
+        "reference_ids": [
+          "ref-protected-channel",
+          "ref-protected-configuration"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "protected_effect_count",
+        "value": 2
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": []
+  }
+}

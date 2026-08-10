@@ -1,0 +1,18 @@
+{
+  "input_version":"controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage":"pre_dispatch",
+  "reference_bindings":[
+    {"role":"authority","reference_ids":["ref-authority"]},{"role":"revocation_event","reference_ids":["ref-revocation"]},{"role":"revoked_state","reference_ids":["ref-revoked-state"]},{"role":"refused_state","reference_ids":["ref-refused-state"]},
+    {"role":"propagation_interval","reference_ids":["ref-propagation-interval"]},
+    {"role":"consumer_population","reference_ids":["ref-consumer-population"]},{"role":"consumers","reference_ids":["ref-consumer-1","ref-consumer-2"]},
+    {"role":"attempt_population","reference_ids":["ref-attempt-population"]},{"role":"attempts","reference_ids":["ref-attempt-1","ref-attempt-2"]},
+    {"role":"refused_attempt_population","reference_ids":["ref-refused-attempt-population"]},{"role":"refused_attempts","reference_ids":["ref-attempt-1","ref-attempt-2"]},
+    {"role":"protected_effect_population","reference_ids":["ref-effect-population"]},{"role":"protected_effects","reference_ids":["ref-effect-1"]},
+    {"role":"revoked_state_population","reference_ids":["ref-revoked-state-population"]},{"role":"revoked_states","reference_ids":["ref-revoked-state"]},
+    {"role":"applied_state_population","reference_ids":["ref-applied-state-population"]},{"role":"applied_states","reference_ids":["ref-revoked-state"]},
+    {"role":"verification","reference_ids":["ref-verification"]},
+    {"role":"stale_consumer_condition","reference_ids":["ref-stale-consumer-condition"]},{"role":"accepted_attempt_condition","reference_ids":["ref-accepted-attempt-condition"]},{"role":"post_revocation_write_condition","reference_ids":["ref-post-revocation-write-condition"]},{"role":"post_revocation_mutation_condition","reference_ids":["ref-post-revocation-mutation-condition"]}
+  ],
+  "number_bindings":[{"role":"consumer_count","value":2},{"role":"attempt_count","value":2},{"role":"effect_count","value":1},{"role":"state_count","value":1}],
+  "claim_pattern_bindings":[],"resolver_facts":[],"delivered_evidence":[]
+}

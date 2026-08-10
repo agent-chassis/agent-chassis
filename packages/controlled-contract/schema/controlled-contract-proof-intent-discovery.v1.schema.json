@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-proof-intent-discovery.v1.schema.json",
+  "title": "controlled-contract-proof-intent-discovery.v1",
+  "type": "object",
+  "required": [
+    "schema_version", "mode", "query", "status", "catalog_intent_count",
+    "evaluated_intent_count", "total_match_count", "returned_count",
+    "omitted_count", "truncated", "result_limit", "guidance", "intents",
+    "catalog_digest", "selection_performed", "pack_invocation_performed",
+    "pack_admission_performed", "authority"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "controlled-contract-proof-intent-discovery.v1" },
+    "mode": { "enum": ["list", "search"] },
+    "query": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["normalized_text", "terms"],
+          "additionalProperties": false,
+          "properties": {
+            "normalized_text": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 256,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1, "maxLength": 1024 }
+            }
+          }
+        }
+      ]
+    },
+    "status": { "enum": ["match", "partial_match", "no_match"] },
+    "catalog_intent_count": { "type": "integer", "minimum": 1, "maximum": 256 },
+    "evaluated_intent_count": { "type": "integer", "minimum": 1, "maximum": 256 },
+    "total_match_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+    "returned_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+    "omitted_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+    "truncated": { "type": "boolean" },
+    "result_limit": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "integer", "minimum": 1, "maximum": 256 }
+      ]
+    },
+    "guidance": {
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "inspect_catalog",
+            "inspect_exact_candidates",
+            "inspect_partial_candidates_and_refine_query",
+            "refine_query_or_list_catalog"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "intents": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/intent_summary" }
+    },
+    "catalog_digest": { "$ref": "#/$defs/sha256" },
+    "selection_performed": { "const": false },
+    "pack_invocation_performed": { "const": false },
+    "pack_admission_performed": { "const": false },
+    "authority": { "const": "non_authoritative" }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "string_set": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1024 }
+    },
+    "pack": {
+      "type": "object",
+      "required": ["profile_id", "profile_version"],
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": { "$ref": "#/$defs/identifier" },
+        "profile_version": { "$ref": "#/$defs/semver" }
+      }
+    },
+    "distinction": {
+      "type": "object",
+      "required": ["from_intent_id", "explanation"],
+      "additionalProperties": false,
+      "properties": {
+        "from_intent_id": { "$ref": "#/$defs/identifier" },
+        "explanation": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "match_reason": {
+      "type": "object",
+      "required": ["source", "source_value", "matched_terms"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "enum": ["intent_id", "definition", "discovery_term"] },
+        "source_value": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "matched_terms": { "$ref": "#/$defs/string_set" }
+      }
+    },
+    "intent_summary": {
+      "type": "object",
+      "required": [
+        "intent_id", "definition", "discovery_terms", "capable_packs",
+        "distinctions", "match_kind", "matched_terms", "unmatched_terms",
+        "match_reasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "intent_id": { "$ref": "#/$defs/identifier" },
+        "definition": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "discovery_terms": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 96 }
+        },
+        "capable_packs": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/pack" }
+        },
+        "distinctions": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/distinction" }
+        },
+        "match_kind": {
+          "enum": ["catalog_entry", "exact_match", "partial_match"]
+        },
+        "matched_terms": { "$ref": "#/$defs/string_set" },
+        "unmatched_terms": { "$ref": "#/$defs/string_set" },
+        "match_reasons": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/match_reason" }
+        }
+      }
+    }
+  }
+}

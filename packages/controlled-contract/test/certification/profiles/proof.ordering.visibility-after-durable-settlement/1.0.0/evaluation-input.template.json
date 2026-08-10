@@ -1,0 +1,37 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {"role": "durable_effect_population", "reference_ids": ["<complete-durable-effect-population-reference-id>"]},
+    {"role": "durable_effects", "reference_ids": ["<one-or-more-durable-effect-reference-ids>"]},
+    {"role": "settled_effect_population", "reference_ids": ["<complete-settled-effect-population-reference-id>"]},
+    {"role": "settled_effects", "reference_ids": ["<the-same-complete-effect-reference-ids>"]},
+    {"role": "allowed_settled_state_population", "reference_ids": ["<complete-allowed-settled-state-population-reference-id>"]},
+    {"role": "allowed_settled_states", "reference_ids": ["<one-or-more-allowed-state-reference-ids>"]},
+    {"role": "selected_settled_state", "reference_ids": ["<selected-allowed-state-reference-id>"]},
+    {"role": "settlement_event", "reference_ids": ["<settlement-event-reference-id>"]},
+    {"role": "visibility_event", "reference_ids": ["<success-publication-or-ack-event-reference-id>"]},
+    {"role": "post_visibility_observation", "reference_ids": ["<post-visibility-observation-reference-id>"]},
+    {"role": "expected_durable_state", "reference_ids": ["<complete-expected-durable-state-reference-id>"]},
+    {"role": "observed_durable_state", "reference_ids": ["<observed-durable-state-reference-id>"]},
+    {"role": "failure_event", "reference_ids": ["<distinct-failure-event-reference-id>"]},
+    {"role": "failure_visibility_population", "reference_ids": ["<complete-failure-visibility-population-reference-id>"]},
+    {"role": "failure_visibility_events", "reference_ids": []},
+    {"role": "failure_visibility_count_signal", "reference_ids": ["<failure-visibility-count-signal-reference-id>"]},
+    {"role": "verification", "reference_ids": ["<verification-reference-id>"]},
+    {"role": "durable_not_settled_condition", "reference_ids": ["<durable-not-settled-condition-reference-id>"]},
+    {"role": "settled_not_durable_condition", "reference_ids": ["<settled-not-durable-condition-reference-id>"]},
+    {"role": "disallowed_settled_state_condition", "reference_ids": ["<disallowed-settled-state-condition-reference-id>"]},
+    {"role": "premature_visibility_condition", "reference_ids": ["<premature-visibility-condition-reference-id>"]},
+    {"role": "premature_observation_condition", "reference_ids": ["<premature-observation-condition-reference-id>"]},
+    {"role": "stale_observation_condition", "reference_ids": ["<stale-observation-condition-reference-id>"]},
+    {"role": "failure_visibility_condition", "reference_ids": ["<failure-visibility-condition-reference-id>"]}
+  ],
+  "number_bindings": [
+    {"role": "effect_count", "value": "<exact-positive-durable-effect-count>"},
+    {"role": "zero_visibility_count", "value": 0}
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

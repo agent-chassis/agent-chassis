@@ -43,8 +43,17 @@ binary you need and pulls in the underlying surfaces:
   `agent-launch orchestrator list`.
 
 These in turn pull in their shared `@agent-chassis/*` dependencies
-(`@agent-chassis/wiki-core` and `@agent-chassis/agent-launch-core`) from the same
-registry.
+(`@agent-chassis/wiki-core`, `@agent-chassis/agent-launch-core`, and
+`@agent-chassis/controlled-contract`) from the same registry. Wiki-core uses
+controlled-contract at runtime, so installing `@agent-chassis/core` or a surface
+that depends on wiki-core installs it transitively.
+
+Package consumers that use controlled-contract exports, schemas, or CLIs
+directly can install its independently versioned public package explicitly:
+
+```bash
+npm install --save-dev @agent-chassis/controlled-contract
+```
 
 If you would rather pin the surfaces individually, you can install them directly
 instead of the bundle:

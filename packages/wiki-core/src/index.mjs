@@ -83,12 +83,29 @@ export function renderStaticIn0001AdoptionSeedMarkdown(
         `- \`${surface.path}\` (${surface.write_mode}): ${surface.purpose}`
     )
     .join("\n");
-  const ownedWork = seed.owned_work
-    .map((work) => `- ${work.title}: ${work.description}`)
-    .join("\n");
   const seedWorkRecords = renderSeedWorkRecords(
     getStaticIn0001AdoptionSeedWorkRecords(seed)
   );
+
+  const hasOwnedWork = seed.owned_work.length > 0;
+  const executableWorkRecordsCaveat = hasOwnedWork
+    ? `The dispatchable adoption contract is the seeded canonical work record(s) below.
+Use these records — not the Owned Work summary — as the executable units a worker
+is assigned and that dispatch readiness validates against.`
+    : `The dispatchable adoption contract is the seeded canonical work record(s) below.
+Use these records as the executable units a worker is assigned and that dispatch
+readiness validates against.`;
+  const ownedWorkSection = hasOwnedWork
+    ? `
+## Owned Work
+
+The Owned Work list is a human-readable summary of the adoption backlog. It is
+not dispatchable by itself; see Executable Work Records above for the canonical
+records that own each surface and readiness check.
+
+${seed.owned_work.map((work) => `- ${work.title}: ${work.description}`).join("\n")}
+`
+    : "";
 
   return `# ${seed.title}
 
@@ -100,20 +117,10 @@ ${targetSurfaces}
 
 ## Executable Work Records
 
-The dispatchable adoption contract is the seeded canonical work record(s) below.
-Use these records — not the Owned Work summary — as the executable units a worker
-is assigned and that dispatch readiness validates against.
+${executableWorkRecordsCaveat}
 
 ${seedWorkRecords}
-
-## Owned Work
-
-The Owned Work list is a human-readable summary of the adoption backlog. It is
-not dispatchable by itself; see Executable Work Records above for the canonical
-records that own each surface and readiness check.
-
-${ownedWork}
-
+${ownedWorkSection}
 ## Required Checks
 
 ${renderBulletList(seed.required_checks)}
@@ -424,6 +431,32 @@ export {
   summarizeWorkRecord
 } from "./lib/work-record-summary.mjs";
 export { getWorkRecordSummary } from "./operations/work-record-summary.mjs";
+export {
+  CONTROLLED_CONTRACT_ARTIFACT_FILES,
+  CONTROLLED_CONTRACT_CARRIER_KINDS,
+  CONTROLLED_CONTRACT_MAX_ARTIFACT_BYTES,
+  CONTROLLED_CONTRACT_MAX_JSON_BYTES,
+  CONTROLLED_CONTRACT_WRITABLE_CARRIER_KINDS,
+  ControlledContractToolError,
+  controlledContractCarrierFilename,
+  normalizeControlledContractIdentity,
+  readControlledContractAssessmentArtifactFile,
+  readControlledContractCarrierFile,
+  writeControlledContractCarrierFile
+} from "./lib/controlled-contract-tools.mjs";
+export {
+  assessControlledContractOperation,
+  buildProofPlanOperation,
+  createControlledContractRefusal,
+  describeProofPackOperation,
+  discoverControlledProofIntentsOperation,
+  inspectProofPackBindingsOperation,
+  queryControlledVocabularyOperation,
+  readControlledContractAssessmentArtifactOperation,
+  readControlledContractCarrierOperation,
+  selectProofPacksOperation,
+  writeControlledContractCarrierOperation
+} from "./operations/controlled-contract.mjs";
 export {
   AGENT_FAQ_SCHEMA_VERSION,
   AGENT_FAQ_CORPUS_FILENAME,

@@ -1,0 +1,14 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"controlled-contract-exact-binding-assessment-request.v1.schema.json",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["contractPath","evaluationInputPath","profileId","exactBindingSources"],
+  "properties":{
+    "contractPath":{"type":"string","minLength":1},
+    "evaluationInputPath":{"type":"string","minLength":1},
+    "profileId":{"type":"string","minLength":1},
+    "exactBindingSources":{"$ref":"controlled-contract-exact-binding-sources.v1.schema.json"}
+  },
+  "$comment":"The whole JavaScript request is copied once by the descriptor-aware plain-data snapshot before this schema is evaluated. Caller capture_root, callbacks, results, and executable selectors are closed out by additionalProperties false."
+}

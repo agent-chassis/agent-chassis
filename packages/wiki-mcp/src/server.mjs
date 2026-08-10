@@ -78,6 +78,7 @@ import {
 } from "./lib/tool-usage-audit-mcp-tools.mjs";
 
 import { registerToolDiscoveryTools } from "./lib/tool-discovery-tools.mjs";
+import { registerControlledContractTools } from "./lib/controlled-contract-tools.mjs";
 
 import { registerWikiCoreTools } from "./lib/wiki-core-tools.mjs";
 
@@ -120,6 +121,20 @@ const DESCRIPTOR_LOAD_FAILURE_FREE_LOCAL_MCP_TOOL_NAMES = new Set([
   "workspace_tools_list",
   "workspace_tools_describe",
   "workspace_tools_query",
+  "workspace_controlled_contract_carrier_read",
+  "workspace_controlled_contract_carrier_write",
+  "workspace_controlled_contract_carrier_create",
+  "workspace_controlled_contract_carrier_query",
+  "workspace_controlled_contract_carrier_patch",
+  "workspace_controlled_contract_authoring_describe",
+  "workspace_controlled_vocabulary_query",
+  "workspace_controlled_proof_intents_discover",
+  "workspace_controlled_proof_packs_select",
+  "workspace_controlled_proof_pack_describe",
+  "workspace_controlled_proof_pack_bindings_inspect",
+  "workspace_controlled_proof_plan_build",
+  "workspace_controlled_contract_assess",
+  "workspace_controlled_contract_artifact_read",
   "workspace_read_mcp_content_reference",
   "get_contract_manifest",
   "workspace_agent_dispatch_identity_contract",
@@ -326,6 +341,15 @@ async function registerTools(server) {
     augmentDescriptor: augmentWorkspaceToolDiscoveryDescriptor,
 
     registeredTier
+  });
+
+  registerControlledContractTools({
+    registerTool,
+    workspaceRepos,
+    z,
+    jsonContent,
+    errorContent,
+    resolveWorkspaceRepo
   });
 
   registerDispatchTools({

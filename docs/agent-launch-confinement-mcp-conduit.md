@@ -69,6 +69,53 @@ observes EOF and shuts down. Either terminal event terminates and reaps the
 opposite copy and the relay exits on its own within a bounded interval. A
 process-level signal to the sandbox is a backstop, never the mechanism.
 
+On the local-socket transport that EOF is a launcher-observed fact rather than
+a relay side effect. Once admission has authenticated a connection and attached
+the generation, a graceful peer half-close on that socket is recorded as
+authenticated client transport EOF **before** the EOF is forwarded, and the
+generation's stdin is then ended exactly once. The recorded fact is clean-drain
+evidence only: it says the client's MCP transport reached EOF, never that the
+confined client process is terminal, and it authorizes no successful
+completion. The launcher-observed confined-process exit remains the sole
+authority for that.
+
+Only after client readiness has completed at the tools/profile boundary does a
+host server exiting `code 0, signal null` following that fact count as the
+expected drain. It then records no server-exit failure and no launcher
+termination, even while the orchestrator is still finishing — which is exactly
+the case the previous behavior broke, by suppressing the EOF, reaping a healthy
+server on socket close, and then reading its own escalation as an abnormal
+loss. Every other shape keeps its existing typed fail-closed teardown: an
+unauthenticated disconnect, a close with no preceding half-close, a disconnect
+before client readiness, a spawn failure, a host exit that precedes the EOF, and
+any nonzero or signalled exit.
+
+Having forwarded the EOF, admission waits for the generation's own server-exit
+settlement for one natural-exit window equal to the launcher-owned
+abnormal-drain grace, so the server can leave on its own instead of being
+signalled while it is already shutting down. A server that uses the window costs
+no reap at all. One that does not still reaches the same memoized generation
+close and the same bounded TERM-to-KILL escalation, so host-server shutdown stays
+bounded by three such intervals. The window is a launcher-owned constant: no
+caller, environment, config, or prompt selects it, it is entered only for a drain
+that was graceful — so a teardown destroying a socket that never half-closed
+still disposes with no wait at all — and a generation that exposes no such
+settlement falls straight through to the memoized close owner rather than gaining
+a new required shape.
+
+Confined-client terminal supervision is a separate decision, and a clean
+expected host-server drain does not reach it. That drain means the client's own
+MCP session ended; it is not evidence about the client process, which for an
+interactive orchestrator is routinely still working. The launcher therefore arms
+no terminal supervisor, schedules no signal, and records no launcher-termination
+evidence for it, and the client may stay alive indefinitely afterwards. A longer
+grace would only move that truncation, so there is none: the confined process's
+own exit, close, or error event remains the independently observed authority
+that finalizes the conduit lifecycle. Abnormal server loss, a server-exit
+observation that fails outright, and a conduit failure settlement all keep the
+existing bounded terminal supervision on the abnormal-drain grace, with their
+existing typed originating cause, TERM-to-KILL escalation, and evidence.
+
 Teardown has exactly one owner per conduit: a retained, awaitable settlement
 created before the first resource is acquired. Every path — partial create,
 launch refusal, readiness failure, killed client, forced timeout, cancellation,

@@ -49,7 +49,11 @@ test("adoption seed target surfaces cover required bootstrap paths", () => {
   const paths = seed.target_surfaces.map((s) => s.path);
   assert.ok(paths.includes("AGENTS.md"), "AGENTS.md must be in target_surfaces");
   assert.ok(paths.includes("wiki/initiatives/IN-0001.md"), "IN-0001.md must be in target_surfaces");
-  assert.ok(paths.includes("docs/adoption.md"), "docs/adoption.md must be in target_surfaces");
+
+  assert.ok(
+    !paths.includes("docs/adoption.md"),
+    "docs/adoption.md must not be a seeded target surface"
+  );
   for (const surface of seed.target_surfaces) {
     assert.equal(
       surface.write_mode,
@@ -78,14 +82,14 @@ test("WK-0795 adoption seed no longer exposes mcp-alias-default as owned work", 
 test("static IN-0001 adoption seed is cloned on read and safe to mutate locally", () => {
   const seed = getStaticIn0001AdoptionSeed();
   seed.target_surfaces[0].path = "mutated.md";
-  seed.owned_work[0].title = "mutated title";
+  seed.owned_work.push({ key: "mutated", title: "mutated title" });
   seed.required_checks.push("mutated check");
   seed.non_goals[0] = "mutated non-goal";
 
   const reread = getStaticIn0001AdoptionSeed();
 
   assert.equal(reread.target_surfaces[0].path, "AGENTS.md");
-  assert.equal(reread.owned_work[0].title, "Document local adoption choices");
+  assert.deepEqual(reread.owned_work, [], "owned_work must be cloned on read, not shared");
   assert.deepEqual(reread.required_checks, TEMPLATE_DATA.required_checks);
   assert.deepEqual(reread.non_goals, TEMPLATE_DATA.non_goals);
 });
@@ -96,14 +100,17 @@ test("rendered adoption markdown contains required sections and MCP guidance", (
   assert.match(markdown, /## Target Surfaces/);
   assert.match(markdown, /`AGENTS\.md` \(create_if_missing\): the repo-local operating contract this adoption initiative exists to produce/);
   assert.match(markdown, /`wiki\/initiatives\/IN-0001\.md` \(create_if_missing\): owned adoption plan/);
-  assert.match(markdown, /## Owned Work/);
-  assert.match(markdown, /Document local adoption choices/);
+
+  assert.doesNotMatch(markdown, /## Owned Work/);
+  assert.doesNotMatch(markdown, /Document local adoption choices/);
 
   assert.doesNotMatch(markdown, /wiki-mcp-workspace\.v1/);
   assert.match(markdown, /## Required Checks/);
 
   assert.match(markdown, /- wiki search\/read\/get-record checks/);
-  assert.match(markdown, /WK-0001#adoption-verify/);
+  assert.match(markdown, /configured repository root/);
+  assert.match(markdown, /not terminal-review work/);
+  assert.doesNotMatch(markdown, /#adoption-verify/);
   assert.doesNotMatch(markdown, /- repo-local AGENTS guidance/);
   assert.match(markdown, /## Non-Goals/);
   assert.match(
@@ -114,6 +121,18 @@ test("rendered adoption markdown contains required sections and MCP guidance", (
   assert.match(markdown, /Preserve existing canonical records and repo-specific edits\./);
   assert.match(markdown, /Create missing bootstrap surfaces only\./);
   assert.match(markdown, /Rerun safely without duplicating seeded content\./);
+});
+
+test("IN-0001 assigns all required checks to the configured-root coordinator", () => {
+  const seed = getStaticIn0001AdoptionSeed();
+  assert.equal(seed.required_checks.length, 5);
+  for (const check of seed.required_checks) {
+    assert.match(check, /coordinator-only/i);
+    assert.match(check, /configured repository root/i);
+    assert.match(check, /not terminal-review work/i);
+    assert.doesNotMatch(check, /#adoption-verify/);
+  }
+  assert.match(seed.non_goals.join("\n"), /not implementation-worker tasks, terminal-review commands, or terminal-review findings criteria/i);
 });
 
 test("rendered adoption markdown does not contain forbidden MCP alias/default setup phrasing", () => {
@@ -133,12 +152,20 @@ test("rendered adoption markdown references the seeded executable WK-0001 work r
 });
 
 test("rendered adoption markdown marks owned work as summary-only and not dispatchable", () => {
-  const markdown = renderStaticIn0001AdoptionSeedMarkdown();
+
+  const seed = getStaticIn0001AdoptionSeed();
+  seed.owned_work = [
+    {
+      key: "example-owned-surface",
+      title: "Example owned surface",
+      description: "Repo-owned adoption surface the consuming repo completes itself."
+    }
+  ];
+  const markdown = renderStaticIn0001AdoptionSeedMarkdown(seed);
 
   assert.match(markdown, /## Owned Work/);
-  assert.match(markdown, /Document local adoption choices/);
-
   assert.match(markdown, /not dispatchable by itself/i);
+  assert.match(markdown, /Example owned surface: Repo-owned adoption surface/);
 
   const executableIdx = markdown.indexOf("## Executable Work Records");
   const ownedIdx = markdown.indexOf("## Owned Work");
@@ -146,5 +173,45 @@ test("rendered adoption markdown marks owned work as summary-only and not dispat
   assert.ok(
     executableIdx < ownedIdx,
     "Executable Work Records must be presented before the Owned Work summary"
+  );
+  assert.match(
+    markdown,
+    /not the Owned Work summary/,
+    "with owned work present, the executable-records caveat must contrast it with the summary"
+  );
+});
+
+test("WK-1994 rendered adoption markdown omits the whole Owned Work section when owned_work is empty", () => {
+  const markdown = renderStaticIn0001AdoptionSeedMarkdown();
+
+  assert.deepEqual(getStaticIn0001AdoptionSeed().owned_work, []);
+  assert.doesNotMatch(markdown, /## Owned Work/, "the Owned Work heading must be omitted");
+  assert.doesNotMatch(
+    markdown,
+    /not dispatchable by itself/i,
+    "the Owned Work caveat must be omitted with its section"
+  );
+
+  assert.doesNotMatch(
+    markdown,
+    /Owned Work summary/,
+    "no surviving prose may point at the omitted Owned Work section"
+  );
+  assert.match(
+    markdown,
+    /## Executable Work Records\n\nThe dispatchable adoption contract is the seeded canonical work record\(s\) below\.\nUse these records as the executable units/,
+    "the executable-records caveat must stand alone when there is no Owned Work summary"
+  );
+
+  assert.match(
+    markdown,
+    /\n\n## Required Checks\n/,
+    "Required Checks must remain a well-separated section after the omission"
+  );
+  assert.doesNotMatch(markdown, /\n{3,}/, "omitting the section must not leave blank-line runs");
+
+  assert.ok(
+    !markdown.includes("docs/adoption.md"),
+    "rendered IN-0001 seed markdown must not name a consumer-local docs/adoption.md"
   );
 });

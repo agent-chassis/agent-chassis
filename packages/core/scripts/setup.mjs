@@ -200,7 +200,7 @@ export function renderNextCommands({ guidanceFile }) {
     "",
     "Next commands:",
     "  git status --short",
-    `  git add ${guidancePath} docs/adoption.md wiki .gitignore agent-launch.toml`,
+    `  git add ${guidancePath} wiki .gitignore agent-launch.toml`,
     "  git commit -m \"bootstrap AgentChassis wiki adoption\"",
     "  npx wiki code-index build --json",
     "  npx agent-launch orchestrator IN-0001",

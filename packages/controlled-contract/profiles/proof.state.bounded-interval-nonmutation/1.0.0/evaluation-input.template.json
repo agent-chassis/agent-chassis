@@ -1,0 +1,11 @@
+{
+  "input_version":"controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage":"pre_dispatch",
+  "reference_bindings":[
+    {"role":"actor","reference_ids":["ref-actor"]},{"role":"interval","reference_ids":["ref-interval"]},{"role":"start_event","reference_ids":["ref-start"]},{"role":"end_event","reference_ids":["ref-end"]},
+    {"role":"protected_resource_population","reference_ids":["ref-protected-population"]},{"role":"protected_resources","reference_ids":["ref-resource-1","ref-resource-2"]},
+    {"role":"verification","reference_ids":["ref-verification"]}
+  ],
+  "number_bindings":[{"role":"protected_resource_count","value":2}],
+  "claim_pattern_bindings":[],"resolver_facts":[],"delivered_evidence":[]
+}

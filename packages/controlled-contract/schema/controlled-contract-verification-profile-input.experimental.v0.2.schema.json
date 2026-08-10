@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "type": "object",
+  "required": [
+    "input_version",
+    "evaluation_stage",
+    "reference_bindings",
+    "claim_pattern_bindings",
+    "resolver_facts",
+    "delivered_evidence"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "input_version": {
+      "type": "string",
+      "enum": [
+        "controlled-contract-verification-profile-input.experimental.v0.2"
+      ]
+    },
+    "evaluation_stage": {
+      "type": "string",
+      "enum": [
+        "pre_dispatch",
+        "post_delivery"
+      ]
+    },
+    "reference_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "reference_ids"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "reference_ids": {
+            "type": "array",
+            "minItems": 0,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^ref-[a-z0-9]+(?:-[a-z0-9]+)*$"
+            }
+          }
+        }
+      }
+    },
+    "number_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "value"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "value": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "claim_pattern_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pattern_id",
+          "claim_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "claim_id": {
+            "type": "string",
+            "pattern": "^claim-[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        }
+      }
+    },
+    "resolver_facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "resolver_kind",
+          "fact_key",
+          "argument_reference_ids",
+          "satisfied"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "resolver_kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "fact_key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "argument_reference_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^ref-[a-z0-9]+(?:-[a-z0-9]+)*$"
+            }
+          },
+          "satisfied": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "delivered_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "evidence_kind",
+          "verification_claim_id",
+          "satisfied"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "evidence_kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "verification_claim_id": {
+            "type": "string",
+            "pattern": "^claim-[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "satisfied": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "controlled-contract-verification-profile.experimental.v0.1",
+  "description": "Free-tier, non-authoritative schema for versioned deterministic proof-pack patterns over a native controlled contract. Profiles are data and cannot contain executable code or prose predicates.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "profile_id",
+    "profile_version",
+    "evaluation_stages",
+    "reference_roles",
+    "claim_patterns",
+    "relation_patterns",
+    "collection_patterns",
+    "resolver_fact_patterns",
+    "evidence_patterns",
+    "satisfaction_expression"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "controlled-contract-verification-profile.experimental.v0.1"
+      ]
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9.-]+$"
+    },
+    "profile_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "verification_falsifier_policy": {
+      "type": "string",
+      "enum": [
+        "controlled_complement_per_target"
+      ]
+    },
+    "evaluation_stages": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "pre_dispatch",
+          "post_delivery"
+        ]
+      }
+    },
+    "reference_roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "allowed_type_terms",
+          "cardinality"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "allowed_type_terms": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "cc:entity",
+                "cc:actor",
+                "cc:process",
+                "cc:event",
+                "cc:state",
+                "cc:artifact",
+                "cc:resource",
+                "cc:capability",
+                "cc:requirement",
+                "cc:criterion",
+                "cc:invariant",
+                "cc:evidence",
+                "cc:conflict",
+                "cc:escalation",
+                "cc:authority",
+                "cc:scope",
+                "cc:configuration",
+                "cc:test",
+                "cc:command",
+                "cc:runtime_component",
+                "cc:lifecycle_entity",
+                "cc:operation"
+              ]
+            }
+          },
+          "cardinality": {
+            "type": "string",
+            "enum": [
+              "exactly_one",
+              "one_or_more",
+              "zero_or_one"
+            ]
+          }
+        }
+      }
+    },
+    "number_roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "cardinality"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "cardinality": {
+            "type": "string",
+            "enum": [
+              "exactly_one",
+              "zero_or_one"
+            ]
+          },
+          "number_type": {
+            "type": "string",
+            "enum": [
+              "number",
+              "integer"
+            ]
+          },
+          "minimum": {
+            "type": "number"
+          },
+          "maximum": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "distinct_reference_role_sets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "roles"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "roles": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            }
+          }
+        }
+      }
+    },
+    "reference_binding_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pattern_id",
+          "required_by_stage",
+          "comparison",
+          "roles"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "required_by_stage": {
+            "type": "string",
+            "enum": [
+              "pre_dispatch",
+              "post_delivery"
+            ]
+          },
+          "comparison": {
+            "type": "string",
+            "enum": [
+              "same_reference",
+              "distinct_references"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            }
+          }
+        }
+      }
+    },
+    "claim_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pattern_id",
+          "required_by_stage",
+          "claim_kind",
+          "allowed_modalities",
+          "proposition_template"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "required_by_stage": {
+            "type": "string",
+            "enum": [
+              "pre_dispatch",
+              "post_delivery"
+            ]
+          },
+          "claim_kind": {
+            "type": "string",
+            "enum": [
+              "behavior",
+              "evidence",
+              "verification"
+            ]
+          },
+          "allowed_modalities": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "MUST",
+                "MUST_NOT",
+                "SHOULD",
+                "SHOULD_NOT",
+                "MAY"
+              ]
+            }
+          },
+          "proposition_template": {
+            "type": "object",
+            "required": [
+              "subject_role",
+              "operator",
+              "applicability_context",
+              "operands"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "subject_role": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "operator": {
+                "type": "string",
+                "enum": [
+                  "reference:accepts",
+                  "reference:adds",
+                  "reference:allows",
+                  "reference:approves",
+                  "reference:authorizes",
+                  "reference:behaviorally_equivalent",
+                  "reference:blocks",
+                  "reference:calls",
+                  "reference:classifies_as",
+                  "reference:complete_against",
+                  "reference:completes",
+                  "reference:conflicts_with",
+                  "reference:conforms_to",
+                  "reference:contains",
+                  "reference:covers",
+                  "reference:creates",
+                  "reference:deletes",
+                  "reference:depends_on",
+                  "reference:emits",
+                  "reference:equals",
+                  "reference:exports",
+                  "reference:follows",
+                  "reference:forwards_to",
+                  "reference:generates",
+                  "reference:has_identity",
+                  "reference:has_property",
+                  "reference:has_state",
+                  "reference:has_status",
+                  "reference:has_type",
+                  "reference:has_value",
+                  "reference:imports",
+                  "reference:includes",
+                  "reference:invalidates",
+                  "reference:isolated_from",
+                  "reference:matches",
+                  "reference:member_of",
+                  "reference:modifies",
+                  "reference:mutates",
+                  "reference:not_equals",
+                  "reference:not_member_of",
+                  "reference:omits",
+                  "reference:performs",
+                  "reference:precedes",
+                  "reference:preserves",
+                  "reference:replaces",
+                  "reference:reads",
+                  "reference:records",
+                  "reference:rejects",
+                  "reference:resolves_to",
+                  "reference:retains",
+                  "reference:returns",
+                  "reference:authoritative_for",
+                  "reference:contained_in",
+                  "reference:ordered_as",
+                  "reference:requests_authorization",
+                  "reference:routes_to",
+                  "reference:same_container_as",
+                  "reference:semantically_equivalent",
+                  "reference:escalates_to",
+                  "reference:starts",
+                  "reference:supports",
+                  "reference:targets",
+                  "reference:traces_to",
+                  "reference:unchanged_from_frozen_base",
+                  "reference:uses",
+                  "reference:visible_in_scope",
+                  "reference:within_scope",
+                  "reference:writable_in_scope",
+                  "reference:writes",
+                  "boolean:authoritative",
+                  "boolean:deterministic",
+                  "boolean:exists",
+                  "boolean:fails_when",
+                  "boolean:immutable",
+                  "number:emits",
+                  "number:equals",
+                  "number:has_cardinality",
+                  "number:has_value",
+                  "number:matches",
+                  "number:not_equals",
+                  "number:returns",
+                  "range:has_cardinality",
+                  "range:has_range"
+                ]
+              },
+              "applicability_context": {
+                "type": "object",
+                "required": [
+                  "mode",
+                  "operand_roles"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "unconditional",
+                      "if",
+                      "unless",
+                      "when",
+                      "while",
+                      "where",
+                      "before",
+                      "after",
+                      "during",
+                      "until",
+                      "frozen_base",
+                      "counterfactual"
+                    ]
+                  },
+                  "operand_roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]*$"
+                    }
+                  }
+                }
+              },
+              "operands": {
+                "type": "array",
+                "minItems": 1
+              }
+            },
+            "anyOf": [
+              {
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "reference:accepts",
+                      "reference:adds",
+                      "reference:allows",
+                      "reference:approves",
+                      "reference:authorizes",
+                      "reference:behaviorally_equivalent",
+                      "reference:blocks",
+                      "reference:calls",
+                      "reference:classifies_as",
+                      "reference:complete_against",
+                      "reference:completes",
+                      "reference:conflicts_with",
+                      "reference:conforms_to",
+                      "reference:contains",
+                      "reference:covers",
+                      "reference:creates",
+                      "reference:deletes",
+                      "reference:depends_on",
+                      "reference:emits",
+                      "reference:equals",
+                      "reference:exports",
+                      "reference:follows",
+                      "reference:forwards_to",
+                      "reference:generates",
+                      "reference:has_identity",
+                      "reference:has_property",
+                      "reference:has_state",
+                      "reference:has_status",
+                      "reference:has_type",
+                      "reference:has_value",
+                      "reference:imports",
+                      "reference:includes",
+                      "reference:invalidates",
+                      "reference:isolated_from",
+                      "reference:matches",
+                      "reference:member_of",
+                      "reference:modifies",
+                      "reference:mutates",
+                      "reference:not_equals",
+                      "reference:not_member_of",
+                      "reference:omits",
+                      "reference:performs",
+                      "reference:precedes",
+                      "reference:preserves",
+                      "reference:replaces",
+                      "reference:reads",
+                      "reference:records",
+                      "reference:rejects",
+                      "reference:resolves_to",
+                      "reference:retains",
+                      "reference:returns",
+                      "reference:authoritative_for",
+                      "reference:contained_in",
+                      "reference:ordered_as",
+                      "reference:requests_authorization",
+                      "reference:routes_to",
+                      "reference:same_container_as",
+                      "reference:semantically_equivalent",
+                      "reference:escalates_to",
+                      "reference:starts",
+                      "reference:supports",
+                      "reference:targets",
+                      "reference:traces_to",
+                      "reference:unchanged_from_frozen_base",
+                      "reference:uses",
+                      "reference:visible_in_scope",
+                      "reference:within_scope",
+                      "reference:writable_in_scope",
+                      "reference:writes"
+                    ]
+                  },
+                  "operands": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/template_reference_operand"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "boolean:authoritative",
+                      "boolean:deterministic",
+                      "boolean:exists",
+                      "boolean:fails_when",
+                      "boolean:immutable"
+                    ]
+                  },
+                  "operands": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/template_boolean_operand"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "number:emits",
+                      "number:equals",
+                      "number:has_cardinality",
+                      "number:has_value",
+                      "number:matches",
+                      "number:not_equals",
+                      "number:returns"
+                    ]
+                  },
+                  "operands": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/template_number_operand"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "range:has_cardinality",
+                      "range:has_range"
+                    ]
+                  },
+                  "operands": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/template_range_operand"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "verification_methods": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "inspection",
+                "analysis",
+                "demonstration",
+                "test_execution",
+                "audit",
+                "proof"
+              ]
+            }
+          },
+          "falsifying_proposition_template": {
+            "type": "object",
+            "required": [
+              "subject_role",
+              "operator",
+              "applicability_context",
+              "operands"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "subject_role": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "operator": {
+                "type": "string",
+                "enum": [
+                  "reference:accepts",
+                  "reference:adds",
+                  "reference:allows",
+                  "reference:approves",
+                  "reference:authorizes",
+                  "reference:behaviorally_equivalent",
+                  "reference:blocks",
+                  "reference:calls",
+                  "reference:classifies_as",
+                  "reference:complete_against",
+                  "reference:completes",
+                  "reference:conflicts_with",
+                  "reference:conforms_to",
+                  "reference:contains",
+                  "reference:covers",
+                  "reference:creates",
+                  "reference:deletes",
+                  "reference:depends_on",
+                  "reference:emits",
+                  "reference:equals",
+                  "reference:exports",
+                  "reference:follows",
+                  "reference:forwards_to",
+                  "reference:generates",
+                  "reference:has_identity",
+                  "reference:has_property",
+                  "reference:has_state",
+                  "reference:has_status",
+                  "reference:has_type",
+                  "reference:has_value",
+                  "reference:imports",
+                  "reference:includes",
+                  "reference:invalidates",
+                  "reference:isolated_from",
+                  "reference:matches",
+                  "reference:member_of",
+                  "reference:modifies",
+                  "reference:mutates",
+                  "reference:not_equals",
+                  "reference:not_member_of",
+                  "reference:omits",
+                  "reference:performs",
+                  "reference:precedes",
+                  "reference:preserves",
+                  "reference:replaces",
+                  "reference:reads",
+                  "reference:records",
+                  "reference:rejects",
+                  "reference:resolves_to",
+                  "reference:retains",
+                  "reference:returns",
+                  "reference:authoritative_for",
+                  "reference:contained_in",
+                  "reference:ordered_as",
+                  "reference:requests_authorization",
+                  "reference:routes_to",
+                  "reference:same_container_as",
+                  "reference:semantically_equivalent",
+                  "reference:escalates_to",
+                  "reference:starts",
+                  "reference:supports",
+                  "reference:targets",
+                  "reference:traces_to",
+                  "reference:unchanged_from_frozen_base",
+                  "reference:uses",
+                  "reference:visible_in_scope",
+                  "reference:within_scope",
+                  "reference:writable_in_scope",
+                  "reference:writes",
+                  "boolean:authoritative",
+                  "boolean:deterministic",
+                  "boolean:exists",
+                  "boolean:fails_when",
+                  "boolean:immutable",
+                  "number:emits",
+                  "number:equals",
+                  "number:has_cardinality",
+                  "number:has_value",
+                  "number:matches",
+                  "number:not_equals",
+                  "number:returns",
+                  "range:has_cardinality",
+                  "range:has_range"
+                ]
+              },
+              "applicability_context": {
+                "type": "object",
+                "required": [
+                  "mode",
+                  "operand_roles"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "unconditional",
+                      "if",
+                      "unless",
+                      "when",
+                      "while",
+                      "where",
+                      "before",
+                      "after",
+                      "during",
+                      "until",
+                      "frozen_base",
+                      "counterfactual"
+                    ]
+                  },
+                  "operand_roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]*$"
+                    }
+                  }
+                }
+              },
+              "operands": {
+                "type": "array",
+                "minItems": 1
+              }
+            },
+            "anyOf": [
+              {
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "reference:accepts",
+                      "reference:adds",
+                      "reference:allows",
+                      "reference:approves",
+                      "reference:authorizes",
+                      "reference:behaviorally_equivalent",
+                      "reference:blocks",
+                      "reference:calls",
+                      "reference:classifies_as",
+                      "reference:complete_against",
+                      "reference:completes",
+                      "reference:conflicts_with",
+                      "reference:conforms_to",
+                      "reference:contains",
+                      "reference:covers",
+                      "reference:creates",
+                      "reference:deletes",
+                      "reference:depends_on",
+                      "reference:emits",
+                      "reference:equals",
+                      "reference:exports",
+                      "reference:follows",
+                      "reference:forwards_to",
+                      "reference:generates",
+                      "reference:has_identity",
+                      "reference:has_property",
+                      "reference:has_state",
+                      "reference:has_status",
+                      "reference:has_type",
+                      "reference:has_value",
+                      "reference:imports",
+                      "reference:includes",
+                      "reference:invalidates",
+                      "reference:isolated_from",
+                      "reference:matches",
+                      "reference:member_of",
+                      "reference:modifies",
+                      "reference:mutates",
+                      "reference:not_equals",
+                      "reference:not_member_of",
+                      "reference:omits",
+                      "reference:performs",
+                      "reference:precedes",
+                      "reference:preserves",
+                      "reference:replaces",
+                      "reference:reads",
+                      "reference:records",
+                      "reference:rejects",
+                      "reference:resolves_to",
+                      "reference:retains",
+                      "reference:returns",
+                      "reference:authoritative_for",
+                      "reference:contained_in",
+                      "reference:ordered_as",
+                      "reference:requests_authorization",
+                      "reference:routes_to",
+                      "reference:same_container_as",
+                      "reference:semantically_equivalent",
+                      "reference:escalates_to",
+                      "reference:starts",
+                      "reference:supports",
+                      "reference:targets",
+                      "reference:traces_to",
+                      "reference:unchanged_from_frozen_base",
+                      "reference:uses",
+                      "reference:visible_in_scope",
+                      "reference:within_scope",
+                      "reference:writable_in_scope",
+                      "reference:writes"
+                    ]
+                  },
+                  "operands": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/template_reference_operand"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "boolean:authoritative",
+                      "boolean:deterministic",
+                      "boolean:exists",
+                      "boolean:fails_when",
+                      "boolean:immutable"
+                    ]
+                  },
+                  "operands": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/template_boolean_operand"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "number:emits",
+                      "number:equals",
+                      "number:has_cardinality",
+                      "number:has_value",
+                      "number:matches",
+                      "number:not_equals",
+                      "number:returns"
+                    ]
+                  },
+                  "operands": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/template_number_operand"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "range:has_cardinality",
+                      "range:has_range"
+                    ]
+                  },
+                  "operands": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/template_range_operand"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "claim_kind"
+              ],
+              "properties": {
+                "claim_kind": {
+                  "const": "verification"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "verification_methods",
+                "falsifying_proposition_template"
+              ],
+              "properties": {
+                "verification_methods": true,
+                "falsifying_proposition_template": true
+              }
+            },
+            "else": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "verification_methods"
+                    ],
+                    "properties": {
+                      "verification_methods": true
+                    }
+                  },
+                  {
+                    "required": [
+                      "falsifying_proposition_template"
+                    ],
+                    "properties": {
+                      "falsifying_proposition_template": true
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "relation_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pattern_id",
+          "required_by_stage",
+          "role",
+          "source_claim_pattern_id",
+          "target_claim_pattern_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "required_by_stage": {
+            "type": "string",
+            "enum": [
+              "pre_dispatch",
+              "post_delivery"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "satisfies",
+              "verifies",
+              "derives_from",
+              "refines",
+              "traces",
+              "replaces",
+              "depends_on",
+              "precedes"
+            ]
+          },
+          "source_claim_pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "target_claim_pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          }
+        }
+      }
+    },
+    "collection_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pattern_id",
+          "required_by_stage",
+          "collection_kind",
+          "member_claim_pattern_ids"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "required_by_stage": {
+            "type": "string",
+            "enum": [
+              "pre_dispatch",
+              "post_delivery"
+            ]
+          },
+          "collection_kind": {
+            "type": "string",
+            "enum": [
+              "closed_set",
+              "ordered_sequence"
+            ]
+          },
+          "match_mode": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "subsequence",
+              "contiguous_subsequence"
+            ]
+          },
+          "candidate_quantifier": {
+            "type": "string",
+            "enum": [
+              "any",
+              "all_covering"
+            ]
+          },
+          "collection_purpose": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "member_claim_pattern_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+            }
+          }
+        }
+      }
+    },
+    "resolver_fact_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pattern_id",
+          "required_by_stage",
+          "resolver_kind",
+          "fact_key",
+          "argument_roles"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "required_by_stage": {
+            "type": "string",
+            "enum": [
+              "pre_dispatch",
+              "post_delivery"
+            ]
+          },
+          "resolver_kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "fact_key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "argument_roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            }
+          }
+        }
+      }
+    },
+    "evidence_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pattern_id",
+          "required_by_stage",
+          "evidence_kind",
+          "verification_claim_pattern_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "required_by_stage": {
+            "type": "string",
+            "enum": [
+              "post_delivery"
+            ]
+          },
+          "evidence_kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "verification_claim_pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          }
+        }
+      }
+    },
+    "satisfaction_expression": {
+      "$ref": "#/$defs/satisfaction_expression"
+    }
+  },
+  "$defs": {
+    "template_reference_operand": {
+      "type": "object",
+      "required": [
+        "kind",
+        "role"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "reference"
+          ]
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        }
+      }
+    },
+    "template_boolean_operand": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "boolean"
+          ]
+        },
+        "value": {
+          "type": "boolean"
+        }
+      }
+    },
+    "template_number_operand": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "number"
+              ]
+            },
+            "value": {
+              "type": "number"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value_role"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "number"
+              ]
+            },
+            "value_role": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            }
+          }
+        }
+      ]
+    },
+    "template_range_operand": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "range"
+          ]
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "minimum"
+          ],
+          "properties": {
+            "minimum": {
+              "type": "number"
+            }
+          }
+        },
+        {
+          "required": [
+            "maximum"
+          ],
+          "properties": {
+            "maximum": {
+              "type": "number"
+            }
+          }
+        }
+      ]
+    },
+    "satisfaction_expression": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "pattern"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "all_of"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "all_of": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/satisfaction_expression"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "any_of"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "any_of": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/satisfaction_expression"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

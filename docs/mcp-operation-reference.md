@@ -96,6 +96,86 @@ without an unenforced fallback. Sidecar enforcement
 consumes the tier frozen at launcher plan registration rather than mutable
 planning-environment API-key state.
 
+## Controlled-contract operations
+
+The controlled-contract surface is repository-local and calls the public
+`@agent-chassis/controlled-contract` library directly. It accepts stable WK,
+focus, profile, intent, digest, and artifact identities plus bounded JSON or
+scalar input; it never accepts a caller path, root, cwd, environment, module,
+executable, package/profile directory, catalog, output location, or artifact
+URI.
+
+- `workspace_controlled_contract_carrier_read` is operator-recovery-only and
+  reads a complete deterministic JSON carrier under `wiki/contracts`.
+- `workspace_controlled_contract_carrier_write` is operator-recovery-only
+  and exact-CAS writes a canonical `contract` or `evaluation_input` carrier.
+  `expected_content_digest` is the exact current `sha256:<hex>` digest, or
+  `null` only when the carrier is confirmed absent.
+- `workspace_controlled_contract_carrier_create` is orchestrator/operator-only
+  expected-absence creation for `contract`, `evaluation_input`, and
+  `proof_plan_request`. It validates through the package boundary and returns
+  only a compact digest receipt. A selected-pack input carries only
+  `profile_id` and `profile_version`; the adapter derives its canonical
+  same-WK evaluation-input basename from `wk_id` and optional `focus` before
+  package validation and persistence. A supplied binding path is accepted only
+  when it is exactly that derived basename.
+- `workspace_controlled_contract_carrier_query` returns a 4,096-byte compact
+  target-filtered index with digest-bound continuation, or a 16,384-byte
+  selective projection for at most 64 returned stable IDs or binding roles.
+  The limits apply to the final pretty-JSON MCP structured response after every
+  reference and integrity field is materialized. Selected oversized nodes
+  receive node-scoped content references; an individually oversized index
+  identity receives an item-scoped reference and consumes exactly one cursor
+  position. `proof_plan` query returns only absent/current/stale source-binding
+  metadata and the exact digest required for rebuild, never the compiled body.
+- `workspace_controlled_contract_carrier_patch` is orchestrator/operator-only
+  typed upsert/removal for every mutable contract and evaluation-input family,
+  requested intents, and selected packs. Selected-pack upserts receive the same
+  server-derived evaluation-input binding as create. It package-validates the
+  prospective carrier before one expected-digest CAS write.
+- `workspace_controlled_contract_authoring_describe` returns a compact package-
+  backed carrier index or one bounded target schema, identity rule, mutability,
+  and minimal valid template without loading a complete schema into discovery.
+  The selected-pack description marks `evaluation_input_path` as server-derived,
+  and its caller template omits that field.
+- `workspace_controlled_vocabulary_query` returns the package-owned bounded
+  vocabulary projection.
+- `workspace_controlled_proof_intents_discover` returns bounded lexical
+  candidates from the package-owned intent catalog.
+- `workspace_controlled_proof_packs_select` runs exact package selection for
+  explicit intent IDs against a canonical contract.
+- `workspace_controlled_proof_pack_describe` returns a compact-first summary for
+  one exact profile ID/version, with bounded paged pattern/section detail only
+  when selected. An individually oversized detail entry receives an item-scoped
+  reference and advances the digest-bound cursor by one.
+- `workspace_controlled_proof_pack_bindings_inspect` is
+  compact-first assistance over canonical contract and evaluation-input
+  carriers. Compatible candidates appear only for selected roles/statuses and
+  use deterministic continuation. `evaluation_focus` omitted/null/slug means
+  absent/root/focused input; final JSON is at most 4,096/16,384 bytes, with
+  item-scoped oversized-entry recovery.
+- `workspace_controlled_proof_plan_build` is orchestrator/operator-only. It
+  loads the canonical request and same-WK evaluation inputs server-side,
+  validates the complete supplied binding population through the package's
+  validation-only build path, and exact-CAS writes only the deterministic proof
+  plan carrier.
+- `workspace_controlled_contract_assess` assesses canonical contract and proof
+  plan carriers and publishes only the package-produced ignored
+  content-addressed assessment bundle.
+- `workspace_controlled_contract_artifact_read` reads one fixed bundle file by
+  exact assessment identity. Large lossless results use the ordinary MCP spill
+  reference and `workspace_read_mcp_content_reference` ranged retrieval.
+
+Bounded carrier query, authoring/pack description, binding inspection,
+controlled queries, selection, assessment, and artifact reads are available to
+orchestrator, operator, reviewer, and redteam profiles. Create/patch authoring
+and proof-plan construction are orchestrator/operator-only. Complete-carrier
+read/write is operator-recovery-only; workers receive none of these routes. All
+outputs preserve the package's typed axes,
+residue, exclusions, admission and non-authoritative markers; none claims
+runtime truth, evidence sufficiency, CCE or organization policy, readiness,
+authorization, or dispatch authority.
+
 ## Managed-run terminal semantics
 
 `workspace_agent_run_status` and `workspace_agent_run_wait` project one shared

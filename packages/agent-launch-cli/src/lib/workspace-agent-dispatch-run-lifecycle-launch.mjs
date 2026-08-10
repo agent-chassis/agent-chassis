@@ -33,6 +33,29 @@ const RECOVERY_KIND =
   "agent_launch.managed_run.corrective_status_reconciliation.v1";
 const GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE =
   "managed identity check failed";
+const ORIGINATING_CODE_STATUS_UNAVAILABLE = "unavailable";
+const ORIGINATING_CODE_STATUS_INVALID = "invalid";
+const RECOVERY_CARRIER_STATUS_ABSENT = "absent";
+const RECOVERY_CARRIER_STATUS_MALFORMED = "malformed";
+const MAX_DIAGNOSTIC_CODE_LENGTH = 128;
+const DOTTED_DIAGNOSTIC_CODE_PATTERN =
+  /^(?:[a-z][a-z0-9]*(?:_[a-z0-9]+)*\.){2,}v[1-9][0-9]*$/u;
+const BARE_DIAGNOSTIC_CODE_PATTERN =
+  /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/u;
+const SOURCE_CODE_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/u;
+
+function isBoundedCode(value, pattern) {
+  return value.length <= MAX_DIAGNOSTIC_CODE_LENGTH && pattern.test(value);
+}
+
+function isStableDiagnosticCode(value) {
+  return isBoundedCode(value, DOTTED_DIAGNOSTIC_CODE_PATTERN) ||
+    isBoundedCode(value, BARE_DIAGNOSTIC_CODE_PATTERN);
+}
+
+function isStableSourceCode(value) {
+  return typeof value === "string" && isBoundedCode(value, SOURCE_CODE_PATTERN);
+}
 
 function isClosedStatus(value) {
   return typeof value === "string" && CANONICAL_STATUS_VALUES.includes(value);
@@ -105,9 +128,28 @@ function projectRecovery(source, observed) {
 
 export function projectManagedIdentityCheckFailure(error) {
   const detail = { message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE };
+  let originatingCode;
+  try {
+    originatingCode = error?.code;
+  } catch {
+    originatingCode = null;
+  }
+  if (typeof originatingCode === "string" && isStableDiagnosticCode(originatingCode)) {
+    detail.code = originatingCode;
+  } else if (typeof originatingCode === "string") {
+    detail.originating_code_status = ORIGINATING_CODE_STATUS_INVALID;
+  } else {
+    detail.originating_code_status = ORIGINATING_CODE_STATUS_UNAVAILABLE;
+  }
   let source;
   try {
     source = error?.detail ?? null;
+    const sourceCode = source !== null && typeof source === "object" && !Array.isArray(source)
+      ? source.source_code
+      : null;
+    if (isStableSourceCode(sourceCode)) {
+      detail.source_code = sourceCode;
+    }
     if (source === null || typeof source !== "object" || Array.isArray(source) ||
         (error?.code !== MANAGED_CORRECTIVE_CONTINUATION_CODE &&
           error?.code !== MANAGED_CORRECTIVE_REVIEWED_TARGET_MISMATCH_CODE &&
@@ -132,11 +174,14 @@ export function projectManagedIdentityCheckFailure(error) {
     const actionable = observed.parent_status === "todo" && observed.slice_status === "todo";
     if (recovery === null &&
         (Object.hasOwn(source, "recovery") || actionable)) {
-      return Object.freeze({ message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE });
+      detail.recovery_carrier_status = Object.hasOwn(source, "recovery")
+        ? RECOVERY_CARRIER_STATUS_MALFORMED
+        : RECOVERY_CARRIER_STATUS_ABSENT;
+      return Object.freeze(detail);
     }
     if (recovery !== null) detail.recovery = recovery;
   } catch {
-    return Object.freeze({ message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE });
+    return Object.freeze(detail);
   }
   return Object.freeze(detail);
 }

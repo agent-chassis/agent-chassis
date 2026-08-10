@@ -1,0 +1,25 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.atomicity.failure-boundary",
+  "profile_version": "1.0.0",
+  "profile_digest": "6bcfc451b5883a076ab5b0f6da7186d1168ce66f035282c8290babe336adee24",
+  "guarantee": "When a declared failure is injected at a declared boundary positioned between two distinct ordered constituent effects of one compound-operation attempt, the declared constituent-effect population of at least two members, observed at the declared settlement event that follows the injected failure, has a settled state that is a member of a closed two-member population of allowed settled states whose declared members are the fully-committed state and the fully-uncommitted state, and the declared partial-commit state is not a member of that allowed population.",
+  "guarantee_digest": "3d9681b4aa9e3f75889648eb4d87f995da443f7768f7c7d1938d4e93701a9a98",
+  "explicit_exclusions": [
+    "authored-claim-truthfulness",
+    "concurrent-attempt-interference",
+    "injected-failure-need-not-abort-the-operation",
+    "mutation-outside-the-declared-effect-population",
+    "per-effect-obligations-beyond-the-boundary-pair",
+    "transient-partial-state-before-settlement",
+    "verification-exclusivity"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "e387b32b9b5fe1eea641184930084537b4437d5c9ee5bacc6679f8ea50a42eb5",
+    "adequacy_result_digest": "caa0ff62ccac14268618cb08fc5ddb873f7940c7809aaa7295568e5ad895acc7",
+    "executable_control_count": 46,
+    "negative_fixture_count": 66,
+    "coverage_witness_count": 297
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-proof-pack-selection.v1.schema.json",
+  "title": "controlled-contract-proof-pack-selection.v1",
+  "type": "object",
+  "required": [
+    "schema_version", "requested_intents", "selected_packs",
+    "ambiguous_intents", "uncovered_intents", "packs_requiring_bindings",
+    "hard_incompatibilities", "candidates", "digests", "authority"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "controlled-contract-proof-pack-selection.v1" },
+    "requested_intents": { "$ref": "#/$defs/string_set" },
+    "selected_packs": { "type": "array", "items": { "$ref": "#/$defs/selected_pack" } },
+    "ambiguous_intents": { "type": "array", "items": { "$ref": "#/$defs/intent_issue" } },
+    "uncovered_intents": { "type": "array", "items": { "$ref": "#/$defs/intent_issue" } },
+    "packs_requiring_bindings": { "type": "array", "items": { "$ref": "#/$defs/pack_identity" } },
+    "hard_incompatibilities": { "type": "array", "items": { "$ref": "#/$defs/incompatibility" } },
+    "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } },
+    "digests": {
+      "type": "object",
+      "required": ["algorithm", "catalog", "vocabulary", "profiles", "intent_artifact"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": { "const": "sha256-canonical-json-v1" },
+        "catalog": { "$ref": "#/$defs/sha256" },
+        "vocabulary": { "$ref": "#/$defs/sha256" },
+        "profiles": { "$ref": "#/$defs/sha256" },
+        "intent_artifact": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "authority": { "const": "non_authoritative" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "string_set": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "pack_identity": {
+      "type": "object",
+      "required": ["profile_id", "profile_version"],
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": { "type": "string", "minLength": 1 },
+        "profile_version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "selected_pack": {
+      "type": "object",
+      "required": ["profile_id", "profile_version", "requested_intents", "selection_status"],
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": { "type": "string", "minLength": 1 },
+        "profile_version": { "type": "string", "minLength": 1 },
+        "requested_intents": { "$ref": "#/$defs/string_set" },
+        "selection_status": { "enum": ["ready", "requires_bindings"] }
+      }
+    },
+    "intent_issue": {
+      "type": "object",
+      "required": ["intent_id", "reason_code", "remediation"],
+      "additionalProperties": false,
+      "properties": {
+        "intent_id": { "type": "string", "minLength": 1 },
+        "reason_code": { "type": "string", "minLength": 1 },
+        "remediation": { "type": "string", "minLength": 1 },
+        "candidate_packs": { "type": "array", "items": { "$ref": "#/$defs/pack_identity" } }
+      }
+    },
+    "required_input": {
+      "type": "object",
+      "required": ["input_id", "reason_code", "remediation"],
+      "additionalProperties": false,
+      "properties": {
+        "input_id": { "type": "string", "minLength": 1 },
+        "reason_code": { "type": "string", "minLength": 1 },
+        "remediation": { "type": "string", "minLength": 1 }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "profile_id", "profile_version", "requested_intents",
+        "intent_definitions", "intent_distinctions", "guarantee",
+        "explicit_exclusions", "exact_binding_required", "required_inputs",
+        "missing_compatible_reference_types", "authoring_projection", "source_digests"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": { "type": "string", "minLength": 1 },
+        "profile_version": { "type": "string", "minLength": 1 },
+        "requested_intents": { "$ref": "#/$defs/string_set" },
+        "intent_definitions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/intent_definition" }
+        },
+        "intent_distinctions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/intent_distinction" }
+        },
+        "guarantee": { "type": "string", "minLength": 1 },
+        "explicit_exclusions": { "$ref": "#/$defs/string_set" },
+        "exact_binding_required": { "type": "boolean" },
+        "required_inputs": { "type": "array", "items": { "$ref": "#/$defs/required_input" } },
+        "missing_compatible_reference_types": { "type": "array", "items": { "$ref": "#/$defs/required_input" } },
+        "authoring_projection": { "$ref": "#/$defs/authoring_projection" },
+        "source_digests": {
+          "type": "object",
+          "required": ["profile", "admission", "guarantee", "adequacy_declaration", "adequacy_result"],
+          "additionalProperties": false,
+          "properties": {
+            "profile": { "$ref": "#/$defs/sha256" },
+            "admission": { "$ref": "#/$defs/sha256" },
+            "guarantee": { "$ref": "#/$defs/sha256" },
+            "adequacy_declaration": { "$ref": "#/$defs/sha256" },
+            "adequacy_result": { "$ref": "#/$defs/sha256" },
+            "exact_binding_declaration": { "$ref": "#/$defs/sha256" },
+            "exact_binding_certification": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      }
+    },
+    "intent_definition": {
+      "type": "object",
+      "required": ["intent_id", "definition"],
+      "additionalProperties": false,
+      "properties": {
+        "intent_id": { "type": "string", "minLength": 1 },
+        "definition": { "type": "string", "minLength": 1 }
+      }
+    },
+    "intent_distinction": {
+      "type": "object",
+      "required": ["intent_id", "from_intent_id", "explanation"],
+      "additionalProperties": false,
+      "properties": {
+        "intent_id": { "type": "string", "minLength": 1 },
+        "from_intent_id": { "type": "string", "minLength": 1 },
+        "explanation": { "type": "string", "minLength": 1 }
+      }
+    },
+    "projection_counts": {
+      "type": "object",
+      "required": [
+        "reference_roles", "number_roles", "reference_binding_patterns",
+        "claim_patterns", "relation_patterns", "collection_patterns",
+        "resolver_fact_patterns", "evidence_patterns"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reference_roles": { "type": "integer", "minimum": 0 },
+        "number_roles": { "type": "integer", "minimum": 0 },
+        "reference_binding_patterns": { "type": "integer", "minimum": 0 },
+        "claim_patterns": { "type": "integer", "minimum": 0 },
+        "relation_patterns": { "type": "integer", "minimum": 0 },
+        "collection_patterns": { "type": "integer", "minimum": 0 },
+        "resolver_fact_patterns": { "type": "integer", "minimum": 0 },
+        "evidence_patterns": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "authoring_projection": {
+      "type": "object",
+      "required": ["schema_version", "digest_algorithm", "projection_digest", "maximum_bytes", "counts"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": "controlled-contract-proof-pack-authoring.v1" },
+        "digest_algorithm": { "const": "sha256-canonical-json-v1" },
+        "projection_digest": { "$ref": "#/$defs/sha256" },
+        "maximum_bytes": { "type": "integer", "minimum": 1 },
+        "counts": { "$ref": "#/$defs/projection_counts" }
+      }
+    },
+    "incompatibility": {
+      "type": "object",
+      "required": ["profile_id", "profile_version", "intent_id", "reason_code", "remediation"],
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": { "type": "string", "minLength": 1 },
+        "profile_version": { "type": "string", "minLength": 1 },
+        "intent_id": { "type": "string", "minLength": 1 },
+        "reason_code": { "type": "string", "minLength": 1 },
+        "remediation": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

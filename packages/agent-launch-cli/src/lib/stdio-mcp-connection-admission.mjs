@@ -6,6 +6,10 @@ import { dirname } from "node:path";
 import {
   projectStdioMcpChannelLocalBacking
 } from "./stdio-mcp-conduit-channel.mjs";
+
+import {
+  STDIO_MCP_ABNORMAL_DRAIN_GRACE_MS
+} from "./stdio-mcp-conduit-contract.mjs";
 import {
   STDIO_MCP_CONDUIT_ERROR_CODES,
   failStdioMcpConduit
@@ -151,6 +155,11 @@ function awaitReadinessBounded(generation, admissionClosed) {
   ]);
 }
 
+function projectGenerationServerExit(generation) {
+  const settlement = generation?.lifecycle?.serverExit;
+  return typeof settlement?.then === "function" ? settlement : null;
+}
+
 function forwardBufferedBytes(generation, bytes) {
   if (bytes.length === 0) return;
   const input = makeGenerationInput(generation);
@@ -202,6 +211,20 @@ function createStdioMcpConnectionAdmissionInternal({
     }
     return cause;
   });
+
+  const awaitNaturalServerExit = (generation) => {
+    const settlement = projectGenerationServerExit(generation);
+    if (settlement === null) return Promise.resolve();
+    let timer = null;
+    return Promise.race([
+      settlement.then(() => {}, () => {}),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, STDIO_MCP_ABNORMAL_DRAIN_GRACE_MS);
+      })
+    ]).finally(() => {
+      if (timer !== null) { clearTimeout(timer); timer = null; }
+    });
+  };
 
   const track = (promise) => {
     inFlight.add(promise);
@@ -268,7 +291,9 @@ function createStdioMcpConnectionAdmissionInternal({
       return;
     }
     const state = { socket, bytes: Buffer.alloc(0), finished: false, timer: null, rejectionPublished: false,
-      closeGeneration: null };
+      closeGeneration: null,
+
+      established: false, clientTransportEof: false };
     let finishPromise = null;
     const finish = (reason = null) => {
       if (finishPromise !== null) return finishPromise;
@@ -337,7 +362,17 @@ function createStdioMcpConnectionAdmissionInternal({
               .finally(() => generations.delete(generation));
             return closePromise;
           };
-          state.closeGeneration = closeGeneration;
+
+          let disposal = null;
+          const disposeGeneration = () => {
+            if (disposal !== null) return disposal;
+            disposal = (async () => {
+              if (state.clientTransportEof) await awaitNaturalServerExit(generation);
+              return closeGeneration();
+            })();
+            return disposal;
+          };
+          state.closeGeneration = disposeGeneration;
           resources.add(closeGeneration);
           if (closed || state.finished) {
             reservations.delete(state);
@@ -357,13 +392,25 @@ function createStdioMcpConnectionAdmissionInternal({
           }
           reservations.delete(state);
           established.add(state);
+          state.established = true;
           if (!socket.destroyed) socket.write(encodeStdioMcpAdmissionAcknowledgement());
           forwardBufferedBytes(generation, initialBytes);
-          socket.pipe(input, { end: false });
+
+          input.on("error", () => {});
+
+          socket.on("end", () => {
+            if (state.clientTransportEof) return;
+            state.clientTransportEof = true;
+            try { generation?.lifecycle?.markClientTransportEof?.(); } catch (error) {
+              cleanupFailure ??= error;
+            }
+          });
+
+          socket.pipe(input);
           output.pipe(socket, { end: false });
           socket.resume();
           socket.on("close", () => {
-            void closeGeneration().catch((error) => { cleanupFailure ??= error; });
+            void disposeGeneration().catch((error) => { cleanupFailure ??= error; });
             void finish(null);
           });
         }).catch((error) => {
@@ -384,7 +431,14 @@ function createStdioMcpConnectionAdmissionInternal({
         });
       factories.add(factory);
     };
-    socket.on("error", () => finish(STDIO_MCP_ADMISSION_REASONS.AUTHENTICATION_FAILED));
+
+    socket.on("error", () => {
+      if (state.established) {
+        void finish(null);
+        return;
+      }
+      void finish(STDIO_MCP_ADMISSION_REASONS.AUTHENTICATION_FAILED);
+    });
     socket.on("data", onData);
     socket.resume();
   }

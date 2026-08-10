@@ -1,0 +1,3187 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "1598781df2c2c86074b27af3cfa5eb6a3bfafda0147c289aa251c8ff254eb5c8",
+  "witnesses": [
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "reject-claim-patterns",
+      "variant_id": "reject-claim-patterns",
+      "weakened_profile_digest": "664c23cdccd94bf9b875885c19f3dd5b3c0b8d1d8ba59dd889aa3e6c860f76e0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "initialization-attempt-performs-operation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "initialization_attempt",
+                "operator": "reference:performs",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "initialization_operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "initialization-attempt-targets-capability",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "initialization_attempt",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "capability"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "initialization-precedes-readiness-probe",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "initialization_attempt",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_probe"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-probe-performs-operation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_probe",
+                "operator": "reference:performs",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "initialization_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-probe-targets-capability",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_probe",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "initialization_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "capability"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-result-accepts-probe",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_result",
+                "operator": "reference:accepts",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "readiness_probe"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_probe"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-probe-precedes-result",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_probe",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "completion-report-completes-initialization",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "completion_report",
+                "operator": "reference:completes",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "initialization_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "initialization_attempt"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "initialization-precedes-completion-report",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "initialization_attempt",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "completion_report"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "expected-ready-state-conforms-to-criterion",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "expected_ready_state",
+                "operator": "reference:conforms_to",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "success_criterion"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-observation-records-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "readiness_probe"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_ready_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "state-verification-reads-proof-subjects",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_state_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "readiness_probe"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "capability"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_probe"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_observation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-result-matches-expected-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observed_ready_state",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "readiness_probe"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_ready_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-state-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "audit",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_state_verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "observed_ready_state",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "not_ready_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_ready_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "completion-does-not-precede-readiness-result",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "completion_report",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "order-verification-reads-proof-subjects",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_order_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "initialization_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "initialization_attempt"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_probe"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "completion_report"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-order-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "audit",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_order_verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "completion_report"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "completion_report",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "premature_completion_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "initialization-attempt-performs-operation",
+            "initialization-attempt-targets-capability",
+            "initialization-precedes-readiness-probe",
+            "readiness-probe-performs-operation",
+            "readiness-probe-targets-capability",
+            "readiness-result-accepts-probe",
+            "readiness-probe-precedes-result",
+            "completion-report-completes-initialization",
+            "initialization-precedes-completion-report",
+            "expected-ready-state-conforms-to-criterion",
+            "readiness-observation-records-state",
+            "state-verification-reads-proof-subjects",
+            "readiness-result-matches-expected-state",
+            "readiness-state-verification",
+            "completion-does-not-precede-readiness-result",
+            "order-verification-reads-proof-subjects",
+            "readiness-order-verification"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "initialization-attempt-performs-operation"
+            },
+            {
+              "pattern": "initialization-attempt-targets-capability"
+            },
+            {
+              "pattern": "initialization-precedes-readiness-probe"
+            },
+            {
+              "pattern": "readiness-probe-performs-operation"
+            },
+            {
+              "pattern": "readiness-probe-targets-capability"
+            },
+            {
+              "pattern": "readiness-result-accepts-probe"
+            },
+            {
+              "pattern": "readiness-probe-precedes-result"
+            },
+            {
+              "pattern": "completion-report-completes-initialization"
+            },
+            {
+              "pattern": "initialization-precedes-completion-report"
+            },
+            {
+              "pattern": "expected-ready-state-conforms-to-criterion"
+            },
+            {
+              "pattern": "readiness-observation-records-state"
+            },
+            {
+              "pattern": "state-verification-reads-proof-subjects"
+            },
+            {
+              "pattern": "readiness-result-matches-expected-state"
+            },
+            {
+              "pattern": "readiness-state-verification"
+            },
+            {
+              "pattern": "verification-target-ready-state"
+            },
+            {
+              "pattern": "completion-does-not-precede-readiness-result"
+            },
+            {
+              "pattern": "order-verification-reads-proof-subjects"
+            },
+            {
+              "pattern": "readiness-order-verification"
+            },
+            {
+              "pattern": "verification-target-readiness-order"
+            },
+            {
+              "pattern": "proof-population"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-initialization-operation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-initialization-operation-types",
+      "variant_id": "reject-role-initialization-operation-types",
+      "weakened_profile_digest": "c46d309a688f03a88a030bfa7ccaf7f1cc7cd2154266e745f81f58a82eba9db5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:command",
+            "cc:operation",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-initialization-operation-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-initialization-operation-identity-kinds",
+      "variant_id": "reject-role-initialization-operation-identity-kinds",
+      "weakened_profile_digest": "e0df0b32fdb22c575a4b91d1e2a8bcb75ced20b124a50303024415a805bb4dd9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-readiness-operation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-readiness-operation-types",
+      "variant_id": "reject-role-readiness-operation-types",
+      "weakened_profile_digest": "0c4a9730716d66f00af42901c80759339c07ce14ef77b0ca9204d8761bcd10a5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:command",
+            "cc:operation",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-readiness-operation-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-readiness-operation-identity-kinds",
+      "variant_id": "reject-role-readiness-operation-identity-kinds",
+      "weakened_profile_digest": "7c50cc8c2853d167ef7aef450f51b5f6ddd13444475965f44258f153f874de1c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-capability-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-capability-types",
+      "variant_id": "reject-role-capability-types",
+      "weakened_profile_digest": "b6fea64146fb02af4f5dc211e9275fb47deccdf5e8cad7d4913bb06e256254da",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:capability",
+            "cc:resource",
+            "cc:runtime_component",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-capability-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-capability-identity-kinds",
+      "variant_id": "reject-role-capability-identity-kinds",
+      "weakened_profile_digest": "3289b388c51486d24b5ce7ffdc37364e8dfac959d2d231afc1f8e1fbfc52fc7a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-capability-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "reject-role-capability-cardinality",
+      "variant_id": "reject-role-capability-cardinality",
+      "weakened_profile_digest": "af8d813f4a3fbb5a4b997b4fb590f2cf98dc71ba291af3a708fd53013ce11a88",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/cardinality",
+          "value": "one_or_more"
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-initialization-attempt-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-initialization-attempt-types",
+      "variant_id": "reject-role-initialization-attempt-types",
+      "weakened_profile_digest": "9f9465a50d2b11b188bbccb05df4c8f22cbc12bc6c9b67dcd317afd5568be166",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-readiness-probe-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-readiness-probe-types",
+      "variant_id": "reject-role-readiness-probe-types",
+      "weakened_profile_digest": "9123b91277645dfc1a1b88eb0d19754773ff2a1f7abb5cac71b12b22c9305760",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-readiness-result-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-readiness-result-types",
+      "variant_id": "reject-role-readiness-result-types",
+      "weakened_profile_digest": "a3cb963dabedd3bb99b2e75683b144fed63d423bb8dea3b532cac3fdb7e9f4f1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:event",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-completion-report-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-completion-report-types",
+      "variant_id": "reject-role-completion-report-types",
+      "weakened_profile_digest": "172f0f87925fadfc0fef4ac8a5fe566d198cbb001d0cb756bbd2cdf21dc7de58",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:event",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-expected-ready-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-expected-ready-state-types",
+      "variant_id": "reject-role-expected-ready-state-types",
+      "weakened_profile_digest": "74749e032950c6e9c00b2bd5e762f9697e7f33a9899f161ac30be21d3a5bcca6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observed-ready-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-observed-ready-state-types",
+      "variant_id": "reject-role-observed-ready-state-types",
+      "weakened_profile_digest": "26ffab25d24c00a28770227ff4e233e48f27831e7afa477179e03ed0410fbd67",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-readiness-observation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-readiness-observation-types",
+      "variant_id": "reject-role-readiness-observation-types",
+      "weakened_profile_digest": "a10a09161ebfb7b33904b0d703c84a456a84e3180efcee5c5ea78c0aeb008253",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-readiness-state-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-readiness-state-verification-types",
+      "variant_id": "reject-role-readiness-state-verification-types",
+      "weakened_profile_digest": "d8c8609c85d70da8cb66566d585b28e6fef586441a067a1948cf455f4a10d7d4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-readiness-order-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-readiness-order-verification-types",
+      "variant_id": "reject-role-readiness-order-verification-types",
+      "weakened_profile_digest": "87487754ddc92d3e6340e6c467a3fa0dbf490e31e8536976684d348e104c44c7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-success-criterion-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-success-criterion-types",
+      "variant_id": "reject-role-success-criterion-types",
+      "weakened_profile_digest": "cc1308909dac10705df7157572d2d55807740a01264eccefe12ad1bec00a71b9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:criterion",
+            "cc:invariant",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-success-criterion-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "reject-role-success-criterion-cardinality",
+      "variant_id": "reject-role-success-criterion-cardinality",
+      "weakened_profile_digest": "23cf0fbc0149c00dcda8f068b0d3a4b1c01e6a52e41244d9c6733544a4bdef31",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-not-ready-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-not-ready-condition-types",
+      "variant_id": "reject-role-not-ready-condition-types",
+      "weakened_profile_digest": "505f88ce012004160e462a0a13796860b73120dcfe2d4f1f585cf4f620fd1f1c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:criterion",
+            "cc:invariant",
+            "cc:state",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-premature-completion-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-premature-completion-condition-types",
+      "variant_id": "reject-role-premature-completion-condition-types",
+      "weakened_profile_digest": "931dc92933f4a281470ef79fc1529127f4e44529467e73e7f9be8e38f5a9e29b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:criterion",
+            "cc:invariant",
+            "cc:state",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-distinct-reference-role-sets",
+      "variant_id": "reject-distinct-reference-role-sets",
+      "weakened_profile_digest": "7f70dab737cf57294055dc25c3354d25e72c006d367a075521b05bb2b346b7a2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "verification-relations",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "reject-verification-relations",
+      "variant_id": "reject-verification-relations",
+      "weakened_profile_digest": "0931840d4ca2969d77aa414f2d2ed6f78c18d683a23568637b7c9fe20b267bf4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-target-ready-state",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "readiness-state-verification",
+              "target_claim_pattern_id": "completion-does-not-precede-readiness-result"
+            },
+            {
+              "pattern_id": "verification-target-readiness-order",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "readiness-order-verification",
+              "target_claim_pattern_id": "readiness-result-matches-expected-state"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/falsifying_proposition_template/subject_role",
+          "value": "completion_report"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/falsifying_proposition_template/operator",
+          "value": "reference:precedes"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/falsifying_proposition_template/applicability_context/operand_roles/0",
+          "value": "premature_completion_condition"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/falsifying_proposition_template/operands/0/role",
+          "value": "readiness_result"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/subject_role",
+          "value": "observed_ready_state"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/operator",
+          "value": "reference:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/applicability_context/operand_roles/0",
+          "value": "not_ready_condition"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/operands/0/role",
+          "value": "expected_ready_state"
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context/operand_roles/0",
+          "value": "premature_completion_condition"
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/1/applicability_context/operand_roles/0",
+          "value": "not_ready_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-falsifier-condition-bindings",
+      "variant_id": "reject-falsifier-condition-bindings",
+      "weakened_profile_digest": "ddeffe75eaf8628b08a09f6c7fc178ac7e08a755dd28263b491bd04af99c81f1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-target-ready-state",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "premature_completion_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-target-readiness-order",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "premature_completion_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/falsifying_proposition_template/applicability_context/operand_roles/0",
+          "value": "premature_completion_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "proof-collections",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-proof-collections",
+      "variant_id": "reject-proof-collections",
+      "weakened_profile_digest": "b8fe9596125a486945a3e8eea20cde8502fd2e11297fbcf02d493f11e09ee3ab",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "initialization-attempt-performs-operation"
+            },
+            {
+              "pattern": "initialization-attempt-targets-capability"
+            },
+            {
+              "pattern": "initialization-precedes-readiness-probe"
+            },
+            {
+              "pattern": "readiness-probe-performs-operation"
+            },
+            {
+              "pattern": "readiness-probe-targets-capability"
+            },
+            {
+              "pattern": "readiness-result-accepts-probe"
+            },
+            {
+              "pattern": "readiness-probe-precedes-result"
+            },
+            {
+              "pattern": "completion-report-completes-initialization"
+            },
+            {
+              "pattern": "initialization-precedes-completion-report"
+            },
+            {
+              "pattern": "expected-ready-state-conforms-to-criterion"
+            },
+            {
+              "pattern": "readiness-result-state"
+            },
+            {
+              "pattern": "readiness-observation-records-state"
+            },
+            {
+              "pattern": "state-verification-reads-proof-subjects"
+            },
+            {
+              "pattern": "readiness-result-matches-expected-state"
+            },
+            {
+              "pattern": "readiness-state-verification"
+            },
+            {
+              "pattern": "verification-target-ready-state"
+            },
+            {
+              "pattern": "completion-does-not-precede-readiness-result"
+            },
+            {
+              "pattern": "order-verification-reads-proof-subjects"
+            },
+            {
+              "pattern": "readiness-order-verification"
+            },
+            {
+              "pattern": "verification-target-readiness-order"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-collection-kind",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-collection-proof-population-collection-kind",
+      "variant_id": "reject-collection-proof-population-collection-kind",
+      "weakened_profile_digest": "3463f1250981c4fe7b7b42d28a329f65622c60c25c4f320464445372a151dea3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_kind",
+          "value": "ordered_sequence"
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/match_mode",
+          "value": "subsequence"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-candidate-quantifier",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "reject-collection-proof-population-candidate-quantifier",
+      "variant_id": "reject-collection-proof-population-candidate-quantifier",
+      "weakened_profile_digest": "99cf55b6b4411a4645ba80a0ac361d3be9a12cc72d2fedcb605ab3cf31de0942",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/candidate_quantifier",
+          "value": "any"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-collection-purpose",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-collection-proof-population-collection-purpose",
+      "variant_id": "reject-collection-proof-population-collection-purpose",
+      "weakened_profile_digest": "402807405f4acfb80f9a508915f1eaafcc4e77d1a2e7d89061cf35d8f2ac603e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_purpose",
+          "value": "proof_readiness_before_success_population_alternative"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-member-claim-pattern-ids",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "reject-collection-proof-population-member-claim-pattern-ids",
+      "variant_id": "reject-collection-proof-population-member-claim-pattern-ids",
+      "weakened_profile_digest": "857763f4fa071e2370e6d0644f375148a7885fc0ed0906c3309241ed1151c843",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "initialization-attempt-performs-operation",
+            "initialization-attempt-targets-capability",
+            "initialization-precedes-readiness-probe",
+            "readiness-probe-performs-operation",
+            "readiness-probe-targets-capability",
+            "readiness-result-accepts-probe",
+            "readiness-probe-precedes-result",
+            "completion-report-completes-initialization",
+            "initialization-precedes-completion-report",
+            "expected-ready-state-conforms-to-criterion",
+            "readiness-result-state",
+            "readiness-observation-records-state",
+            "state-verification-reads-proof-subjects",
+            "readiness-result-matches-expected-state",
+            "readiness-state-verification",
+            "completion-does-not-precede-readiness-result",
+            "order-verification-reads-proof-subjects"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "reject-satisfaction-expression",
+      "variant_id": "reject-satisfaction-expression",
+      "weakened_profile_digest": "664c23cdccd94bf9b875885c19f3dd5b3c0b8d1d8ba59dd889aa3e6c860f76e0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "initialization-attempt-performs-operation"
+              },
+              {
+                "pattern": "initialization-attempt-targets-capability"
+              },
+              {
+                "pattern": "initialization-precedes-readiness-probe"
+              },
+              {
+                "pattern": "readiness-probe-performs-operation"
+              },
+              {
+                "pattern": "readiness-probe-targets-capability"
+              },
+              {
+                "pattern": "readiness-result-accepts-probe"
+              },
+              {
+                "pattern": "readiness-probe-precedes-result"
+              },
+              {
+                "pattern": "completion-report-completes-initialization"
+              },
+              {
+                "pattern": "initialization-precedes-completion-report"
+              },
+              {
+                "pattern": "expected-ready-state-conforms-to-criterion"
+              },
+              {
+                "pattern": "readiness-observation-records-state"
+              },
+              {
+                "pattern": "state-verification-reads-proof-subjects"
+              },
+              {
+                "pattern": "readiness-result-matches-expected-state"
+              },
+              {
+                "pattern": "readiness-state-verification"
+              },
+              {
+                "pattern": "verification-target-ready-state"
+              },
+              {
+                "pattern": "completion-does-not-precede-readiness-result"
+              },
+              {
+                "pattern": "order-verification-reads-proof-subjects"
+              },
+              {
+                "pattern": "readiness-order-verification"
+              },
+              {
+                "pattern": "verification-target-readiness-order"
+              },
+              {
+                "pattern": "proof-population"
+              }
+            ]
+          }
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "initialization-attempt-performs-operation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "initialization_attempt",
+                "operator": "reference:performs",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "initialization_operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "initialization-attempt-targets-capability",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "initialization_attempt",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "capability"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "initialization-precedes-readiness-probe",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "initialization_attempt",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_probe"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-probe-performs-operation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_probe",
+                "operator": "reference:performs",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "initialization_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-probe-targets-capability",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_probe",
+                "operator": "reference:targets",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "initialization_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "capability"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-result-accepts-probe",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_result",
+                "operator": "reference:accepts",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "readiness_probe"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_probe"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-probe-precedes-result",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_probe",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "completion-report-completes-initialization",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "completion_report",
+                "operator": "reference:completes",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "initialization_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "initialization_attempt"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "initialization-precedes-completion-report",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "initialization_attempt",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "completion_report"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "expected-ready-state-conforms-to-criterion",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "expected_ready_state",
+                "operator": "reference:conforms_to",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "success_criterion"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-observation-records-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "readiness_probe"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_ready_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "state-verification-reads-proof-subjects",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_state_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "readiness_probe"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "capability"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_probe"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_observation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-result-matches-expected-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observed_ready_state",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "readiness_probe"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_ready_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-state-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "audit",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_state_verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "observed_ready_state",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "not_ready_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_ready_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "completion-does-not-precede-readiness-result",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "completion_report",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "order-verification-reads-proof-subjects",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_order_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "initialization_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "initialization_attempt"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_probe"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "completion_report"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "readiness-order-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "audit",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "readiness_order_verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "completion_report"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "completion_report",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "premature_completion_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "readiness_result"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "initialization-attempt-performs-operation",
+            "initialization-attempt-targets-capability",
+            "initialization-precedes-readiness-probe",
+            "readiness-probe-performs-operation",
+            "readiness-probe-targets-capability",
+            "readiness-result-accepts-probe",
+            "readiness-probe-precedes-result",
+            "completion-report-completes-initialization",
+            "initialization-precedes-completion-report",
+            "expected-ready-state-conforms-to-criterion",
+            "readiness-observation-records-state",
+            "state-verification-reads-proof-subjects",
+            "readiness-result-matches-expected-state",
+            "readiness-state-verification",
+            "completion-does-not-precede-readiness-result",
+            "order-verification-reads-proof-subjects",
+            "readiness-order-verification"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-matches-expected-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-matches-expected-state-proposition-operator",
+      "variant_id": "reject-claim-readiness-result-matches-expected-state-proposition-operator",
+      "weakened_profile_digest": "830623845416673c3bc3c8257eeaf6efcfe4290013ed5f7e6b38e50791127ee0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operator",
+          "value": "reference:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/falsifying_proposition_template/operator",
+          "value": "reference:equals"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-attempt-performs-operation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-initialization-attempt-performs-operation-modalities",
+      "variant_id": "reject-claim-initialization-attempt-performs-operation-modalities",
+      "weakened_profile_digest": "1f5391ace7fba36a1dab23cd7fcabc45d7ea1e157505b7cf1b816537c138f27c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-attempt-performs-operation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-attempt-performs-operation-proposition-subject",
+      "variant_id": "reject-claim-initialization-attempt-performs-operation-proposition-subject",
+      "weakened_profile_digest": "9df0d68241d9339695f6f5688e27dc98634a903e799cbc4e4c060bcd9cd456e4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-attempt-performs-operation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-attempt-performs-operation-proposition-operator",
+      "variant_id": "reject-claim-initialization-attempt-performs-operation-proposition-operator",
+      "weakened_profile_digest": "823d7f78fa82f24fc66c191cf2f7626d5f1a5beefbed5b616784fbabc4355aad",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-attempt-performs-operation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-attempt-performs-operation-proposition-operand-0-role",
+      "variant_id": "reject-claim-initialization-attempt-performs-operation-proposition-operand-0-role",
+      "weakened_profile_digest": "4840d609bb9dd0dc26a6a7e5c5dcd8591746a673a43b1969ae5ace52f67a379d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-attempt-targets-capability-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-initialization-attempt-targets-capability-modalities",
+      "variant_id": "reject-claim-initialization-attempt-targets-capability-modalities",
+      "weakened_profile_digest": "af11f37d4800358f66a7d14cd5a8de6e8d306eb8b7e31aaf0c8029e541f13263",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-attempt-targets-capability-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-attempt-targets-capability-proposition-subject",
+      "variant_id": "reject-claim-initialization-attempt-targets-capability-proposition-subject",
+      "weakened_profile_digest": "64123778453a293ea8c31ee63396dfcda229fb592b77d859e7c6473c737cf507",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-attempt-targets-capability-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-attempt-targets-capability-proposition-operator",
+      "variant_id": "reject-claim-initialization-attempt-targets-capability-proposition-operator",
+      "weakened_profile_digest": "959417388d7eddcc68bf85bf7802d0cb3294073c3303f60da7c201e545584ff5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-attempt-targets-capability-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-attempt-targets-capability-proposition-operand-0-role",
+      "variant_id": "reject-claim-initialization-attempt-targets-capability-proposition-operand-0-role",
+      "weakened_profile_digest": "3837f59aa0b1b0112f37a980692fc071b672948125aa7180b0151ee001fcf593",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-precedes-readiness-probe-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-initialization-precedes-readiness-probe-modalities",
+      "variant_id": "reject-claim-initialization-precedes-readiness-probe-modalities",
+      "weakened_profile_digest": "72d7bffc4cdcd23c9c97bf1607ab75111b8a4debc08e4e8fc11aca991a85c052",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-precedes-readiness-probe-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-precedes-readiness-probe-proposition-subject",
+      "variant_id": "reject-claim-initialization-precedes-readiness-probe-proposition-subject",
+      "weakened_profile_digest": "7715b46689ab3c8c843ac77ffe81dc6b5248320a6a2cd6409becd5496466de13",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-precedes-readiness-probe-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-precedes-readiness-probe-proposition-operator",
+      "variant_id": "reject-claim-initialization-precedes-readiness-probe-proposition-operator",
+      "weakened_profile_digest": "e0d8a1d586839d9b7fba073c922783d66a240ecb9ec6a43eb340bf560756658b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-precedes-readiness-probe-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-precedes-readiness-probe-proposition-operand-0-role",
+      "variant_id": "reject-claim-initialization-precedes-readiness-probe-proposition-operand-0-role",
+      "weakened_profile_digest": "b1cec5b41203c31353fb2cc3f8b058c44940288b0e9c49bf2cfda48f921d527f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-performs-operation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-readiness-probe-performs-operation-modalities",
+      "variant_id": "reject-claim-readiness-probe-performs-operation-modalities",
+      "weakened_profile_digest": "3d025892c672a1120027138ae01f49a0e23f5529647b4bb9666e4fe694afc0e7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-performs-operation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-performs-operation-proposition-subject",
+      "variant_id": "reject-claim-readiness-probe-performs-operation-proposition-subject",
+      "weakened_profile_digest": "fa8bcaf92fe7d317694df19c238804e11dc2108770ab850351644e1246f83225",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-performs-operation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-performs-operation-proposition-operator",
+      "variant_id": "reject-claim-readiness-probe-performs-operation-proposition-operator",
+      "weakened_profile_digest": "756fe5075a1b6f3c92333a54a8638d64e2192d48557157c531005ee6f7250cf6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-performs-operation-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-performs-operation-proposition-applicability-mode",
+      "variant_id": "reject-claim-readiness-probe-performs-operation-proposition-applicability-mode",
+      "weakened_profile_digest": "cf6477bf625684607a11266edadeb15fe1ef3ea7df4cf56aaa4a6eaba725fd50",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-performs-operation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-performs-operation-proposition-applicability-operands",
+      "variant_id": "reject-claim-readiness-probe-performs-operation-proposition-applicability-operands",
+      "weakened_profile_digest": "635a5928495095c319e5eed5406daad3cf3ca1d5a8fa1f97b4cc57999d073ebb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "success_criterion"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-performs-operation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-performs-operation-proposition-operand-0-role",
+      "variant_id": "reject-claim-readiness-probe-performs-operation-proposition-operand-0-role",
+      "weakened_profile_digest": "b3d6a352bd6cf79d778346f2d3bf0a3be6a298fcef16e564a3067ce1d05af63d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-targets-capability-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-readiness-probe-targets-capability-modalities",
+      "variant_id": "reject-claim-readiness-probe-targets-capability-modalities",
+      "weakened_profile_digest": "7491786d59fe376205bf90c43e8b700966cfd24aaea770696cf7de24b9cf9cea",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-targets-capability-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-targets-capability-proposition-subject",
+      "variant_id": "reject-claim-readiness-probe-targets-capability-proposition-subject",
+      "weakened_profile_digest": "ccf0164d188676ef8d451e5a65423e477e543b8a7f1e512a64711ecc61626d6b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-targets-capability-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-targets-capability-proposition-operator",
+      "variant_id": "reject-claim-readiness-probe-targets-capability-proposition-operator",
+      "weakened_profile_digest": "b697ffb3c87e011a29902012bca2abc6888498bf942928301ec53b573972c6f1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-targets-capability-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-targets-capability-proposition-applicability-mode",
+      "variant_id": "reject-claim-readiness-probe-targets-capability-proposition-applicability-mode",
+      "weakened_profile_digest": "f5ae4f2ed5b3c307d22638d7b4d9938066defb0b6d37e1143f348cd0b6cfdb18",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-targets-capability-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-targets-capability-proposition-applicability-operands",
+      "variant_id": "reject-claim-readiness-probe-targets-capability-proposition-applicability-operands",
+      "weakened_profile_digest": "663bcd6d8a616117ed6f6ab4565b83a67f9def655e2bd1badc107c2637e6a12c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "success_criterion"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-targets-capability-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-targets-capability-proposition-operand-0-role",
+      "variant_id": "reject-claim-readiness-probe-targets-capability-proposition-operand-0-role",
+      "weakened_profile_digest": "b3ba6e74c86816522d380dd7c92fe7ebf1d141c8e99189749d68999328fb4994",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-accepts-probe-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-readiness-result-accepts-probe-modalities",
+      "variant_id": "reject-claim-readiness-result-accepts-probe-modalities",
+      "weakened_profile_digest": "091eb1b4b4971a6d85a76830e1f0484c91a40631bb78c8eaeaba0f0e6669153a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-accepts-probe-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-accepts-probe-proposition-subject",
+      "variant_id": "reject-claim-readiness-result-accepts-probe-proposition-subject",
+      "weakened_profile_digest": "95fd130fd67be30c0639f7abe151d7f1c59110f3096e479b40504d60cff8321e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-accepts-probe-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-accepts-probe-proposition-operator",
+      "variant_id": "reject-claim-readiness-result-accepts-probe-proposition-operator",
+      "weakened_profile_digest": "86740eb3303bd346a4840e64a34da53a3e273b468c01d73d5235ae8a8a40f7c5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-accepts-probe-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-accepts-probe-proposition-applicability-mode",
+      "variant_id": "reject-claim-readiness-result-accepts-probe-proposition-applicability-mode",
+      "weakened_profile_digest": "40ab481da7576700be7f5bc493bf0a6000a8d9f2eb0a8f949394e09ccae25257",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-accepts-probe-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-accepts-probe-proposition-applicability-operands",
+      "variant_id": "reject-claim-readiness-result-accepts-probe-proposition-applicability-operands",
+      "weakened_profile_digest": "82fc4d526d39d134c2d10611842b1b384805ca513b4518662aa9f2bb6280749d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "success_criterion"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-accepts-probe-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-accepts-probe-proposition-operand-0-role",
+      "variant_id": "reject-claim-readiness-result-accepts-probe-proposition-operand-0-role",
+      "weakened_profile_digest": "9bd6d42ed688beac9b5b9d4b2b229b17714157e13e00330a2d912169d0c83bca",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-precedes-result-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-readiness-probe-precedes-result-modalities",
+      "variant_id": "reject-claim-readiness-probe-precedes-result-modalities",
+      "weakened_profile_digest": "8a4a07383eb11efcf7878e324f9199fb70ce6e3cbe80321608f718b7a96d9500",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-precedes-result-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-precedes-result-proposition-subject",
+      "variant_id": "reject-claim-readiness-probe-precedes-result-proposition-subject",
+      "weakened_profile_digest": "682caff5784efcdde4d851dd71eb3ab3ebc4b7ac592a58aa51aaeea324c62d7a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-precedes-result-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-precedes-result-proposition-operator",
+      "variant_id": "reject-claim-readiness-probe-precedes-result-proposition-operator",
+      "weakened_profile_digest": "a51695267ead36a2e195aa7ab911aac205b0c251aa39ae7cfd02152fa11cf560",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-probe-precedes-result-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-probe-precedes-result-proposition-operand-0-role",
+      "variant_id": "reject-claim-readiness-probe-precedes-result-proposition-operand-0-role",
+      "weakened_profile_digest": "1fc642a6ac3d912b377235803c32abe0b071ec478acd11853363b3b88e823027",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-completion-report-completes-initialization-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-completion-report-completes-initialization-modalities",
+      "variant_id": "reject-claim-completion-report-completes-initialization-modalities",
+      "weakened_profile_digest": "eb0faaf3d5b5de49659fd6614ea1e8369da05885eddb50f95e12f37c68af1afd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-completion-report-completes-initialization-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-completion-report-completes-initialization-proposition-subject",
+      "variant_id": "reject-claim-completion-report-completes-initialization-proposition-subject",
+      "weakened_profile_digest": "de340b6161ebad69bcf9c8bec9701d295a8ae934c4aeeb533d09c47e4761cb28",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-completion-report-completes-initialization-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-completion-report-completes-initialization-proposition-operator",
+      "variant_id": "reject-claim-completion-report-completes-initialization-proposition-operator",
+      "weakened_profile_digest": "87c16ce091d125a2cbc3d94d6f1d3bbb1d86dba0aec84f1eaefda49e5ecd105e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-completion-report-completes-initialization-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-completion-report-completes-initialization-proposition-applicability-mode",
+      "variant_id": "reject-claim-completion-report-completes-initialization-proposition-applicability-mode",
+      "weakened_profile_digest": "bd5087d46f1a350acb0cafe2daecf71fcb06bb766cc8040aeef3d1851b33b326",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-completion-report-completes-initialization-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-completion-report-completes-initialization-proposition-applicability-operands",
+      "variant_id": "reject-claim-completion-report-completes-initialization-proposition-applicability-operands",
+      "weakened_profile_digest": "5b4816e8b50b68c01ee22e0db623293dbf058f218cd08a3135137a522120c740",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "success_criterion"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-completion-report-completes-initialization-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-completion-report-completes-initialization-proposition-operand-0-role",
+      "variant_id": "reject-claim-completion-report-completes-initialization-proposition-operand-0-role",
+      "weakened_profile_digest": "755951e777c31ef7cc6544d662897a6e99960fa1ce644699b34faaf461de7ded",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-precedes-completion-report-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-initialization-precedes-completion-report-modalities",
+      "variant_id": "reject-claim-initialization-precedes-completion-report-modalities",
+      "weakened_profile_digest": "ca6297d403622eabf3624c67e7907d1b377630ca9763bdfb540293965130ea76",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-precedes-completion-report-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-precedes-completion-report-proposition-subject",
+      "variant_id": "reject-claim-initialization-precedes-completion-report-proposition-subject",
+      "weakened_profile_digest": "b6099f70e58ed0146ade302af964827367c6c22de18707fcecfdfcbae916d893",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-precedes-completion-report-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-precedes-completion-report-proposition-operator",
+      "variant_id": "reject-claim-initialization-precedes-completion-report-proposition-operator",
+      "weakened_profile_digest": "1f88560428e7e34f594d6e65fd756937f57d76867968a10d93fc94cc4749b2f4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-initialization-precedes-completion-report-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-initialization-precedes-completion-report-proposition-operand-0-role",
+      "variant_id": "reject-claim-initialization-precedes-completion-report-proposition-operand-0-role",
+      "weakened_profile_digest": "f9474647c3359d6a6f97bdc23d7a5d6f13568d4cae451bb9946cee1994f61c60",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-expected-ready-state-conforms-to-criterion-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-expected-ready-state-conforms-to-criterion-modalities",
+      "variant_id": "reject-claim-expected-ready-state-conforms-to-criterion-modalities",
+      "weakened_profile_digest": "4756705483f93871d6dbfa8bc4a6f28caff573e37bf645742e5778eb029531ab",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-expected-ready-state-conforms-to-criterion-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-expected-ready-state-conforms-to-criterion-proposition-subject",
+      "variant_id": "reject-claim-expected-ready-state-conforms-to-criterion-proposition-subject",
+      "weakened_profile_digest": "ee7543d8edaacc19a1037a03f599a9df276fe261a3bb01ff9074657446b298ca",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/subject_role",
+          "value": "capability"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-expected-ready-state-conforms-to-criterion-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-expected-ready-state-conforms-to-criterion-proposition-operator",
+      "variant_id": "reject-claim-expected-ready-state-conforms-to-criterion-proposition-operator",
+      "weakened_profile_digest": "9e4462351433a512f7ee1a1e5371370f4637556f0b963a842c7a15523090d256",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-expected-ready-state-conforms-to-criterion-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-expected-ready-state-conforms-to-criterion-proposition-operand-0-role",
+      "variant_id": "reject-claim-expected-ready-state-conforms-to-criterion-proposition-operand-0-role",
+      "weakened_profile_digest": "9586b27b4d25d993b80774434d54f0d967fdcfbe57b1f117fed928238213a3fa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/0/role",
+          "value": "capability"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-readiness-result-state-modalities",
+      "variant_id": "reject-claim-readiness-result-state-modalities",
+      "weakened_profile_digest": "2639f601b65ad40fd2bf491ca744babde492ba489cd20fb95fbf973ff1b04625",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-state-proposition-subject",
+      "variant_id": "reject-claim-readiness-result-state-proposition-subject",
+      "weakened_profile_digest": "294a519ee414b41fde8c62bddcc8fae1f80462c32bcdcbd4be9d88687a559b41",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-state-proposition-operator",
+      "variant_id": "reject-claim-readiness-result-state-proposition-operator",
+      "weakened_profile_digest": "80bc751d68dbaa9069c89ffe51e6fed01dea803ce38288fb95fc602dc3e3ea6d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-state-proposition-applicability-mode",
+      "variant_id": "reject-claim-readiness-result-state-proposition-applicability-mode",
+      "weakened_profile_digest": "71fe9c62f3e0fec820e1c3d5090c5686e80461423fc0a46f1166d035d4a5c9aa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-state-proposition-applicability-operands",
+      "variant_id": "reject-claim-readiness-result-state-proposition-applicability-operands",
+      "weakened_profile_digest": "38ccfb52224c04e1e837ae8b2cee2ada540bf3f5ad5a8426be9bb5dc9990ba3d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "success_criterion"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-state-proposition-operand-0-role",
+      "variant_id": "reject-claim-readiness-result-state-proposition-operand-0-role",
+      "weakened_profile_digest": "7ef0b760481faebe5bb38fb9f6eda819f81af4c655b642e94d01360dfedf499e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-observation-records-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-readiness-observation-records-state-modalities",
+      "variant_id": "reject-claim-readiness-observation-records-state-modalities",
+      "weakened_profile_digest": "244d8b729fb3773dc99f94f591f112e15eba82d5ae59e074c6cc9f99f30f8c7c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-observation-records-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-observation-records-state-proposition-subject",
+      "variant_id": "reject-claim-readiness-observation-records-state-proposition-subject",
+      "weakened_profile_digest": "ef3821bf1ece4ac91536a93b553bf3a968373dea9806efdb11d7729a5edc78a3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-observation-records-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-observation-records-state-proposition-operator",
+      "variant_id": "reject-claim-readiness-observation-records-state-proposition-operator",
+      "weakened_profile_digest": "81ea40b62a33d715fca6be02fa80e9ec4c8d86451813ab8c5d0b5a35b380ac0a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-observation-records-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-observation-records-state-proposition-applicability-mode",
+      "variant_id": "reject-claim-readiness-observation-records-state-proposition-applicability-mode",
+      "weakened_profile_digest": "91f5d6553618d2190cfef0c472549afc5720fd16c123dc05dab8a58645b992ef",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-observation-records-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-observation-records-state-proposition-applicability-operands",
+      "variant_id": "reject-claim-readiness-observation-records-state-proposition-applicability-operands",
+      "weakened_profile_digest": "87e8a62e9fe9910a999f8682be005645c4dad048d5a7f5e930c43f1bb91448fe",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "success_criterion"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-observation-records-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-observation-records-state-proposition-operand-0-role",
+      "variant_id": "reject-claim-readiness-observation-records-state-proposition-operand-0-role",
+      "weakened_profile_digest": "94c1e35b9afd174276d7b8cffb6cbaf5ceb4594c71dc7113f962f1643586db9b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-state-verification-reads-proof-subjects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-state-verification-reads-proof-subjects-modalities",
+      "variant_id": "reject-claim-state-verification-reads-proof-subjects-modalities",
+      "weakened_profile_digest": "84cf28acb3224bb723fca229cecf3ac4186d9a8356722dd24b3f54c98c01b656",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-state-verification-reads-proof-subjects-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-state-verification-reads-proof-subjects-proposition-subject",
+      "variant_id": "reject-claim-state-verification-reads-proof-subjects-proposition-subject",
+      "weakened_profile_digest": "901b477e9110f7a0d57c3f73b56c8fd17b6b66a62409167dfae9a0cfb9430ad2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-state-verification-reads-proof-subjects-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operator",
+      "variant_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operator",
+      "weakened_profile_digest": "41acd513d7cef0ab7f4959679c6023faa0122cca0db4cc18a8b71ab6c25c8f0b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-state-verification-reads-proof-subjects-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-state-verification-reads-proof-subjects-proposition-applicability-mode",
+      "variant_id": "reject-claim-state-verification-reads-proof-subjects-proposition-applicability-mode",
+      "weakened_profile_digest": "c2dfb1002eabb5895c18eaf2fab57e7666166dfe248d4e3fc568cd1170331aa9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-state-verification-reads-proof-subjects-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-state-verification-reads-proof-subjects-proposition-applicability-operands",
+      "variant_id": "reject-claim-state-verification-reads-proof-subjects-proposition-applicability-operands",
+      "weakened_profile_digest": "b5a06e96cb3f577b35f8870ff7f45ea74d7b1cf1448930c707454f11cfea045c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "success_criterion"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-state-verification-reads-proof-subjects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operand-0-role",
+      "variant_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operand-0-role",
+      "weakened_profile_digest": "2df865ff9321e0f0ca5d12a1823756c819e4ee1d14ee0fc831b52f532f370ede",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-state-verification-reads-proof-subjects-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operand-1-role",
+      "variant_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operand-1-role",
+      "weakened_profile_digest": "b57817a0dd62253054048373a6e3eef750ccf45d346d5ccbaf48dce9594a0d39",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/1/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-state-verification-reads-proof-subjects-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operand-2-role",
+      "variant_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operand-2-role",
+      "weakened_profile_digest": "c228e9e04a20652bde4410552de1f7203b67dbe6022a1c1162381b8a2bce995c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/2/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-state-verification-reads-proof-subjects-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operand-3-role",
+      "variant_id": "reject-claim-state-verification-reads-proof-subjects-proposition-operand-3-role",
+      "weakened_profile_digest": "2f18a1a0fca6023410ece1637250f6b5a6de0ee756d7927ed48ce9fc082dd8f3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/3/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-matches-expected-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-readiness-result-matches-expected-state-modalities",
+      "variant_id": "reject-claim-readiness-result-matches-expected-state-modalities",
+      "weakened_profile_digest": "5b0ac80e3fbcfa661bb2ea0729f62f91d9ec13ccb884aa64e9ef006988d6de40",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-matches-expected-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-matches-expected-state-proposition-applicability-mode",
+      "variant_id": "reject-claim-readiness-result-matches-expected-state-proposition-applicability-mode",
+      "weakened_profile_digest": "d50ab52928112236514a94d0f93c0c403c1c443d228544a8ebf3983b82b8acc6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-result-matches-expected-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-result-matches-expected-state-proposition-applicability-operands",
+      "variant_id": "reject-claim-readiness-result-matches-expected-state-proposition-applicability-operands",
+      "weakened_profile_digest": "865efb3791cbc7891f457cbba8e19a7ec694de1496ed16e8ebbb2f22da80397b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "success_criterion"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-state-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-readiness-state-verification-modalities",
+      "variant_id": "reject-claim-readiness-state-verification-modalities",
+      "weakened_profile_digest": "e65efcaac93ba439dfe5d88d8e041c7d2e9c16281a0f1b6a010974c2407ef524",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-state-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-state-verification-proposition-subject",
+      "variant_id": "reject-claim-readiness-state-verification-proposition-subject",
+      "weakened_profile_digest": "80a4f2ea5a17ff533c5938c7870fc1cf7294edda624645146870851204dc3db6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-state-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-state-verification-proposition-operator",
+      "variant_id": "reject-claim-readiness-state-verification-proposition-operator",
+      "weakened_profile_digest": "b0380417408e517ea66fbad6ac3daa0fdd19a755dec055f49805140d3347353a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-state-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-state-verification-proposition-operand-0-role",
+      "variant_id": "reject-claim-readiness-state-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "024ca3596d354388fb4b7055a4fc22a8154f7eff3b9a59ceac7b55a8547cd242",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-state-verification-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-readiness-state-verification-verification-methods",
+      "variant_id": "reject-claim-readiness-state-verification-verification-methods",
+      "weakened_profile_digest": "35e7d442abb9bf56c1dc08a2ca480dd0083fd74af8914e2ed8644b825822a341",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/verification_methods",
+          "value": [
+            "analysis",
+            "audit",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-completion-does-not-precede-readiness-result-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-completion-does-not-precede-readiness-result-modalities",
+      "variant_id": "reject-claim-completion-does-not-precede-readiness-result-modalities",
+      "weakened_profile_digest": "9eb54aa4043b46821cfbff87132272f8cb2547dfbca2903334601ab30cca284f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-order-verification-reads-proof-subjects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-order-verification-reads-proof-subjects-modalities",
+      "variant_id": "reject-claim-order-verification-reads-proof-subjects-modalities",
+      "weakened_profile_digest": "7a0fbf4d3009f43d1450f1a776bb17b77954af069ff7e1685fe969d3900f8003",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-order-verification-reads-proof-subjects-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-order-verification-reads-proof-subjects-proposition-subject",
+      "variant_id": "reject-claim-order-verification-reads-proof-subjects-proposition-subject",
+      "weakened_profile_digest": "52ce02aa2275ddb6ecb650c8ee460556f3996a0583c95ce152fef45bdaa653f9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-order-verification-reads-proof-subjects-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operator",
+      "variant_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operator",
+      "weakened_profile_digest": "7b33ae9ca33d275fe8c2d8799dc4c44907609648b93cf5794de25b626ccd3bd6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-order-verification-reads-proof-subjects-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-order-verification-reads-proof-subjects-proposition-applicability-mode",
+      "variant_id": "reject-claim-order-verification-reads-proof-subjects-proposition-applicability-mode",
+      "weakened_profile_digest": "3d6df7c0015c37ef178798bfbaeb035a519e777107d77cbfa86814041504a210",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/applicability_context/mode",
+          "value": "when"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-order-verification-reads-proof-subjects-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-order-verification-reads-proof-subjects-proposition-applicability-operands",
+      "variant_id": "reject-claim-order-verification-reads-proof-subjects-proposition-applicability-operands",
+      "weakened_profile_digest": "1aa1dd566823117dab0a8dc83d712fe4db415edb513e60ef0611dc813fd8f2aa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "success_criterion"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-order-verification-reads-proof-subjects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operand-0-role",
+      "variant_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operand-0-role",
+      "weakened_profile_digest": "37583f68b11ad32bea2a1d2ad6e8ad3317b865450ba3ae67724b09214c5bb22e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-order-verification-reads-proof-subjects-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operand-1-role",
+      "variant_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operand-1-role",
+      "weakened_profile_digest": "bd7c66210f14f3cc336411188a037381f6a5ae906428e193cf46f40120de61d1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operands/1/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-order-verification-reads-proof-subjects-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operand-2-role",
+      "variant_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operand-2-role",
+      "weakened_profile_digest": "b2ada044edb4663ea3387af6da21b878391897518adab6481a84b3064797e8c1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operands/2/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-order-verification-reads-proof-subjects-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operand-3-role",
+      "variant_id": "reject-claim-order-verification-reads-proof-subjects-proposition-operand-3-role",
+      "weakened_profile_digest": "1ee6683676b1da87433085563c2b138c6aac2b4b7cd4bd064c7586511ee9251f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operands/3/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-order-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-readiness-order-verification-modalities",
+      "variant_id": "reject-claim-readiness-order-verification-modalities",
+      "weakened_profile_digest": "565205517a7fbfe6209a7f210ca8aaa713513f2f9c2f10d7e6fc42acf992945b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-order-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-order-verification-proposition-subject",
+      "variant_id": "reject-claim-readiness-order-verification-proposition-subject",
+      "weakened_profile_digest": "accbf89a7baaf5e7aeaeed331f2cf4a1ecde67deb276a4ffdda73a54ea1caef2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/subject_role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-order-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-order-verification-proposition-operator",
+      "variant_id": "reject-claim-readiness-order-verification-proposition-operator",
+      "weakened_profile_digest": "2854d8bf7216e1e70a2c94a2dab0e4d2c9220547ac9063c1ff4ee0c2826231a2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/operator",
+          "value": "reference:uses"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-order-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-readiness-order-verification-proposition-operand-0-role",
+      "variant_id": "reject-claim-readiness-order-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "d9eb7749c324e4d16b74dfe439cfe80e13259efb626af2b5aaf122a5aabbf054",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/operands/0/role",
+          "value": "success_criterion"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-readiness-order-verification-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-readiness-order-verification-verification-methods",
+      "variant_id": "reject-claim-readiness-order-verification-verification-methods",
+      "weakened_profile_digest": "0845a8beab4fdf3034043c59f513a8472b7a0ed148d00b5e58c3db6f2db9e4c6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/verification_methods",
+          "value": [
+            "analysis",
+            "audit",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    }
+  ]
+}

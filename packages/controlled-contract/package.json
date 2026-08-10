@@ -1,0 +1,147 @@
+{
+  "name": "@agent-chassis/controlled-contract",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "Elastic-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-chassis/agent-chassis.git",
+    "directory": "packages/controlled-contract"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "current.d.mts",
+    "current.mjs",
+    "bin/assess-contract.mjs",
+    "bin/build-proof-plan.mjs",
+    "bin/discover-proof-intents.mjs",
+    "bin/inspect-proof-pack-bindings.mjs",
+    "bin/select-proof-packs.mjs",
+    "bin/describe-proof-pack.mjs",
+    "bin/check-contract.mjs",
+    "examples/minimal-controlled-acceptance-contract-v034.json",
+    "lib/admitted-proof-packs.mjs",
+    "lib/anonymous-structural-partitioner.mjs",
+    "lib/contract-assessment.d.mts",
+    "lib/contract-assessment.mjs",
+    "lib/multi-pack-assessment.d.mts",
+    "lib/multi-pack-assessment.mjs",
+    "lib/proof-intent-discovery.d.mts",
+    "lib/proof-intent-discovery.mjs",
+    "lib/proof-pack-binding-assistance.d.mts",
+    "lib/proof-pack-binding-assistance.mjs",
+    "lib/proof-plan-compiler.d.mts",
+    "lib/proof-plan-compiler.mjs",
+    "lib/proof-intent-selection.d.mts",
+    "lib/proof-intent-selection.mjs",
+    "lib/exact-binding-admission.mjs",
+    "lib/exact-binding-assessment.mjs",
+    "lib/exact-binding-capture.mjs",
+    "lib/exact-binding-common.mjs",
+    "lib/deterministic-projection.mjs",
+    "lib/deterministic-projection-primitives.mjs",
+    "lib/exact-binding-plain-data.mjs",
+    "lib/exact-binding.mjs",
+    "lib/native-contract-carrier-v034.mjs",
+    "lib/native-contract-carrier.mjs",
+    "lib/native-contract-dag.mjs",
+    "lib/native-contract-decomposition.mjs",
+    "lib/native-contract-runtime.mjs",
+    "lib/population-semantics-v034.mjs",
+    "lib/verification-profile-v034.mjs",
+    "lib/verification-profile.mjs",
+    "lib/vocabulary-v034.mjs",
+    "profiles/catalog.json",
+    "proof-intents/catalog.json",
+    "profiles/*/*/profile.json",
+    "profiles/*/*/admission.json",
+    "profiles/*/*/evaluation-input.template.json",
+    "profiles/*/*/exact-binding.json",
+    "profiles/*/*/exact-binding-certification.json",
+    "schema/controlled-acceptance-contract.experimental.v0.2.schema.json",
+    "schema/controlled-contract-admitted-proof-pack.v1.schema.json",
+    "schema/controlled-contract-admitted-proof-pack.v2.schema.json",
+    "schema/controlled-contract-assessment.v1.schema.json",
+    "schema/controlled-contract-multi-pack-assessment.v1.schema.json",
+    "schema/controlled-contract-proof-intent-discovery.v1.schema.json",
+    "schema/controlled-contract-proof-pack-binding-assistance.v1.schema.json",
+    "schema/controlled-contract-proof-intent-catalog.v1.schema.json",
+    "schema/controlled-contract-proof-pack-authoring.v1.schema.json",
+    "schema/controlled-contract-proof-pack-selection.v1.schema.json",
+    "schema/controlled-contract-proof-plan.v1.schema.json",
+    "schema/controlled-contract-proof-plan-request.v1.schema.json",
+    "schema/controlled-contract-exact-binding-assessment-request.v1.schema.json",
+    "schema/controlled-contract-exact-binding-certification-result.v1.schema.json",
+    "schema/controlled-contract-exact-binding-declaration.v1.schema.json",
+    "schema/controlled-contract-exact-binding-result.v1.schema.json",
+    "schema/controlled-contract-exact-binding-sources.v1.schema.json",
+    "schema/controlled-contract-proof-pack-catalog.v1.schema.json",
+    "schema/controlled-contract-verification-profile-input.experimental.v0.2.schema.json",
+    "schema/controlled-contract-verification-profile-result.experimental.v0.2.schema.json",
+    "schema/controlled-contract-verification-profile.experimental.v0.2.schema.json",
+    "vocabulary/**"
+  ],
+  "exports": {
+    ".": {
+      "types": "./current.d.mts",
+      "default": "./current.mjs"
+    },
+    "./current.mjs": {
+      "types": "./current.d.mts",
+      "default": "./current.mjs"
+    },
+    "./assessment": {
+      "types": "./lib/contract-assessment.d.mts",
+      "default": "./lib/contract-assessment.mjs"
+    },
+    "./multi-pack-assessment": {
+      "types": "./lib/multi-pack-assessment.d.mts",
+      "default": "./lib/multi-pack-assessment.mjs"
+    },
+    "./proof-intents": {
+      "types": "./lib/proof-intent-selection.d.mts",
+      "default": "./lib/proof-intent-selection.mjs"
+    },
+    "./proof-intent-discovery": {
+      "types": "./lib/proof-intent-discovery.d.mts",
+      "default": "./lib/proof-intent-discovery.mjs"
+    },
+    "./proof-pack-binding-assistance": {
+      "types": "./lib/proof-pack-binding-assistance.d.mts",
+      "default": "./lib/proof-pack-binding-assistance.mjs"
+    },
+    "./proof-plan-compiler": {
+      "types": "./lib/proof-plan-compiler.d.mts",
+      "default": "./lib/proof-plan-compiler.mjs"
+    },
+    "./proof-intents/catalog.json": "./proof-intents/catalog.json",
+    "./proof-packs": "./lib/admitted-proof-packs.mjs",
+    "./schema/*": "./schema/*",
+    "./profiles/*": "./profiles/*",
+    "./examples/*": "./examples/*",
+    "./vocabulary/*": "./vocabulary/*",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "controlled-contract": "bin/assess-contract.mjs",
+    "controlled-contract-build-proof-plan": "bin/build-proof-plan.mjs",
+    "controlled-contract-describe-proof-pack": "bin/describe-proof-pack.mjs",
+    "controlled-contract-discover-proof-intents": "bin/discover-proof-intents.mjs",
+    "controlled-contract-inspect-proof-pack-bindings": "bin/inspect-proof-pack-bindings.mjs",
+    "controlled-contract-select-proof-packs": "bin/select-proof-packs.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs test/runtime/*.test.mjs test/proof-packs/*.test.mjs test/development/*.test.mjs test/legacy/versions/*.test.mjs",
+    "build:admissions": "node test/support/build-admitted-proof-pack-catalog.mjs"
+  },
+  "dependencies": {
+    "ajv": "8.18.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
